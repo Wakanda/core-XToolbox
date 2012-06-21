@@ -1,0 +1,11 @@
+
+OTHER_LDFLAGS = -weak_framework icu
+
+
+
+
+
+
+
+
+
