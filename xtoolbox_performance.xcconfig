@@ -1,0 +1,4 @@
+#include "xtoolbox_base.xcconfig"
+#include "weak_icu_performance.xcconfig"
+
+PRODUCT_NAME = $(PROJECT_NAME)Perf;
