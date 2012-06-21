@@ -148,13 +148,7 @@ enum VConnectionHandler::E_WORK_STATUS VJSWConnectionHandler::Handle ( VError& o
 	fIsDone = true;
 	_SetEndPoint ( 0 );
 	WakeUpAllWaiters ( );
-	VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_CONTINUE,
-#else
-					WAKDebuggerServerMessage::SRV_CONTINUE_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "UNDEFINED" ) );
+	VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_CONTINUE, CVSTR ( "" ), CVSTR ( "UNDEFINED" ) );
 
 	return VConnectionHandler::eWS_DONE;
 }
@@ -209,21 +203,13 @@ bool VJSWConnectionHandler::IsHandling ( )
 	return bResult;
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
 void VJSWConnectionHandler::SetInfo ( IJSWDebuggerInfo* inInfo )
-#else
-void VJSWConnectionHandler::SetInfo( IWAKDebuggerInfo* inInfo )
-#endif
 {
 	if ( fDebuggerInfo == 0 )
 		fDebuggerInfo = inInfo;
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
 void VJSWConnectionHandler::SetSettings ( IJSWDebuggerSettings* inSettings )
-#else
-void VJSWConnectionHandler::SetSettings( IWAKDebuggerSettings* inSettings )
-#endif
 {
 	xbox_assert ( fDebuggerSettings == 0 || inSettings == 0 );
 
@@ -267,10 +253,10 @@ VError VJSWConnectionHandler::ReadFile ( VString inFileURL, VString & outContent
 {
 	VError				vError = VE_OK;
 
-#if VERSIONMAC
-	inFileURL. Remove ( 1, 7 );
+#if VERSIONWIN
+	inFileURL. Remove ( 1, 8 ); // Remove "file:///"
 #else
-	inFileURL. Remove ( 1, 8 );
+	inFileURL. Remove ( 1, 7 ); // Remove "file://"
 #endif
 
 	VURL::Decode ( inFileURL );
@@ -296,14 +282,10 @@ void VJSWConnectionHandler::ParseJSCoreURL ( VString & ioURL )
 {
 	if ( ioURL. BeginsWith ( CVSTR ( "file:///" ) ) )
 	{
-		ioURL. Remove ( 1, 8 );
-#if VERSIONMAC
-		VIndex			nIndex = ioURL. FindUniChar ( CHAR_SOLIDUS );
-		if ( nIndex > 0 )
-			ioURL. Remove ( 1, nIndex );
-		nIndex = ioURL. FindUniChar ( CHAR_SOLIDUS );
-		if ( nIndex > 0 )
-			ioURL. Remove ( 1, nIndex - 1 );
+#if VERSIONWIN
+		ioURL. Remove ( 1, 8 ); // Remove "file:///"
+#else
+		ioURL. Remove ( 1, 7 ); // Remove "file://"
 #endif
 	}
 
@@ -420,11 +402,7 @@ void VJSWConnectionHandler::SetSourcesRoot ( char* inRoot, int inLength )
 	VURL::Decode ( fSourcesRoot );
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
 VError VJSWConnectionHandler::SendContextList ( long inCommandID, uintptr_t* inContextIDs, IJSWDebuggerInfo::JSWD_CONTEXT_STATE* outStates, int inCount )
-#else
-VError VJSWConnectionHandler::SendContextList ( long inCommandID, uintptr_t* inContextIDs, IWAKDebuggerInfo::JSWD_CONTEXT_STATE* outStates, int inCount )
-#endif
 {
 	VError				vError = VE_OK;
 
@@ -444,13 +422,7 @@ VError VJSWConnectionHandler::SendContextList ( long inCommandID, uintptr_t* inC
 		vstrContext. FromLong8 ( inContextIDs [ i ] );
 		vbagContext-> SetString ( CrossfireKeys::id, vstrContext );
 
-		if ( outStates [ i ] ==
-#if !defined(WKA_USE_UNIFIED_DBG)
-				IJSWDebuggerInfo::JSWD_CS_PAUSED
-#else
-			IWAKDebuggerInfo::JSWD_CS_PAUSED
-#endif
-				)
+		if ( outStates [ i ] == IJSWDebuggerInfo::JSWD_CS_PAUSED )
 			vbagContext-> SetString ( CrossfireKeys::state, CVSTR ( "paused" ) );
 		else
 			vbagContext-> SetString ( CrossfireKeys::state, CVSTR ( "running" ) );
@@ -474,7 +446,6 @@ VError VJSWConnectionHandler::SendContextList ( long inCommandID, uintptr_t* inC
 
 	return vError;
 }
-
 
 VError VJSWConnectionHandler::SendPacket ( const VString & inBody )
 {
@@ -583,8 +554,6 @@ int VJSWConnectionHandler::SendBreakPoint (
 		VString				vstrURL ( inURL, inURLLength, VTC_UTF_16 );
 		if ( inURLLength > 0 )
 			ParseJSCoreURL ( vstrURL );
-
-		VURL::Decode ( vstrURL );
 
 		VString			vstrRelative;
 		if ( inURLLength > 0 )
@@ -756,25 +725,13 @@ VError VJSWConnectionHandler::AddCommand ( const VString & inCommand )
 		inCommand. GetSubString ( nSpace + 1, inCommand. GetLength ( ) - nSpace, vstrParameters );
 		vstrParameters. TrimeSpaces ( );
 
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_EVALUATE,
-#else
-					WAKDebuggerServerMessage::SRV_EVALUATE_MSG,
-#endif
-					vstrID, CVSTR ( "" ), vstrParameters );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_EVALUATE, vstrID, CVSTR ( "" ), vstrParameters );
 	}
 	else if (	inCommand. EqualToString ( CVSTR ( "localscope" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "local scope" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "lscope" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "ls" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_LOCAL_SCOPE,
-#else
-					WAKDebuggerServerMessage::SRV_LOCAL_SCOPE,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_LOCAL_SCOPE, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. Find ( CVSTR ( "setframe " ) ) == 1 ||
 				inCommand. Find ( CVSTR ( "sframe " ) ) == 1 ||
 				inCommand. Find ( CVSTR ( "sf " ) ) == 1 )
@@ -784,108 +741,48 @@ VError VJSWConnectionHandler::AddCommand ( const VString & inCommand )
 		inCommand. GetSubString ( nSpaceIndex + 1, inCommand. GetLength ( ) - nSpaceIndex, vstrParameters );
 		vstrParameters. TrimeSpaces ( );
 
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_SET_CALL_STACK_FRAME,
-#else
-					WAKDebuggerServerMessage::SRV_SET_CALL_STACK_FRAME,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ), vstrParameters );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_SET_CALL_STACK_FRAME, CVSTR ( "" ), CVSTR ( "" ), vstrParameters );
 	}
 	else if (	inCommand. EqualToString ( CVSTR ( "stepover" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "step over" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "sover" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_STEP_OVER,
-#else
-					WAKDebuggerServerMessage::SRV_STEP_OVER_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_STEP_OVER, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. EqualToString ( CVSTR ( "stepin" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "step in" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "sin" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_STEP_IN,
-#else
-					WAKDebuggerServerMessage::SRV_STEP_INTO_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_STEP_IN, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. EqualToString ( CVSTR ( "stepout" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "step out" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "sout" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_STEP_OUT,
-#else
-					WAKDebuggerServerMessage::SRV_STEP_OUT_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_STEP_OUT, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. EqualToString ( CVSTR ( "continue" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "c" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_CONTINUE,
-#else
-					WAKDebuggerServerMessage::SRV_CONTINUE_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_CONTINUE, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. EqualToString ( CVSTR ( "call stack" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "callstack" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "cstack" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "cs" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_CALL_STACK,
-#else
-					WAKDebuggerServerMessage::SRV_GET_CALLSTACK_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_CALL_STACK, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. EqualToString ( CVSTR ( "get source" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "getsource" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "gsource" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "gs" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_GET_SOURCE,
-#else
-					WAKDebuggerServerMessage::SRV_GET_SOURCE_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_GET_SOURCE, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. EqualToString ( CVSTR ( "get exception" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "getexception" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "gexception" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "ge" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_GET_EXCEPTION,
-#else
-					WAKDebuggerServerMessage::SRV_GET_EXCEPTION_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "UNDEFINED" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_GET_EXCEPTION, CVSTR ( "" ), CVSTR ( "UNDEFINED" ) );
 	else if (	inCommand. EqualToString ( CVSTR ( "abort script" ) ) ||
 				inCommand. EqualToString ( CVSTR ( "as" ) ) )
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_ABORT_SCRIPT,
-#else
-					WAKDebuggerServerMessage::SRV_ABORT,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_ABORT_SCRIPT, CVSTR ( "" ), CVSTR ( "" ) );
 	else if (	inCommand. Find ( CVSTR ( "sbp " ) ) == 1 )
 	{
 		VString		vstrParameters;
 		inCommand. GetSubString ( 5, inCommand. GetLength ( ) - 4, vstrParameters );
 		vstrParameters. TrimeSpaces ( );
 
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_SET_BREAK_POINT,
-#else
-					WAKDebuggerServerMessage::SRV_SET_BREAKPOINT_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ), vstrParameters );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_SET_BREAK_POINT, CVSTR ( "" ), CVSTR ( "" ), vstrParameters );
 	}
 	else if (	inCommand. Find ( CVSTR ( "rbp " ) ) == 1 )
 	{
@@ -893,13 +790,7 @@ VError VJSWConnectionHandler::AddCommand ( const VString & inCommand )
 		inCommand. GetSubString ( 5, inCommand. GetLength ( ) - 4, vstrParameters );
 		vstrParameters. TrimeSpaces ( );
 
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_REMOVE_BREAK_POINT,
-#else
-					WAKDebuggerServerMessage::SRV_REMOVE_BREAKPOINT_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ), vstrParameters );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_REMOVE_BREAK_POINT, CVSTR ( "" ), CVSTR ( "" ), vstrParameters );
 	}
 
 	else if (	inCommand. EqualToString ( CVSTR ( "quit" ) ) ||
@@ -932,13 +823,7 @@ VError VJSWConnectionHandler::AddCommand ( const VString & inCommand )
 		VJSWConnectionHandler::Write ( szchHelp1, ::strlen ( szchHelp1 ) );
 	}
 	else
-		return VJSWConnectionHandler::AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_UNKNOWN,
-#else
-					WAKDebuggerServerMessage::SRV_UNKNOWN_MSG,
-#endif
-					CVSTR ( "" ), CVSTR ( "" ) );
+		return VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_C_UNKNOWN, CVSTR ( "" ), CVSTR ( "" ) );
 
 	/* TODO: Should return a proper error. */
 	return VE_OK;
@@ -953,20 +838,13 @@ VError VJSWConnectionHandler::ClearCommands ( )
 	/* TODO: Should return a proper error. */
 	return VE_OK;
 }
-#if !defined(WKA_USE_UNIFIED_DBG)
+
 VError VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID )
-#else
-VError VJSWConnectionHandler::AddCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID )
-#endif
 {
 	return AddCommand ( inCommand, inID, inContextID, CVSTR ( "" ) );
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
 VError VJSWConnectionHandler::AddCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID, const VString & inParameters )
-#else
-VError VJSWConnectionHandler::AddCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID, const VString & inParameters )
-#endif
 {
 	fCommandsMutex. Lock ( );
 
@@ -980,7 +858,6 @@ VError VJSWConnectionHandler::AddCommand( IWAKDebuggerCommand::WAKDebuggerServer
 	/* TODO: Should return a proper error. */
 	return VE_OK;
 }
-
 
 VError VJSWConnectionHandler::AddCommand ( const VValueBag & inCommand )
 {
@@ -1015,13 +892,7 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			VString			vstrFrameIndex;
 			vbagArguments-> GetString ( CrossfireKeys::frameNumber, vstrFrameIndex );
 
-			vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_LOCAL_SCOPE,
-#else
-					WAKDebuggerServerMessage::SRV_LOCAL_SCOPE,
-#endif
-					vstrID, vstrContextID, vstrFrameIndex );
+			vError = AddCommand ( IJSWDebugger::JSWD_C_LOCAL_SCOPE, vstrID, vstrContextID, vstrFrameIndex );
 
 			vbagArguments-> Release ( );
 		}
@@ -1039,26 +910,14 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			VString			vstrFrameIndex;
 			vbagArguments-> GetString ( CrossfireKeys::frameNumber, vstrFrameIndex );
 
-			vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_SCOPES,
-#else
-					WAKDebuggerServerMessage::SRV_SCOPES,
-#endif
-					vstrID, vstrContextID, vstrFrameIndex );
+			vError = AddCommand ( IJSWDebugger::JSWD_C_SCOPES, vstrID, vstrContextID, vstrFrameIndex );
 
 			vbagArguments-> Release ( );
 		}
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "backtrace" ) ) )
 	{
-		vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_CALL_STACK,
-#else
-					WAKDebuggerServerMessage::SRV_GET_CALLSTACK_MSG,
-#endif
-					vstrID, vstrContextID );
+		vError = AddCommand ( IJSWDebugger::JSWD_C_CALL_STACK, vstrID, vstrContextID );
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "clearbreakpoint" ) ) )
 	{
@@ -1077,13 +936,7 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			vstrTarget. AppendCString ( " " );
 			vstrTarget. AppendLong ( nLine );
 
-			vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_REMOVE_BREAK_POINT,
-#else
-					WAKDebuggerServerMessage::SRV_REMOVE_BREAKPOINT_MSG,
-#endif
-					vstrID, vstrContextID, vstrTarget );
+			vError = AddCommand ( IJSWDebugger::JSWD_C_REMOVE_BREAK_POINT, vstrID, vstrContextID, vstrTarget );
 
 			vbagArguments-> Release ( );
 		}
@@ -1107,36 +960,18 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 
 ::DebugMsg ( "Crossfire set break point command" );
 			
-			vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_SET_BREAK_POINT,
-#else
-					WAKDebuggerServerMessage::SRV_SET_BREAKPOINT_MSG,
-#endif
-					vstrID, vstrContextID, vstrTarget );
+			vError = AddCommand ( IJSWDebugger::JSWD_C_SET_BREAK_POINT, vstrID, vstrContextID, vstrTarget );
 
 			vbagArguments-> Release ( );
 		}
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "suspend" ) ) )
 	{
-		vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_SUSPEND,
-#else
-					WAKDebuggerServerMessage::SRV_SUSPEND,
-#endif
-					vstrID, vstrContextID );
+		vError = AddCommand ( IJSWDebugger::JSWD_C_SUSPEND, vstrID, vstrContextID );
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "abort" ) ) )
 	{
-		vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_ABORT_SCRIPT,
-#else
-					WAKDebuggerServerMessage::SRV_ABORT,
-#endif
-					vstrID, vstrContextID );
+		vError = AddCommand ( IJSWDebugger::JSWD_C_ABORT_SCRIPT, vstrID, vstrContextID );
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "evaluate" ) ) )
 	{
@@ -1151,13 +986,7 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			VString			vstrExpression;
 			vbagArguments-> GetString ( CrossfireKeys::expression, vstrExpression );
 
-			vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_EVALUATE,
-#else
-					WAKDebuggerServerMessage::SRV_EVALUATE_MSG,
-#endif
-					vstrID, vstrContextID, vstrExpression );
+			vError = AddCommand ( IJSWDebugger::JSWD_C_EVALUATE, vstrID, vstrContextID, vstrExpression );
 
 			vbagArguments-> Release ( );
 		}
@@ -1175,13 +1004,7 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			VString			vstrHandle;
 			vbagArguments-> GetString ( CrossfireKeys::handle, vstrHandle );
 
-			vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_LOOKUP,
-#else
-					WAKDebuggerServerMessage::SRV_LOOKUP_MSG,
-#endif
-					vstrID, vstrContextID, vstrHandle );
+			vError = AddCommand ( IJSWDebugger::JSWD_C_LOOKUP, vstrID, vstrContextID, vstrHandle );
 
 			vbagArguments-> Release ( );
 		}
@@ -1199,67 +1022,33 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			VString			vstrFrame;
 			vbagArguments-> GetString ( CrossfireKeys::frameNumber, vstrFrame );
 
-			vError = AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_GET_SOURCE,
-#else
-					WAKDebuggerServerMessage::SRV_GET_SOURCE_MSG,
-#endif
-					vstrID, vstrContextID, vstrFrame );
+			vError = AddCommand ( IJSWDebugger::JSWD_C_GET_SOURCE, vstrID, vstrContextID, vstrFrame );
 
 			vbagArguments-> Release ( );
 		}
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "continue" ) ) )
 	{
-		AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_CONTINUE,
-#else
-					WAKDebuggerServerMessage::SRV_CONTINUE_MSG,
-#endif
-					vstrID, vstrContextID );
+		AddCommand ( IJSWDebugger::JSWD_C_CONTINUE, vstrID, vstrContextID );
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "stepover" ) ) )
 	{
-		AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_STEP_OVER,
-#else
-					WAKDebuggerServerMessage::SRV_STEP_OVER_MSG,
-#endif
-					vstrID, vstrContextID );
+		AddCommand ( IJSWDebugger::JSWD_C_STEP_OVER, vstrID, vstrContextID );
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "stepin" ) ) )
 	{
-		AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_STEP_IN,
-#else
-					WAKDebuggerServerMessage::SRV_STEP_INTO_MSG,
-#endif
-					vstrID, vstrContextID );
+		AddCommand ( IJSWDebugger::JSWD_C_STEP_IN, vstrID, vstrContextID );
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "stepout" ) ) )
 	{
-		AddCommand (
-#if !defined(WKA_USE_UNIFIED_DBG)
-					IJSWDebugger::JSWD_C_STEP_OUT,
-#else
-					WAKDebuggerServerMessage::SRV_STEP_OUT_MSG,
-#endif
-					vstrID, vstrContextID );
+		AddCommand ( IJSWDebugger::JSWD_C_STEP_OUT, vstrID, vstrContextID );
 	}
 	else if ( vstrCommand. EqualToString ( CVSTR ( "listcontexts" ) ) )
 	{
 		if ( fDebuggerInfo != 0 )
 		{
 			uintptr_t*									szContextIDs = 0;
-#if !defined(WKA_USE_UNIFIED_DBG)
 			IJSWDebuggerInfo::JSWD_CONTEXT_STATE*		szStates = 0;
-#else
-			IWAKDebuggerInfo::JSWD_CONTEXT_STATE*		szStates = 0;
-#endif
 			int											nCount = 0;
 			fDebuggerInfo-> GetContextList ( &szContextIDs, &szStates, nCount );
 
@@ -1307,101 +1096,7 @@ XBOX::DebugMsg ( CVSTR ( "Processed " ) + vstrCommand + CVSTR ( "\n\r" ) );
 	return vError;
 }
 
-
-#if !defined(WKA_USE_UNIFIED_DBG)
-#define K_SET_BRKPT			(IJSWDebugger::JSWD_C_SET_BREAK_POINT)
-#define K_REMOVE_BRKPT		(IJSWDebugger::JSWD_C_REMOVE_BREAK_POINT)
-IJSWDebuggerCommand* VJSWConnectionHandler::GetNextBreakPointCommand ( )
-#else
-#define K_SET_BRKPT			(WAKDebuggerServerMessage::SRV_SET_BREAKPOINT_MSG)
-#define K_REMOVE_BRKPT		(WAKDebuggerServerMessage::SRV_REMOVE_BREAKPOINT_MSG)
-IWAKDebuggerCommand* VJSWConnectionHandler::GetNextBreakPointCommand ( )
-#endif
-{
-	VJSWDebuggerCommand*		jswdCommand = 0;
-
-	fCommandsMutex. Lock ( );
-		vector<VJSWDebuggerCommand*>::iterator		iter = sClientCommands. begin ( );
-		while ( iter != sClientCommands. end ( ) )
-		{
-			if ( ( *iter )-> GetType ( ) == K_SET_BRKPT || ( *iter )-> GetType ( ) == K_REMOVE_BRKPT )
-			{
-				jswdCommand = *iter;
-				sClientCommands. erase ( iter );
-
-				break;
-			}
-
-			iter++;
-		}
-	fCommandsMutex. Unlock ( );
-
-	return jswdCommand;
-}
-
-#if !defined(WKA_USE_UNIFIED_DBG)
-#define K_C_SUSPEND			(IJSWDebugger::JSWD_C_SUSPEND)
-IJSWDebuggerCommand* VJSWConnectionHandler::GetNextSuspendCommand ( uintptr_t inContext )
-#else
-#define K_C_SUSPEND		(WAKDebuggerServerMessage::SRV_SUSPEND)
-IWAKDebuggerCommand* VJSWConnectionHandler::GetNextSuspendCommand ( uintptr_t inContext )
-#endif
-{
-	VJSWDebuggerCommand*		jswdCommand = 0;
-
-	fCommandsMutex. Lock ( );
-		vector<VJSWDebuggerCommand*>::iterator		iter = sClientCommands. begin ( );
-		while ( iter != sClientCommands. end ( ) )
-		{
-			if ( ( *iter )-> GetType ( ) == K_C_SUSPEND && ( *iter )-> HasSameContextID ( inContext ) )
-			{
-				jswdCommand = *iter;
-				sClientCommands. erase ( iter );
-
-				break;
-			}
-
-			iter++;
-		}
-	fCommandsMutex. Unlock ( );
-
-	return jswdCommand;
-}
-
-#if !defined(WKA_USE_UNIFIED_DBG)
-#define K_ABORT_SCRIPT		(IJSWDebugger::JSWD_C_ABORT_SCRIPT)
-IJSWDebuggerCommand* VJSWConnectionHandler::GetNextAbortScriptCommand ( uintptr_t inContext )
-#else
-#define K_ABORT_SCRIPT		(WAKDebuggerServerMessage::SRV_ABORT)
-IWAKDebuggerCommand* VJSWConnectionHandler::GetNextAbortScriptCommand ( uintptr_t inContext )
-#endif
-{
-	VJSWDebuggerCommand*		jswdCommand = 0;
-
-	fCommandsMutex. Lock ( );
-		vector<VJSWDebuggerCommand*>::iterator		iter = sClientCommands. begin ( );
-		while ( iter != sClientCommands. end ( ) )
-		{
-			if ( ( *iter )-> GetType ( ) == K_ABORT_SCRIPT && ( *iter )-> HasSameContextID ( inContext ) )
-			{
-				jswdCommand = *iter;
-				sClientCommands. erase ( iter );
-
-				break;
-			}
-
-			iter++;
-		}
-	fCommandsMutex. Unlock ( );
-
-	return jswdCommand;
-}
-
-#if !defined(WKA_USE_UNIFIED_DBG)
 IJSWDebuggerCommand* VJSWConnectionHandler::WaitForClientCommand ( uintptr_t inContext )
-#else
-IWAKDebuggerCommand* VJSWConnectionHandler::WaitForClientCommand( uintptr_t inContext )
-#endif
 {
 	/* Needs to be updated to handle multiple waiting threads */
 
@@ -1437,7 +1132,6 @@ IWAKDebuggerCommand* VJSWConnectionHandler::WaitForClientCommand( uintptr_t inCo
 	return jswdCommand;
 }
 
-
 VError VJSWConnectionHandler::WakeUpAllWaiters ( )
 {
 	fCommandsMutex. Lock ( );
@@ -1447,6 +1141,76 @@ VError VJSWConnectionHandler::WakeUpAllWaiters ( )
 
 	return VE_OK;
 }
+
+IJSWDebuggerCommand* VJSWConnectionHandler::GetNextBreakPointCommand ( )
+{
+	VJSWDebuggerCommand*		jswdCommand = 0;
+
+	fCommandsMutex. Lock ( );
+		vector<VJSWDebuggerCommand*>::iterator		iter = sClientCommands. begin ( );
+		while ( iter != sClientCommands. end ( ) )
+		{
+			if ( ( *iter )-> GetType ( ) == IJSWDebugger::JSWD_C_SET_BREAK_POINT || ( *iter )-> GetType ( ) == IJSWDebugger::JSWD_C_REMOVE_BREAK_POINT )
+			{
+				jswdCommand = *iter;
+				sClientCommands. erase ( iter );
+
+				break;
+			}
+
+			iter++;
+		}
+	fCommandsMutex. Unlock ( );
+
+	return jswdCommand;
+}
+
+IJSWDebuggerCommand* VJSWConnectionHandler::GetNextSuspendCommand ( uintptr_t inContext )
+{
+	VJSWDebuggerCommand*		jswdCommand = 0;
+
+	fCommandsMutex. Lock ( );
+		vector<VJSWDebuggerCommand*>::iterator		iter = sClientCommands. begin ( );
+		while ( iter != sClientCommands. end ( ) )
+		{
+			if ( ( *iter )-> GetType ( ) == IJSWDebugger::JSWD_C_SUSPEND && ( *iter )-> HasSameContextID ( inContext ) )
+			{
+				jswdCommand = *iter;
+				sClientCommands. erase ( iter );
+
+				break;
+			}
+
+			iter++;
+		}
+	fCommandsMutex. Unlock ( );
+
+	return jswdCommand;
+}
+
+IJSWDebuggerCommand* VJSWConnectionHandler::GetNextAbortScriptCommand ( uintptr_t inContext )
+{
+	VJSWDebuggerCommand*		jswdCommand = 0;
+
+	fCommandsMutex. Lock ( );
+		vector<VJSWDebuggerCommand*>::iterator		iter = sClientCommands. begin ( );
+		while ( iter != sClientCommands. end ( ) )
+		{
+			if ( ( *iter )-> GetType ( ) == IJSWDebugger::JSWD_C_ABORT_SCRIPT && ( *iter )-> HasSameContextID ( inContext ) )
+			{
+				jswdCommand = *iter;
+				sClientCommands. erase ( iter );
+
+				break;
+			}
+
+			iter++;
+		}
+	fCommandsMutex. Unlock ( );
+
+	return jswdCommand;
+}
+
 
 void VJSWConnectionHandler::CalculateRelativePath ( const VString & inAbsolutePOSIXRoot, const VString & inAbsolutePOSIXPath, VString & outPath )
 {
@@ -1692,9 +1456,8 @@ VConnectionHandler* VJSWConnectionHandlerFactory::CreateConnectionHandler ( VErr
 
 	VJSWConnectionHandler*		jswConnectionHandler = new VJSWConnectionHandler ( );
 	if ( fDebugger != 0 )
-	{
 		fDebugger-> AddHandler ( jswConnectionHandler );
-	}
+
 	outError = VE_OK;
 
 	return jswConnectionHandler;

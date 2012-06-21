@@ -2488,20 +2488,40 @@ void VString::ConvertCarriageReturns(ECarriageReturnMode inNewMode)
 					/*
 						 \r\n -> \r
 						 \n	-> \r
-					*/ 
+					*/
+					UniChar* firstHole = NULL;
+					UniChar* startOfLine = NULL;
+					VSize previousLength = fLength;
 					for(UniChar* ptr = fString ; *ptr ; ++ptr)
 					{
 						if (*ptr == '\r')
 						{
 							if (*(ptr+1) == '\n')
 							{
-								::memmove(ptr+1, ptr+2, sizeof(UniChar) * (fLength - (ptr - fString) - 2));
+								if ( firstHole )
+								{
+									VSize uniCharsToMove = ( ptr  + 1 ) - startOfLine;
+									::memmove( firstHole, startOfLine, sizeof(UniChar) * uniCharsToMove );
+									firstHole += uniCharsToMove;
+								}
+								else
+								{
+									firstHole = ptr + 1;
+								}
+
 								--fLength;
+								startOfLine = ptr + 2;
 							}
 						}
 						else if (*ptr == '\n')
 							*ptr = '\r';
 					}
+	
+					if ( firstHole )
+					{
+						::memmove( firstHole, startOfLine, sizeof(UniChar) * ( ( fString + previousLength ) - startOfLine ) );
+					}
+
 					fString[fLength]=0;
 					break;
 				}

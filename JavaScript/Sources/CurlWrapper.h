@@ -231,10 +231,12 @@ namespace CW
     public :
 
         typedef enum {GET, HEAD, POST, PUT, CUSTOM} Method;
+		typedef enum {BASIC, DIGEST} AuthMethod;
 
         HttpRequest(const XBOX::VString& inUrl, const Method inMethod);
         ~HttpRequest();
-    
+		
+		bool		SetUserInfos			(const XBOX::VString& inUser, const XBOX::VString& inPasswd, AuthMethod inMethod=BASIC);
         void        SetProxy                (const XBOX::VString& inProxy, uLONG inPort=-1);
         bool        SetRequestHeader        (const XBOX::VString& inKey, const XBOX::VString& inValue);
         //bool        SetData                 (const XBOX::VString& inData);

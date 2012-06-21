@@ -537,6 +537,46 @@ namespace CW
             curl_easy_cleanup(fHandle);
     }
 
+	
+	bool HttpRequest::SetUserInfos(const XBOX::VString& inUser, const XBOX::VString& inPasswd, AuthMethod inMethod)
+	{
+		if(!fHandle)
+            return false;
+		
+		XBOX::VString userInfos;
+		userInfos.AppendString(inUser).AppendCString(":").AppendString(inPasswd);
+	
+		int maxlen=2*userInfos.GetLength()+1;  //We convert utf16 to utf8, it should be large enough.
+        char* buf=new char[maxlen];
+		
+        if(!buf)
+            return false;
+		
+		int len=userInfos.ToBlock(buf, maxlen, XBOX::VTC_UTF_8, true, false);
+		
+		curl_easy_setopt(fHandle, CURLOPT_USERPWD, buf);
+		
+		delete buf;
+		
+		switch(inMethod)
+		{
+			case BASIC:
+				curl_easy_setopt(fHandle, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+				break;
+				
+			case DIGEST:
+				curl_easy_setopt(fHandle, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
+				break;	
+				
+			default:
+				assert(false);
+				curl_easy_setopt(fHandle, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
+		}
+		
+		return true;
+	}
+	
+	
     void HttpRequest::SetProxy(const XBOX::VString& inHost, uLONG inPort)
     {
         if(!fHandle)

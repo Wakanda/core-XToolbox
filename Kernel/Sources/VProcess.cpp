@@ -873,7 +873,7 @@ void VProcess::_ReadProductVersion( VString& outVersion) const
 	}
 
 #elif VERSION_LINUX
-    outVersion="2.0";	//Postponed Linux Implementation
+    //jmo - We get the Linux product version with SetProductVersion() on VRIAServerApplication init
 #endif
 }
 

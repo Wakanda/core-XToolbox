@@ -66,8 +66,9 @@ class XTOOLBOX_API XMLHttpRequest
     XMLHttpRequest();
     virtual ~XMLHttpRequest();
 
-    XBOX::VError    Open                    (const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync=true, const XBOX::VString& inUser="", const XBOX::VString& inPasswd="");
+    XBOX::VError    Open                    (const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync=true);
     XBOX::VError    SetProxy                (const XBOX::VString& inProxy, const uLONG inPort);
+	XBOX::VError    SetUserInfos            (const XBOX::VString& inUser, const XBOX::VString& inPasswd);
     XBOX::VError    SetRequestHeader        (const XBOX::VString& inKey, const XBOX::VString& inValue);
     XBOX::VError    OnReadyStateChange      (XBOX::VJSObject inReceiver, const XBOX::VJSObject& inFunction);
     XBOX::VError    Send                    (const XBOX::VString& inData="", XBOX::VError* outImplErr=NULL);

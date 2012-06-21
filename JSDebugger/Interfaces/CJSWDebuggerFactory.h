@@ -16,16 +16,7 @@
 #ifndef __JSW_DEBUGGER_FACTORY__
 #define __JSW_DEBUGGER_FACTORY__
 
-//#define WKA_USE_UNIFIED_DBG 1
-
-#if !defined(WKA_USE_UNIFIED_DBG)
-
 #include "IJSWDebugger.h"
-#else
-//#define WKA_USE_CHR_REM_DBG	1
-#endif
-
-#include "4DDebuggerServer.h"
 
 
 #ifdef JSDEBUGGER_EXPORTS
@@ -43,21 +34,15 @@ class JSDEBUGGER_API JSWDebuggerFactory
 {
 	public:
 		JSWDebuggerFactory ( ) { ; }
-#if !defined(WKA_USE_UNIFIED_DBG)
+
 		IJSWDebugger* Get ( );
-#else
-		IWAKDebuggerServer*	Get();
-#endif
-		IWAKDebuggerServer*	GetCD();
-	private:
+		IJSWChrmDebugger*	GetCD();
+
+	private :
 };
 
 
-#if !defined(WKA_USE_UNIFIED_DBG)
 class JSDEBUGGER_API IJSWDebuggerSettings
-#else
-class JSDEBUGGER_API IWAKDebuggerSettings
-#endif
 {
 	public:
 
@@ -66,13 +51,9 @@ class JSDEBUGGER_API IWAKDebuggerSettings
 		virtual bool UserCanDebug ( const UniChar* inUserName, const UniChar* inSeededHA1, const UniChar* inSeed ) const = 0;
 
 	protected:
-#if !defined(WKA_USE_UNIFIED_DBG)	
+	
 		IJSWDebuggerSettings ( ) { ; }
 		virtual ~IJSWDebuggerSettings ( ) { ; }
-#else
-		IWAKDebuggerSettings ( ) { ; }
-		virtual ~IWAKDebuggerSettings ( ) { ; }
-#endif
 };
 
 

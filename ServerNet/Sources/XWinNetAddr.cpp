@@ -302,9 +302,13 @@ VString XWinNetAddr::GetIP(sLONG* outVersion) const
 	}
 	
 	if(ip==NULL)
+	{
 		vThrowNativeError(errno);
-	
-	return VString(ip, sizeof(buf), VTC_UTF_8);
+
+		return VString();
+	}
+
+	return VString(ip, strlen(ip), VTC_UTF_8);
 }
 
 

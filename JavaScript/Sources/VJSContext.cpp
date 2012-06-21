@@ -256,8 +256,11 @@ VJSGlobalContext *VJSGlobalContext::Create( IJSRuntimeDelegate *inRuntimeDelegat
 */
 void VJSGlobalContext::SetSourcesRoot ( const VFolder & inRootFolder )
 {
+	VFilePath		vfPathRoot;
+	inRootFolder. GetPath ( vfPathRoot );
+	
 	VString			vstrRoot;
-	inRootFolder. GetPath ( vstrRoot, FPS_POSIX );
+	vfPathRoot. GetPosixPath ( vstrRoot );
 
     JSStringRef		jsstrRoot = JS4D::VStringToString ( vstrRoot );
 	if ( jsstrRoot != 0 )
@@ -294,11 +297,9 @@ void VJSGlobalContext::ForbidDebuggerLaunch ( )
 
 #if defined(WKA_USE_CHR_REM_DBG)
 //#error GH
-void VJSGlobalContext::SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer )
-//void VJSGlobalContext::SetChrmDebuggerServer( IWAKDebuggerServer* inDebuggerServer )
+void VJSGlobalContext::SetChrmDebuggerServer( IJSWChrmDebugger* inDebuggerServer )
 {
-//	JSSetChrmDebuggerServer( inDebuggerServer );
-	JSSetDebuggerServer ( inDebuggerServer );
+	JSSetChrmDebuggerServer( inDebuggerServer );
 }
 #else
 void VJSGlobalContext::SetDebuggerServer ( IJSWDebugger* inDebuggerServer )

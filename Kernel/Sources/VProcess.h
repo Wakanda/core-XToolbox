@@ -117,6 +117,7 @@ typedef uLONG InitOptions;
 			// returns the product version as exposed by OS.
 			// usually is something like 2.0 build 2.115342
 			void				GetProductVersion( VString& outVersion) const	{ outVersion = fProductVersion;}
+			void				SetProductVersion( const VString& inVersion)	{ fProductVersion = inVersion;}
 
 			// returns the product version string minus the build number information, if any
 			void				GetShortProductVersion( VString& outVersion) const;

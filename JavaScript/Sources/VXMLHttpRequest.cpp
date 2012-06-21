@@ -127,8 +127,7 @@ XMLHttpRequest::~XMLHttpRequest()
 }
 
 
-XBOX::VError XMLHttpRequest::Open(const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync,
-                                  const XBOX::VString& inUser, const XBOX::VString& inPasswd)
+XBOX::VError XMLHttpRequest::Open(const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync)
 {
     if(fReadyState!=UNSENT)
         return VE_XHRQ_INVALID_STATE_ERROR;   //Doesn't follow the spec, but behave roughly as FireFox
@@ -160,8 +159,8 @@ XBOX::VError XMLHttpRequest::Open(const XBOX::VString& inMethod, const XBOX::VSt
     fCWImpl->fReq=new CW::HttpRequest(uh.DropFragment(), mh.GetMethod());
     if(!fCWImpl->fReq)
         return VE_XHRQ_IMPL_FAIL_ERROR;
-
-    fReadyState=OPENED;
+		
+	fReadyState=OPENED;
 
     if(fChangeHandler)
         fChangeHandler->Execute();
@@ -178,6 +177,26 @@ XBOX::VError XMLHttpRequest::SetProxy(const XBOX::VString& inHost, const uLONG i
     fProxy=inHost;
     fPort=inPort;
 
+    return XBOX::VE_OK;
+}
+
+
+XBOX::VError XMLHttpRequest::SetUserInfos(const XBOX::VString& inUser, const XBOX::VString& inPasswd)
+{
+    if(fReadyState!=UNSENT && fReadyState!=OPENED)
+        return VE_XHRQ_INVALID_STATE_ERROR; 
+	
+    if(!fCWImpl)
+        return VE_XHRQ_IMPL_FAIL_ERROR;
+	
+	if(inUser.IsEmpty() || inPasswd.IsEmpty())
+		return VE_XHRQ_SECURITY_ERROR;
+	
+	bool res=fCWImpl->fReq->SetUserInfos(inUser, inPasswd);
+
+	if(!res)
+        return VE_XHRQ_IMPL_FAIL_ERROR;
+	
     return XBOX::VE_OK;
 }
 

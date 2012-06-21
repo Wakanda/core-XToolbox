@@ -20,9 +20,6 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
-//#define WKA_USE_CHR_REM_DBG 1
-//#define WKA_USE_UNIFIED_DBG 1
-
 class VJSGlobalObject;
 class VJSGlobalContext;
 class IJSRuntimeDelegate;
@@ -122,15 +119,9 @@ public:
 	static	void							SetSourcesRoot ( const VFolder & inRootFolder );
 #if defined(WKA_USE_CHR_REM_DBG)
 //#error "GH!!!"
-	static	void							SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer );
-	//static	void							SetChrmDebuggerServer( IWAKDebuggerServer* inDebuggerServer );
-
+	static	void							SetChrmDebuggerServer( IJSWChrmDebugger* inDebuggerServer );
 #else
-#if !defined(WKA_USE_UNIFIED_DBG)
 	static	void							SetDebuggerServer ( IJSWDebugger* inDebuggerServer );
-#else
-	static	void							SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer );
-#endif
 //#error GH
 #endif
 			// Returns true if debugger is currently paused on either breakpoint or an exception, false otherwise.
