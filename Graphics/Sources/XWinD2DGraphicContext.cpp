@@ -18,7 +18,6 @@
 
 #if ENABLE_D2D
 
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "XWinD2DGraphicContext.h"
 #include <d2d1.h>

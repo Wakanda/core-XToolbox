@@ -227,7 +227,9 @@ const XBOX::VString				K_DBG_GET_SCR_SOU_STR1("{\"result\":{\"scriptSource\":\"\
 const XBOX::VString				K_RUN_GET_PRO_STR1("{\"result\":{\"result\":[{\"value\":{\"type\":\"number\",\"value\":123,\"description\":\"123\"},\"writable\":true,\"enumerable\":true,\"configurable\":true,\"name\":\"test1\"},{\"value\":{\"type\":\"number\",\"value\":3,\"description\":\"3\"},\"writable\":true,\"enumerable\":true,\"configurable\":true,\"name\":\"test\"}]},\"id\":");
 //const XBOX::VString				K_RUN_GET_PRO_STR2("{\"result\":{\"result\":[{\"value\":{\"type\":\"function\",\"objectId\":\"{\\\"injectedScriptId\\\":11,\\\"id\\\":26}\",\"className\":\"Object\",\"description\":\"function myWrite(test) {\n\t\n\tvar test1 = 123;\n\t\n\ttest2 = \\\"GH\\\";\n\tdocument.write('\\u003Cb\\u003EHello World '+test+' '+test2+' '+test1+' !!!!!\\u003C/b\\u003E');\\n\\n}\"},\"writable\":true,\"enumerable\":true,\"configurable\":false,\"name\":\"myWrite\"}]},\"id\":");
 
-VChrmDebugHandler*				VChrmDebugHandler::sDebugger=NULL;
+#if defined(WKA_USE_CHR_REM_DBG)
+	VChrmDebugHandler*				VChrmDebugHandler::sDebugger=NULL;
+
 
 static bool		s_vchrm_debug_handler_init = false;
 
@@ -1529,3 +1531,26 @@ bool VChrmDebugHandler::SetSource( void* inContext, const char *inData, int inLe
 	fLock.Unlock();
 	return l_res;
 }
+
+#else
+// minimal stubs when not WKA_USE_CHR_REM_DBG
+
+XBOX::VError VChrmDebugHandler::HandleRequest( IHTTPResponse* ioResponse )
+{
+
+	return VE_UNKNOWN_ERROR;
+
+}
+
+
+XBOX::VError VChrmDebugHandler::GetPatterns(XBOX::VectorOfVString *outPatterns) const
+{
+
+	return VE_HTTP_INVALID_ARGUMENT;
+}
+bool VChrmDebugHandler::HasClients()
+{
+	return false;
+}
+
+#endif

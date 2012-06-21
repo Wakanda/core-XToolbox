@@ -16,7 +16,6 @@
 #include "VGraphicsPrecompiled.h"
 #include "Kernel/VKernel.h"
 #include "Kernel/Sources/VBlob.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 
 namespace VPicturesBagKeys

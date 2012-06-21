@@ -23,7 +23,6 @@
 #if VERSIONWIN
 #include <gdiplus.h> 
 #else
-#include "Graphics/Sources/VQuicktimeSDK.h"
 #include "Graphics/Sources/V4DPictureIncludeBase.h"
 #include "Graphics/Sources/V4DPictureTools.h"
 #endif

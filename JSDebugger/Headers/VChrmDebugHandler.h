@@ -32,6 +32,30 @@
 
 #define K_MAX_SIZE					(4096)
 
+#if defined(WKA_USE_CHR_REM_DBG)
+
+typedef enum ChrmDbgMsgType_enum {
+		NO_MSG,
+		SEND_CMD_MSG,
+		CALLSTACK_MSG,
+		LOOKUP_MSG,
+		EVAL_MSG,
+		SET_SOURCE_MSG,
+		BRKPT_REACHED_MSG
+} ChrmDbgMsgType_t;
+typedef struct ChrmDbgMsgData_st {
+		XBOX::VString	urlStr;
+		XBOX::VString	dataStr;
+		int				data;
+		int				lineNb;
+		int				objRef;
+		unsigned int	srcId;
+} ChrmDbgMsgData_t;
+typedef struct ChrmDbgMsg_st {
+	ChrmDbgMsgType_t				type;
+	ChrmDbgMsgData_t				data;
+} ChrmDbgMsg_t;
+
 class ChrmDbgHdlPage	{
 
 public:
@@ -64,14 +88,31 @@ private:
 	uLONG8							fBodyNodeId;
 	XBOX::VCppMemMgr*				fMemMgr;
 	uLONG							fPageNb;
+	XBOX::VectorOfVString			fSource;
+	intptr_t						fSrcId;
+	int								fLineNb;
+	bool							fSrcSent;
+	XBOX::VString					fFileName;
+	XBOX::VString					fURL;
 
 };
+#endif
 
-class JSDEBUGGER_API VChrmDebugHandler : public IHTTPRequestHandler, public IJSWChrmDebugger, public XBOX::VObject
+class JSDEBUGGER_API VChrmDebugHandler :
+						public IHTTPRequestHandler,
+#if defined(WKA_USE_CHR_REM_DBG)
+						public IJSWChrmDebugger,
+#endif
+						public XBOX::VObject
 {
 public:
 	static VChrmDebugHandler*		Get();
 	virtual bool					HasClients();
+	virtual XBOX::VError			GetPatterns(XBOX::VectorOfVString* outPatterns) const;
+	virtual XBOX::VError			HandleRequest(IHTTPResponse* ioResponse);
+
+#if defined(WKA_USE_CHR_REM_DBG)
+
 	virtual void*					GetCtx();
 	virtual bool					ReleaseCtx(void* inContext);
 	virtual int 					WaitForClientCommand( void* inContext );
@@ -95,6 +136,7 @@ static VChrmDebugHandler*			sDebugger;
 	XBOX::VCppMemMgr*				fMemMgr;
 
 	XBOX::VError					TreatJSONFile(IHTTPResponse* ioResponse);
+#endif	//WKA_USE_CHR_REM_DBG
 };
 
 #endif

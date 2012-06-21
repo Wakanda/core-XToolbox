@@ -401,14 +401,20 @@ sLONG ServerNetTools::FillDumpBag(VValueBag* ioBag, const void* inPayLoad, sLONG
 	int len=plPast-plStart;
 	
 	char bufStart[100];
+
 	char *bufPast=bufStart+len;
 	
 	const char* plPos=NULL;
 	char* bufPos=NULL;
 	
+#if VERSIONWIN
+	for(plPos=plStart, bufPos=bufStart ; bufPos<bufPast ; plPos++, bufPos++)
+		*bufPos=(isprint((unsigned char)(*plPos)) ? *plPos : '.');
+#else
 	for(plPos=plStart, bufPos=bufStart ; bufPos<bufPast ; plPos++, bufPos++)
 		*bufPos=(isprint(*plPos) ? *plPos : '.');
-			
+#endif
+
 	VString dump(bufStart, len, VTC_US_ASCII);
 
 	ILoggerBagKeys::dump_offset.Set(ioBag, inOffset);

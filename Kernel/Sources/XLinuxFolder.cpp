@@ -101,7 +101,7 @@ VError XLinuxFolder::Rename(const VString& inName, VFolder** outFolder) const
 	//jmo - todo : we should check that inName < NAME_MAX or use PathBuffer
 
 	VFilePath newPath(fOwner->GetPath());
-	newPath.SetFileName(inName);
+	newPath.SetName(inName);
 
 	return Rename(newPath, outFolder);
 }
@@ -132,7 +132,7 @@ VError XLinuxFolder::Move(const VFolder& inNewParent, VFolder** outFolder) const
 	VString name;
 	fOwner->GetName(name);
 
-	dstPath.SetFileName(name);
+	dstPath.SetName(name);
 
 	return Rename(dstPath, outFolder);
 }

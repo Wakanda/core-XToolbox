@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "VGifEncoder.h"
 #include "ImageMeta.h"
@@ -48,6 +47,100 @@ const VString sCodec_4DMeta_sign2="4DMetaPict";
 const VString sCodec_4DMeta_sign3="4MTA";
 
 END_TOOLBOX_NAMESPACE
+
+
+VQTSpatialSettingsBag::VQTSpatialSettingsBag()
+{
+	fCodecType=0;
+	fDepth=0;
+	fSpatialQuality=0;
+}
+
+VQTSpatialSettingsBag::VQTSpatialSettingsBag(OsType inCodecType,sWORD depth,uLONG inSpatialQuality)
+{
+	fCodecType=inCodecType;
+	fDepth=depth;
+	fSpatialQuality=inSpatialQuality;
+}
+void VQTSpatialSettingsBag::Reset()
+{
+	fCodecType=0;
+	fDepth=0;
+	fSpatialQuality=0;
+}
+
+VError	VQTSpatialSettingsBag::LoadFromBag( const VValueBag& inBag)
+{
+	VError err;
+	VString codec_type;
+	sLONG depth;
+	uLONG spatialQuality;
+	
+	if ( inBag.GetString( L"codec_type", codec_type)
+		&& inBag.GetLong( "depth", depth)
+		&& inBag.GetLong( "spatial_quality", spatialQuality) 
+		&& (codec_type.GetLength() == 4)
+		&& (depth >= -32768 && depth <= 32767)
+		)
+	{
+		fCodecType = codec_type.GetOsType();
+		fDepth = (short) depth;
+		fSpatialQuality = (uLONG) spatialQuality;
+	
+		err = VE_OK;
+	}
+	else
+	{
+		err = VE_INVALID_PARAMETER;
+	}
+	return err;
+}
+VError	VQTSpatialSettingsBag::SaveToBag( VValueBag& ioBag, VString& outKind) const
+{
+	VString codec_type;
+	codec_type.FromOsType( (OsType) fCodecType);
+	ioBag.SetString( L"codec_type", codec_type);
+	
+	ioBag.SetLong( L"depth", fDepth);
+	ioBag.SetLong( L"spatial_quality", fSpatialQuality);
+	
+	outKind = L"qt_spatial_settings";
+	
+	return VE_OK;
+}
+VQTSpatialSettingsBag::~VQTSpatialSettingsBag()
+{
+
+}
+
+void VQTSpatialSettingsBag::SetCodecType(OsType inCodecType)
+{
+	fCodecType = inCodecType;
+}
+
+void VQTSpatialSettingsBag::SetDepth(sWORD inDepth)
+{
+	fDepth = inDepth;
+}
+void VQTSpatialSettingsBag::SetSpatialQuality(uLONG inSpatialQuality)
+{
+	fSpatialQuality = inSpatialQuality;
+}
+
+OsType	VQTSpatialSettingsBag::GetCodecType() const
+{
+	return fCodecType;
+}
+
+sWORD VQTSpatialSettingsBag::GetDepth() const
+{
+	return fDepth;
+}
+OsType VQTSpatialSettingsBag::GetSpatialQuality() const
+{
+	return  fSpatialQuality;
+}
+
 
 /********************************************************************/
 // temp picturedataproovider
@@ -97,10 +190,6 @@ VPictureCodecFactory::VPictureCodecFactory()
 	_AppendImageIOCodecs();	
 #else
 	_AppendWICCodecs();
-#endif
-	
-#if USE_QUICKTIME	
-	_AppendQTDecoder();
 #endif
 	
 	_UpdateDisplayNameWithSystemInformation();
@@ -503,41 +592,29 @@ VPictureData* VPictureCodecFactory::Encode(const VPictureData& inPict,const VStr
 }
 
 
-
-void VPictureCodecFactory::_AppendQTDecoder()
+void VPictureCodecFactory::RegisterQuicktimeDecoder(VPictureCodec* inCodec)
 {
-
-	#if USE_QUICKTIME
-	
-	VQT_IEComponentManager *imp;
-	imp=VQuicktime::GetImportComponentManager();
-
-	if(imp)
+	if(inCodec!=NULL)
 	{
-		sLONG nbimport=imp->GetCount();
-		for(sLONG i=0;i<nbimport;i++)
+		bool extensionfound=false;
+		if(inCodec->CountExtensions()>0)
 		{
-			VQT_IEComponentInfo* info=imp->GetNthComponent(i);
-			if(info)
+			for(long nbext=0;nbext<inCodec->CountExtensions();nbext++)
 			{
-				bool extensionfound=false;
-				
-				for(long nbext=0;nbext<info->CountExtension();nbext++)
-				{
-					VString ext;
-					info->GetNthExtension(nbext,ext);
-					extensionfound=_ExtensionExist(ext);
-					if(extensionfound)
-						break;
-				}
-				if(!extensionfound && info->CountExtension() && info->GetComponentSubType()!='base')
-				{
-					fQTCodec.push_back(new VPictureCodec_Quicktime(*info));
-				}
+				VString ext;
+				inCodec->GetNthExtension(nbext,ext);
+				extensionfound=_ExtensionExist(ext);
+				if(extensionfound)
+					break;
 			}
-		}
+			if(!extensionfound)
+			{
+				inCodec->Retain();
+				fQTCodec.push_back(inCodec);
+				inCodec->UpdateDisplayNameWithSystemInformation();
+			}
+		}	
 	}
-	#endif
 }
 
 
@@ -1768,44 +1845,7 @@ VError VPictureCodec::_GDIPLUS_Encode(const VString& inMimeType,const VPictureDa
 	return result;
 }
 #else
-#if USE_QUICKTIME
-VError VPictureCodec::_Quicktime_Encode(const OsType inType,const VPictureData& inData,const VValueBag *inSettings,VBlob& outBlob,VPictureDrawSettings* inSet)const
-{
-	VError result=VE_UNKNOWN_ERROR;
-	ComponentResult err;
-	GraphicsExportComponent ge = 0;
-	err=OpenADefaultComponent(GraphicsExporterComponentType,inType,&ge);
-	if(err==0)
-	{
-		CGImageRef src=inData.CreateCGImage(inSet);
-		if(src)
-		{
-			err=GraphicsExportSetInputCGImage(ge,src);
-			if(err==0)
-			{
-				Handle h=::NewHandle(0);
-				err=GraphicsExportSetOutputHandle(ge,h);
-				if(err==0)
-				{
-					err=GraphicsExportDoExport (ge,0);
-					if(err!=0)
-						::DisposeHandle(h);
-					else
-					{
-						::HLock(h);
-						result=outBlob.PutData(*h,GetHandleSize(h),0);
-						::HUnlock(h);
-						::DisposeHandle(h);
-					}
-				}
-			}
-			CFRelease(src);
-		}
-		CloseComponent(ge);		
-	}
-	return result;
-}
-#endif
+
 #endif
 
 bool VPictureCodec::CheckMacType(sLONG inExt) const
@@ -2462,264 +2502,6 @@ VError VPictureCodec_BMP::DoEncode(const VPictureData& inData,const VValueBag* i
 	}
 	return result;
 }
-
-#if USE_QUICKTIME
-
-VPictureCodec_Quicktime::VPictureCodec_Quicktime()
-{
-	fExporterSubType=0;
-}
-
-VPictureCodec_Quicktime::VPictureCodec_Quicktime(VQT_IEComponentInfo& inComponent )
-:VPictureCodec()
-{
-	bool exporterfound=false;
-	VQT_IEComponentManager* exporterlist=VQuicktime::GetExportComponentManager();
-	VQT_IEComponentInfo* exporter;
-	VString tmp;
-	
-	inComponent.GetComponentName(tmp);
-	SetDisplayName(tmp);
-	SetPlatform(3);
-	SetBuiltIn(false);
-	
-	for(long nbmime=0;nbmime<inComponent.CountMimeType();nbmime++)
-	{
-		VString mime;
-		inComponent.GetNthMimeType(nbmime,mime);
-		AppendMimeType(mime);
-		if(!exporterfound)
-		{
-			exporter=exporterlist->FindComponentByMimeType(mime);
-			if(exporter)
-			{
-				exporterfound=true;
-				fExporterSubType=exporter->GetComponentSubType();
-				AppendQTExporterCompentType(fExporterSubType);
-			}
-		}
-	}
-	for(long nbext=0;nbext<inComponent.CountExtension();nbext++)
-	{
-		VString ext;
-		inComponent.GetNthExtension(nbext,ext);
-		AppendExtension(ext);
-		if(!exporterfound)
-		{
-			exporter=exporterlist->FindComponentByExtension(ext);
-			if(exporter)
-			{
-				exporterfound=true;
-				fExporterSubType=exporter->GetComponentSubType();
-				AppendQTExporterCompentType(fExporterSubType);
-			}
-		}
-	}
-	for(long nbext=0;nbext<inComponent.CountMacType();nbext++)
-	{
-		OsType ext;
-		inComponent.GetNthMacType(nbext,ext);
-		AppendMacType((sLONG)ext);
-		if(!exporterfound)
-		{
-			exporter=exporterlist->FindComponentByMacType(ext);
-			if(exporter)
-			{
-				exporterfound=true;
-				fExporterSubType=exporter->GetComponentSubType();
-				AppendQTExporterCompentType(fExporterSubType);
-			}
-		}
-	}
-	SetEncode(exporterfound);
-	SetCanValidateData(inComponent.TestComponentFlags(QTIME::canMovieImportValidateFile));
-}
-VPictureData* VPictureCodec_Quicktime::_CreatePictData(VPictureDataProvider& inDataProvider,_VPictureAccumulator* inRecorder) const
-{
-	return new VPictureData_Quicktime(&inDataProvider,inRecorder);
-}
-VPictureCodec_Quicktime::~VPictureCodec_Quicktime()
-{
-
-}
-	
-bool VPictureCodec_Quicktime::ValidateData(VFile& inFile)const
-{
-	bool result=false;
-	QTInstanceRef gi=0;
-	QTIME::OSErr err;
-	
-	err=QTIME::OpenADefaultComponent(QTIME::GraphicsImporterComponentType,fExporterSubType,&gi);
-	if(err==0)
-	{
-		if(gi)
-		{
-			err=VQuicktime::GraphicsImportSetDataFile(inFile,gi);
-			if(err==0)
-			{
-				unsigned char b;
-				err=QTIME::GraphicsImportValidate(gi,&b); 
-				result= err==0 && b;
-			}
-			VQuicktime::CloseComponent(gi);
-		}
-	}
-
-	return result;
-}
-bool VPictureCodec_Quicktime::ValidateData(VPictureDataProvider& inDataProvider)const
-{
-	bool result=false;
-	QTInstanceRef gi=0;
-	QTIME::OSErr err;
-	
-	err=QTIME::OpenADefaultComponent(QTIME::GraphicsImporterComponentType,fExporterSubType,&gi);
-	if(err==0)
-	{
-		if(gi)
-		{
-			xQTPointerDataRef dataref(&inDataProvider);
-			
-			err=QTIME::GraphicsImportSetDataReference(gi,dataref,dataref.GetKind());
-			if(err==0)
-			{
-				unsigned char b;
-				err=QTIME::GraphicsImportValidate(gi,&b);
-				result= err==0 && b;
-			}
-			VQuicktime::CloseComponent(gi);
-		}
-	}
-
-	return result;
-}
-
-VError VPictureCodec_Quicktime::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet)const
-{
-	VError result=VE_UNKNOWN_ERROR;
-	VPictureDrawSettings	set(inSet);
-	
-#if VERSIONWIN
-	inSettings;
-	short err;
-	uLONG outsize;
-
-	QTIME::GraphicsExportComponent ge = 0;
-
-	err=QTIME::OpenADefaultComponent(QTIME::GraphicsExporterComponentType,fExporterSubType,&ge);
-	if(err==0)
-	{
-		QTIME::GWorldPtr gw = 0;
-		QTIME::Handle scrpict=0;
-		QTIME::Rect bounds={0,0,inData.GetHeight(),inData.GetWidth()};
-		err = QTIME::QTNewGWorld(&gw,QTIME::k32RGBAPixelFormat,&bounds,NULL,NULL,NULL);
-		if(err==0)
-		{
-			HDC dc=(HDC)QTIME::GetPortHDC((QTIME::GrafPtr)gw);
-			if(dc)
-			{
-				{
-					VRect r(0,0,inData.GetWidth(),inData.GetHeight());
-					Gdiplus::Graphics graph(dc);
-					graph.Clear(Gdiplus::Color(0,0,0,0));
-					inData.DrawInGDIPlusGraphics(&graph,r,inSet);
-				}
-				
-				if(fExporterSubType=='jp2 ') // pp bug quicktime le codec jp2 n'accept pas les gworld en entr
-				{
-					QTIME::GraphicsExportComponent ge1 = 0;
-					err=QTIME::OpenADefaultComponent(QTIME::GraphicsExporterComponentType,'PICT',&ge1);
-					if(err==0)
-					{
-						err=QTIME::GraphicsExportSetInputGWorld(ge1,gw);
-						if(err==0)
-						{
-							scrpict=QTIME::NewHandle(0);
-							err=QTIME::GraphicsExportSetOutputHandle(ge1,scrpict);
-							if(err==0)
-							{
-								QTIME::GraphicsExportSetDontRecompress(ge1,true);
-								QTIME::GraphicsExportSetCompressionMethod (ge1,QTIME::kQTTIFFCompression_None);
-								QTIME::GraphicsExportSetCompressionQuality (ge1,QTIME::codecLosslessQuality);
-								err=QTIME::GraphicsExportDoExport (ge1,&outsize);
-								if(err==0)
-								{
-									memmove(*scrpict,*scrpict+0x200,outsize-0x200);
-									QTIME::SetHandleSize(scrpict,outsize-0x200);
-									err=QTIME::GraphicsExportSetInputPicture (ge,(QTIME::PicHandle)scrpict);
-									if(err!=0)
-									{
-										QTIME::DisposeHandle(scrpict);
-										scrpict=0;
-									}	
-								}
-								QTIME::DisposeGWorld(gw);
-								gw=0;
-							}
-						}
-						QTIME::CloseComponent(ge1);	
-					}
-				}
-				else
-					err=QTIME::GraphicsExportSetInputGWorld(ge,gw);
-				
-				
-				if(err==0)
-				{
-					QTIME::Handle h=QTIME::NewHandle(0);
-					QTIME::Handle dataref=NULL;
-					
-					err=QTIME::GraphicsExportSetOutputHandle(ge,h);
-					if(err==0)
-					{
-						err=QTIME::GraphicsExportDoExport (ge,&outsize);
-						if(err!=0)
-						{
-							QTIME::DisposeHandle(h);
-							if(dataref)
-								QTIME::DisposeHandle(dataref);
-						}
-						else
-						{
-							QTIME::HLock(h);
-							result=outBlob.PutData(*h,QTIME::GetHandleSize(h),0);
-							QTIME::HUnlock(h);
-							QTIME::DisposeHandle(h);
-							if(dataref)
-								QTIME::DisposeHandle(dataref);
-							result=VE_OK;
-						}
-					}
-				}
-			}
-			if(gw)
-				QTIME::DisposeGWorld(gw);
-			if(scrpict)
-				QTIME::DisposeHandle(scrpict);
-		}
-		QTIME::CloseComponent(ge);	
-	}
-	
-	#else
-	result=_Quicktime_Encode(fExporterSubType,inData,inSettings,outBlob,inSet);
-	#endif
-
-	return result;
-}
-VError VPictureCodec_Quicktime::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet)const
-{
-	VError result=VE_OK;
-	VPictureDrawSettings	set(inSet);
-	VBlobWithPtr blob;
-	result= Encode(inData,inSettings,blob,inSet);
-	if(result==VE_OK)
-	{
-		result=CreateFileWithBlob(blob,inFile);
-	}
-	return result;
-}
-
-#endif
 
 VPictureCodec_PICT::VPictureCodec_PICT()
 {

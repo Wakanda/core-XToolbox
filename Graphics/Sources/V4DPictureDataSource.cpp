@@ -16,7 +16,6 @@
 #include "VGraphicsPrecompiled.h"
 #include "Kernel/VKernel.h"
 
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 
 
@@ -1797,91 +1796,6 @@ bool	xV4DPictureBlobRef::IsNull() const
 	assert(fBlob);
 	return fBlob->IsNull();
 }
-
-#if USE_QUICKTIME
-
-xQTPointerDataRef::xQTPointerDataRef(const xQTPointerDataRef& inDataRef)
-{
-	_FromV4DPictureDataSource(inDataRef.fDataSource);
-}
-xQTPointerDataRef::xQTPointerDataRef(VPictureDataProvider* inDataSource)
-{
-	_FromV4DPictureDataSource(inDataSource);
-}
-
-void xQTPointerDataRef::_FromV4DPictureDataSource(VPictureDataProvider* inDataSource)
-{
-	fDataSource=inDataSource;
-	fQTDataRef=0;
-	if(inDataSource)
-	{
-		fQTDataRef=(QTPointerDataRef)VQuicktime::NewQTHandle(sizeof(QTPointerDataRefRecord));
-		if(fQTDataRef)
-		{
-			const VPictureCodec* decoder;
-			QTIME::OSErr err;
-			QTIME::ComponentInstance dataRefHandler = NULL;
-
-			fDataSource->Retain();
-			(**fQTDataRef).data=fDataSource->BeginDirectAccess();
-			(**fQTDataRef).dataLength =(QTIME::Size) fDataSource->GetDataSize();
-			
-			decoder=inDataSource->RetainDecoder();
-			if(decoder)
-			{
-				if(decoder->CountMimeType())
-				{
-					VString mime;
-					decoder->GetNthMimeType(0,mime);
-					if(mime.GetLength())
-					{
-						err = QTIME::OpenADataHandler((QTIME::Handle)fQTDataRef,QTIME::PointerDataHandlerSubType,NULL,(QTIME::OSType)0,NULL,QTIME::kDataHCanRead,&dataRefHandler);       
-						if(err==QTIME::noErr)
-						{
-							QTIME::Handle mimehandle;
-							#if VERSIONMAC
-							StStringConverter<char> buff(mime,VTC_MacOSAnsi);
-							#else
-							StStringConverter<char> buff(mime,VTC_Win32Ansi);
-							#endif
-							mimehandle=VQuicktime::NewQTHandle(buff.GetLength()+1);
-							**mimehandle=buff.GetLength();
-							CopyBlock(buff,(*mimehandle)+1,buff.GetLength());
-							err=QTIME::DataHSetDataRefExtension(dataRefHandler,mimehandle,QTIME::kDataRefExtensionMIMEType);
-							if(err==QTIME::noErr)
-							{
-								QTIME::DisposeHandle((QTIME::Handle)fQTDataRef);
-								DataHGetDataRef(dataRefHandler, (QTIME::Handle*)&fQTDataRef);
-								
-							}
-							QTIME::DisposeHandle(mimehandle);
-						}
-					}
-				}
-				decoder->Release();
-			}
-		}
-	}
-}
-
-xQTPointerDataRef::~xQTPointerDataRef()
-{
-	if(fDataSource)
-	{
-		if(fQTDataRef)
-		{
-			VQuicktime::DisposeQTHandle((QTHandleRef)fQTDataRef);
-		}
-		fDataSource->EndDirectAccess();
-		fDataSource->Release();
-	}
-}
-uLONG xQTPointerDataRef::GetKind()
-{
-	return fQTDataRef==0 ? QTIME::NullDataHandlerSubType : QTIME::PointerDataHandlerSubType;
-}
-
-#endif
 
 #if VERSIONWIN
 

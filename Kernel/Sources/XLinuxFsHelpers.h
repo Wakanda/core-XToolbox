@@ -229,6 +229,7 @@ public :
 	bool	IsLink();
 	bool	IsSocket();
     bool    ProcessCanRead();
+    bool    ProcessCanWrite();
 
 
 private :

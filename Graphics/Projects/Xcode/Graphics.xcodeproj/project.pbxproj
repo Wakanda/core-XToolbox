@@ -24,9 +24,6 @@
 		021833BB0896476500D45133 /* VRegion.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021833800896476500D45133 /* VRegion.cpp */; };
 		021833BC0896476500D45133 /* VRect.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833810896476500D45133 /* VRect.h */; };
 		021833BD0896476500D45133 /* VRect.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021833820896476500D45133 /* VRect.cpp */; };
-		021833BE0896476500D45133 /* VQuickTimeSDK.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833830896476500D45133 /* VQuickTimeSDK.h */; };
-		021833BF0896476500D45133 /* VQuickTime.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833840896476500D45133 /* VQuickTime.h */; };
-		021833C00896476500D45133 /* VQuickTime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021833850896476500D45133 /* VQuickTime.cpp */; };
 		021833C10896476500D45133 /* VPolygon.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833860896476500D45133 /* VPolygon.h */; };
 		021833C20896476500D45133 /* VPoint.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833870896476500D45133 /* VPoint.h */; };
 		021833C50896476500D45133 /* VPattern.h in Headers */ = {isa = PBXBuildFile; fileRef = 0218338A0896476500D45133 /* VPattern.h */; };
@@ -85,8 +82,6 @@
 		D22F10B60A023E7100607AF9 /* V4DPictureTools.h in Headers */ = {isa = PBXBuildFile; fileRef = D22F10B00A023E7100607AF9 /* V4DPictureTools.h */; };
 		D22F10B70A023E7100607AF9 /* V4DPictureTools.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D22F10B10A023E7100607AF9 /* V4DPictureTools.cpp */; };
 		D22F10B80A023E7100607AF9 /* V4DPictureIncludeBase.h in Headers */ = {isa = PBXBuildFile; fileRef = D22F10B20A023E7100607AF9 /* V4DPictureIncludeBase.h */; };
-		D27B681109CED09400FF91AD /* VPictureDataQuicktime.h in Headers */ = {isa = PBXBuildFile; fileRef = D27B680F09CED09400FF91AD /* VPictureDataQuicktime.h */; };
-		D27B681209CED09400FF91AD /* VPictureDataQuicktime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D27B681009CED09400FF91AD /* VPictureDataQuicktime.cpp */; };
 		D29A0F510A9C6EAE00D14BDA /* V4DPictureProxyCache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D29A0F4F0A9C6EAE00D14BDA /* V4DPictureProxyCache.cpp */; };
 		D29A0F520A9C6EAE00D14BDA /* V4DPictureProxyCache.h in Headers */ = {isa = PBXBuildFile; fileRef = D29A0F500A9C6EAE00D14BDA /* V4DPictureProxyCache.h */; };
 		D2C6A0B50A83702300FA7897 /* VGifEncoder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D2C6A0B30A83702300FA7897 /* VGifEncoder.cpp */; };
@@ -110,8 +105,6 @@
 		F4643398113E8E9700639653 /* XMacFont.h in Headers */ = {isa = PBXBuildFile; fileRef = 0218337A0896476500D45133 /* XMacFont.h */; };
 		F4643399113E8E9700639653 /* VRegion.h in Headers */ = {isa = PBXBuildFile; fileRef = 0218337F0896476500D45133 /* VRegion.h */; };
 		F464339A113E8E9700639653 /* VRect.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833810896476500D45133 /* VRect.h */; };
-		F464339B113E8E9700639653 /* VQuickTimeSDK.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833830896476500D45133 /* VQuickTimeSDK.h */; };
-		F464339C113E8E9700639653 /* VQuickTime.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833840896476500D45133 /* VQuickTime.h */; };
 		F464339D113E8E9700639653 /* VPolygon.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833860896476500D45133 /* VPolygon.h */; };
 		F464339E113E8E9700639653 /* VPoint.h in Headers */ = {isa = PBXBuildFile; fileRef = 021833870896476500D45133 /* VPoint.h */; };
 		F464339F113E8E9700639653 /* VPattern.h in Headers */ = {isa = PBXBuildFile; fileRef = 0218338A0896476500D45133 /* VPattern.h */; };
@@ -127,7 +120,6 @@
 		F46433A9113E8E9700639653 /* V4DPictureData.h in Headers */ = {isa = PBXBuildFile; fileRef = D2CF053C0922433700DF37CB /* V4DPictureData.h */; };
 		F46433AA113E8E9700639653 /* V4DPictureDataSource.h in Headers */ = {isa = PBXBuildFile; fileRef = D2CF053E0922433700DF37CB /* V4DPictureDataSource.h */; };
 		F46433AB113E8E9700639653 /* XMacPictureData.h in Headers */ = {isa = PBXBuildFile; fileRef = 42B7CE71094ED25100D81F9E /* XMacPictureData.h */; };
-		F46433AC113E8E9700639653 /* VPictureDataQuicktime.h in Headers */ = {isa = PBXBuildFile; fileRef = D27B680F09CED09400FF91AD /* VPictureDataQuicktime.h */; };
 		F46433AD113E8E9700639653 /* V4DPictureDecoder.h in Headers */ = {isa = PBXBuildFile; fileRef = D2D2A03809EAA8B200243DCD /* V4DPictureDecoder.h */; };
 		F46433AE113E8E9700639653 /* VMatrix.h in Headers */ = {isa = PBXBuildFile; fileRef = D22F10AF0A023E7100607AF9 /* VMatrix.h */; };
 		F46433AF113E8E9700639653 /* V4DPictureTools.h in Headers */ = {isa = PBXBuildFile; fileRef = D22F10B00A023E7100607AF9 /* V4DPictureTools.h */; };
@@ -150,7 +142,6 @@
 		F46433C2113E8E9700639653 /* XMacColor.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0218337C0896476500D45133 /* XMacColor.mm */; };
 		F46433C3113E8E9700639653 /* VRegion.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021833800896476500D45133 /* VRegion.cpp */; };
 		F46433C4113E8E9700639653 /* VRect.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021833820896476500D45133 /* VRect.cpp */; };
-		F46433C5113E8E9700639653 /* VQuickTime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021833850896476500D45133 /* VQuickTime.cpp */; };
 		F46433C6113E8E9700639653 /* VGraphicSettings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0218338D0896476500D45133 /* VGraphicSettings.cpp */; };
 		F46433C7113E8E9700639653 /* VGraphicContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0218338F0896476500D45133 /* VGraphicContext.cpp */; };
 		F46433C8113E8E9700639653 /* VFontMgr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021833910896476500D45133 /* VFontMgr.cpp */; };
@@ -163,7 +154,6 @@
 		F46433CF113E8E9700639653 /* V4DPictureData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D2CF053B0922433700DF37CB /* V4DPictureData.cpp */; };
 		F46433D0113E8E9700639653 /* V4DPictureDataSource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D2CF053D0922433700DF37CB /* V4DPictureDataSource.cpp */; };
 		F46433D1113E8E9700639653 /* XMacPictureData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42B7CE70094ED25100D81F9E /* XMacPictureData.cpp */; };
-		F46433D2113E8E9700639653 /* VPictureDataQuicktime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D27B681009CED09400FF91AD /* VPictureDataQuicktime.cpp */; };
 		F46433D3113E8E9700639653 /* V4DPictureDecoder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D2D2A03909EAA8B200243DCD /* V4DPictureDecoder.cpp */; };
 		F46433D4113E8E9700639653 /* V4DPictureTools.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D22F10B10A023E7100607AF9 /* V4DPictureTools.cpp */; };
 		F46433D5113E8E9700639653 /* VGifEncoder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D2C6A0B30A83702300FA7897 /* VGifEncoder.cpp */; };
@@ -309,9 +299,6 @@
 		021833800896476500D45133 /* VRegion.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VRegion.cpp; sourceTree = "<group>"; };
 		021833810896476500D45133 /* VRect.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VRect.h; sourceTree = "<group>"; };
 		021833820896476500D45133 /* VRect.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VRect.cpp; sourceTree = "<group>"; };
-		021833830896476500D45133 /* VQuickTimeSDK.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VQuickTimeSDK.h; sourceTree = "<group>"; };
-		021833840896476500D45133 /* VQuickTime.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VQuickTime.h; sourceTree = "<group>"; };
-		021833850896476500D45133 /* VQuickTime.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VQuickTime.cpp; sourceTree = "<group>"; };
 		021833860896476500D45133 /* VPolygon.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VPolygon.h; sourceTree = "<group>"; };
 		021833870896476500D45133 /* VPoint.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VPoint.h; sourceTree = "<group>"; };
 		0218338A0896476500D45133 /* VPattern.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VPattern.h; sourceTree = "<group>"; };
@@ -378,8 +365,6 @@
 		D24D1A160B7BAA29007D174C /* xtoolbox_debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_debug.xcconfig; path = ../../../xtoolbox_debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		D24D1A170B7BAA29007D174C /* xtoolbox_release.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_release.xcconfig; path = ../../../xtoolbox_release.xcconfig; sourceTree = SOURCE_ROOT; };
 		D24D1CF90B7C9126007D174C /* xtoolbox_coverage.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_coverage.xcconfig; path = ../../../xtoolbox_coverage.xcconfig; sourceTree = SOURCE_ROOT; };
-		D27B680F09CED09400FF91AD /* VPictureDataQuicktime.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VPictureDataQuicktime.h; sourceTree = "<group>"; };
-		D27B681009CED09400FF91AD /* VPictureDataQuicktime.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VPictureDataQuicktime.cpp; sourceTree = "<group>"; };
 		D29A0F4F0A9C6EAE00D14BDA /* V4DPictureProxyCache.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = V4DPictureProxyCache.cpp; sourceTree = "<group>"; };
 		D29A0F500A9C6EAE00D14BDA /* V4DPictureProxyCache.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = V4DPictureProxyCache.h; sourceTree = "<group>"; };
 		D2C6A0B30A83702300FA7897 /* VGifEncoder.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VGifEncoder.cpp; sourceTree = "<group>"; };
@@ -473,8 +458,6 @@
 				D22F10B20A023E7100607AF9 /* V4DPictureIncludeBase.h */,
 				D2D2A03809EAA8B200243DCD /* V4DPictureDecoder.h */,
 				D2D2A03909EAA8B200243DCD /* V4DPictureDecoder.cpp */,
-				D27B680F09CED09400FF91AD /* VPictureDataQuicktime.h */,
-				D27B681009CED09400FF91AD /* VPictureDataQuicktime.cpp */,
 				39CE344508DB14FA00F8CE1D /* V4DPicture.cpp */,
 				39CE344608DB14FA00F8CE1D /* V4DPicture.h */,
 				D2CF053B0922433700DF37CB /* V4DPictureData.cpp */,
@@ -486,9 +469,6 @@
 				0218338B0896476500D45133 /* VIcon.h */,
 				021833770896476500D45133 /* XMacIcon.cpp */,
 				021833620896476500D45133 /* XWinIcon.cpp */,
-				021833850896476500D45133 /* VQuickTime.cpp */,
-				021833840896476500D45133 /* VQuickTime.h */,
-				021833830896476500D45133 /* VQuickTimeSDK.h */,
 				4776A6DC0FA2124E00687E28 /* VImageIOCodec.h */,
 				4776A7340FA2132500687E28 /* VImageIOCodec.cpp */,
 			);
@@ -684,8 +664,6 @@
 				021833B50896476500D45133 /* XMacFont.h in Headers */,
 				021833BA0896476500D45133 /* VRegion.h in Headers */,
 				021833BC0896476500D45133 /* VRect.h in Headers */,
-				021833BE0896476500D45133 /* VQuickTimeSDK.h in Headers */,
-				021833BF0896476500D45133 /* VQuickTime.h in Headers */,
 				021833C10896476500D45133 /* VPolygon.h in Headers */,
 				021833C20896476500D45133 /* VPoint.h in Headers */,
 				021833C50896476500D45133 /* VPattern.h in Headers */,
@@ -701,7 +679,6 @@
 				D2CF05400922433700DF37CB /* V4DPictureData.h in Headers */,
 				D2CF05420922433700DF37CB /* V4DPictureDataSource.h in Headers */,
 				42B7CE73094ED25200D81F9E /* XMacPictureData.h in Headers */,
-				D27B681109CED09400FF91AD /* VPictureDataQuicktime.h in Headers */,
 				D2D2A03A09EAA8B200243DCD /* V4DPictureDecoder.h in Headers */,
 				D22F10B50A023E7100607AF9 /* VMatrix.h in Headers */,
 				D22F10B60A023E7100607AF9 /* V4DPictureTools.h in Headers */,
@@ -733,8 +710,6 @@
 				F4643398113E8E9700639653 /* XMacFont.h in Headers */,
 				F4643399113E8E9700639653 /* VRegion.h in Headers */,
 				F464339A113E8E9700639653 /* VRect.h in Headers */,
-				F464339B113E8E9700639653 /* VQuickTimeSDK.h in Headers */,
-				F464339C113E8E9700639653 /* VQuickTime.h in Headers */,
 				F464339D113E8E9700639653 /* VPolygon.h in Headers */,
 				F464339E113E8E9700639653 /* VPoint.h in Headers */,
 				F464339F113E8E9700639653 /* VPattern.h in Headers */,
@@ -750,7 +725,6 @@
 				F46433A9113E8E9700639653 /* V4DPictureData.h in Headers */,
 				F46433AA113E8E9700639653 /* V4DPictureDataSource.h in Headers */,
 				F46433AB113E8E9700639653 /* XMacPictureData.h in Headers */,
-				F46433AC113E8E9700639653 /* VPictureDataQuicktime.h in Headers */,
 				F46433AD113E8E9700639653 /* V4DPictureDecoder.h in Headers */,
 				F46433AE113E8E9700639653 /* VMatrix.h in Headers */,
 				F46433AF113E8E9700639653 /* V4DPictureTools.h in Headers */,
@@ -970,7 +944,6 @@
 				021833B70896476500D45133 /* XMacColor.mm in Sources */,
 				021833BB0896476500D45133 /* VRegion.cpp in Sources */,
 				021833BD0896476500D45133 /* VRect.cpp in Sources */,
-				021833C00896476500D45133 /* VQuickTime.cpp in Sources */,
 				021833C80896476500D45133 /* VGraphicSettings.cpp in Sources */,
 				021833CA0896476500D45133 /* VGraphicContext.cpp in Sources */,
 				021833CC0896476500D45133 /* VFontMgr.cpp in Sources */,
@@ -983,7 +956,6 @@
 				D2CF053F0922433700DF37CB /* V4DPictureData.cpp in Sources */,
 				D2CF05410922433700DF37CB /* V4DPictureDataSource.cpp in Sources */,
 				42B7CE72094ED25200D81F9E /* XMacPictureData.cpp in Sources */,
-				D27B681209CED09400FF91AD /* VPictureDataQuicktime.cpp in Sources */,
 				D2D2A03B09EAA8B200243DCD /* V4DPictureDecoder.cpp in Sources */,
 				D22F10B70A023E7100607AF9 /* V4DPictureTools.cpp in Sources */,
 				D2C6A0B50A83702300FA7897 /* VGifEncoder.cpp in Sources */,
@@ -1013,7 +985,6 @@
 				F46433C2113E8E9700639653 /* XMacColor.mm in Sources */,
 				F46433C3113E8E9700639653 /* VRegion.cpp in Sources */,
 				F46433C4113E8E9700639653 /* VRect.cpp in Sources */,
-				F46433C5113E8E9700639653 /* VQuickTime.cpp in Sources */,
 				F46433C6113E8E9700639653 /* VGraphicSettings.cpp in Sources */,
 				F46433C7113E8E9700639653 /* VGraphicContext.cpp in Sources */,
 				F46433C8113E8E9700639653 /* VFontMgr.cpp in Sources */,
@@ -1026,7 +997,6 @@
 				F46433CF113E8E9700639653 /* V4DPictureData.cpp in Sources */,
 				F46433D0113E8E9700639653 /* V4DPictureDataSource.cpp in Sources */,
 				F46433D1113E8E9700639653 /* XMacPictureData.cpp in Sources */,
-				F46433D2113E8E9700639653 /* VPictureDataQuicktime.cpp in Sources */,
 				F46433D3113E8E9700639653 /* V4DPictureDecoder.cpp in Sources */,
 				F46433D4113E8E9700639653 /* V4DPictureTools.cpp in Sources */,
 				F46433D5113E8E9700639653 /* VGifEncoder.cpp in Sources */,

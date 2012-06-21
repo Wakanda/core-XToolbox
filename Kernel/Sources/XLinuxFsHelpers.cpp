@@ -15,7 +15,7 @@
 */
 #include "VKernelPrecompiled.h"
 #include "VAssert.h"
-//#include "VErrorContext.h"
+// #include "VErrorContext.h"
 #include "VTime.h"
 
 #include "XLinuxFsHelpers.h"
@@ -711,6 +711,21 @@ bool StatHelper::ProcessCanRead()
 	return false;
 }
 
+bool StatHelper::ProcessCanWrite()
+{
+	// See comments for StatHelper::ProcessCanRead().
+
+	if(geteuid()==fStat.st_uid)
+		return fStat.st_mode&S_IWUSR ? true : false;
+
+	if(getegid()==fStat.st_gid)
+		return fStat.st_mode&S_IWGRP ? true : false;
+
+	if(fStat.st_mode&S_IWOTH)
+		return true;
+
+	return false;
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -845,7 +860,8 @@ VError CopyHelper::Copy(const PathBuffer& inSrc, const PathBuffer& inDst)
 {
 	VError verr=DoInit(inSrc, inDst);
 
-	if(verr==VE_OK)
+	if(verr==VE_OK && fSrcSize > 0)
+
 		verr=DoCopy();
 
 	if(verr!=VE_OK)

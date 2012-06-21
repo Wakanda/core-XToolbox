@@ -101,7 +101,11 @@ IJSWDebugger* JSWDebuggerFactory::Get ( )
 }
 IJSWChrmDebugger* JSWDebuggerFactory::GetCD()
 {
+#if defined(WKA_USE_CHR_REM_DBG)
 	return VChrmDebugHandler::Get();
+#else
+	return NULL;
+#endif
 }
 
 VJSWDebugger::VJSWDebugger ( )

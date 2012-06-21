@@ -35,7 +35,6 @@
 #else
 #include "XMacPictureData.h"
 #endif
-#include "VPictureDataQuicktime.h"
 #include "V4DPicture.h"
 
 #endif

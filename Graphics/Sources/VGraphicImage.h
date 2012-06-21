@@ -18,7 +18,6 @@
 
 #include "KernelIPC/VKernelIPC.h"
 #include "Graphics/Sources/VGraphicsTypes.h"
-#include "Graphics/Sources/VQuicktimeSDK.h"
 #include "Graphics/Sources/V4DPictureIncludeBase.h"
 #include "Graphics/Sources/VGraphicContext.h"
 #include "Graphics/Sources/VRect.h"

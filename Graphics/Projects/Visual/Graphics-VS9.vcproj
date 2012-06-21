@@ -941,26 +941,6 @@
 					>
 				</File>
 				<File
-					RelativePath="..\..\Sources\VPictureDataQuicktime.cpp"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VPictureDataQuicktime.h"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VQuickTime.cpp"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VQuickTime.h"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VQuickTimeSDK.h"
-					>
-				</File>
-				<File
 					RelativePath="..\..\Sources\VWICCodec.cpp"
 					>
 				</File>
@@ -1627,4 +1607,6 @@
 			</File>
 		</Filter>
 	</Files>
+	<Globals>
+	</Globals>
 </VisualStudioProject>

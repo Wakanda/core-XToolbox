@@ -66,8 +66,6 @@
 
 // Imaging
 
-#include "Graphics/Sources/VQuickTime.h"
-
 #include "Graphics/Sources/V4DPictureTools.h"
 #include "Graphics/Sources/V4DPicture.h"
 #include "Graphics/Sources/V4DPictureDataSource.h"
@@ -77,7 +75,6 @@
 #else
 	#include "Graphics/Sources/xMacPictureData.h"
 #endif
-#include "Graphics/Sources/VPictureDataQuicktime.h"
 #include "Graphics/Sources/V4DPictureDecoder.h"
 #include "Graphics/Sources/V4DPictureProxyCache.h"
 

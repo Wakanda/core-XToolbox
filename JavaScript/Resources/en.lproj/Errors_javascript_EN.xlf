@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Translation file for 4D products.
+	Copyright (C) 2007-2012 4D SAS.
+	This file is distributed under the same license as the 4D product package.
+-->
+
+<!DOCTYPE xliff PUBLIC "-//XLIFF//DTD XLIFF//EN"
+"http://www.oasis-open.org/committees/xliff/documents/xliff.dtd">
+
+<xliff version="1.0">
+	<file datatype="x-STR#" original="undefined" source-language="en-US" target-language="en-US" product-version="v13">
+		<header>
+			<note>The character &quot;%&quot; (out of a numerical context) is a meta-character that will be replaced (often by a numeric value) before the string is displayed</note>
+			<note>Text between less than (&lt;) and greater than (&gt;) symbols is a variable&apos;s name and must not be localised</note>
+			<note>\r, \t and \n are meta-characters.</note>
+		</header>
+		<body>
+		<group resname="xbox JavaScript errors">
+			<trans-unit id="4000" resname="ERR_jvsc_4000">
+				<source>Wrong type for parameter #{p1}, expected File or String.</source>
+				<target>Wrong type for parameter #{p1}, expected File or String.</target>
+			</trans-unit>
+      <trans-unit id="4001" resname="ERR_jvsc_4001">
+        <source>Wrong type for parameter #{p1}, expected String.</source>
+        <target>Wrong type for parameter #{p1}, expected String.</target>
+      </trans-unit>
+      <trans-unit id="4002" resname="ERR_jvsc_4002">
+        <source>Wrong type for parameter #{p1}, expected Boolean.</source>
+        <target>Wrong type for parameter #{p1}, expected Boolean.</target>
+      </trans-unit>
+      <trans-unit id="4003" resname="ERR_jvsc_4003">
+        <source>Wrong type for parameter #{p1}, expected Number.</source>
+        <target>Wrong type for parameter #{p1}, expected Number.</target>
+      </trans-unit>
+      <trans-unit id="4004" resname="ERR_jvsc_4004">
+        <source>Wrong type for parameter #{p1}, expected Folder or String.</source>
+        <target>Wrong type for parameter #{p1}, expected Folder or String.</target>
+      </trans-unit>
+      <trans-unit id="4005" resname="ERR_jvsc_4005">
+        <source>Wrong type for parameter #{p1}, expected DataClass Attribute or String.</source>
+        <target>Wrong type for parameter #{p1}, expected DataClass Attribute or String.</target>
+      </trans-unit>
+      <trans-unit id="4006" resname="ERR_jvsc_4006">
+        <source>Wrong type for parameter #{p1}, expected Function.</source>
+        <target>Wrong type for parameter #{p1}, expected Function.</target>
+      </trans-unit>	  
+      <trans-unit id="4007" resname="ERR_jvsc_4007">
+        <source>Wrong type for parameter #{p1}, expected Object.</source>
+        <target>Wrong type for parameter #{p1}, expected Object.</target>
+      </trans-unit>	 	  
+      <trans-unit id="4008" resname="ERR_jvsc_4008">
+        <source>Wrong type for parameter #{p1}, expected Buffer.</source>
+        <target>Wrong type for parameter #{p1}, expected Buffer.</target>
+      </trans-unit>	  
+      <trans-unit id="4009" resname="ERR_jvsc_4009">
+        <source>Wrong type for parameter #{p1}, expected Array.</source>
+        <target>Wrong type for parameter #{p1}, expected Array.</target>
+      </trans-unit>	  	  
+      <trans-unit id="4010" resname="ERR_jvsc_4010">
+        <source>Method or constructor {p1} expects argument(s).</source>		
+        <target>Method or constructor {p1} expects argument(s).</target>
+      </trans-unit>	  	  
+      <trans-unit id="4011" resname="ERR_jvsc_4011">
+        <source>Wrong type for parameter #{p1}.</source>		
+        <target>Wrong type for parameter #{p1}.</target>
+      </trans-unit>
+       <trans-unit id="4012" resname="ERR_jvsc_4012">
+        <source>Wrong type for parameter #{p1}, expected Entity DataClass or String.</source>
+        <target>Wrong type for parameter #{p1}, expected Entity DataClass or String.</target>
+      </trans-unit>
+
+	  
+       <trans-unit id="4013" resname="ERR_jvsc_4013">
+        <source>File object must refer to an actual file!</source>
+        <target>File object must refer to an actual file!</target>
+      </trans-unit>
+       <trans-unit id="4014" resname="ERR_jvsc_4014">
+        <source>Folder object must refer to an actual folder!</source>
+        <target>Folder object must refer to an actual folder!</target>
+      </trans-unit>
+
+       <trans-unit id="4020" resname="ERR_jvsc_4020">
+        <source>Syntax error "{p1}"!</source>
+        <target>Syntax error "{p1}"!</target>
+      </trans-unit>
+
+       <trans-unit id="4021" resname="ERR_jvsc_4021">
+        <source>Script "{p1}" not found!</source>
+        <target>Script "{p1}" not found!</target>
+      </trans-unit>
+
+      <trans-unit id="4050" resname="ERR_jvsc_4050">
+        <source>Invalid object state: Method {p1} cannot be called in current state.</source>
+        <target></target>
+      </trans-unit>
+
+      <trans-unit id="4051" resname="ERR_jvsc_4051">
+        <source>Method {p1} is not supported or implemented.</source>
+        <target></target>
+      </trans-unit>	  
+	  
+      <trans-unit id="4052" resname="ERR_jvsc_4052">
+        <source>Function {p1} doesn't support all or part of argument {p2}.</source>
+        <target></target>
+      </trans-unit>	  
+	  
+      <trans-unit id="4053" resname="ERR_jvsc_4053">
+        <source>Number given as argument {p1} has invalid value (check range).</source>
+        <target></target>
+      </trans-unit>	  
+	  
+	  <trans-unit id="4100" resname="ERR_jvsc_4100">
+        <source>Buffer encoding failed!</source>
+        <target>Buffer encoding failed!</target>
+      </trans-unit>
+
+	  <trans-unit id="4101" resname="ERR_jvsc_4101">
+        <source>Out of bound of Buffer object!</source>
+        <target>Out of bound of Buffer object!</target>
+      </trans-unit>
+
+	  <trans-unit id="4102" resname="ERR_jvsc_4102">
+        <source>Unsupported or unknown encoding {p1}!</source>
+        <source>Unsupported or unknown encoding {p1}!</source>
+      </trans-unit>
+
+ 	  <trans-unit id="4120" resname="ERR_jvsc_4120">
+        <source>ArrayBuffer has been neutered.</source>
+        <source>ArrayBuffer has been neutered.</source>
+      </trans-unit>
+
+ 	  <trans-unit id="4121" resname="ERR_jvsc_4121">
+        <source>Out of bound of TypedArray object!</source>
+        <source>Out of bound of TypedArray object!</source>
+      </trans-unit>
+
+ 	  <trans-unit id="4122" resname="ERR_jvsc_4122">
+        <source>Trying to fill a TypedArray with a bigger Array or TypedArray!</source>
+        <source>Trying to fill a TypedArray with a bigger Array or TypedArray!</source>
+      </trans-unit>
+	  	  
+	  <trans-unit id="4200" resname="ERR_jvsc_4200">
+        <source>Socket is already connected!</source>
+        <target>Socket is already connected!</target>
+      </trans-unit>	  
+	  
+	  <trans-unit id="4201" resname="ERR_jvsc_4201">
+        <source>Expecting SSL key and certificate (options.key and options.cert)!</source>
+        <target>Expecting SSL key and certificate (options.key and options.cert)!</target>
+      </trans-unit>
+
+	  <trans-unit id="4300" resname="ERR_jvsc_4300">
+        <source>Argument {p1} has invalid file system type (must be TEMPORARY ou PERSISTENT)!</source>
+        <target>Argument {p1} has invalid file system type (must be TEMPORARY ou PERSISTENT)!</target>
+      </trans-unit>
+
+	  <trans-unit id="4301" resname="ERR_jvsc_4301">
+        <source>Wrong type for parameter #{p1}, expected DirectoryEntry object.</source>
+		<target>Wrong type for parameter #{p1}, expected DirectoryEntry object.</target>
+      </trans-unit>
+
+	  <trans-unit id="4302" resname="ERR_jvsc_4302">
+        <source>Wrong type for parameter #{p1}, expected DirectoryEntrySync object.</source>
+		<target>Wrong type for parameter #{p1}, expected DirectoryEntrySync object.</target>
+      </trans-unit>
+	  
+	  <trans-unit id="4303" resname="ERR_jvsc_4303">
+        <source>New name #{p1} must not be an empty string!</source>
+		<target>New name #{p1} must not be an empty string!</target>
+      </trans-unit>	  
+	  
+    </group>
+
+    </body>
+  </file>
+</xliff>

@@ -500,24 +500,6 @@ private:
 	VBlob* fBlob;
 };
 
-#if USE_QUICKTIME
-
-class xQTPointerDataRef :public VObject
-{
-	public:
-	xQTPointerDataRef(const xQTPointerDataRef& inDataRef);
-	xQTPointerDataRef(VPictureDataProvider* inDataSource);
-	virtual ~xQTPointerDataRef();
-	operator QTHandleRef(){return ( QTHandleRef)fQTDataRef;}
-	uLONG GetKind();
-	private:
-	void _FromV4DPictureDataSource(VPictureDataProvider* inDataSource);
-	VPictureDataProvider* fDataSource;
-	QTPointerDataRef fQTDataRef;
-};
-
-#endif
-
 #if VERSIONWIN
  
 class VPictureDataProvider_Stream : public IStream

@@ -103,7 +103,7 @@ void VTCPEndPoint::Init ( )
 		fIP = fSock-> GetIP ( );
 		fPort = fSock-> GetPort ( );
 		fIsSSL = fSock-> IsSSL ( );
-		fIsBlocking = false;
+		fIsBlocking = true;
 	}
 	else
 	{
@@ -112,7 +112,7 @@ void VTCPEndPoint::Init ( )
 #endif
 		fPort = -1;
 		fIsSSL = false;
-		fIsBlocking = false;
+		fIsBlocking = true;
 	}
 	fIsInAutoReconnect = false;
 	fIsInUse = false;
@@ -1216,7 +1216,7 @@ VError VTCPEndPoint::Write(void *inBuff, uLONG *ioLen, bool inWithEmptyTail)
 	
 	if(shouldTrace)
 	{
-		ILoggerBagKeys::count_bytes_received.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
+		ILoggerBagKeys::count_bytes_sent.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
 		
 		ILoggerBagKeys::error_code.Set(tBag, verr);
 		
@@ -1304,7 +1304,7 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 	{		
 		ILoggerBagKeys::error_code.Set(tBag, verr);
 		
-		ILoggerBagKeys::count_bytes_received.Set(tBag, partialWriteLen);
+		ILoggerBagKeys::count_bytes_sent.Set(tBag, partialWriteLen);
 		
 		logger->LogBag(tBag);
 	}

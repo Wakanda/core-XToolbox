@@ -43,17 +43,4 @@
 	#endif
 #endif
 
-// Flag to enable use of Quicktime by default in Windows
-#ifndef USE_QUICKTIME
-	//Desactivation de QuickTime pour les versions 64 bits
-	//Car il n'y a pas de version 64 bits de QT
-	#if ARCH_64
-		#define USE_QUICKTIME 0
-	#else
-		#define USE_QUICKTIME 1
-	#endif
-#endif
-
-
-
 #endif

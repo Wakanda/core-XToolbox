@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuicktimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "VGraphicContext.h"
 #if VERSIONWIN

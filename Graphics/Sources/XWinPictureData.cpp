@@ -18,7 +18,6 @@
 #include "Kernel/VKernel.h"
 
 #include <vector>
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #if ENABLE_D2D
 #include "XWinD2DGraphicContext.h"

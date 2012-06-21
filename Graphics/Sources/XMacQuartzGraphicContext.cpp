@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "XMacQuartzGraphicContext.h"
 #include "XMacStyledTextBox.h"
@@ -5328,35 +5327,4 @@ CGImageRef VMacQuartzBitmapContext::MAC_RetainCGImage () const
 	return fImageCache;
 }
 
-#if USE_QUICKTIME && !VERSION_64BIT
-PicHandle VMacQuartzBitmapContext::MAC_CreatePicHandle () const
-{
-	if (fContext == NULL) return NULL;
-	
-	// Convert to Pict File
-	GraphicsExportComponent	component;
-    ComponentResult	result = ::OpenADefaultComponent(GraphicsExporterComponentType, kQTFileTypePicture, &component);
-	
-	Handle	pictFile = ::NewHandle(0);
-	result = ::GraphicsExportSetInputCGBitmapContext(component, fContext);
-	assert(result == noErr);
-	
-	result = ::GraphicsExportSetOutputHandle(component, pictFile);
-	assert(result == noErr);
-	
-	result = ::GraphicsExportDoExport(component, NULL);
-	assert(result == noErr);
-	
-	// Remove file's 512 bytes header
-	PicHandle	picture = NULL;
-	
-	sLONG	pictSize = ::GetHandleSize(pictFile) - 512;
-	if (pictSize > 0)
-		::PtrToHand(*pictFile + 512, (Handle*) &picture, pictSize);
-	
-	::CloseComponent(component);
-	::DisposeHandle(pictFile);
-	
-	return picture;
-}
-#endif
+

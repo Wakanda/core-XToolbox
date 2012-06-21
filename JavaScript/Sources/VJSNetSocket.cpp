@@ -187,8 +187,13 @@ bool VJSNetSocketObject::_ReadSocket ()
 	} else {
 		
 		if (!length) {
- 
+
+			// Do not support "half close", consider them as "full" close. 
+			// Queue both events.
+
 			fWorker->QueueEvent(VJSNetEvent::Create(this, "end"));
+			fWorker->QueueEvent(VJSNetEvent::CreateClose(this, false));
+
 			isOk = false;
 			
 		} else if (fIsPaused) {
@@ -688,7 +693,7 @@ void VJSNetSocketClass::_write (XBOX::VJSParms_callStaticFunction &ioParms, VJSN
 	{
 		// If SSL is used, mutex will prevent SSL_write() during SSL_read() in callback.
 
-		XBOX::StLocker<XBOX::VCriticalSection>	lock(&inSocket->fMutex);
+///		XBOX::StLocker<XBOX::VCriticalSection>	lock(&inSocket->fMutex);	// FIX THAT
 		StErrorContextInstaller					context(false, true);
 	
 		error = inSocket->fEndPoint->Write(buffer, (uLONG *) &length);
@@ -1018,7 +1023,7 @@ void VJSNetSocketSyncClass::Connect (XBOX::VJSParms_withArguments &ioParms, XBOX
 
 	sLONG	numberArguments;
 
-	if (!(numberArguments = ioParms.CountParams())) {
+	if (!(numberArguments = (sLONG) ioParms.CountParams())) {
 
 		XBOX::vThrowError(XBOX::VE_JVSC_EXPECTING_PARAMETER);
 		return;

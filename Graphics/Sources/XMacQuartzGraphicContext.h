@@ -625,7 +625,6 @@ public:
 
 	// Accessors
 	CGImageRef		MAC_RetainCGImage () const;
-	PicHandle		MAC_CreatePicHandle () const;
 
 protected:
 	CGContextRef	fSrcContext;

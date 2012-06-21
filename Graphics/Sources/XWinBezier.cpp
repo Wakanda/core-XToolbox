@@ -19,7 +19,6 @@
 #include "VGraphicContext.h"
 
 #if ENABLE_D2D
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "XWinD2DGraphicContext.h"
 #endif

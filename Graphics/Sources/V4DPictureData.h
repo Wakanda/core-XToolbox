@@ -459,10 +459,7 @@ protected:
 	void xDraw(xMacPictureHandle inPict,CGContextRef inDC,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
 	void _PrepareCGContext(CGContextRef inDC,const VRect& inBounds,VPictureDrawSettings* inSet=NULL)const;
 	#endif
-	
-#if USE_QUICKTIME
-	void xDraw(QTInstanceRef inPict,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
-#endif
+
 	void xDraw(xMacPictureHandle inPict,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
 	
 	void _ReleaseDataProvider();
@@ -813,8 +810,6 @@ class XTOOLBOX_API VPictureData_MacPicture :public VPictureData_Vector
 	virtual xMacPictureHandle GetPicHandle()const; // return the pichandle in cache
 	virtual xMacPictureHandle CreatePicHandle(VPictureDrawSettings* inSet,bool& outCanAddPicEnd) const; // return a new pichandle, owner is the caller
 	virtual VSize GetDataSize(_VPictureAccumulator* inRecorder=0) const;
-	
-	Boolean HasQuicktimeData();
 
 	protected:
 	
@@ -839,25 +834,7 @@ class XTOOLBOX_API VPictureData_MacPicture :public VPictureData_Vector
 	
 };
 
-class xMacPictParser
-{
-	private:
-	xMacPictParser(const xMacPictParser& inParser)
-	:fStream(inParser.fStream){assert(false);}
-	xMacPictParser& operator=(const xMacPictParser&){assert(false);return *this;}
-	public:
-	xMacPictParser(VStream& pStream,Boolean pFromFile=false);
-	virtual ~xMacPictParser();
-	VError StartParsing();
-	void StopParsing();
-	sLONG FindOpcodeOffset(sWORD pOpcode);
-	Boolean FindOpcodes(uWORD* pOpcodes,sWORD pCount);
-	sLONG GetPictOpcodeSkipSize(VStream& pStream,uWORD opcode);
-	protected:
-	sLONG fPictSize;
-	VStream& fStream;
-	Boolean fFromFile;
-};
+
 #endif
 class XTOOLBOX_API VPictureData_Animator : public VObject
 {
