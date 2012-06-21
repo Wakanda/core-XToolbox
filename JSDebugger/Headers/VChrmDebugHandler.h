@@ -32,6 +32,7 @@
 
 #define K_MAX_SIZE					(4096)
 
+
 #if defined(WKA_USE_CHR_REM_DBG)
 
 typedef enum ChrmDbgMsgType_enum {
@@ -44,12 +45,9 @@ typedef enum ChrmDbgMsgType_enum {
 		BRKPT_REACHED_MSG
 } ChrmDbgMsgType_t;
 typedef struct ChrmDbgMsgData_st {
-		XBOX::VString	urlStr;
-		XBOX::VString	dataStr;
-		int				data;
-		int				lineNb;
-		int				objRef;
-		unsigned int	srcId;
+		XBOX::VString	_urlStr;
+		XBOX::VString	_dataStr;
+		WAKDebuggerServerMessage				Msg;
 } ChrmDbgMsgData_t;
 typedef struct ChrmDbgMsg_st {
 	ChrmDbgMsgType_t				type;
@@ -59,6 +57,24 @@ typedef struct ChrmDbgMsg_st {
 class ChrmDbgHdlPage	{
 
 public:
+class ChrmDbgFifo	{
+public:
+	std::queue<ChrmDbgMsg_t>		fMsgs;
+	ChrmDbgFifo();
+	void							Reset();
+	XBOX::VError					Put(ChrmDbgMsg_t inMsg);
+	// NULL timeout means infinite, if timeout and nothing returned type is NO_MSG
+	XBOX::VError					Get(ChrmDbgMsg_t* outMsg, uLONG inTimeoutMs);
+	/*
+	XBOX::VError					Put(ChrmDbgMsg_t inMsg);
+	// NULL timeout means infinite
+	bool							Get(ChrmDbgMsg_t* outMsg, uLONG inTimeoutMs);*/
+private:
+
+#define K_NB_MAX_MSGS	(4)
+	XBOX::VCriticalSection			fLock;
+	XBOX::VSemaphore				fSem;
+};
 	ChrmDbgHdlPage();
 	virtual							~ChrmDbgHdlPage();
 
@@ -68,15 +84,19 @@ public:
 	XBOX::VError					TreatMsg();
 	XBOX::VError					SendResult(const XBOX::VString& inValue);
 	XBOX::VError					SendMsg(const XBOX::VString& inValue);
-	XBOX::VError					TreatPageReload();
+	XBOX::VError					TreatPageReload(XBOX::VString* str);
+	XBOX::VError					SendDbgPaused(XBOX::VString* str);
 	XBOX::VError					TreatWS(IHTTPResponse* ioResponse);
+	XBOX::VError					GetBrkptParams(char* inStr, char** outUrl, char** outColNb, char **outLineNb);
 	uLONG							GetPageNb() {return fPageNb;};
-	bool							fActive;
-	bool							fUsed;
-	XBOX::VectorOfVString			fSource;
+	void							Clear() {fSource.clear();};
+	bool							fActive;// true when chrome displays the page
+	bool							fUsed;// true when the page is fed with 4D debug data
 	IHTTPWebsocketHandler*			fWS;
-	int								fLineNb;
-	XBOX::VString					fURL;
+	WAKDebuggerState_t				fState;
+	ChrmDbgFifo						fFifo;
+	ChrmDbgFifo						fOutFifo;
+
 private:
 	char							fMsgData[K_MAX_SIZE];
 	uLONG							fMsgLen;
@@ -101,42 +121,90 @@ private:
 class JSDEBUGGER_API VChrmDebugHandler :
 						public IHTTPRequestHandler,
 #if defined(WKA_USE_CHR_REM_DBG)
-						public IJSWChrmDebugger,
+						public IWAKDebuggerServer,
 #endif
 						public XBOX::VObject
 {
 public:
-	static VChrmDebugHandler*		Get();
-	virtual bool					HasClients();
-	virtual XBOX::VError			GetPatterns(XBOX::VectorOfVString* outPatterns) const;
-	virtual XBOX::VError			HandleRequest(IHTTPResponse* ioResponse);
+
+static VChrmDebugHandler*				Get();
+	virtual bool						HasClients();
+	virtual XBOX::VError				GetPatterns(XBOX::VectorOfVString* outPatterns) const;
+	virtual XBOX::VError				HandleRequest(IHTTPResponse* ioResponse);
 
 #if defined(WKA_USE_CHR_REM_DBG)
+	virtual WAKDebuggerType_t			GetType();
+	virtual int							StartServer();
+	virtual short						GetServerPort();
+	virtual void						SetSettings( IWAKDebuggerSettings* inSettings );
+	virtual void						SetInfo( IWAKDebuggerInfo* inInfo );
+	virtual bool						Lock();
+	virtual bool						Unlock();
+	virtual WAKDebuggerContext_t		AddContext( uintptr_t inContext );
+	virtual bool						RemoveContext( WAKDebuggerContext_t inContext );
+	virtual bool						SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state);
+	virtual bool						SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize );
+	virtual bool						SendEval( WAKDebuggerContext_t inContext, void* inVars );
+	virtual bool						BreakpointReached(
+											WAKDebuggerContext_t	inContext,
+											int						inLineNumber,
+											int						inExceptionHandle = -1/* -1 ? notException : ExceptionHandle */,
+											char*					inURL  = NULL,
+											int						inURLLength = 0/* in bytes */,
+											char*					inFunction = NULL,
+											int 					inFunctionLength = 0 /* in bytes */,
+											char*					inMessage = NULL,
+											int 					inMessageLength = 0 /* in bytes */,
+											char* 					inName = NULL,
+											int 					inNameLength = 0 /* in bytes */,
+											long 					inBeginOffset = 0,
+											long 					inEndOffset = 0 /* in bytes */ );
+	virtual void						SetSourcesRoot( char* inRoot, int inLength );
+	virtual char* GetAbsolutePath (
+									const unsigned short* inAbsoluteRoot, int inRootSize,
+									const unsigned short* inRelativePath, int inPathSize,
+									int& outSize );
+	virtual char* GetRelativeSourcePath (
+									const unsigned short* inAbsoluteRoot, int inRootSize,
+									const unsigned short* inAbsolutePath, int inPathSize,
+									int& outSize );
+	virtual bool						SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength );
+	virtual bool						SendSource( WAKDebuggerContext_t inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen );
+	virtual WAKDebuggerServerMessage*	WaitFrom(WAKDebuggerContext_t inContext);
+	virtual void						DisposeMessage(WAKDebuggerServerMessage* inMessage);
+	virtual WAKDebuggerServerMessage* GetNextBreakPointCommand();
+	virtual WAKDebuggerServerMessage* GetNextSuspendCommand( WAKDebuggerContext_t inContext );
+	virtual WAKDebuggerServerMessage* GetNextAbortScriptCommand ( WAKDebuggerContext_t inContext );
+	virtual long long					GetMilliseconds();
 
-	virtual void*					GetCtx();
-	virtual bool					ReleaseCtx(void* inContext);
-	virtual int 					WaitForClientCommand( void* inContext );
-	virtual bool					SetSource( void* inContext, const char *inData, int inLength, const char* inUrl, unsigned int inURLLen );
-	virtual bool					BreakpointReached(void* inContext, int inLineNb);
+	virtual WAKDebuggerUCharPtr_t		EscapeForJSON( const unsigned char* inString, int inSize, int& outSize );
+	virtual void						DisposeUCharPtr( WAKDebuggerUCharPtr_t inUCharPtr );
 
-	virtual XBOX::VError			GetPatterns(XBOX::VectorOfVString* outPatterns) const;
-	virtual XBOX::VError			HandleRequest(IHTTPResponse* ioResponse);
+	virtual void*						UStringToVString( const void* inString, int inSize );
+
+	virtual int							Write ( const char * inData, long inLength, bool inToUTF8 = false );
+	virtual int							WriteFileContent ( long inCommandID, uintptr_t inContext, const unsigned short* inFilePath, int inPathSize );
+	virtual int							WriteSource ( long inCommandID, uintptr_t inContext, const unsigned short* inSource, int inSize );
+
+	virtual void						Trace(const void* inString, int inSize );
+
 
 private:
 	VChrmDebugHandler();
 	virtual							~VChrmDebugHandler();
-	
-static VChrmDebugHandler*			sDebugger;
 
+	XBOX::VError					TreatJSONFile(IHTTPResponse* ioResponse);
 
-
-#define K_NB_MAX_PAGES		(16)
+#define K_NB_MAX_PAGES		(4)
 	ChrmDbgHdlPage					fPages[K_NB_MAX_PAGES];
 	XBOX::VCriticalSection			fLock;
 	XBOX::VCppMemMgr*				fMemMgr;
 
-	XBOX::VError					TreatJSONFile(IHTTPResponse* ioResponse);
 #endif	//WKA_USE_CHR_REM_DBG
+
+static VChrmDebugHandler*			sDebugger;
+static XBOX::VCriticalSection		sDbgLock;
+
 };
 
 #endif

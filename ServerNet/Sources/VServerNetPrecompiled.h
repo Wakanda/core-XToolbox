@@ -17,6 +17,14 @@
 #define __VSRVRNET_PCH__
 
 
+#if VERSIONMAC 
+	#ifndef _DARWIN_UNLIMITED_SELECT
+		//Needed to use select on a descriptor greater than 1024
+		#define _DARWIN_UNLIMITED_SELECT
+	#endif
+#endif
+
+
 // Kernel headers
 #include "Kernel/VKernel.h"
 

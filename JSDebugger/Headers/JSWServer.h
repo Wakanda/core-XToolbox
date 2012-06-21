@@ -64,12 +64,18 @@ class VJSWConnectionHandler : public VConnectionHandler
 		int SendContextDestroyed ( uintptr_t inContext );
 
 		void Reset ( ) { fBlockWaiters = true; }
-		IJSWDebuggerCommand* WaitForClientCommand ( uintptr_t inContext );
 		VError WakeUpAllWaiters ( );
+#if !defined(WKA_USE_UNIFIED_DBG)
+		IJSWDebuggerCommand* WaitForClientCommand ( uintptr_t inContext );
 		IJSWDebuggerCommand* GetNextBreakPointCommand ( );
 		IJSWDebuggerCommand* GetNextSuspendCommand ( uintptr_t inContext );
 		IJSWDebuggerCommand* GetNextAbortScriptCommand ( uintptr_t inContext );
-
+#else
+		IWAKDebuggerCommand* WaitForClientCommand( uintptr_t inContext );
+		IWAKDebuggerCommand* GetNextBreakPointCommand ( );
+		IWAKDebuggerCommand* GetNextSuspendCommand ( uintptr_t inContext );
+		IWAKDebuggerCommand* GetNextAbortScriptCommand ( uintptr_t inContext );
+#endif
 		char* GetRelativeSourcePath (
 								const unsigned short* inAbsoluteRoot, int inRootSize,
 								const unsigned short* inAbsolutePath, int inPathSize,
@@ -86,8 +92,13 @@ class VJSWConnectionHandler : public VConnectionHandler
 		VCriticalSection				fEndPointMutex;
 		bool							fShouldStop;
 		bool							fIsDone;
+#if !defined(WKA_USE_UNIFIED_DBG)
 		IJSWDebuggerInfo*				fDebuggerInfo;
 		IJSWDebuggerSettings*			fDebuggerSettings;
+#else
+		IWAKDebuggerInfo*				fDebuggerInfo;
+		IWAKDebuggerSettings*			fDebuggerSettings;
+#endif
 		bool							fNeedsAuthentication;
 		bool							fHasAuthenticated;
 		//std::vector<VJSWContextRunTimeInfo*>	fContexts;
@@ -113,15 +124,22 @@ class VJSWConnectionHandler : public VConnectionHandler
 
 		VError ExtractCommands ( );
 		VError AddCommand ( const VString & inCommand );
+#if !defined(WKA_USE_UNIFIED_DBG)
 		VError AddCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID );
 		VError AddCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
+		VError SendContextList ( long inCommandID, uintptr_t* inContextIDs, IJSWDebuggerInfo::JSWD_CONTEXT_STATE* outStates, int inCount );
+#else
+		VError AddCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID );
+		VError AddCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
+		VError SendContextList ( long inCommandID, uintptr_t* inContextIDs, IWAKDebuggerInfo::JSWD_CONTEXT_STATE* outStates, int inCount );
+#endif
 		VError AddCommand ( const VValueBag & inCommand );
 		VError ClearCommands ( );
 
 		VError HandleAuthenticate ( long inCommandID, const VString & inUserName, const VString & inHA1 );
 
 		VError WriteSource ( long inCommandID, uintptr_t inContext, const VString & vstrSource );
-		VError SendContextList ( long inCommandID, uintptr_t* inContextIDs, IJSWDebuggerInfo::JSWD_CONTEXT_STATE* outStates, int inCount );
+
 		VError SendAuthenticationHandled ( long inCommandID, bool inSuccess );
 		VError SendAuthenticationNeeded ( const VString & inCommandID, const VString & inCommand );
 

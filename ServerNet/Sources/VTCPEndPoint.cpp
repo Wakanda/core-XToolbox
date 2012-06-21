@@ -62,6 +62,8 @@ VTCPEndPoint::VTCPEndPoint ( XTCPSock* inSock, VTCPSelectIOPool* vtcpSIOPool ) :
 
 VTCPEndPoint::~VTCPEndPoint ( )
 {
+	Close();
+	
 	if ( fSock )
 		delete fSock;
 	
@@ -453,12 +455,6 @@ VError VTCPEndPoint::DoReadExactly(void *outBuff, uLONG* ioLen, sLONG inMsTimeou
 	
 	sLONG timeoutMs=inMsTimeout;
 	
-	//jmo - ReadExactly with non-blocking socket should block anyway... Simulate that with max timeout
-	if(!withTimeout && !IsBlocking())
-	{
-		timeoutMs=XBOX::MaxLongInt;
-		withTimeout=true;
-	}
 	
 	for(;;)
 	{
@@ -612,12 +608,6 @@ VError VTCPEndPoint::DoWriteExactly(const void *inBuff, uLONG* ioLen, sLONG inMs
 	
 	sLONG timeoutMs=inMsTimeout;
 	
-	//jmo - WriteExactly with non-blocking socket should block anyway... Simulate that with max timeout
-	if(!withTimeout && !IsBlocking())
-	{
-		timeoutMs=XBOX::MaxLongInt;
-		withTimeout=true;
-	}
 	
 	for(;;)
 	{
@@ -1128,9 +1118,22 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
 	}
 	
+	//jmo - Non blocking and timeout zero really means blocking.
+	//      If not Select IO, silently tweak the socket to reflect that.
+	
+	bool wasBlocking=fSock->IsBlocking();
+	
+	if(inTimeOutMillis<=0 && !wasBlocking && !IsSelectIO())
+		fSock->SetBlocking(true);
+	
+	
 	uLONG partialReadLen=inLen;
 	
 	VError verr=DoReadExactly(outBuff, &partialReadLen, inTimeOutMillis);
+	
+	
+	if(fSock->IsBlocking()!=wasBlocking)
+		fSock->SetBlocking(wasBlocking);
 	
 	if(shouldTrace)
 	{		
@@ -1296,9 +1299,22 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
 	}
 	
+	//jmo - Non blocking and timeout zero really means blocking.
+	//      Silently tweak the socket to reflect that (no SelectIO at writing).
+	
+	bool wasBlocking=fSock->IsBlocking();
+	
+	if(inTimeOutMillis<=0 && !wasBlocking)
+		fSock->SetBlocking(true);
+	
+	
 	uLONG partialWriteLen=inLen;
 	
 	VError verr=DoWriteExactly(inBuff, &partialWriteLen, inTimeOutMillis);
+	
+	
+	if(fSock->IsBlocking()!=wasBlocking)
+		fSock->SetBlocking(wasBlocking);
 	
 	if(shouldTrace)
 	{		

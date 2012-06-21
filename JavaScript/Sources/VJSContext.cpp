@@ -294,9 +294,11 @@ void VJSGlobalContext::ForbidDebuggerLaunch ( )
 
 #if defined(WKA_USE_CHR_REM_DBG)
 //#error GH
-void VJSGlobalContext::SetChrmDebuggerServer( IJSWChrmDebugger* inDebuggerServer )
+void VJSGlobalContext::SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer )
+//void VJSGlobalContext::SetChrmDebuggerServer( IWAKDebuggerServer* inDebuggerServer )
 {
-	JSSetChrmDebuggerServer( inDebuggerServer );
+//	JSSetChrmDebuggerServer( inDebuggerServer );
+	JSSetDebuggerServer ( inDebuggerServer );
 }
 #else
 void VJSGlobalContext::SetDebuggerServer ( IJSWDebugger* inDebuggerServer )

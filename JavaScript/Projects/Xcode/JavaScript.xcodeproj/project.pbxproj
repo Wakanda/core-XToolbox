@@ -311,63 +311,63 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = 932F5BD90822A1C700736975 /* JavaScriptCore.framework */;
+			remoteGlobalIDString = 932F5BD90822A1C700736975;
 			remoteInfo = JavaScriptCore;
 		};
 		F412FB0215625009000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = F4E88D4215345D8700EABD46 /* JavaScriptCore.framework */;
+			remoteGlobalIDString = F4E88D4215345D8700EABD46;
 			remoteInfo = "JavaScriptCore x86_64";
 		};
 		F412FB0415625009000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = 141211200A48793C00480255 /* minidom */;
+			remoteGlobalIDString = 141211200A48793C00480255;
 			remoteInfo = minidom;
 		};
 		F412FB0615625009000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = 14BD59BF0A3E8F9000BAF59C /* testapi */;
+			remoteGlobalIDString = 14BD59BF0A3E8F9000BAF59C;
 			remoteInfo = testapi;
 		};
 		F412FB0815625009000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = 932F5BE10822A1C700736975 /* jsc */;
+			remoteGlobalIDString = 932F5BE10822A1C700736975;
 			remoteInfo = jsc;
 		};
 		F412FB0A15625009000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = F435DA5615343B64000CEE94 /* 4DJavaScriptCore.framework */;
+			remoteGlobalIDString = F435DA5615343B64000CEE94;
 			remoteInfo = 4DJavaScriptCore;
 		};
 		F412FB0C15625009000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = F435DA6C15343BFD000CEE94 /* 4DJavaScriptCore.framework */;
+			remoteGlobalIDString = F435DA6C15343BFD000CEE94;
 			remoteInfo = "4DJavaScriptCore x86_64";
 		};
 		F412FB0E15625010000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 1;
-			remoteGlobalIDString = F435D81215343B64000CEE94 /* 4DJavaScriptCore */;
+			remoteGlobalIDString = F435D81215343B64000CEE94;
 			remoteInfo = 4DJavaScriptCore;
 		};
 		F412FB1015625017000BE0C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F412FAF315625009000BE0C0 /* JavaScriptCore.xcodeproj */;
 			proxyType = 1;
-			remoteGlobalIDString = F435DA6315343BFD000CEE94 /* 4DJavaScriptCore x86_64 */;
+			remoteGlobalIDString = F435DA6315343BFD000CEE94;
 			remoteInfo = "4DJavaScriptCore x86_64";
 		};
 		F44520AB116484FD005984A9 /* PBXContainerItemProxy */ = {
@@ -1581,6 +1581,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=1";
 				HEADER_SEARCH_PATHS = (
+					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
 					"${SRCROOT}/../../Headers",
@@ -1614,6 +1615,7 @@
 					"WITH_ASSERT=1",
 				);
 				HEADER_SEARCH_PATHS = (
+					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
 					"${SRCROOT}/../../Headers",
@@ -1654,6 +1656,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=1";
 				HEADER_SEARCH_PATHS = (
+					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
 					"${SRCROOT}/../../Headers",
@@ -1677,6 +1680,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=0";
 				HEADER_SEARCH_PATHS = (
+					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
 					"${SRCROOT}/../../Headers",
@@ -1707,6 +1711,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=0";
 				HEADER_SEARCH_PATHS = (
+					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
 					"${SRCROOT}/../../Headers",

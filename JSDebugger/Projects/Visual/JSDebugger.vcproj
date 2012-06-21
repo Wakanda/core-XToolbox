@@ -46,7 +46,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..\Headers;..\..\Interfaces;&quot;..\..\..\..\..\Components\$(BranchName)\&quot;"
+				AdditionalIncludeDirectories="..\..\Headers;..\..\Interfaces;&quot;..\..\..\..\..\Components\$(BranchName)\&quot;;&quot;$(SolutionDir)\..\..\webkit\534.53\JavaScriptCore\4D&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JSDEBUGGER_EXPORTS"
 				MinimalRebuild="true"
 				UsePrecompiledHeader="0"

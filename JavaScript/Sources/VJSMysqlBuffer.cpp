@@ -17,6 +17,7 @@ VJSMysqlBufferObject::VJSMysqlBufferObject ()
 	fpos = 0;
 }
 
+
 VJSMysqlBufferObject::~VJSMysqlBufferObject()
 {
 
@@ -25,14 +26,19 @@ VJSMysqlBufferObject::~VJSMysqlBufferObject()
 
 }
 
+
 void VJSMysqlBufferObject::AddBufferSimple(VJSBufferObject* targetBuffer)
 {
 	targetBuffer->Retain();
 	fBuffer.push_back(targetBuffer);
 }
+
+
 Boolean VJSMysqlBufferObject::GoNext(uLONG len)
 {
-
+	//GoNext purpose is to advance to the current position to "len" next bytes
+	//if we reach the end of the buffer and it still remain some bytes in this case
+	//we set fToAdvance to the number of bytes to advance and we return false 
 	if(fOffset <= fBufferLength - len){
 		fOffset += len;
 		return true;
@@ -43,13 +49,16 @@ Boolean VJSMysqlBufferObject::GoNext(uLONG len)
 
 }
 
+
 Boolean VJSMysqlBufferObject::ReadNext(VJSBufferObject* inBuffer)
 {
-
+	//fToRead determines the number of bytes that we shall read
+	//we read byte per byte and we incremente the values and decremente fToread
+	//	- if we success to read all the desired bytes we set fToRead to 0 and return true
+	//	- else return false
 	while(fToRead >0){
 
 		if(fOffset <= fBufferLength - 1) {
-
 			fRead |= ((uBYTE*)(inBuffer->GetDataPtr ()))[fOffset];
 			fOffset++;
 			fToRead --;
@@ -66,6 +75,7 @@ Boolean VJSMysqlBufferObject::ReadNext(VJSBufferObject* inBuffer)
 
 }
 
+
 Boolean VJSMysqlBufferObject::AddBuffer(VJSBufferObject* inBuffer)
 {
 	inBuffer->Retain();
@@ -81,7 +91,7 @@ Boolean VJSMysqlBufferObject::AddBuffer(VJSBufferObject* inBuffer)
 
 				fToAdvance = 0;
 				fToRead = 3;
-
+				fRead = 0;
 				if(ReadNext(inBuffer)){
 
 					fState ++;
@@ -118,13 +128,13 @@ Boolean VJSMysqlBufferObject::AddBuffer(VJSBufferObject* inBuffer)
 
 					if(fRead == 00){
 
-						fState = 11;
-
+						fState = 10;
+						fOffsetRead = 0;
 					}
 					else if(fRead == 255){
 
 						fState = 20;
-						fToAdvance = 1 + fPackLength;
+						fToAdvance = fPackLength - 2;
 
 					}
 					else{
@@ -179,7 +189,7 @@ Boolean VJSMysqlBufferObject::AddBuffer(VJSBufferObject* inBuffer)
 
 				if(ReadNext(inBuffer)){
 
-					fToAdvance = fPackLength - fOffsetRead - 3;
+					fToAdvance = fPackLength - fOffsetRead - 5;
 					fState ++;
 
 					if(!eof)
@@ -315,7 +325,8 @@ Boolean VJSMysqlBufferObject::AddBuffer(VJSBufferObject* inBuffer)
 
 			case 45:
 
-				if(fRead == 5 && fOffset == fBufferLength - 6){
+				if(fRead == 5){
+				//if(fRead == 5 && fOffset == fBufferLength - 6){
 
 					fToAdvance = 1;
 					fState ++;
@@ -406,12 +417,15 @@ void VJSMysqlBufferObject::InitList()
 	fCoordIter = -1;
 }
 
+
 uLONG VJSMysqlBufferObject::GetRowsCount(){
 	return fRowsCount[fCoordIter];
 }
 
+
 VJSArray VJSMysqlBufferObject::Fetch(XBOX::VJSContext &inContext, sLONG inCount, uLONG inFieldCount, VJSArray titles, VJSArray types)
 {
+	//read VJSMysqlBufferObject::AdvanceFetch(sLONG inCount) first
 	VJSArray fetchedRows(inContext);
 	fetchedRows.Clear();
 
@@ -443,7 +457,6 @@ VJSArray VJSMysqlBufferObject::Fetch(XBOX::VJSContext &inContext, sLONG inCount,
 
 		}
 		else{
-			//	if(fRowPosition < fRowsCount){
 
 			for(uLONG i = 0; i < fRowsCount[fCoordIter] - fRowPosition ; i ++){
 
@@ -462,85 +475,112 @@ VJSArray VJSMysqlBufferObject::Fetch(XBOX::VJSContext &inContext, sLONG inCount,
 			}
 
 			fRowPosition = fRowsCount[fCoordIter];
-			//}
+			
 		}
 	}
 
 	return fetchedRows;
 }
 
+
 void VJSMysqlBufferObject::AdvanceFetch(sLONG inCount)
 {
-
+	// Advance Fetch means, skip the next inCount rows
+	// if inCount = -1 we should skip all rows
 	if(inCount == -1)
 		inCount = fRowsCount[fCoordIter];
 
 	if(inCount != 0){
 		if(inCount <= (fRowsCount[fCoordIter] - fRowPosition)){
-
+		// if the number of rows to skip is less than rest of no skiped rows
 			for(uLONG i = 0; i < inCount ; i ++)
-				Advance(ReadUInt24LE() + 1);
+				Advance(ReadUInt24LE() + 1);//next row
 
 			fRowPosition += inCount;
 
 		}
 		else{
-			//	if(fRowPosition < fRowsCount){
+			// if the number of rows to skip is more than the rest of non skiped rows 
+			//-->		then we skip only the rest 
 
 			for(uLONG i = 0; i < fRowsCount[fCoordIter] - fRowPosition ; i ++)
 				Advance(ReadUInt24LE() + 1);
 
 			fRowPosition = fRowsCount[fCoordIter];
-			//}
+			
 		}
 	}
 
 }
+
+
 void VJSMysqlBufferObject::PrepareSelectFetch()
 {
-	if(fCoordIter >= 0)
+	if(fCoordIter >= 0){
+		//if this is not the first time we must iterate to the next statement
 		fCoordIter++;
-	else
+	}
+	else{
+		//before fetching results fCoordIter is set to -1
 		fCoordIter = 0;
-
+	}
+	//the buffer position which contain the start of rows data in buffers list
 	fpos = fRowsStart[fCoordIter].first;
+	//Byte position start in the selected buffer
 	fOffset = fRowsStart[fCoordIter].second;
+	//row position is set to 0 because we didn't start the fetch
 	fRowPosition = 0;
 }
 
-void VJSMysqlBufferObject::SaveRows (){
 
+void VJSMysqlBufferObject::SaveRowsPosition(){
 	uLONG rowsCount = 0;
+	//save the rows data start position
 	fRowsStart.push_back(std::pair<uLONG, uLONG>(fpos, fOffset));
 
-	while (IsRow())
+	//see IsRow function first
+	while (IsRow())//if the next packet is not an EOF
 		rowsCount++;
-
+	//if the next packet is an EOF
+	//we save the position at the end of RowsData
 	fRowsEnd.push_back(std::pair<uLONG, uLONG>(fpos, fOffset));
+	//we save the number of rows of the current statement	
 	fRowsCount.push_back(rowsCount);
 }
 
+
 void VJSMysqlBufferObject::SkipRowsData (){
 
-	if(fCoordIter >= 0)
+	if(fCoordIter >= 0){
+		//if this is not the first time we must iterate to the next statement
 		fCoordIter++;
-	else
+	}
+	else{
+		//before fetching results fCoordIter is set to -1
 		fCoordIter = 0;
+	}
 
+	//the buffer position which contain the start of rows data in buffers list
 	fpos = fRowsEnd[fCoordIter].first;
+	
+	//Byte position start in the selected buffer
 	fOffset = fRowsEnd[fCoordIter].second;
 
 
 	if(fRowsStart.size()- fCoordIter == 1)
 		fCoordIter = -1;
 	
+	//because SkipRowsData just before the conncatenation which use fCoordIter for the fetch.
+	//if we reach the last statement we reset fCoordIter to -1
 }
+
 
 uWORD VJSMysqlBufferObject::GetSize()
 {
 	return fBuffer.size();
 
 }
+
 
 uLONG VJSMysqlBufferObject::GetSelectResultCount()
 {
@@ -549,6 +589,7 @@ uLONG VJSMysqlBufferObject::GetSelectResultCount()
 
 }
 
+
 uLONG VJSMysqlBufferObject::GetOffsetRead()
 {
 	uLONG offsetRead = fOffsetRead;
@@ -556,54 +597,53 @@ uLONG VJSMysqlBufferObject::GetOffsetRead()
 	return offsetRead;
 
 }
+
+
 uBYTE VJSMysqlBufferObject::ReadNextHex()
 {
 	if(fOffset <= fBufferLength - 1) {
-
 		return ((uBYTE*)(fBuffer[fpos]->GetDataPtr ()))[fOffset];
-
-	} else {
+	}
+	else{
 		fpos++;
 		fOffset = 0;
 		fBufferLength = fBuffer[fpos]->GetDataSize();
 		return ((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fOffset];
-
 	}
 }
+
 
 Boolean VJSMysqlBufferObject::HasNext(){
 
 	return (Boolean)(fRowPosition < fRowsCount[fCoordIter]);
 	//(Boolean)!(fpos == fRowsEnd[fCoordIter].first && fOffset >= fRowsEnd[fCoordIter].second);
 }
+
+
 Boolean VJSMysqlBufferObject::IsRow()
 {
 	if(
-		fOffset == fBufferLength - 9 && 
-		((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fBufferLength - 5] == 0xfe 
-		&& ((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fBufferLength - 9] == 5
-		){
+	 //if it is the last 9 bytes of a buffer
+	fOffset == fBufferLength - 9 &&
+	//and if if the 5th field is 254 ie it is EOF
+	((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fBufferLength - 5] == 0xfe
+	//and we have exactly 5 bytes (because an EOF contains 5 bytes)	
+	&& ((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fBufferLength - 9] == 5
+	){
 			return false;
 	}
 
 	Advance(ReadUInt24LE() + 1);
 
-	/*	if(fOffset > fBufferLength - 4){
-	fpos++;
-	fOffset += 4 - fBufferLength;
-	fBufferLength = fBuffer[fpos]->GetDataSize();
-
 	return true;
-	}
-
-	fOffset += 4;
-	*/
-
-	return true;	
 }
+
+
+
 void VJSMysqlBufferObject::Advance(uLONG len)
 {
-
+	//to position the fOffset to the next len bytes, 
+	//if the the number of bytes aren't enough we go to the next buffer and continue advancing
 	if(fOffset <= fBufferLength - len){
 		fOffset += len;
 		return;
@@ -616,82 +656,70 @@ void VJSMysqlBufferObject::Advance(uLONG len)
 }
 
 
-
 uBYTE VJSMysqlBufferObject::ReadUInt8()
 {
+	//read one byte
+	//although we are at the buffer 's end we pointe to the next buffer and and at the start of this buffer fOffset = 0
 	if(fOffset <= fBufferLength - 1) {
-
 		return ((uBYTE*)(fBuffer[fpos]->GetDataPtr ()))[fOffset++];
 
-	} else {
-
+	}
+	else{
 		fpos++;
 		fOffset = 0;
 		fBufferLength = fBuffer[fpos]->GetDataSize();
 		return ((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fOffset++];
-
 	}
 
 }
 
+
 uWORD VJSMysqlBufferObject::ReadUInt16LE()
 {
-	uWORD	result;
+	uWORD result = 0;
 
 	if(fOffset <= fBufferLength - 2) {
 		uBYTE* buffer = (uBYTE*)(fBuffer[fpos]->GetDataPtr ());
 		result = *((uWORD *) &buffer[fOffset]);
 		fOffset += 2;
-		return result;
-
-
-	} else if(fOffset == fBufferLength - 1) {
-
+	}
+	else if(fOffset == fBufferLength - 1) {
 		result = ((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fOffset];
-
 		fpos++;
 		fOffset = 0;
-
 		result |= ((uBYTE*)(fBuffer[fpos]->GetDataPtr()))[fOffset] << 8;
 		fOffset += 1;
 		fBufferLength = fBuffer[fpos]->GetDataSize();
-		return result;
-
-	} else if(fOffset == fBufferLength){
+	}
+	else if(fOffset == fBufferLength){
 		uBYTE* buffer = (uBYTE*)(fBuffer[fpos]->GetDataPtr ());
-
 		fpos++;
 		fOffset = 0;
 		result = (*((uWORD *) &buffer[fOffset]));
 		result += 2;
 		fBufferLength = fBuffer[fpos]->GetDataSize();
-		return result;
-
 	}
 
+	return result;
 }
+
 
 uLONG VJSMysqlBufferObject::ReadUInt24LE()
 {
-	uLONG	result;
-
+	uLONG result;
 	if(fOffset <= fBufferLength - 3) {
 		uBYTE* buffer = (uBYTE*)(fBuffer[fpos]->GetDataPtr ());
-
 		result = *((uWORD *) &buffer[fOffset]);
 		result |= buffer[fOffset + 2] << 16;
 		fOffset += 3;
-		return result;
-
-	} else {
-
+	}
+	else{
 		result = ReadUInt8() | (ReadUInt16LE())<< 8;
 		fBufferLength = fBuffer[fpos]->GetDataSize();
-		return result;
-
 	}
-
+	return result;
 }
+
 
 uLONG VJSMysqlBufferObject::ReadUInt32LE()
 {
@@ -702,39 +730,38 @@ uLONG VJSMysqlBufferObject::ReadUInt32LE()
 		result = *((uLONG *) &buffer[fOffset]);
 		fOffset += 4;
 		return result;
-
-	} else {
-
+	}
+	else{
 		result = ReadUInt16LE() | (ReadUInt16LE())<< 16;
 		fBufferLength = fBuffer[fpos]->GetDataSize();
 		return result;
-
 	}
-
 }
+
 
 uLONG8 VJSMysqlBufferObject::ReadUInt64LE()
 {
-	uLONG result;
+	uLONG8 result;
 
 	if(fOffset <= fBufferLength - 4) {
 		uBYTE* buffer = (uBYTE*)(fBuffer[fpos]->GetDataPtr ());
 		result = *((uLONG8 *) &buffer[fOffset]);
 		fOffset += 4;
-		return result;
-
-	} else {
-
-		result = ReadUInt32LE() | (ReadUInt32LE() << 32);
-		fBufferLength = fBuffer[fpos]->GetDataSize();
-		return result;
-
 	}
-
+	else{
+		uLONG8 left = ReadUInt32LE();
+		uLONG8 right = ReadUInt32LE();
+		result = left | (right << 32);
+		fBufferLength = fBuffer[fpos]->GetDataSize();
+	}
+ 
+	return result;
 }
+
 
 uLONG VJSMysqlBufferObject::ReadLCB ()
 {
+	//Read Length Coded Binary Number
 	uBYTE firstCoded = ReadUInt8();
 
 	if(firstCoded < 251){
@@ -749,13 +776,19 @@ uLONG VJSMysqlBufferObject::ReadLCB ()
 	else if(firstCoded == 253){
 		return ReadUInt24LE();
 	}
-
 	else if(firstCoded == 254){
 		return ReadUInt64LE();
 	}
+	else{
+		return 0;
+	}
 }
+
+
 uLONG VJSMysqlBufferObject::ReadLCBPlus()
 {
+	//Read Length Coded Binary Number and add it to fOffsetRead ,ReadLCBPlus is used only with OK 
+	//packet to know how many bytes have been read, to verify if the message field(optional) exists or not
 	uLONG lcb;
 	uBYTE firstCoded = ReadUInt8();
 
@@ -775,7 +808,6 @@ uLONG VJSMysqlBufferObject::ReadLCBPlus()
 		lcb = ReadUInt24LE();
 		fOffsetRead += lcb + 3;
 	}
-
 	else if(firstCoded == 254){
 		lcb = ReadUInt64LE();
 		fOffsetRead += lcb + 8;
@@ -784,21 +816,22 @@ uLONG VJSMysqlBufferObject::ReadLCBPlus()
 	return lcb;
 }
 
+
 VString VJSMysqlBufferObject::ReadString (uLONG bytesLength)
 {
+	//read String of bytesLength bytes (the argument)
 	CharSet	encoding = VTC_UTF_8;
 	XBOX::VString	decodedString;
 
 	if(fOffset + bytesLength <= fBufferLength){
-
+		//if the string bytes are in one buffer
 		fBuffer[fpos]->ToString(encoding, fOffset, fOffset + bytesLength , &decodedString);
-		return decodedString;
 	}
 	else{
-
+		//if the string bytes are shared between many buffers
 		XBOX::VString	subDecodedString;
 		uLONG stillToRead;
-
+		//how much bytes we still need to complete reading all string bytes
 		stillToRead= bytesLength + fOffset - fBufferLength;
 		decodedString = "";
 
@@ -806,82 +839,69 @@ VString VJSMysqlBufferObject::ReadString (uLONG bytesLength)
 		decodedString.AppendString(subDecodedString);
 
 		while(stillToRead != 0){
-
 			fpos++;
 			fOffset = 0;
 			fBufferLength = fBuffer[fpos]->GetDataSize();
 
 			if(stillToRead <= fBufferLength) {
-
+				//here, because one "string bytes" may will be shared in not only 2 buffers but even more
 				fBuffer[fpos]->ToString(encoding, fOffset, stillToRead, &subDecodedString);
 				fOffset += stillToRead;
 				decodedString.AppendString(subDecodedString);
-				return decodedString;
+				break;
 
 			}
 			else {
-
+				//if we read the full buffer and we haven't achieved yet reading the whole string
 				fBuffer[fpos]->ToString(encoding, fOffset, fBufferLength, &subDecodedString);
 				stillToRead -= fBufferLength;
 				decodedString.AppendString(subDecodedString);
-
 			}
-
 		}
-
 	}
-
+	
+	return decodedString;
 }
 
-VString VJSMysqlBufferObject::ReadLCBString (uLONG   lcb)
+
+VString VJSMysqlBufferObject::ReadLCBString (uLONG lcb)
 {
+	//the same analyse as the ReadLCBString above, expect that the string that
+	//we gonna read is written in the value of the Length Coded Binary bytes
+	//read String writen in "Length Coded Binary" bytes
 	XBOX::VString	decodedString;
 	CharSet	encoding = VTC_UTF_8;
 
 	if(fOffset + lcb <= fBufferLength){
-
 		fBuffer[fpos]->ToString(encoding, fOffset, fOffset + lcb , &decodedString);
 		fOffset += lcb;
-
-		return decodedString;
 	}
 	else{
-
 		XBOX::VString	subDecodedString;
 		uLONG stillToRead;
-
 		stillToRead= lcb + fOffset - fBufferLength;
 		//decodedString = "";
-
 		fBuffer[fpos]->ToString(encoding, fOffset, fBufferLength, &subDecodedString);
 		decodedString.AppendString(subDecodedString);
-
 		while(stillToRead != 0){
-
 			fpos++;
 			fOffset = 0;
 			fBufferLength = fBuffer[fpos]->GetDataSize();
-
 			if(stillToRead <= fBufferLength) {
-
 				fBuffer[fpos]->ToString(encoding, fOffset, stillToRead, &subDecodedString);
 				fOffset += stillToRead;
 				decodedString.AppendString(subDecodedString);
-				return decodedString;
-
+				break;
 			}
 			else {
-
 				fBuffer[fpos]->ToString(encoding, fOffset, fBufferLength, &subDecodedString);
 				stillToRead -= fBufferLength;
 				decodedString.AppendString(subDecodedString);
 
 			}
-
 		}
-
 	}
-
+	return decodedString;	
 }
 
 
@@ -891,10 +911,10 @@ void VJSMysqlBufferClass::Finalize(const XBOX::VJSParms_finalize& inParms, VJSMy
 		delete inMysqlBuffer;
 }
 
-void VJSMysqlBufferClass::Initialize(const XBOX::VJSParms_initialize& inParms, VJSMysqlBufferObject* inMysqlBuffer)
-{
 
+void VJSMysqlBufferClass::Initialize(const XBOX::VJSParms_initialize& inParms, VJSMysqlBufferObject* inMysqlBuffer){
 }
+
 
 void VJSMysqlBufferClass::Construct(XBOX::VJSParms_construct& ioParms)
 {
@@ -909,129 +929,88 @@ void VJSMysqlBufferClass::Construct(XBOX::VJSParms_construct& ioParms)
 	ioParms.ReturnConstructedObject(VJSMysqlBufferClass::CreateInstance(ioParms.GetContextRef(), inMysqlBuffer));
 }
 
+
 void VJSMysqlBufferClass:: _addBuffer( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	xbox_assert(inMysqlBuffer != NULL);
 
 	XBOX::VJSObject	targetObject(ioParms.GetContext());
 	if (!ioParms.CountParams() || !ioParms.GetParamObject(1, targetObject) || !targetObject.IsInstanceOf("Buffer")) {
-
 		XBOX::vThrowError(XBOX::VE_INVALID_PARAMETER);
 		return;
-
 	}
 
 	VJSBufferObject	*targetBuffer;
 	targetBuffer = targetObject.GetPrivateData<VJSBufferClass>();
 	xbox_assert(targetBuffer != NULL);
 
-
+	//if the second argument doesn't exist or it is equal to 0 we shall analyze
+	//the buffer as a general case
+	
+	//queryT = 2nd argument
+	//		queryT = 0 -> we shall analyze all buffers bytes by byte because end is not known
+	//		queryT = 1 -> we shall stop buffers concatenation after the first statement analysis
+	//		queryT = 2 -> we shall just analyze the 9 bytes for every buffer received until EOF packet
+	//		queryT = 3 -> we shall concatenate just the first buffer
 
 	if(ioParms.CountParams() == 2){
-
 		sLONG queryType;
-
 		if (!ioParms.GetLongParam(2, &queryType)) {
-
 			XBOX::vThrowError(XBOX::VE_INVALID_PARAMETER);
 			return;
-
 		}
-
 		if(queryType == 1)
 			inMysqlBuffer->eof = true;
-
-
-
-
-		/*	if( queryType == 1){
-
-		if((inMysqlBuffer->eof) && targetBuffer->GetDataPtr()[4] == 0x00 || targetBuffer->GetDataPtr()[4] == 0xff ){
-
-		inMysqlBuffer->eof = true;
-		ioParms.ReturnBool(false);
-
-		return;
-
-		}
-		else{
-
-		inMysqlBuffer->eof = false;
-
-		}
-
-		if(
-		!inMysqlBuffer->eof &&
-
-		targetBuffer->GetDataPtr()[targetBuffer->GetDataSize() - 5] == 0xfe 
-		&& targetBuffer->GetDataPtr()[targetBuffer->GetDataSize() - 9] == 5
-		&& (((targetBuffer->GetDataPtr()[targetBuffer->GetDataSize() - 2] + (targetBuffer->GetDataPtr()[targetBuffer->GetDataSize() - 1] << 8)) & 8) == 0)
-
-		){
-
-		ioParms.ReturnBool(false);
-
-		return;
-		}
-
-		ioParms.ReturnBool(true);
-
-		return;
-
-
-		}*/
-
 		else if( queryType == 2){
-
 			inMysqlBuffer->AddBufferSimple(targetBuffer);
 			uBYTE* vBuffer = (uBYTE*)(targetBuffer->GetDataPtr());
 			if(
-				vBuffer[targetBuffer->GetDataSize() - 5] == 0xfe 
+				//this field signals that this packet is EOF packet
+				vBuffer[targetBuffer->GetDataSize() - 5] == 0xfe
+				//number of usefull data is 5(then an EOF packet)
 				&& vBuffer[targetBuffer->GetDataSize() - 9] == 5
+				//no more info from the server
 				&& (((vBuffer[targetBuffer->GetDataSize() - 2] + (vBuffer[targetBuffer->GetDataSize() - 1] << 8)) & 8) == 0)
-
 				){
-
 					ioParms.ReturnBool(false);
-
 					return;
 			}
-
 			ioParms.ReturnBool(true);
-
 			return;
-
 		}
 		else if( queryType == 3){
-
 			inMysqlBuffer->AddBufferSimple(targetBuffer);
-
 			ioParms.ReturnBool(false);
-
 			return;
-
 		}
 	}
-
-	ioParms.ReturnBool(inMysqlBuffer->AddBuffer(targetBuffer));
+	ioParms.ReturnBool(inMysqlBuffer->AddBuffer(targetBuffer) == TRUE);
 }
+
 
 void VJSMysqlBufferClass:: _readNextHex( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uBYTE>(inMysqlBuffer->ReadNextHex());
 }
+
+
 void VJSMysqlBufferClass:: _isRow( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
-	ioParms.ReturnBool(inMysqlBuffer->IsRow());
+	ioParms.ReturnBool(inMysqlBuffer->IsRow() == TRUE);
 }
+
+
 void VJSMysqlBufferClass:: _hasNext( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
-	ioParms.ReturnBool(inMysqlBuffer->HasNext());
+	ioParms.ReturnBool(inMysqlBuffer->HasNext() == TRUE);
 }
+
+
 void VJSMysqlBufferClass:: _getSize( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uWORD>(inMysqlBuffer->GetSize());
 }
+
 
 void VJSMysqlBufferClass:: _fetch( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
@@ -1044,10 +1023,10 @@ void VJSMysqlBufferClass:: _fetch( XBOX::VJSParms_callStaticFunction& ioParms, V
 	if (	ioParms.CountParams() != 4 
 		||	!ioParms.IsNumberParam(1) 
 		||	!ioParms.IsNumberParam(2) 
-		||	!ioParms.GetLongParam(1, &inCount)
-		||	!ioParms.GetLongParam(2, &fieldCount) 
-		||	!ioParms.GetParamArray(3, titles)
-		||	!ioParms.GetParamArray(4, types)) {
+		||	!ioParms.GetLongParam(1, &inCount)// the number of fetched rows(gonna to fetch)
+		||	!ioParms.GetLongParam(2, &fieldCount) // the number of columns
+		||	!ioParms.GetParamArray(3, titles)// the array of columns name
+		||	!ioParms.GetParamArray(4, types)) {// array of the  types of each column
 
 			XBOX::vThrowError(XBOX::VE_INVALID_PARAMETER);
 			return;
@@ -1056,6 +1035,8 @@ void VJSMysqlBufferClass:: _fetch( XBOX::VJSParms_callStaticFunction& ioParms, V
 
 	ioParms.ReturnValue(inMysqlBuffer->Fetch(inContext, inCount, (uLONG) fieldCount, titles, types));
 }
+
+
 void VJSMysqlBufferClass:: _advanceFetch( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	sLONG inCount;
@@ -1070,68 +1051,84 @@ void VJSMysqlBufferClass:: _advanceFetch( XBOX::VJSParms_callStaticFunction& ioP
 	inMysqlBuffer->AdvanceFetch(inCount);
 }
 
+
 void VJSMysqlBufferClass:: _getSelectResultCount( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uLONG>(inMysqlBuffer->GetSelectResultCount());
 }
+
+
 void VJSMysqlBufferClass:: _getRowsCount( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uLONG>(inMysqlBuffer->GetRowsCount());
 }
+
 
 void VJSMysqlBufferClass:: _getOffsetRead( XBOX::VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber(inMysqlBuffer->GetOffsetRead());
 }
 
+
 void VJSMysqlBufferClass:: _initList (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	inMysqlBuffer->InitList();
 }
 
+
 void VJSMysqlBufferClass:: _readUInt8 (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
-
 	ioParms.ReturnNumber<uBYTE>(inMysqlBuffer->ReadUInt8());
 }
+
 
 void VJSMysqlBufferClass:: _readUInt16LE (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uWORD>(inMysqlBuffer->ReadUInt16LE());
 }
 
+
 void VJSMysqlBufferClass:: _readUInt24LE (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uLONG>(inMysqlBuffer->ReadUInt24LE());
 }
+
 
 void VJSMysqlBufferClass:: _readUInt32LE (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uLONG>(inMysqlBuffer->ReadUInt32LE());
 }
 
+
 void VJSMysqlBufferClass:: _readUInt64LE (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uLONG>(inMysqlBuffer->ReadUInt64LE());
 }
 
+
 void VJSMysqlBufferClass:: _readLCB (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uLONG>(inMysqlBuffer->ReadLCB());
 }
+
+
 void VJSMysqlBufferClass:: _readLCBPlus (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {
 	ioParms.ReturnNumber<uLONG>(inMysqlBuffer->ReadLCBPlus());
 }
+
+
 void VJSMysqlBufferClass:: _readLCBString (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {	
 	ioParms.ReturnString(inMysqlBuffer->ReadLCBString(inMysqlBuffer->ReadLCB()));
 }
 
+
 void VJSMysqlBufferClass:: _readLCBStringPlus (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {	
 	ioParms.ReturnString(inMysqlBuffer->ReadLCBString(inMysqlBuffer->ReadLCBPlus()));
 }
+
 
 void VJSMysqlBufferClass:: _readString (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {	
@@ -1146,6 +1143,8 @@ void VJSMysqlBufferClass:: _readString (XBOX::VJSParms_callStaticFunction &ioPar
 
 	ioParms.ReturnString(inMysqlBuffer->ReadString(bytesLength));
 }
+
+
 void VJSMysqlBufferClass:: _advance (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer)
 {	
 	sLONG bytesLength;
@@ -1159,17 +1158,25 @@ void VJSMysqlBufferClass:: _advance (XBOX::VJSParms_callStaticFunction &ioParms,
 
 	inMysqlBuffer->Advance(bytesLength);
 }
+
+
 void VJSMysqlBufferClass:: _prepareSelectFetch (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer){
 	inMysqlBuffer->PrepareSelectFetch();
 }
-void VJSMysqlBufferClass:: _saveRows (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer){
 
-	inMysqlBuffer->SaveRows ();
+
+void VJSMysqlBufferClass:: _saveRowsPosition (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer){
+
+	inMysqlBuffer->SaveRowsPosition();
 }
+
+
 void VJSMysqlBufferClass:: _skipRowsData (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer){
 
 	inMysqlBuffer->SkipRowsData ();
 }
+
+
 void VJSMysqlBufferClass::GetDefinition ( ClassDefinition& outDefinition)
 {
 
@@ -1204,7 +1211,7 @@ void VJSMysqlBufferClass::GetDefinition ( ClassDefinition& outDefinition)
 		{ "readLCB", js_callStaticFunction<_readLCB>, JS4D::PropertyAttributeDontDelete },
 		{ "readLCBPlus", js_callStaticFunction<_readLCBPlus>, JS4D::PropertyAttributeDontDelete },
 
-		{ "saveRows", js_callStaticFunction<_saveRows>, JS4D::PropertyAttributeDontDelete },
+		{ "saveRowsPosition", js_callStaticFunction<_saveRowsPosition>, JS4D::PropertyAttributeDontDelete },
 		{ "advance", js_callStaticFunction<_advance>, JS4D::PropertyAttributeDontDelete },
 		{ "advanceFetch", js_callStaticFunction<_advanceFetch>, JS4D::PropertyAttributeDontDelete },
 

@@ -22,7 +22,7 @@ public:
 
 	void	PrepareSelectFetch();
 
-	void	SaveRows();
+	void	SaveRowsPosition();
 	void	__SaveRows(XBOX::VJSContext &inContext, sLONG fieldCount,  VJSArray titles, VJSArray types);
 	void	Advance(uLONG len);
 
@@ -114,7 +114,7 @@ private:
 
 
 	static void		_readString (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-	static void		_saveRows (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+	static void		_saveRowsPosition (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
 
 	static void		_readLCBString (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
 	static void		_readLCBStringPlus (XBOX::VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
