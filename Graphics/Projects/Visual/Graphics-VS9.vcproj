@@ -1598,14 +1598,6 @@
 				</File>
 			</Filter>
 		</Filter>
-		<Filter
-			Name="Libraries"
-			>
-			<File
-				RelativePath="..\..\..\..\..\quicktime\6.0.0\QTDevWin\Libraries\qtmlClient.lib"
-				>
-			</File>
-		</Filter>
 	</Files>
 	<Globals>
 	</Globals>
