@@ -292,7 +292,7 @@ VError VTCPEndPoint::DisableReadCallback ()
 }
 
 
-VError VTCPEndPoint::DoRead ( void *outBuff, uLONG *ioLen )
+VError VTCPEndPoint::DoRead ( void *outBuff, uLONG *ioLen, sLONG inTimeoutMs, sLONG* outMsSpent)
 {
 	if ( !fSock )
 		return ReportError(VE_SRVR_NULL_ENDPOINT);
@@ -302,13 +302,21 @@ VError VTCPEndPoint::DoRead ( void *outBuff, uLONG *ioLen )
 	if ( fIsSelectIO && !fIsWatching)
 		return _Read_SelectIO ( ( char* ) outBuff, ioLen );
 	
-	VError verr = fSock-> Read ( ( char* ) outBuff, ioLen );
+	VError verr=VE_OK;
 	
+	if(inTimeoutMs<=0)
+		verr=fSock->Read((char*)outBuff, ioLen);
+	else
+		verr=fSock->ReadWithTimeout((char*) outBuff, ioLen, inTimeoutMs, outMsSpent);
+
 	if ( verr == VE_OK )
 		return VE_OK;
 
 	if ( verr == VE_SOCK_CONNECTION_BROKEN )
 		return ReportError(VE_SRVR_CONNECTION_BROKEN);
+	
+	if(verr==VE_SOCK_TIMED_OUT)
+		return ReportError(VE_SRVR_READ_TIMED_OUT, false, false);
 		
 	if ( verr == VE_SOCK_WOULD_BLOCK )
 		return ReportError(VE_SRVR_RESOURCE_TEMPORARILY_UNAVAILABLE, false, false);
@@ -560,20 +568,28 @@ VError VTCPEndPoint::_ReadExactly_SelectIO ( void *outBuff, uLONG inLen, uLONG i
 }
 
 
-VError VTCPEndPoint::DoWrite ( void *inBuff, uLONG *ioLen, bool inWithEmptyTail )
+VError VTCPEndPoint::DoWrite ( void *inBuff, uLONG *ioLen, sLONG inTimeoutMs, sLONG* outMsSpent ,bool inWithEmptyTail )
 {
 	if ( !fSock )
 		return ReportError( VE_SRVR_NULL_ENDPOINT );
 
 	xbox_assert ( !fIsInAutoReconnect || ( fIsInAutoReconnect && fIsInUse ) );
 
-	VError verr = fSock-> Write ( ( char* ) inBuff, ioLen, inWithEmptyTail );
+	VError verr=VE_OK;
+	
+	if(inTimeoutMs<=0)
+		verr=fSock->Write((char*)inBuff, ioLen, inWithEmptyTail);
+	else
+		verr=fSock->WriteWithTimeout((char*)inBuff, ioLen, inTimeoutMs, outMsSpent, inWithEmptyTail);
 	
 	if( verr == VE_OK )
 		return VE_OK; 
 
 	if ( verr == VE_SOCK_CONNECTION_BROKEN )
 		return ReportError( VE_SRVR_CONNECTION_BROKEN );
+	
+	if(verr==VE_SOCK_TIMED_OUT)
+		return ReportError(VE_SRVR_WRITE_TIMED_OUT, false, false);
 
 	if ( verr == VE_SOCK_WOULD_BLOCK )
 		return ReportError(VE_SRVR_RESOURCE_TEMPORARILY_UNAVAILABLE, false, false);
@@ -999,7 +1015,7 @@ XBOX::VError VTCPEndPoint::DirectSocketRead (void *outBuff, uLONG *ioLen, sLONG 
 }
 
 
-VError VTCPEndPoint::Read(void *outBuff, uLONG *ioLen)
+VError VTCPEndPoint::ReadWithTimeout(void *outBuff, uLONG *ioLen, sLONG inTimeoutMs)
 {
 	ILogger* logger=VProcess::Get()->RetainLogger();
 	
@@ -1031,14 +1047,20 @@ VError VTCPEndPoint::Read(void *outBuff, uLONG *ioLen)
 		ILoggerBagKeys::is_select_io.Set(tBag, IsSelectIO());
 		
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
+		
+		ILoggerBagKeys::ms_timeout.Set(tBag, inTimeoutMs);
 	}
+
+	sLONG spentMs=-1;
 	
-	VError verr=DoRead(outBuff, ioLen);
-	
-	
+	VError verr=DoRead(outBuff, ioLen, inTimeoutMs, &spentMs);
+
 	if(shouldTrace)
 	{
 		ILoggerBagKeys::count_bytes_received.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
+		
+		if(inTimeoutMs>0)
+			ILoggerBagKeys::ms_spent.Set(tBag, spentMs);
 		
 		ILoggerBagKeys::error_code.Set(tBag, verr);
 		
@@ -1181,7 +1203,7 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 }
 
 
-VError VTCPEndPoint::Write(void *inBuff, uLONG *ioLen, bool inWithEmptyTail)
+VError VTCPEndPoint::WriteWithTimeout(void *inBuff, uLONG *ioLen, sLONG inTimeoutMs, bool inWithEmptyTail)
 {
 	ILogger* logger=VProcess::Get()->RetainLogger();
 	
@@ -1213,13 +1235,20 @@ VError VTCPEndPoint::Write(void *inBuff, uLONG *ioLen, bool inWithEmptyTail)
 		ILoggerBagKeys::is_select_io.Set(tBag, IsSelectIO());
 		
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
+		
+		ILoggerBagKeys::ms_timeout.Set(tBag, inTimeoutMs);
 	}
 	
-	VError verr=DoWrite(inBuff, ioLen, inWithEmptyTail);	
+	sLONG spentMs=-1;
 	
+	VError verr=DoWrite(inBuff, ioLen, inTimeoutMs, &spentMs, inWithEmptyTail);
+		
 	if(shouldTrace)
 	{
 		ILoggerBagKeys::count_bytes_sent.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
+		
+		if(inTimeoutMs>0)
+			ILoggerBagKeys::ms_spent.Set(tBag, spentMs);
 		
 		ILoggerBagKeys::error_code.Set(tBag, verr);
 		

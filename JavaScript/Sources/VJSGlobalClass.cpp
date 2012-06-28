@@ -703,6 +703,7 @@ void VJSGlobalClass::do_JSONToXml(VJSParms_callStaticFunction& ioParms, VJSGloba
 	VString xml;
 	VString json, root;
 	bool simpleJSON = false;
+	bool isxhtml = false;
 
 	ioParms.GetStringParam( 1, json);
 	if ( ioParms.CountParams() >= 2)
@@ -723,6 +724,10 @@ void VJSGlobalClass::do_JSONToXml(VJSParms_callStaticFunction& ioParms, VJSGloba
 						vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "3");
 				}
 			}
+			else if(s== "xhtml")
+			{
+				isxhtml = true;
+			}
 		}
 		else
 			vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
@@ -739,7 +744,10 @@ void VJSGlobalClass::do_JSONToXml(VJSParms_callStaticFunction& ioParms, VJSGloba
 	}
 	else
 	{
-		VError err = VXMLJsonUtility::JsonToXML(json, xml);
+		if(isxhtml)
+			VError err = VXMLJsonUtility::JsonToXHTML(json, xml);
+		else
+			VError err = VXMLJsonUtility::JsonToXML(json, xml);
 	}
 
 	ioParms.ReturnString(xml);

@@ -475,6 +475,14 @@ void VLog4jMsgFileLogger::LogBag( const VValueBag *inMessage)
 		message.AppendString(CVSTR(" byte(s)"));
 	}
 	
+	sLONG ioSpent=-1;
+	if (ILoggerBagKeys::ms_spent.Get(inMessage, ioSpent))
+	{
+		message.AppendString(CVSTR(", done in "));
+		message.AppendLong(ioSpent);
+		message.AppendString(CVSTR("ms"));
+	}
+	
 	sLONG dumpOffset=-1;
 	if (ILoggerBagKeys::dump_offset.Get(inMessage, dumpOffset))
 	{

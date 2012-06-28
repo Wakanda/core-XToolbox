@@ -1444,6 +1444,7 @@ XBOX::VError VJSDebugger::SetCallFrame ( uWORD inIndex )
 	fEndPointLock. Lock ( );
 		vError = fEndPoint-> WriteExactly ( szchCommand, nBufferSize - 1 );
 	fEndPointLock. Unlock ( );
+	delete [ ] szchCommand;
 
 	return vError;
 }
@@ -1745,6 +1746,8 @@ VError VJSDebugger::ReadCrossfireMessage ( uLONG inLength, VValueBag& outMessage
 		VJSONImporter		vImporter ( vstrMessage );
 		vError = vImporter. JSONObjectToBag ( outMessage );
 	}
+
+	delete [ ] szchMessage;
 
 	return vError;
 }
@@ -2441,7 +2444,11 @@ VError VJSDebugger::HandleRemoteEvent ( const VString& inLine )
 	else
 	{
 		vError = VE_JSW_DEBUGGER_UNKNOWN_REMOTE_EVENT;
-		xbox_assert ( false );
+		if ( inLine. GetLength ( ) != 0 )
+		{
+			// Do not assert on emtpy commands which occur when a connection is broken.
+			xbox_assert ( false );
+		}
 	}
 
 	return vError;

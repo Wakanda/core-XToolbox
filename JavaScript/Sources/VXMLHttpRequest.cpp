@@ -79,7 +79,7 @@ class UrlHelper
 {
 public :
 
-    UrlHelper(const XBOX::VString inUrl) : fUrl(inUrl) {}
+    UrlHelper(const XBOX::VString inUrl) : fUrl(inUrl) { XBOX::VURL::Encode(fUrl); }
 
     XBOX::VString   DropFragment()              { return fUrl; }
     bool            IsSupportedScheme()         { return true; }

@@ -42,7 +42,6 @@ namespace ILoggerBagKeys
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( count_bytes_received, VLong, sLONG);	// number of bytes received
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT( base_context_uuid, VUUID);					// uuid of db4d base context
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( error_code, VLong8, VError);			// error code from a VErrorBase (without component signature)
-
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( count_bytes_asked, VLong, sLONG);		// number of bytes we were asked to read or write
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( socket, VLong, sLONG);				// raw socket descriptor
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( is_blocking, VBoolean, bool);			// socket state
@@ -50,12 +49,12 @@ namespace ILoggerBagKeys
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( is_select_io, VBoolean, bool);		// socket state
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT( payload, const char*);						// input/ouptput buffers
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( ms_timeout, VLong, sLONG);			// ms timeout for io calls
-
+	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( ms_spent, VLong, sLONG);				// time spent in io calls
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( dump_offset, VLong, sLONG);			// Offset for Read/Write IO buffers
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT( dump_buffer, VString);						// A printable slice of Read/Write IO buffers
-
+	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT( local_addr, VString);						// Local v6 or v4 IP
+	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT( peer_addr, VString);							// Peer v6 or v4 IP
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( task_id, VLong, sLONG);				// Toolbox task id
-	
 	XTOOLBOX_API EXTERN_BAGKEY_NO_DEFAULT_SCALAR( exchange_id, VBoolean, bool);			// exchange endpoint ID ? (debug only)
 
 };

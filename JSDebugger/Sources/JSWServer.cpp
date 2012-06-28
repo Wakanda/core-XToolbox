@@ -509,6 +509,8 @@ VError VJSWConnectionHandler::ReadCrossfirePacket ( uLONG inLength, XBOX::VValue
 		vError = vImporter. JSONObjectToBag ( outMessage );
 	}
 
+	delete [ ] szchMessage;
+
 	return vError;
 }
 

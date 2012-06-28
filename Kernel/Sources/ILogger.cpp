@@ -37,7 +37,6 @@ namespace ILoggerBagKeys
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( count_bytes_received, VLong, sLONG);
 	CREATE_BAGKEY_NO_DEFAULT( base_context_uuid, VUUID);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( error_code, VLong8, VError);
-	
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( count_bytes_asked, VLong, sLONG);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( socket, VLong, sLONG);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( is_blocking, VBoolean, bool);
@@ -45,11 +44,12 @@ namespace ILoggerBagKeys
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( is_select_io, VBoolean, bool);
 	CREATE_BAGKEY_NO_DEFAULT( payload, const char*);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( ms_timeout, VLong, sLONG);
+	CREATE_BAGKEY_NO_DEFAULT_SCALAR( ms_spent, VLong, sLONG);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( dump_offset, VLong, sLONG);
 	CREATE_BAGKEY_NO_DEFAULT( dump_buffer, VString);
-	
+	CREATE_BAGKEY_NO_DEFAULT( local_addr, VString);
+	CREATE_BAGKEY_NO_DEFAULT( peer_addr, VString);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( task_id, VLong, sLONG);
-
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( exchange_id, VBoolean, bool);
 };
 
