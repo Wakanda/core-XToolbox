@@ -39,7 +39,7 @@ namespace SslFramework
 	VError AddCertificateDirectory(const VFolder& inCertFolder);
 
 	VKeyCertChain* RetainKeyCertificateChain(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
-	void ReleaseKeyCertificateChain(VKeyCertChain* inKeyCertChain);
+	void ReleaseKeyCertificateChain(VKeyCertChain** inKeyCertChain);
 
 	VError PushIntermediateCertificate(VKeyCertChain* inKeyCertChain, const VMemoryBuffer<>& inCertBuffer);
 

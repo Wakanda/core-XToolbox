@@ -604,19 +604,21 @@ SSL* VSslDelegate::XConnection::GetConnection()
 
 class VKeyCertChain : public IRefCountable
 {
-	private : 
+  private : 
 	
 	VKeyCertChain(const VKeyCertChain&);	//No copy !
-	
+
+	~VKeyCertChain();						//Release !
+
 	RSA*	fPrivateKey;
 	X509*	fCertificate;
 	
 	std::vector<X509*> fChain;
 	
-	public :
+  public :
+
 	VKeyCertChain() : fPrivateKey(NULL), fCertificate(NULL) {}
-	~VKeyCertChain();
-	
+		
 	VError Init(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
 	
 	VError PushIntermediateCertificate(const VMemoryBuffer<>& inCertBuffer);
@@ -750,8 +752,10 @@ VError VKeyCertChain::LoadIntoConnection(SSL* inConn)
 			
 			for(cit=fChain.begin() ; cit!=fChain.end() && verr==VE_OK ; cit++)
 			{
-				res=SSLSTUB::SSL_ctrl(inConn, SSL_CTRL_EXTRA_CHAIN_CERT, 0, (char*)*cit);
-				
+				//As it turns out, SSL_xxx_client_CA fonctions (mostly undocumented) have nothing to do with client, nor CA
+				//OpenSLL encrypted sens of humour ?
+				res=SSLSTUB::SSL_add_client_CA(inConn, *cit);
+
 				if(res!=1)
 					verr=VE_SSL_FAIL_TO_SET_CERTIFICATE;
 			}
@@ -774,17 +778,14 @@ VKeyCertChain* SslFramework::RetainKeyCertificateChain(const VMemoryBuffer<>& in
 	if(verr!=VE_OK)
 		return NULL;
 	
-	kcc->Retain();
-	
 	return kcc;
 }
 
 
 //namespace
-void SslFramework::ReleaseKeyCertificateChain(VKeyCertChain* inKeyCertChain)
+void SslFramework::ReleaseKeyCertificateChain(VKeyCertChain** inKeyCertChain)
 {
-	if(inKeyCertChain!=NULL)
-		inKeyCertChain->Release();
+	ReleaseRefCountable(inKeyCertChain);
 }
 
 

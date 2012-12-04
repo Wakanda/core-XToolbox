@@ -125,6 +125,7 @@ public:
 	static	bool			IsSystemVersionOrAbove( SystemVersion inSystemVersion);
 
 #if VERSIONWIN
+	static	bool			IsEight()							{ return IsSystemVersionOrAbove( WIN_EIGHT); }
 	static	bool			IsSeven()							{ return IsSystemVersionOrAbove( WIN_SEVEN); }
 	static	bool			IsXP()								{ return IsSystemVersionOrAbove( WIN_XP); }
 	static	bool			IsVista ()							{ return IsSystemVersionOrAbove( WIN_VISTA); }

@@ -127,9 +127,11 @@ void VDuration::GetDuration(VDuration& outValue) const
 void VDuration::GetString(VString& inValue) const
 {
 	inValue.Clear();
-
+	
 	if (! IsNull())
 	{
+		inValue.FromLong8(fMilliseconds);
+		/*
 		sLONG days, hours, minutes, seconds, milliseconds;
 
 		GetDuration(days, hours, minutes, seconds, milliseconds);
@@ -143,6 +145,7 @@ void VDuration::GetString(VString& inValue) const
 		inValue.AppendLong(seconds);
 		inValue.AppendCString(":");
 		inValue.AppendLong(milliseconds);
+		*/
 	}
 }
 
@@ -364,6 +367,7 @@ void VDuration::FromDuration(const VDuration& inValue)
 
 void VDuration::FromString(const VString& inValue)
 {
+	/*
 	sLONG ar[] = { 0, 0, 0, 0, 0 };
 	UniChar c;
 	uLONG pos = 0;
@@ -393,6 +397,9 @@ void VDuration::FromString(const VString& inValue)
 	}
 
 	SetDuration(ar[0], ar[1], ar[2], ar[3], ar[4]);
+	*/
+	fMilliseconds = inValue.GetLong8();
+	GotValue();
 }
 
 

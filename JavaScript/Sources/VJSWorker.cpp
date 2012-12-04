@@ -830,11 +830,22 @@ bool VJSWorker::_LoadAndCheckScript ()
 {
 	xbox_assert(fGlobalContext != NULL);
 
-	XBOX::VString		fullPath;
-		
+	XBOX::VString	fullPath;
+
+#if VERSIONWIN
+
+	if (fURL.GetLength() > 3 
+	&& ::isalpha(fURL.GetUniChar(1))
+	&& fURL.GetUniChar(2) == ':' 
+	&& fURL.GetUniChar(3) == '/')
+
+#else 
+
 	if (fURL.GetUniChar(1) == '/') 
 
-		fullPath = fURL;			
+#endif
+
+		fullPath = fURL;
 
 	else {
 

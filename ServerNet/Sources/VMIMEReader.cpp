@@ -89,7 +89,7 @@ XBOX::VError VMIMEReader::DecodeQuotedPrintable (const void *inData, VSize inDat
 
 		return XBOX::VE_OK;	
 
-	// Decoded size can't be greater than encoded size, will do a reallocate later.
+	// Decoded size can't be greater than encoded size. Shrink memory buffer after decoding.
 
 	if (!outResult->SetSize(inDataSize))
 
@@ -199,7 +199,221 @@ XBOX::VError VMIMEReader::DecodeQuotedPrintable (const void *inData, VSize inDat
 
 	// Do a resize to keep only decoded data.
 
-	outResult->SetSize(q - (uBYTE *) outResult->GetDataPtr());
+	outResult->ShrinkSizeNoReallocate(q - (uBYTE *) outResult->GetDataPtr());
+
+	return XBOX::VE_OK;
+}
+
+XBOX::VError VMIMEReader::DecodeEncodedWords (const void *inData, VSize inDataSize, XBOX::VString *outResult)
+{
+	xbox_assert(inData != NULL && outResult != NULL);
+
+	outResult->Clear();	
+	if (!inDataSize)
+
+		return XBOX::VE_OK;	
+
+	uBYTE	*p;
+	VSize	bytesLeft;
+
+	p = (uBYTE *) inData;
+	bytesLeft = inDataSize;
+	for ( ; ; ) {
+
+		uBYTE	c, d, *u, *v;
+
+		// Look for encoded word start, otherwise pass bytes unchanged.
+
+		u = p;
+		c = *p++;
+		if (!--bytesLeft) {
+
+			outResult->AppendChar(c);
+			break;
+
+		} 
+		if (c != '=') {
+
+			outResult->AppendChar(c);
+			continue;
+
+		}
+		
+		c = *p++;
+		if (!--bytesLeft) {
+
+			outResult->AppendChar('=');
+			outResult->AppendChar(c);
+			break;
+
+		}
+		if (c != '?') {
+
+			outResult->AppendChar('=');
+			outResult->AppendChar(c);
+			continue;
+
+		}
+
+		// Found an encoded word, decode it.
+
+		XBOX::VString	charSet;
+		bool			isBase64;			// If not, it is quoted printable.
+		VSize			encodedDataSize;
+		bool			ignoreEncodedWord;	// In case of error, ignore and pass bytes unchanged.
+		VSize			n;
+
+		// Read charset.
+				
+		n = 0;		
+		for ( ; ; ) {
+
+			c = *p++;
+			if (!--bytesLeft) {
+
+				ignoreEncodedWord = true;
+				break; 
+
+			} else if (c == '?') {
+
+				if (!n) {
+
+					ignoreEncodedWord = true;
+					break;
+
+				} else {
+
+					charSet.FromBlock(u + 2, n, VTC_US_ASCII);
+					ignoreEncodedWord = false;
+					break;
+
+				}
+
+			} else
+
+				n++;
+
+		}
+
+		// Failed to read a proper (non-zero length) charset, pass the bytes unchanged.
+
+		if (ignoreEncodedWord) {
+			
+			outResult->AppendBlock(u, 2 + n + 1, VTC_US_ASCII);			
+			if (!bytesLeft)
+
+				break;
+
+			else {
+
+				p = u + 2 + n + 1;
+				continue;
+
+			}
+
+		}
+		
+		// Read encoding, if encoding is unknown don't try to continue decoding.
+
+		c = *p++;
+		d = ::toupper(c);
+		if (!--bytesLeft) {
+
+			outResult->AppendBlock(u, 2 + n + 2, VTC_US_ASCII);
+			break;
+
+		}
+		if (d != 'B' && d != 'Q') {
+
+			outResult->AppendBlock(u, 2 + n + 2, VTC_US_ASCII);
+			continue;
+
+		}
+		isBase64 = d == 'B';
+
+		// Find start of encoded data.
+
+		c = *p++;
+		if (!--bytesLeft) {
+		
+			outResult->AppendBlock(u, 2 + n + 3, VTC_US_ASCII);
+			break;
+
+		}
+		if (c != '?') {
+
+			outResult->AppendBlock(u, 2 + n + 3, VTC_US_ASCII);
+			continue;
+
+		}
+
+		// Find out length of encoded data and then decode it.
+
+		v = p;
+		encodedDataSize = 0;
+		for ( ; ; ) {
+
+			c = *p++;
+			if (!--bytesLeft) {
+
+				ignoreEncodedWord = true;
+				break;
+
+			} else if (c == '?') {
+
+				if (encodedDataSize) {
+
+					XBOX::VMemoryBuffer<>	buffer;
+					
+					if (isBase64) 
+
+						XBOX::Base64Coder::Decode(v, encodedDataSize, buffer);
+						
+					else 
+
+						DecodeQuotedPrintable(v, encodedDataSize, &buffer);
+
+					outResult->AppendBlock(
+						buffer.GetDataPtr(), 
+						buffer.GetDataSize(),
+						XBOX::VTextConverters::Get()->GetCharSetFromName(charSet));
+
+				}
+				ignoreEncodedWord = false;
+				break;
+
+			} else
+
+				encodedDataSize++;
+
+		}
+
+		// Failed to read encoded data properly, pass the bytes unchanged.
+
+		if (ignoreEncodedWord) {
+			
+			outResult->AppendBlock(u, 2 + n + 3 + encodedDataSize + 1, VTC_US_ASCII);			
+			if (!bytesLeft)
+
+				break;
+
+			else {
+
+				p = u + 2 + n + 3 + encodedDataSize + 1;
+				continue;
+
+			}
+
+		}
+
+		// Be very tolerant for terminating '=' sign, just skip it.
+
+		p++;		
+		if (!--bytesLeft) 
+
+			break;
+
+	}
 
 	return XBOX::VE_OK;
 }

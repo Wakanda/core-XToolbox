@@ -72,7 +72,7 @@ namespace snet_ssl_stub
 	int						SNET_STDCALL	SSL_CTX_use_RSAPrivateKey	(SSL_CTX* ctx, RSA* rsa);
 	int						SNET_STDCALL	SSL_CTX_use_certificate		(SSL_CTX* ctx, X509* x);
 
-	int						SNET_STDCALL	SSL_ctrl					(SSL* ssl, int cmd, long larg, void *parg);
+	int						SNET_STDCALL	SSL_add_client_CA			(SSL* ssl, X509* x);
 	void					SNET_STDCALL	SSL_free					(SSL* ssl);
 	int						SNET_STDCALL	SSL_get_error				(const SSL* ssl, int ret);
 	int						SNET_STDCALL	SSL_get_fd					(const SSL* ssl);

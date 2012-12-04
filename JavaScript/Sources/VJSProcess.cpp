@@ -48,6 +48,7 @@ void VJSProcess::GetDefinition( ClassDefinition& outDefinition)
 	{
 		{ "version", js_getProperty<_Version>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
 		{ "buildNumber", js_getProperty<_BuildNumber>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
+		{ "userDocuments", js_getProperty<_UserDocumentsFolder>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
 		{ 0, 0, 0, 0}
 	};
 
@@ -71,6 +72,13 @@ void VJSProcess::_BuildNumber ( XBOX::VJSParms_getProperty& ioParms, void* )
 	VString s;
 	VProcess::Get()->GetBuildNumber( s);
 	ioParms.ReturnString( s);
+}
+
+void VJSProcess::_UserDocumentsFolder ( XBOX::VJSParms_getProperty& ioParms, void* )
+{
+	VFolder*		fldrUserDocuments = VFolder::RetainSystemFolder ( eFK_UserDocuments, false );
+	ioParms. ReturnFolder ( fldrUserDocuments );
+	ReleaseRefCountable ( &fldrUserDocuments );
 }
 
 void VJSProcess::_getAccessor( XBOX::VJSParms_getProperty& ioParms, XBOX::VJSGlobalObject* inGlobalObject)

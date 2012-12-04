@@ -413,7 +413,17 @@ XBOX::VJSObject	VJSFolderIterator::_Construct (VJSParms_withArguments &ioParms)
 				VString foldername;
 				if (ioParms.IsStringParam(2) && ioParms.GetStringParam(2, foldername))
 				{
-					VFolder* subfolder = new VFolder(*folder, foldername);
+					if (foldername.IsEmpty())
+
+						foldername = "./";
+
+					else if (foldername.GetUniChar(foldername.GetLength()) != '/')
+
+						foldername.AppendChar('/');
+
+					VFilePath	path(folder->GetPath(), foldername, FPS_POSIX);
+
+					VFolder* subfolder = new VFolder(path);
 					constructedObject.MakeFolder( subfolder);
 					ReleaseRefCountable( &subfolder);
 				}
@@ -777,14 +787,14 @@ void VJSFolderIterator::_SetReadOnly(VJSParms_callStaticFunction& ioParms, JS4DF
 {
 #if !VERSION_LINUX  // Postponed Linux Implementation ! (Need refactoring)
 	VFolder* folder = inFolderIter->GetFolder();
-	if (folder != NULL)
-	{
-		if (ioParms.GetBoolParam( 1, L"ReadOnly", L"ReadWrite"))
-		{
-			// a faire 
-		}
-		else
-			folder->MakeWritableByAll();
+
+	if (folder != NULL) {
+	
+		bool	isReadOnly;
+
+		isReadOnly = ioParms.GetBoolParam( 1, L"ReadOnly", L"ReadWrite"); 
+		_SetReadOnly(folder, isReadOnly);
+
 	}
 #endif
 }
@@ -859,9 +869,9 @@ void VJSFolderIterator::_GetVolumeSize(VJSParms_callStaticFunction& ioParms, JS4
 	VFolder* folder = inFolderIter->GetFolder();
 	if (folder != NULL)
 	{
-		sLONG8 freebytes = - 1;
-		//folder->GetVolumeFreeSpace(&freebytes,  ! ioParms.GetBoolParam( 1, L"NoQuotas", L"WithQuotas"));
-		ioParms.ReturnNumber(freebytes);
+		sLONG8 volumeSize = - 1;
+		folder->GetVolumeCapacity(&volumeSize);
+		ioParms.ReturnNumber(volumeSize);
 	}
 }
 
@@ -1413,17 +1423,48 @@ void VJSFolderIterator::_valid(VJSParms_getProperty& ioParms, JS4DFolderIterator
 
 void VJSFolderIterator::_readOnly(VJSParms_getProperty& ioParms, JS4DFolderIterator* inFolderIter)
 {
-	VFolder* folder = inFolderIter->GetFolder();
-	if (folder != NULL)
-	{
-#if !VERSION_LINUX  // Postponed Linux Implementation ! (Need refactoring)
-		bool readonly = folder->IsWritableByAll();
-#else
-        bool readonly=false;
+	VFolder	*folder	= inFolderIter->GetFolder();
+
+	if (folder != NULL) {
+
+		bool	readonly;
+
+#if VERSIONWIN
+
+		// Should always set readonly to false, see comment for _SetReadOnly() function.
+
+		DWORD	attributes;
+
+		if (folder->WIN_GetAttributes(&attributes) == XBOX::VE_OK)
+
+			readonly = attributes & FILE_ATTRIBUTE_READONLY;
+
+		else
+
+			readonly = false;
+
+#elif VERSIONMAC
+
+		uWORD	mode;
+
+		if (folder->MAC_GetPermissions(&mode) == XBOX::VE_OK) 
+
+			readonly = !(mode & 0400);
+
+		else
+
+			readonly = false;
+
+#else	// Postponed Linux Implementation ! (Need refactoring)
+	
+		readonly = false;
+
 #endif
+
 		ioParms.ReturnBool(readonly);
-	}
-	else
+
+	} else
+
 		ioParms.ReturnNullValue();
 }
 
@@ -1436,12 +1477,7 @@ bool VJSFolderIterator::_setreadOnly(VJSParms_setProperty& ioParms, JS4DFolderIt
 	{
 		bool readonly;
 		ioParms.GetPropertyValue().GetBool(&readonly);
-		if (readonly)
-		{
-			// a faire
-		}
-		else
-			folder->MakeWritableByAll();
+		_SetReadOnly(folder, readonly);
 	}
 #endif
 	return true;
@@ -1519,6 +1555,59 @@ void VJSFolderIterator::_firstFolder(VJSParms_getProperty& ioParms, JS4DFolderIt
 	}
 	else
 		ioParms.ReturnNullValue();
+}
+
+void VJSFolderIterator::_SetReadOnly (XBOX::VFolder *inFolder, bool inIsReadOnly)
+{
+// For integration in WAK3, do nothing for now. Need discussion regarding read-only folder behavior.
+
+/*
+#if VERSIONWIN
+
+		// See : http://support.microsoft.com/kb/326549
+
+		DWORD	attributes;
+
+		if (inFolder->WIN_GetAttributes(&attributes) == XBOX::VE_OK) {
+
+			if (inIsReadOnly) 
+
+				attributes |= FILE_ATTRIBUTE_READONLY;
+
+			else
+
+				attributes &= ~FILE_ATTRIBUTE_READONLY;
+
+			inFolder->WIN_SetAttributes(attributes);
+
+		}
+
+#elif VERSIONMAC
+
+		// Enable or disable owner read bit. 
+	
+		uWORD	mode;
+
+		if (inFolder->MAC_GetPermissions(&mode) == XBOX::VE_OK) {
+
+			if (inIsReadOnly)
+
+				mode &= ~0400;
+
+			else
+
+				mode |= 0400;
+
+			inFolder->MAC_SetPermissions(mode);
+
+		}
+
+#else	
+
+	// TODO.		
+
+#endif
+*/
 }
 
 void VJSFolderIterator::GetDefinition( ClassDefinition& outDefinition)
@@ -1813,7 +1902,7 @@ void VJSFileIterator::_SetReadOnly(VJSParms_callStaticFunction& ioParms, JS4DFil
 		if (readonly)
 			attrib = attrib | FATT_LockedFile;
 		else
-			attrib = attrib ^ FATT_LockedFile;
+			attrib = attrib & ~FATT_LockedFile;
 		file->SetFileAttributes(attrib);
 	}
 }
@@ -1903,9 +1992,14 @@ void VJSFileIterator::_GetVolumeSize(VJSParms_callStaticFunction& ioParms, JS4DF
 	VFile* file = inFileIter->GetFile();
 	if (file != NULL)
 	{
-		sLONG8 freebytes, totalbytes;
-		file->GetVolumeFreeSpace(&freebytes, &totalbytes, ! ioParms.GetBoolParam( 1, L"NoQuotas", L"WithQuotas"), 0);
-		ioParms.ReturnNumber(totalbytes);
+
+		sLONG8			volumeSize	= -1;
+		XBOX::VFolder	*folder		= file->RetainParentFolder();
+
+		folder->GetVolumeCapacity(&volumeSize);
+		XBOX::ReleaseRefCountable<XBOX::VFolder>(&folder);
+
+		ioParms.ReturnNumber(volumeSize);
 	}	
 }
 
@@ -2207,7 +2301,7 @@ bool VJSFileIterator::_setreadOnly(VJSParms_setProperty& ioParms, JS4DFileIterat
 		if (readonly)
 			attrib = attrib | FATT_LockedFile;
 		else
-			attrib = attrib ^ FATT_LockedFile;
+			attrib = attrib & ~FATT_LockedFile;
 		file->SetFileAttributes(attrib);
 	}
 	return true;
@@ -2312,7 +2406,7 @@ XBOX::VJSObject VJSFileIterator::_Construct (VJSParms_withArguments &ioParms)
 			VString filename;
 			if (ioParms.IsStringParam(2) && ioParms.GetStringParam(2, filename))
 			{
-				VFile* file = new VFile(*folder, filename);
+				VFile* file = new VFile(*folder, filename, FPS_POSIX);
 				constructedObject.MakeFile( file);
 				ReleaseRefCountable( &file);
 			}

@@ -128,10 +128,18 @@ void VMIMEMessage::Load (bool inFromPOST, const XBOX::VString& inContentType, co
 }
 
 
-void VMIMEMessage::LoadMail (const XBOX::VString &inBoundary, const XBOX::VStream &inStream)
+void VMIMEMessage::LoadMail (const VMIMEMailHeader *inHeader, VMemoryBufferStream &inStream)
 {
-	fBoundary = inBoundary;
-	_ReadMultipartMail(inStream);	
+	xbox_assert(inHeader != NULL);
+	
+	if (inHeader->fIsMultiPart) {
+
+		fBoundary = inHeader->fBoundary;
+		_ReadMultiPartMail(inStream);	
+
+	} else 
+
+		_ReadSinglePartMail(inHeader, inStream);
 }
 
 
@@ -238,7 +246,7 @@ void VMIMEMessage::_ReadMultipart (const XBOX::VStream& inStream)
 }
 
 
-void VMIMEMessage::_ReadMultipartMail (const XBOX::VStream& inStream)
+void VMIMEMessage::_ReadMultiPartMail (const XBOX::VStream &inStream)
 {
 	XBOX::VStream	&stream	= const_cast<XBOX::VStream&>(inStream);
 	VMIMEReader		reader(fBoundary, stream);
@@ -299,8 +307,9 @@ void VMIMEMessage::_ReadMultipartMail (const XBOX::VStream& inStream)
 				header.GetHeaderValue(it->first, value);
 				VHTTPHeader::SplitParameters(value, encoding, params);
 
-				isBase64 = HTTPTools::EqualASCIIVString(encoding, "base64");
-				isQuotedPrintable = HTTPTools::EqualASCIIVString(encoding, "quoted-printable");
+				if (!(isBase64 = HTTPTools::EqualASCIIVString(encoding, "base64")))
+
+					isQuotedPrintable = HTTPTools::EqualASCIIVString(encoding, "quoted-printable");
 
 			} else if (HTTPTools::EqualASCIIVString(it->first, "Content-ID", false)) {
 
@@ -357,6 +366,124 @@ void VMIMEMessage::_ReadMultipartMail (const XBOX::VStream& inStream)
 	}
 }
 
+void VMIMEMessage::_ReadSinglePartMail (const VMIMEMailHeader *inHeader, VStream &inStream)
+{
+	xbox_assert(inHeader != NULL);
+
+	// Read header information.
+
+	XBOX::VString	name, fileName, contentType, contentID;
+	bool			isInline, isBase64, isQuotedPrintable;
+
+	isInline = isBase64 = isQuotedPrintable = false;
+
+	XBOX::VString				string;
+	XBOX::VNameValueCollection	params;
+
+	if (!inHeader->fContentType.IsEmpty()) {
+
+		contentType = inHeader->fContentType;
+		VHTTPHeader::SplitParameters(inHeader->fContentType, string, params);
+		if (params.Has("name")) {
+
+			name = params.Get("name");
+			_UnQuote(&name, '"', '"');
+		
+		}
+
+	}
+
+	if (!inHeader->fContentDisposition.IsEmpty()) {
+
+		VHTTPHeader::SplitParameters(inHeader->fContentDisposition, string, params);
+		isInline = HTTPTools::EqualASCIIVString(string, "inline");
+		if (params.Has("filename")) {
+
+			fileName = params.Get("filename");
+			_UnQuote(&fileName, '"', '"');
+				
+		}
+
+	}
+
+	if (!inHeader->fContentTransferEncoding.IsEmpty()) {
+
+		VHTTPHeader::SplitParameters(inHeader->fContentTransferEncoding, string, params);
+		if (!(isBase64 = HTTPTools::EqualASCIIVString(string, "base64")))
+
+			isQuotedPrintable = HTTPTools::EqualASCIIVString(string, "quoted-printable");
+
+	}
+
+	// Read body (a single part). Must be bigger than 5 bytes because of the ending "\r\n.\r\n" sequence.
+
+	XBOX::VError	error;
+	VSize			size;
+
+	if ((error = inStream.OpenReading()) != XBOX::VE_OK) 
+
+		XBOX::vThrowError(error);
+
+	else if ((size = (VSize) inStream.GetSize()) > 5) {
+
+		uBYTE	*buffer;
+
+		size -= 5;
+		if ((buffer = new uBYTE[size]) == NULL) 
+
+			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+
+		else {
+
+			XBOX::VMemoryBuffer<>	decodedData;
+			XBOX::VPtrStream		decodedBody;
+
+			inStream.GetData(buffer, size);
+
+			if (isBase64) {
+
+				XBOX::Base64Coder::Decode(buffer, size, decodedData);
+
+				decodedBody.SetDataPtr(decodedData.GetDataPtr(), decodedData.GetDataSize());
+				decodedData.ForgetData();
+
+			} else if (isQuotedPrintable) {
+
+				VMIMEReader::DecodeQuotedPrintable(buffer, size, &decodedData);
+
+				decodedBody.SetDataPtr(decodedData.GetDataPtr(), decodedData.GetDataSize());
+				decodedData.ForgetData();
+
+			} else 
+
+				decodedBody.SetDataPtr(buffer, size);		
+
+			inStream.CloseReading();
+
+			if (fileName.IsEmpty()) 
+
+				_AddTextPart(name, isInline, contentType, contentID, decodedBody);
+
+			else
+
+				_AddFilePart(name, fileName, isInline, contentType, contentID, decodedBody);
+
+			if (isBase64 || isQuotedPrintable)
+
+				decodedBody.Clear();	
+
+			else 
+
+				decodedBody.StealData();	// Prevent VPtrStream from freeing buffer.
+
+			delete[] buffer;
+
+		}
+
+	} else
+
+		inStream.CloseReading();
+}
 
 XBOX::VError VMIMEMessage::ToStream (XBOX::VStream& outStream, sLONG inEncoding)
 {
@@ -364,6 +491,7 @@ XBOX::VError VMIMEMessage::ToStream (XBOX::VStream& outStream, sLONG inEncoding)
 
 	if (XBOX::VE_OK == outStream.OpenWriting())
 	{
+		outStream.SetCarriageReturnMode(eCRM_CRLF);
 		if (fMIMEParts.size() > 0)
 		{
 			XBOX::VString	string;

@@ -152,6 +152,8 @@ private:
 	static void _firstFile(VJSParms_getProperty& ioParms, JS4DFolderIterator* inFolderIter);
 	static void _firstFolder(VJSParms_getProperty& ioParms, JS4DFolderIterator* inFolderIter);
 
+	static void	_SetReadOnly (XBOX::VFolder *inFolder, bool inIsReadOnly);
+
 };
 
 //======================================================

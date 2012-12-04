@@ -3662,6 +3662,14 @@ VString ToString(sLONG8 n)
 	return res;
 }
 
+#if ARCH_32 || COMPIL_GCC
+VString ToString(uLONG8 n)
+{
+	VString res;
+	res.FromULong8(n);
+	return res;
+}
+#endif
 
 VString ToString(VSize n)
 {

@@ -125,9 +125,9 @@ int SNET_STDCALL SSLSTUB::SSL_CTX_use_certificate(SSL_CTX* ctx, X509* x)
 	return ::SSL_CTX_use_certificate(ctx, x);
 }
 
-int	SNET_STDCALL SSLSTUB::SSL_ctrl(SSL* ssl, int cmd, long larg, void *parg)
+int SNET_STDCALL SSLSTUB::SSL_add_client_CA(SSL* ssl, X509* x)
 {
-	return ::SSL_ctrl(ssl, cmd, larg, parg);
+	return ::SSL_add_client_CA(ssl, x);
 }
 
 void SNET_STDCALL SSLSTUB::SSL_free(SSL* ssl)

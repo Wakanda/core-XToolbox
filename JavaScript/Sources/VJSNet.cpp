@@ -300,7 +300,7 @@ uLONG VJSNetClass::_isIPAddress (XBOX::VJSParms_callStaticFunction &ioParms)
 		StErrorContextInstaller	context(false, true);
 		XBOX::VNetAddress			addr(ipAddress, 1234);
 
-		if (context.GetLastError() == XBOX::VE_OK)
+		if (context.GetLastError() != XBOX::VE_OK)
 
 			return 0;
 

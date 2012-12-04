@@ -106,6 +106,8 @@ fRequestLogger(inRequestLogger), fListenStarted(false), fAcceptTimeout(0), fKeyC
 VSockListener::~VSockListener()
 {
 	StopListeningAndClearPorts();
+	
+	SslFramework::ReleaseKeyCertificateChain(&fKeyCertChain);
 }
 
 
@@ -316,7 +318,7 @@ VError VSockListener::SetCertificateFolder(const VFilePath& inCertFolderPath, co
 
 VError VSockListener::SetKeyAndCertificate(const VMemoryBuffer<>& inKey, const VMemoryBuffer<>& inCertificate)
 {
-	SslFramework::ReleaseKeyCertificateChain(fKeyCertChain);
+	SslFramework::ReleaseKeyCertificateChain(&fKeyCertChain);
 	
 	fKeyCertChain=SslFramework::RetainKeyCertificateChain(inKey, inCertificate);
 	

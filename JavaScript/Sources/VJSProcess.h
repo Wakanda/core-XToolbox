@@ -38,6 +38,7 @@ public:
 	// Properties
 	static	void			_Version ( XBOX::VJSParms_getProperty& ioParms, void* );
 	static	void			_BuildNumber ( XBOX::VJSParms_getProperty& ioParms, void* );
+	static	void			_UserDocumentsFolder ( XBOX::VJSParms_getProperty& ioParms, void* );
 
 private:
 };

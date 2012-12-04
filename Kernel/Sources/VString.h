@@ -1257,6 +1257,10 @@ typedef StStringConverter<char> VStringConvertBuffer;
 VString XTOOLBOX_API operator +(const VString& s1, const VString& s2);
 VString XTOOLBOX_API ToString(sLONG n);
 VString XTOOLBOX_API ToString(sLONG8 n);
+#if ARCH_32 || COMPIL_GCC
+VString XTOOLBOX_API ToString(uLONG8 n);
+#endif
+
 VString XTOOLBOX_API ToString(VSize n);
 
 // Object to be used in maps, when the key is a VString and comparison must be case sensitive (ie: map of environment variables)

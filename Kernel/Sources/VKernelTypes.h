@@ -159,7 +159,9 @@ typedef enum SystemVersion
 	WIN_SERVER_2003,
 	WIN_SERVER_2008,
 	WIN_SERVER_2008R2,
-	WIN_SEVEN
+	WIN_SEVEN,
+	WIN_EIGHT,
+	WIN_SERVER_2012
 } SystemVersion;
 
 #endif	// VERSIONWIN

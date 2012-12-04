@@ -665,7 +665,7 @@ void VJSSystemWorkerClass::_Exec (XBOX::VJSParms_callStaticFunction &ioParms, vo
 	ioParms.ReturnNullValue();
 	inputBuffer = NULL;
 
-	if (!ioParms.GetStringParam(1, commandLine)) {
+	if (!ioParms.IsStringParam(1) || !ioParms.GetStringParam(1, commandLine)) {
 		
 		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
 		return;

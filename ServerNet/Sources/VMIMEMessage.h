@@ -21,6 +21,27 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
+class VMemoryBufferStream;
+
+// Before a mail can be loaded, its header must be parsed. 
+// This is the structure used to store information for reading the body;
+
+class XTOOLBOX_API VMIMEMailHeader : public XBOX::VObject
+{
+public:
+
+	bool			fIsMultiPart;
+
+	// If fIsMultiPart is true, then the boundary string is defined and is used to separate all parts.
+
+	XBOX::VString	fBoundary;
+
+	// Otherwise, the header contains the information of the sole part, which is the message body.
+
+	XBOX::VString	fContentType;
+	XBOX::VString	fContentDisposition;
+	XBOX::VString	fContentTransferEncoding;		
+};
 
 class XTOOLBOX_API VMIMEMessage: public XBOX::VObject
 {
@@ -54,7 +75,7 @@ public:
 											const XBOX::VString& inURLQuery,
 											const XBOX::VStream& inStream);
 
-	void							LoadMail (const XBOX::VString &inBoundary, const XBOX::VStream &inStream);
+	void							LoadMail (const VMIMEMailHeader *inHeader, VMemoryBufferStream &inStream);
 
 	void							Clear();
 
@@ -66,7 +87,9 @@ protected:
 	void							_ReadUrl (const XBOX::VString& inString);
 	void							_ReadUrl (const XBOX::VStream& inStream);
 	void							_ReadMultipart (const XBOX::VStream& inStream);
-	void							_ReadMultipartMail (const XBOX::VStream& inStream);
+	void							_ReadMultiPartMail (const XBOX::VStream& inStream);
+	void							_ReadSinglePartMail (const VMIMEMailHeader *inHeader, VStream &inStream);
+
 	void							_AddTextPart (const XBOX::VString& inName, bool inIsInline, const XBOX::VString& inContentType, const XBOX::VString& inContentID, XBOX::VPtrStream& inStream);
 	void							_AddFilePart (const XBOX::VString& inName, const XBOX::VString& inFileName, bool inIsInline, const XBOX::VString& inContentType, const XBOX::VString& inContentID, XBOX::VPtrStream& inStream);
 
