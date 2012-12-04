@@ -20,6 +20,66 @@
 		B54DA0F60BEA4CCF006FB990 /* VServer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41A9D2E209DBFAD900BD8FEC /* VServer.cpp */; };
 		B54DA0F90BEA4CCF006FB990 /* VWorkerPool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41A9D2E509DBFAD900BD8FEC /* VWorkerPool.cpp */; };
 		BA1B26680D3D0AC600FA4152 /* IRequestLogger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BA1B26670D3D0AC600FA4152 /* IRequestLogger.cpp */; };
+		CD647272157F8BE000D9710D /* VEndPointStream.h in Headers */ = {isa = PBXBuildFile; fileRef = CD647271157F8BE000D9710D /* VEndPointStream.h */; };
+		CD647273157F8BE000D9710D /* VEndPointStream.h in Headers */ = {isa = PBXBuildFile; fileRef = CD647271157F8BE000D9710D /* VEndPointStream.h */; };
+		CD647274157F8BE000D9710D /* VEndPointStream.h in Headers */ = {isa = PBXBuildFile; fileRef = CD647271157F8BE000D9710D /* VEndPointStream.h */; };
+		CD647276157F8BF500D9710D /* VEndPointStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD647275157F8BF500D9710D /* VEndPointStream.cpp */; };
+		CD647277157F8BF500D9710D /* VEndPointStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD647275157F8BF500D9710D /* VEndPointStream.cpp */; };
+		CD647278157F8BF500D9710D /* VEndPointStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD647275157F8BF500D9710D /* VEndPointStream.cpp */; };
+		E418C7A215ADE54100CC2ECD /* HTTPTools.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79615ADE54100CC2ECD /* HTTPTools.cpp */; };
+		E418C7A315ADE54100CC2ECD /* HTTPTools.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79715ADE54100CC2ECD /* HTTPTools.h */; };
+		E418C7A415ADE54100CC2ECD /* VHTTPCookie.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79815ADE54100CC2ECD /* VHTTPCookie.cpp */; };
+		E418C7A515ADE54100CC2ECD /* VHTTPCookie.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79915ADE54100CC2ECD /* VHTTPCookie.h */; };
+		E418C7A615ADE54100CC2ECD /* VMIMEMessagePart.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79A15ADE54100CC2ECD /* VMIMEMessagePart.cpp */; };
+		E418C7A715ADE54100CC2ECD /* VMIMEMessagePart.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79B15ADE54100CC2ECD /* VMIMEMessagePart.h */; };
+		E418C7A815ADE54100CC2ECD /* VMIMEReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79C15ADE54100CC2ECD /* VMIMEReader.cpp */; };
+		E418C7A915ADE54100CC2ECD /* VMIMEReader.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79D15ADE54100CC2ECD /* VMIMEReader.h */; };
+		E418C7AA15ADE54100CC2ECD /* VMIMEWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79E15ADE54100CC2ECD /* VMIMEWriter.cpp */; };
+		E418C7AB15ADE54100CC2ECD /* VMIMEWriter.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79F15ADE54100CC2ECD /* VMIMEWriter.h */; };
+		E418C7AC15ADE54100CC2ECD /* VNameValueCollection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C7A015ADE54100CC2ECD /* VNameValueCollection.cpp */; };
+		E418C7AD15ADE54100CC2ECD /* VNameValueCollection.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C7A115ADE54100CC2ECD /* VNameValueCollection.h */; };
+		E418C7AE15ADE54100CC2ECD /* HTTPTools.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79615ADE54100CC2ECD /* HTTPTools.cpp */; };
+		E418C7AF15ADE54100CC2ECD /* HTTPTools.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79715ADE54100CC2ECD /* HTTPTools.h */; };
+		E418C7B015ADE54100CC2ECD /* VHTTPCookie.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79815ADE54100CC2ECD /* VHTTPCookie.cpp */; };
+		E418C7B115ADE54100CC2ECD /* VHTTPCookie.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79915ADE54100CC2ECD /* VHTTPCookie.h */; };
+		E418C7B215ADE54100CC2ECD /* VMIMEMessagePart.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79A15ADE54100CC2ECD /* VMIMEMessagePart.cpp */; };
+		E418C7B315ADE54100CC2ECD /* VMIMEMessagePart.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79B15ADE54100CC2ECD /* VMIMEMessagePart.h */; };
+		E418C7B415ADE54100CC2ECD /* VMIMEReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79C15ADE54100CC2ECD /* VMIMEReader.cpp */; };
+		E418C7B515ADE54100CC2ECD /* VMIMEReader.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79D15ADE54100CC2ECD /* VMIMEReader.h */; };
+		E418C7B615ADE54100CC2ECD /* VMIMEWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79E15ADE54100CC2ECD /* VMIMEWriter.cpp */; };
+		E418C7B715ADE54100CC2ECD /* VMIMEWriter.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79F15ADE54100CC2ECD /* VMIMEWriter.h */; };
+		E418C7B815ADE54100CC2ECD /* VNameValueCollection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C7A015ADE54100CC2ECD /* VNameValueCollection.cpp */; };
+		E418C7B915ADE54100CC2ECD /* VNameValueCollection.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C7A115ADE54100CC2ECD /* VNameValueCollection.h */; };
+		E418C7BA15ADE54100CC2ECD /* HTTPTools.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79615ADE54100CC2ECD /* HTTPTools.cpp */; };
+		E418C7BB15ADE54100CC2ECD /* HTTPTools.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79715ADE54100CC2ECD /* HTTPTools.h */; };
+		E418C7BC15ADE54100CC2ECD /* VHTTPCookie.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79815ADE54100CC2ECD /* VHTTPCookie.cpp */; };
+		E418C7BD15ADE54100CC2ECD /* VHTTPCookie.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79915ADE54100CC2ECD /* VHTTPCookie.h */; };
+		E418C7BE15ADE54100CC2ECD /* VMIMEMessagePart.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79A15ADE54100CC2ECD /* VMIMEMessagePart.cpp */; };
+		E418C7BF15ADE54100CC2ECD /* VMIMEMessagePart.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79B15ADE54100CC2ECD /* VMIMEMessagePart.h */; };
+		E418C7C015ADE54100CC2ECD /* VMIMEReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79C15ADE54100CC2ECD /* VMIMEReader.cpp */; };
+		E418C7C115ADE54100CC2ECD /* VMIMEReader.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79D15ADE54100CC2ECD /* VMIMEReader.h */; };
+		E418C7C215ADE54100CC2ECD /* VMIMEWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C79E15ADE54100CC2ECD /* VMIMEWriter.cpp */; };
+		E418C7C315ADE54100CC2ECD /* VMIMEWriter.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C79F15ADE54100CC2ECD /* VMIMEWriter.h */; };
+		E418C7C415ADE54100CC2ECD /* VNameValueCollection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E418C7A015ADE54100CC2ECD /* VNameValueCollection.cpp */; };
+		E418C7C515ADE54100CC2ECD /* VNameValueCollection.h in Headers */ = {isa = PBXBuildFile; fileRef = E418C7A115ADE54100CC2ECD /* VNameValueCollection.h */; };
+		E42CBC8F15AAE11800D10481 /* VHTTPHeader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8915AAE11800D10481 /* VHTTPHeader.cpp */; };
+		E42CBC9015AAE11800D10481 /* VHTTPHeader.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8A15AAE11800D10481 /* VHTTPHeader.h */; };
+		E42CBC9115AAE11800D10481 /* VHTTPMessage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8B15AAE11800D10481 /* VHTTPMessage.cpp */; };
+		E42CBC9215AAE11800D10481 /* VHTTPMessage.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8C15AAE11800D10481 /* VHTTPMessage.h */; };
+		E42CBC9315AAE11800D10481 /* VMIMEMessage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8D15AAE11800D10481 /* VMIMEMessage.cpp */; };
+		E42CBC9415AAE11800D10481 /* VMIMEMessage.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8E15AAE11800D10481 /* VMIMEMessage.h */; };
+		E42CBC9515AAE11800D10481 /* VHTTPHeader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8915AAE11800D10481 /* VHTTPHeader.cpp */; };
+		E42CBC9615AAE11800D10481 /* VHTTPHeader.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8A15AAE11800D10481 /* VHTTPHeader.h */; };
+		E42CBC9715AAE11800D10481 /* VHTTPMessage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8B15AAE11800D10481 /* VHTTPMessage.cpp */; };
+		E42CBC9815AAE11800D10481 /* VHTTPMessage.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8C15AAE11800D10481 /* VHTTPMessage.h */; };
+		E42CBC9915AAE11800D10481 /* VMIMEMessage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8D15AAE11800D10481 /* VMIMEMessage.cpp */; };
+		E42CBC9A15AAE11800D10481 /* VMIMEMessage.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8E15AAE11800D10481 /* VMIMEMessage.h */; };
+		E42CBC9B15AAE14200D10481 /* VHTTPHeader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8915AAE11800D10481 /* VHTTPHeader.cpp */; };
+		E42CBC9C15AAE14200D10481 /* VHTTPHeader.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8A15AAE11800D10481 /* VHTTPHeader.h */; };
+		E42CBC9D15AAE14200D10481 /* VHTTPMessage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8B15AAE11800D10481 /* VHTTPMessage.cpp */; };
+		E42CBC9E15AAE14200D10481 /* VHTTPMessage.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8C15AAE11800D10481 /* VHTTPMessage.h */; };
+		E42CBC9F15AAE14200D10481 /* VMIMEMessage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E42CBC8D15AAE11800D10481 /* VMIMEMessage.cpp */; };
+		E42CBCA015AAE14200D10481 /* VMIMEMessage.h in Headers */ = {isa = PBXBuildFile; fileRef = E42CBC8E15AAE11800D10481 /* VMIMEMessage.h */; };
 		F44213DE140E6212008F6502 /* OpenSSLDebug.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F44213DB140E6206008F6502 /* OpenSSLDebug.framework */; };
 		F44213DF140E621D008F6502 /* OpenSSLDebug.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F44213DD140E6206008F6502 /* OpenSSLDebug.framework */; };
 		F4643435113E8FB200639653 /* ServerNet_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32BAE0B70371A74B00C91783 /* ServerNet_Prefix.pch */; };
@@ -220,6 +280,48 @@
 			remoteGlobalIDString = F46431C0113E7CBD00639653;
 			remoteInfo = "KernelIPC x64";
 		};
+		F9BA3A8D152DC3DB008E176F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9BA3A84152DC3DB008E176F /* Wakanda Server.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = F4F8C5441164DEF7005C7BC6;
+			remoteInfo = "Wakanda Server x64";
+		};
+		F9BA3AB9152DC3F2008E176F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9BA3A98152DC3F2008E176F /* Wakanda Studio.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 856C9F1D0F4558AB00F42950;
+			remoteInfo = "Wakanda Studio";
+		};
+		F9BA3ACC152DC417008E176F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9BA3AC0152DC417008E176F /* 4D.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 1258D3DA09E1230700F02266;
+			remoteInfo = "4D Mono";
+		};
+		F9BA3ACE152DC417008E176F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9BA3AC0152DC417008E176F /* 4D.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 12BAC6A20A81D260005BF4EF;
+			remoteInfo = "4D Server";
+		};
+		F9BA3AD0152DC417008E176F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9BA3AC0152DC417008E176F /* 4D.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 1258D40709E1230700F02266;
+			remoteInfo = "4D Runtime Volume License";
+		};
+		F9BA3AD2152DC417008E176F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9BA3AC0152DC417008E176F /* 4D.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 59E1670B097FA38800C05DBA;
+			remoteInfo = "4D Tester";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -236,11 +338,31 @@
 		8D07F2C80486CC7A007CD1D0 /* ServerNetDebug.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ServerNetDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B508DD9D0BEA4BF70036C46F /* libServerNetDebug.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libServerNetDebug.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA1B26670D3D0AC600FA4152 /* IRequestLogger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IRequestLogger.cpp; path = ../../Sources/IRequestLogger.cpp; sourceTree = SOURCE_ROOT; };
+		CD647271157F8BE000D9710D /* VEndPointStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VEndPointStream.h; path = ../../Sources/VEndPointStream.h; sourceTree = SOURCE_ROOT; };
+		CD647275157F8BF500D9710D /* VEndPointStream.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VEndPointStream.cpp; path = ../../Sources/VEndPointStream.cpp; sourceTree = SOURCE_ROOT; };
 		D24D1A9D0B7C70A5007D174C /* xtoolbox_base.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_base.xcconfig; path = ../../../xtoolbox_base.xcconfig; sourceTree = SOURCE_ROOT; };
 		D24D1A9E0B7C70A5007D174C /* xtoolbox_beta.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_beta.xcconfig; path = ../../../xtoolbox_beta.xcconfig; sourceTree = SOURCE_ROOT; };
 		D24D1A9F0B7C70A5007D174C /* xtoolbox_debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_debug.xcconfig; path = ../../../xtoolbox_debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		D24D1AA00B7C70A5007D174C /* xtoolbox_release.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_release.xcconfig; path = ../../../xtoolbox_release.xcconfig; sourceTree = SOURCE_ROOT; };
 		D24D1C9F0B7C8EB0007D174C /* xtoolbox_coverage.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_coverage.xcconfig; path = ../../../xtoolbox_coverage.xcconfig; sourceTree = SOURCE_ROOT; };
+		E418C79615ADE54100CC2ECD /* HTTPTools.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = HTTPTools.cpp; path = ../../Sources/HTTPTools.cpp; sourceTree = SOURCE_ROOT; };
+		E418C79715ADE54100CC2ECD /* HTTPTools.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = HTTPTools.h; path = ../../Sources/HTTPTools.h; sourceTree = SOURCE_ROOT; };
+		E418C79815ADE54100CC2ECD /* VHTTPCookie.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VHTTPCookie.cpp; path = ../../Sources/VHTTPCookie.cpp; sourceTree = SOURCE_ROOT; };
+		E418C79915ADE54100CC2ECD /* VHTTPCookie.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VHTTPCookie.h; path = ../../Sources/VHTTPCookie.h; sourceTree = SOURCE_ROOT; };
+		E418C79A15ADE54100CC2ECD /* VMIMEMessagePart.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VMIMEMessagePart.cpp; path = ../../Sources/VMIMEMessagePart.cpp; sourceTree = SOURCE_ROOT; };
+		E418C79B15ADE54100CC2ECD /* VMIMEMessagePart.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VMIMEMessagePart.h; path = ../../Sources/VMIMEMessagePart.h; sourceTree = SOURCE_ROOT; };
+		E418C79C15ADE54100CC2ECD /* VMIMEReader.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VMIMEReader.cpp; path = ../../Sources/VMIMEReader.cpp; sourceTree = SOURCE_ROOT; };
+		E418C79D15ADE54100CC2ECD /* VMIMEReader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VMIMEReader.h; path = ../../Sources/VMIMEReader.h; sourceTree = SOURCE_ROOT; };
+		E418C79E15ADE54100CC2ECD /* VMIMEWriter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VMIMEWriter.cpp; path = ../../Sources/VMIMEWriter.cpp; sourceTree = SOURCE_ROOT; };
+		E418C79F15ADE54100CC2ECD /* VMIMEWriter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VMIMEWriter.h; path = ../../Sources/VMIMEWriter.h; sourceTree = SOURCE_ROOT; };
+		E418C7A015ADE54100CC2ECD /* VNameValueCollection.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VNameValueCollection.cpp; path = ../../Sources/VNameValueCollection.cpp; sourceTree = SOURCE_ROOT; };
+		E418C7A115ADE54100CC2ECD /* VNameValueCollection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VNameValueCollection.h; path = ../../Sources/VNameValueCollection.h; sourceTree = SOURCE_ROOT; };
+		E42CBC8915AAE11800D10481 /* VHTTPHeader.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VHTTPHeader.cpp; path = ../../Sources/VHTTPHeader.cpp; sourceTree = SOURCE_ROOT; };
+		E42CBC8A15AAE11800D10481 /* VHTTPHeader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VHTTPHeader.h; path = ../../Sources/VHTTPHeader.h; sourceTree = SOURCE_ROOT; };
+		E42CBC8B15AAE11800D10481 /* VHTTPMessage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VHTTPMessage.cpp; path = ../../Sources/VHTTPMessage.cpp; sourceTree = SOURCE_ROOT; };
+		E42CBC8C15AAE11800D10481 /* VHTTPMessage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VHTTPMessage.h; path = ../../Sources/VHTTPMessage.h; sourceTree = SOURCE_ROOT; };
+		E42CBC8D15AAE11800D10481 /* VMIMEMessage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VMIMEMessage.cpp; path = ../../Sources/VMIMEMessage.cpp; sourceTree = SOURCE_ROOT; };
+		E42CBC8E15AAE11800D10481 /* VMIMEMessage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VMIMEMessage.h; path = ../../Sources/VMIMEMessage.h; sourceTree = SOURCE_ROOT; };
 		F44213D2140E6205008F6502 /* OpenSSL.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = OpenSSL.xcodeproj; path = ../../../../../openssl/1.0.0d/Projects/XCode/OpenSSL.xcodeproj; sourceTree = SOURCE_ROOT; };
 		F464345E113E8FB200639653 /* ServerNetDebug.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ServerNetDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4643476113E8FE100639653 /* xtoolbox_x64.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = xtoolbox_x64.xcconfig; path = ../../../xtoolbox_x64.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -280,6 +402,9 @@
 		F93EB551133B3EC5006EDE6D /* VOpenSslLocker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VOpenSslLocker.cpp; path = ../../Sources/VOpenSslLocker.cpp; sourceTree = SOURCE_ROOT; };
 		F99AD64E1352F56300CAD830 /* VServerNet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VServerNet.h; path = ../../VServerNet.h; sourceTree = SOURCE_ROOT; };
 		F99C327D147E91E600348B16 /* VSharedWorkers.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VSharedWorkers.cpp; path = ../../SharedWorkers/VSharedWorkers.cpp; sourceTree = SOURCE_ROOT; };
+		F9BA3A84152DC3DB008E176F /* Wakanda Server.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "Wakanda Server.xcodeproj"; path = "../../../../../Wakanda/main/Server/Projet/XCode/Wakanda Server.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		F9BA3A98152DC3F2008E176F /* Wakanda Studio.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "Wakanda Studio.xcodeproj"; path = "../../../../../Wakanda/main/Studio/Projet/Xcode/Wakanda Studio.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		F9BA3AC0152DC417008E176F /* 4D.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = 4D.xcodeproj; path = ../../../../../4eDimension/main/4D/Projet/4D.xcodeproj; sourceTree = SOURCE_ROOT; };
 		F9C0719F14E2D17B00BA9C4C /* XBsdNetAddr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = XBsdNetAddr.h; path = ../../Sources/XBsdNetAddr.h; sourceTree = SOURCE_ROOT; };
 		F9C071A014E2D19F00BA9C4C /* XBsdNetAddr.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = XBsdNetAddr.cpp; path = ../../Sources/XBsdNetAddr.cpp; sourceTree = SOURCE_ROOT; };
 		F9D9B647147A6BAC00B72F6F /* VSockListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VSockListener.h; path = ../../Sources/VSockListener.h; sourceTree = SOURCE_ROOT; };
@@ -348,14 +473,13 @@
 		0867D691FE84028FC02AAC07 /* ServerNet */ = {
 			isa = PBXGroup;
 			children = (
+				F9BA3AD8152DC450008E176F /* Dependencies */,
+				F9BA3A69152DC364008E176F /* Needed by */,
 				F93ACDA8147A4C2700C4D0D2 /* SharedWorkers */,
 				F914B6E41464590B004ACE34 /* Examples */,
-				F44213D2140E6205008F6502 /* OpenSSL.xcodeproj */,
 				D24D1A9C0B7C70A5007D174C /* config */,
-				41A9D2AA09DBF99300BD8FEC /* Kernel.xcodeproj */,
-				859BEF890EDDB2530068D42B /* XML.xcodeproj */,
-				41A9D2BC09DBF9D800BD8FEC /* KernelIPC.xcodeproj */,
 				41A9D2C709DBF9F000BD8FEC /* Headers */,
+				E42CBC8815AAE0E200D10481 /* MIMEMessages */,
 				08FB77ACFE841707C02AAC07 /* Sources */,
 				089C1665FE841158C02AAC07 /* Resources */,
 				0867D69AFE84028FC02AAC07 /* External Frameworks and Libraries */,
@@ -396,6 +520,7 @@
 				F93EB551133B3EC5006EDE6D /* VOpenSslLocker.cpp */,
 				F9D9B721147BA4D300B72F6F /* VSockListener.cpp */,
 				F90168AE1403DD6A0052EF5D /* VSslDelegate.cpp */,
+				CD647275157F8BF500D9710D /* VEndPointStream.cpp */,
 				F9D9B706147AAAF400B72F6F /* VTCPEndPoint.cpp */,
 				F9D9B707147AAAF400B72F6F /* VUDPEndPoint.cpp */,
 				41A9D2E509DBFAD900BD8FEC /* VWorkerPool.cpp */,
@@ -447,6 +572,7 @@
 				F914B6F41464595D004ACE34 /* SslStub.h */,
 				F9D9B651147A8F3200B72F6F /* Tools.h */,
 				F93ACDC6147A4D6700C4D0D2 /* VConnectionHandlerFactory.h */,
+				CD647271157F8BE000D9710D /* VEndPointStream.h */,
 				F93ACDAD147A4CA900C4D0D2 /* VEndPoint.h */,
 				F914B6EA1464595D004ACE34 /* VOpenSslLocker.h */,
 				F914B6F01464595D004ACE34 /* VServer.h */,
@@ -487,6 +613,31 @@
 				3957A5D30C29273100794CD3 /* xtoolbox_performance.xcconfig */,
 			);
 			name = config;
+			sourceTree = "<group>";
+		};
+		E42CBC8815AAE0E200D10481 /* MIMEMessages */ = {
+			isa = PBXGroup;
+			children = (
+				E418C79615ADE54100CC2ECD /* HTTPTools.cpp */,
+				E418C79715ADE54100CC2ECD /* HTTPTools.h */,
+				E418C79815ADE54100CC2ECD /* VHTTPCookie.cpp */,
+				E418C79915ADE54100CC2ECD /* VHTTPCookie.h */,
+				E418C79A15ADE54100CC2ECD /* VMIMEMessagePart.cpp */,
+				E418C79B15ADE54100CC2ECD /* VMIMEMessagePart.h */,
+				E418C79C15ADE54100CC2ECD /* VMIMEReader.cpp */,
+				E418C79D15ADE54100CC2ECD /* VMIMEReader.h */,
+				E418C79E15ADE54100CC2ECD /* VMIMEWriter.cpp */,
+				E418C79F15ADE54100CC2ECD /* VMIMEWriter.h */,
+				E418C7A015ADE54100CC2ECD /* VNameValueCollection.cpp */,
+				E418C7A115ADE54100CC2ECD /* VNameValueCollection.h */,
+				E42CBC8915AAE11800D10481 /* VHTTPHeader.cpp */,
+				E42CBC8A15AAE11800D10481 /* VHTTPHeader.h */,
+				E42CBC8B15AAE11800D10481 /* VHTTPMessage.cpp */,
+				E42CBC8C15AAE11800D10481 /* VHTTPMessage.h */,
+				E42CBC8D15AAE11800D10481 /* VMIMEMessage.cpp */,
+				E42CBC8E15AAE11800D10481 /* VMIMEMessage.h */,
+			);
+			name = MIMEMessages;
 			sourceTree = "<group>";
 		};
 		F44213D3140E6205008F6502 /* Products */ = {
@@ -537,6 +688,54 @@
 			name = Types;
 			sourceTree = "<group>";
 		};
+		F9BA3A69152DC364008E176F /* Needed by */ = {
+			isa = PBXGroup;
+			children = (
+				F9BA3A84152DC3DB008E176F /* Wakanda Server.xcodeproj */,
+				F9BA3A98152DC3F2008E176F /* Wakanda Studio.xcodeproj */,
+				F9BA3AC0152DC417008E176F /* 4D.xcodeproj */,
+			);
+			name = "Needed by";
+			sourceTree = "<group>";
+		};
+		F9BA3A85152DC3DB008E176F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F9BA3A8E152DC3DB008E176F /* Wakanda Server.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F9BA3A99152DC3F2008E176F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F9BA3ABA152DC3F2008E176F /* Wakanda Studio.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F9BA3AC1152DC417008E176F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F9BA3ACD152DC417008E176F /* 4D.app */,
+				F9BA3ACF152DC417008E176F /* 4D Server.app */,
+				F9BA3AD1152DC417008E176F /* 4D Volume Desktop.app */,
+				F9BA3AD3152DC417008E176F /* 4D Tester */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F9BA3AD8152DC450008E176F /* Dependencies */ = {
+			isa = PBXGroup;
+			children = (
+				F44213D2140E6205008F6502 /* OpenSSL.xcodeproj */,
+				41A9D2AA09DBF99300BD8FEC /* Kernel.xcodeproj */,
+				859BEF890EDDB2530068D42B /* XML.xcodeproj */,
+				41A9D2BC09DBF9D800BD8FEC /* KernelIPC.xcodeproj */,
+			);
+			name = Dependencies;
+			sourceTree = "<group>";
+		};
 		F9D9B69A147AA3A700B72F6F /* Precompiled */ = {
 			isa = PBXGroup;
 			children = (
@@ -562,6 +761,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				8D07F2BE0486CC7A007CD1D0 /* ServerNet_Prefix.pch in Headers */,
+				CD647272157F8BE000D9710D /* VEndPointStream.h in Headers */,
+				E42CBC9015AAE11800D10481 /* VHTTPHeader.h in Headers */,
+				E42CBC9215AAE11800D10481 /* VHTTPMessage.h in Headers */,
+				E42CBC9415AAE11800D10481 /* VMIMEMessage.h in Headers */,
+				E418C7A315ADE54100CC2ECD /* HTTPTools.h in Headers */,
+				E418C7A515ADE54100CC2ECD /* VHTTPCookie.h in Headers */,
+				E418C7A715ADE54100CC2ECD /* VMIMEMessagePart.h in Headers */,
+				E418C7A915ADE54100CC2ECD /* VMIMEReader.h in Headers */,
+				E418C7AB15ADE54100CC2ECD /* VMIMEWriter.h in Headers */,
+				E418C7AD15ADE54100CC2ECD /* VNameValueCollection.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -570,6 +779,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				B54DA0E90BEA4CB8006FB990 /* ServerNet_Prefix.pch in Headers */,
+				CD647274157F8BE000D9710D /* VEndPointStream.h in Headers */,
+				E42CBC9C15AAE14200D10481 /* VHTTPHeader.h in Headers */,
+				E42CBC9E15AAE14200D10481 /* VHTTPMessage.h in Headers */,
+				E42CBCA015AAE14200D10481 /* VMIMEMessage.h in Headers */,
+				E418C7BB15ADE54100CC2ECD /* HTTPTools.h in Headers */,
+				E418C7BD15ADE54100CC2ECD /* VHTTPCookie.h in Headers */,
+				E418C7BF15ADE54100CC2ECD /* VMIMEMessagePart.h in Headers */,
+				E418C7C115ADE54100CC2ECD /* VMIMEReader.h in Headers */,
+				E418C7C315ADE54100CC2ECD /* VMIMEWriter.h in Headers */,
+				E418C7C515ADE54100CC2ECD /* VNameValueCollection.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -578,6 +797,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				F4643435113E8FB200639653 /* ServerNet_Prefix.pch in Headers */,
+				CD647273157F8BE000D9710D /* VEndPointStream.h in Headers */,
+				E42CBC9615AAE11800D10481 /* VHTTPHeader.h in Headers */,
+				E42CBC9815AAE11800D10481 /* VHTTPMessage.h in Headers */,
+				E42CBC9A15AAE11800D10481 /* VMIMEMessage.h in Headers */,
+				E418C7AF15ADE54100CC2ECD /* HTTPTools.h in Headers */,
+				E418C7B115ADE54100CC2ECD /* VHTTPCookie.h in Headers */,
+				E418C7B315ADE54100CC2ECD /* VMIMEMessagePart.h in Headers */,
+				E418C7B515ADE54100CC2ECD /* VMIMEReader.h in Headers */,
+				E418C7B715ADE54100CC2ECD /* VMIMEWriter.h in Headers */,
+				E418C7B915ADE54100CC2ECD /* VNameValueCollection.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -672,6 +901,10 @@
 			projectDirPath = "";
 			projectReferences = (
 				{
+					ProductGroup = F9BA3AC1152DC417008E176F /* Products */;
+					ProjectRef = F9BA3AC0152DC417008E176F /* 4D.xcodeproj */;
+				},
+				{
 					ProductGroup = 41A9D2AB09DBF99300BD8FEC /* Products */;
 					ProjectRef = 41A9D2AA09DBF99300BD8FEC /* Kernel.xcodeproj */;
 				},
@@ -682,6 +915,14 @@
 				{
 					ProductGroup = F44213D3140E6205008F6502 /* Products */;
 					ProjectRef = F44213D2140E6205008F6502 /* OpenSSL.xcodeproj */;
+				},
+				{
+					ProductGroup = F9BA3A85152DC3DB008E176F /* Products */;
+					ProjectRef = F9BA3A84152DC3DB008E176F /* Wakanda Server.xcodeproj */;
+				},
+				{
+					ProductGroup = F9BA3A99152DC3F2008E176F /* Products */;
+					ProjectRef = F9BA3A98152DC3F2008E176F /* Wakanda Studio.xcodeproj */;
 				},
 				{
 					ProductGroup = 859BEF8A0EDDB2530068D42B /* Products */;
@@ -789,6 +1030,48 @@
 			remoteRef = F464346D113E8FB200639653 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
+		F9BA3A8E152DC3DB008E176F /* Wakanda Server.app */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.application;
+			path = "Wakanda Server.app";
+			remoteRef = F9BA3A8D152DC3DB008E176F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		F9BA3ABA152DC3F2008E176F /* Wakanda Studio.app */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.application;
+			path = "Wakanda Studio.app";
+			remoteRef = F9BA3AB9152DC3F2008E176F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		F9BA3ACD152DC417008E176F /* 4D.app */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.application;
+			path = 4D.app;
+			remoteRef = F9BA3ACC152DC417008E176F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		F9BA3ACF152DC417008E176F /* 4D Server.app */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.application;
+			path = "4D Server.app";
+			remoteRef = F9BA3ACE152DC417008E176F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		F9BA3AD1152DC417008E176F /* 4D Volume Desktop.app */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.application;
+			path = "4D Volume Desktop.app";
+			remoteRef = F9BA3AD0152DC417008E176F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		F9BA3AD3152DC417008E176F /* 4D Tester */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = "4D Tester";
+			remoteRef = F9BA3AD2152DC417008E176F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
 /* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
@@ -848,6 +1131,16 @@
 				F9D9B724147BA4D300B72F6F /* VSockListener.cpp in Sources */,
 				F9C071A314E2D19F00BA9C4C /* XBsdNetAddr.cpp in Sources */,
 				F9193EF314E956700075E46B /* VNetAddr.cpp in Sources */,
+				CD647276157F8BF500D9710D /* VEndPointStream.cpp in Sources */,
+				E42CBC8F15AAE11800D10481 /* VHTTPHeader.cpp in Sources */,
+				E42CBC9115AAE11800D10481 /* VHTTPMessage.cpp in Sources */,
+				E42CBC9315AAE11800D10481 /* VMIMEMessage.cpp in Sources */,
+				E418C7A215ADE54100CC2ECD /* HTTPTools.cpp in Sources */,
+				E418C7A415ADE54100CC2ECD /* VHTTPCookie.cpp in Sources */,
+				E418C7A615ADE54100CC2ECD /* VMIMEMessagePart.cpp in Sources */,
+				E418C7A815ADE54100CC2ECD /* VMIMEReader.cpp in Sources */,
+				E418C7AA15ADE54100CC2ECD /* VMIMEWriter.cpp in Sources */,
+				E418C7AC15ADE54100CC2ECD /* VNameValueCollection.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -871,6 +1164,16 @@
 				F9D9B723147BA4D300B72F6F /* VSockListener.cpp in Sources */,
 				F9C071A214E2D19F00BA9C4C /* XBsdNetAddr.cpp in Sources */,
 				F9193EF214E956700075E46B /* VNetAddr.cpp in Sources */,
+				CD647278157F8BF500D9710D /* VEndPointStream.cpp in Sources */,
+				E42CBC9B15AAE14200D10481 /* VHTTPHeader.cpp in Sources */,
+				E42CBC9D15AAE14200D10481 /* VHTTPMessage.cpp in Sources */,
+				E42CBC9F15AAE14200D10481 /* VMIMEMessage.cpp in Sources */,
+				E418C7BA15ADE54100CC2ECD /* HTTPTools.cpp in Sources */,
+				E418C7BC15ADE54100CC2ECD /* VHTTPCookie.cpp in Sources */,
+				E418C7BE15ADE54100CC2ECD /* VMIMEMessagePart.cpp in Sources */,
+				E418C7C015ADE54100CC2ECD /* VMIMEReader.cpp in Sources */,
+				E418C7C215ADE54100CC2ECD /* VMIMEWriter.cpp in Sources */,
+				E418C7C415ADE54100CC2ECD /* VNameValueCollection.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -894,6 +1197,16 @@
 				F9D9B722147BA4D300B72F6F /* VSockListener.cpp in Sources */,
 				F9C071A114E2D19F00BA9C4C /* XBsdNetAddr.cpp in Sources */,
 				F9193EF114E956700075E46B /* VNetAddr.cpp in Sources */,
+				CD647277157F8BF500D9710D /* VEndPointStream.cpp in Sources */,
+				E42CBC9515AAE11800D10481 /* VHTTPHeader.cpp in Sources */,
+				E42CBC9715AAE11800D10481 /* VHTTPMessage.cpp in Sources */,
+				E42CBC9915AAE11800D10481 /* VMIMEMessage.cpp in Sources */,
+				E418C7AE15ADE54100CC2ECD /* HTTPTools.cpp in Sources */,
+				E418C7B015ADE54100CC2ECD /* VHTTPCookie.cpp in Sources */,
+				E418C7B215ADE54100CC2ECD /* VMIMEMessagePart.cpp in Sources */,
+				E418C7B415ADE54100CC2ECD /* VMIMEReader.cpp in Sources */,
+				E418C7B615ADE54100CC2ECD /* VMIMEWriter.cpp in Sources */,
+				E418C7B815ADE54100CC2ECD /* VNameValueCollection.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

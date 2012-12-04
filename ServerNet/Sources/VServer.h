@@ -69,7 +69,7 @@ class XTOOLBOX_API VTCPConnectionListener : public IConnectionListener, public V
 
 	// SSL key and certificate can be set using two methods: Specify paths of both or specify them directly.
 	
-	virtual void SetSSLCertificatePaths ( VString const & inCertificatePath, VString const & inKeyPath );
+	virtual void SetSSLCertificatePaths (const VFilePath& inCertificatePath, const VFilePath& inKeyPath);
 	virtual void SetSSLKeyAndCertificate ( VString const & inCertificate, VString const &inKey);
 	
 	protected :
@@ -83,8 +83,8 @@ class XTOOLBOX_API VTCPConnectionListener : public IConnectionListener, public V
 	VSockListener*										fSockListener;
 	VWorkerPool*										fWorkerPool;
 	VTCPSelectIOPool*									fSelectIOPool;
-	VString												fCertificatePath;
-	VString												fKeyPath;
+	VFilePath											fCertificatePath;
+	VFilePath											fKeyPath;
 	VString												fCertificate;
 	VString												fKey;
 };

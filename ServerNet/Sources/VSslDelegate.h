@@ -23,7 +23,7 @@
 BEGIN_TOOLBOX_NAMESPACE
 
 
-class VKeyCertPair;
+class VKeyCertChain;
 
 namespace SslFramework
 {
@@ -36,9 +36,12 @@ namespace SslFramework
 	
 	VError SetDefaultCertificate(const VMemoryBuffer<>& inCertBuffer);
 	VError SetDefaultPrivateKey(const VMemoryBuffer<>& inKeyBuffer);
-	
-	VKeyCertPair* RetainKeyCertificatePair(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
-	void ReleaseKeyCertificatePair(VKeyCertPair* inKeyCertPair);
+	VError AddCertificateDirectory(const VFolder& inCertFolder);
+
+	VKeyCertChain* RetainKeyCertificateChain(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
+	void ReleaseKeyCertificateChain(VKeyCertChain* inKeyCertChain);
+
+	VError PushIntermediateCertificate(VKeyCertChain* inKeyCertChain, const VMemoryBuffer<>& inCertBuffer);
 
 	//TODO : Legacy Code ; Need rewrite.
 	VError Encrypt(uCHAR* inPrivateKeyPEM, uLONG inPrivateKeyPEMSize, uCHAR* inData, uLONG inDataSize, uCHAR* ioEncryptedData, uLONG* ioEncryptedDataSize);
@@ -52,8 +55,8 @@ class XTOOLBOX_API VSslDelegate : public XBOX::VObject
 {
 public :
 	
-	static VSslDelegate* NewClientDelegate(Socket inRawSocket /*, VKeyCertPair* inKeyCertPair*/);
-	static VSslDelegate* NewServerDelegate(Socket inRawSocket, VKeyCertPair* inKeyCertPair);
+	static VSslDelegate* NewClientDelegate(Socket inRawSocket /*, VKeyCertChain* inKeyCertChain*/);
+	static VSslDelegate* NewServerDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain);
 	
 	virtual ~VSslDelegate();	
 
@@ -87,7 +90,7 @@ private :
 	
 	XConnection* fConnection;
 	
-	VKeyCertPair* fKeyCertPair;
+	VKeyCertChain* fKeyCertChain;
 };
 
 

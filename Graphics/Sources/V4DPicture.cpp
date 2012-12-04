@@ -16,7 +16,6 @@
 #include "VGraphicsPrecompiled.h"
 #include "Kernel/VKernel.h"
 #include "Kernel/Sources/VBlob.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 
 namespace VPicturesBagKeys
@@ -1905,7 +1904,7 @@ void VPicture::FromMacPictPtr(void* inMacPtr,VSize inSize,bool inWithPicEnd)
 	_ResetExtraInfo();
 	_ReleaseExtraData();
 	
-#if ((VERSIONMAC && !VERSION_64BIT) || VERSIONWIN)
+#if (WITH_QUICKDRAW || VERSIONWIN)
 	if(inMacPtr && inSize)
 	{
 		void* mach=VPictureData::GetMacAllocator()->AllocateFromBuffer(inMacPtr,inWithPicEnd ? inSize-6 : inSize);

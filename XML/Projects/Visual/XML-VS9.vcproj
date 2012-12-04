@@ -5,7 +5,7 @@
 	Name="Dll - XToolbox FP - XML"
 	ProjectGUID="{86C7E508-5E7C-4AD5-BDD4-893D9C95876D}"
 	RootNamespace="Dll - XToolbox FP - XML"
-	SccProjectName="&quot;//depot/XToolbox/WAK2/XML&quot;"
+	SccProjectName="&quot;//depot/XToolbox/Main/XML&quot;"
 	SccLocalPath="..\.."
 	SccProvider="MSSCCI:Perforce SCM"
 	Keyword="Win32Proj"

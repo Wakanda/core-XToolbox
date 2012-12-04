@@ -199,17 +199,15 @@ VError VTCPConnectionListener::AddSelectIOPool ( VTCPSelectIOPool* inPool )
 	return VE_OK;
 }
 
-void VTCPConnectionListener::SetSSLCertificatePaths ( VString const & inCertificatePath, VString const & inKeyPath )
+void VTCPConnectionListener::SetSSLCertificatePaths (VFilePath const & inCertificatePath, VFilePath const & inKeyPath)
 {
-	fCertificatePath. Clear ( );
-	fCertificatePath. FromString ( inCertificatePath );
-	fKeyPath. Clear ( );
-	fKeyPath. FromString ( inKeyPath );
+	fCertificatePath=inCertificatePath;
+	fKeyPath=inKeyPath;
 }
 
 void VTCPConnectionListener::SetSSLKeyAndCertificate ( VString const & inCertificate, VString const &inKey)
 {
-	xbox_assert(!fCertificatePath.GetLength() && !fKeyPath.GetLength());
+	xbox_assert(fCertificatePath.IsEmpty() && fKeyPath.IsEmpty());
 
 	fCertificate = inCertificate;
 	fKey = inKey;
@@ -225,20 +223,11 @@ VError VTCPConnectionListener::StartListening ( )
 
 	VError	vError = VE_OK;
 
-	if ( fCertificatePath. GetLength ( ) > 0 && fKeyPath. GetLength ( ) > 0 )
+	if (!fCertificatePath.IsEmpty() && !fKeyPath.IsEmpty())
 	{
-		char*					szchCert = new char [ fCertificatePath. GetLength ( ) * 2 + 1 ];
-		fCertificatePath. ToCString ( szchCert, fCertificatePath. GetLength ( ) * 2 + 1 );
-		
-		char*					szchKey = new char [ fKeyPath. GetLength ( ) * 2 + 1 ];
-		fKeyPath. ToCString ( szchKey, fKeyPath. GetLength ( ) * 2 + 1 );
-		
-		fSockListener-> SetCertificatePaths ( szchCert, szchKey );
-		
-		delete [ ] szchCert;
-		delete [ ] szchKey;
+		fSockListener-> SetCertificatePaths (fCertificatePath, fKeyPath);
 
-	} else if (fCertificate.GetLength() > 0 && fKey.GetLength() > 0) {
+	} else if (!fCertificate.IsEmpty() && !fKey.IsEmpty()) {
 
 		vError = fSockListener-> SetKeyAndCertificate(fKey, fCertificate);
 

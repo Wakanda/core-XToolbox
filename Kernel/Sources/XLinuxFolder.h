@@ -41,6 +41,7 @@ public:
     VError        Init(VFolder *inOwner);
     VError        Create() const;
     VError        Delete() const;
+	VError			MoveToTrash() const;
     bool          Exists(bool inAcceptFolderAlias) const;
 
     //VError      RevealInFinder() const; - Not on the server !

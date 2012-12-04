@@ -21,6 +21,7 @@
 #include "VSystem.h"
 #include "VMemoryCpp.h"
 #include "VIntlMgr.h"
+#include "VJSONValue.h"
 
 const VDuration::InfoType	VDuration::sInfo;
 const VTime::InfoType		VTime::sInfo;
@@ -406,6 +407,26 @@ VError VDuration::FromJSONString(const VString& inJSONString, JSONOption inModif
 VError VDuration::GetJSONString(VString& outJSONString, JSONOption inModifier) const
 {
 	outJSONString.FromLong8(fMilliseconds);
+	return VE_OK;
+}
+
+
+VError VDuration::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	if (inJSONValue.IsNull())
+		SetNull( true);
+	else
+		FromNbMilliseconds( (sLONG8) inJSONValue.GetNumber());
+	return VE_OK;
+}
+
+
+VError VDuration::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+		outJSONValue.SetNumber( GetMillisecond());
 	return VE_OK;
 }
 
@@ -2497,6 +2518,33 @@ VError VTime::GetJSONString(VString& outJSONString, JSONOption inModifier) const
 	return VE_OK;
 }
 
+
+VError VTime::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	if (inJSONValue.IsNull())
+		SetNull( true);
+	else
+	{
+		VString s;
+		inJSONValue.GetString( s);
+		FromXMLString( s);
+	}
+	return VE_OK;
+}
+
+
+VError VTime::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+	{
+		VString s;
+		GetJSONString( s, JSON_WithQuotesIfNecessary);
+		outJSONValue.SetString( s);
+	}
+	return VE_OK;
+}
 
 
 const VValueInfo *VTime::GetValueInfo() const

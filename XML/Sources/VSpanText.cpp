@@ -1263,7 +1263,7 @@ void VSpanTextParser::ParseSpanText( const VString& inTaggedText, VTreeTextStyle
 	if (inParseSpanOnly)
 	{
 		//search for opening SPAN tag
-		posStartSPAN = inTaggedText.Find("<SPAN", 1, true);
+		posStartSPAN = inTaggedText.Find("<SPAN", 1, false);
 		if (!posStartSPAN)
 		{
 			//convert full text to xml
@@ -1284,6 +1284,7 @@ void VSpanTextParser::ParseSpanText( const VString& inTaggedText, VTreeTextStyle
 			const UniChar *c = inTaggedText.GetCPointer()+inTaggedText.GetLength()-1;
 			sLONG pos = inTaggedText.GetLength()-1;
 			VString spanEndTag = "</SPAN>";
+			VString spanEndTag2 = "</span>";
 			do
 			{
 				while (pos >= 0 && *c != '>')
@@ -1294,7 +1295,9 @@ void VSpanTextParser::ParseSpanText( const VString& inTaggedText, VTreeTextStyle
 				}
 				if (pos >= 0)
 				{
-					if (memcmp( (void*)(c+1-spanEndTag.GetLength()), spanEndTag.GetCPointer(), spanEndTag.GetLength()*sizeof(UniChar)) == 0)
+					if (memcmp( (void*)(c+1-spanEndTag.GetLength()), spanEndTag.GetCPointer(), spanEndTag.GetLength()*sizeof(UniChar)) == 0
+						||
+						memcmp( (void*)(c+1-spanEndTag2.GetLength()), spanEndTag2.GetCPointer(), spanEndTag2.GetLength()*sizeof(UniChar)) == 0)
 					{
 						posEndSPAN = pos+2;
 						break;

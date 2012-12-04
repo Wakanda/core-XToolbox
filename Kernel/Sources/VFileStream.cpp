@@ -20,7 +20,7 @@
 #include "VFile.h"
 
 
-VFileStream::VFileStream( const VFile *inFile)
+VFileStream::VFileStream( const VFile *inFile,FileOpenOptions inPreferredWriteOpenMode)
 {
 	fFile = inFile;	
 	assert(inFile != NULL);
@@ -32,9 +32,10 @@ VFileStream::VFileStream( const VFile *inFile)
 	fBufCount = 0;
 	fBuffer = NULL;
 	fPreferredBufSize = 32768L;
+	fPreferredWriteOpenMode = inPreferredWriteOpenMode;
 }
 
-
+ 
 VFileStream::~VFileStream()
 {
 	if (fBuffer != NULL)
@@ -114,7 +115,7 @@ VError VFileStream::DoPutData( const void *inBuffer, VSize inNbBytes)
 	sLONG8 pos = GetPos();
 
 	VSize writtenBytes = 0;
-	
+
 	// first start by filling the buffer
 	if (fBufCount == 0)
 	{
@@ -191,7 +192,7 @@ VError VFileStream::DoOpenWriting()
 
 	VError err = VE_OK;
 
-	err = fFile->Open( FA_SHARED, &fFileDesc );
+	err = fFile->Open( FA_SHARED, &fFileDesc, fPreferredWriteOpenMode);
 
 	if (err == VE_OK)
 	{

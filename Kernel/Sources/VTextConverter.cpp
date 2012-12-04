@@ -393,7 +393,7 @@ bool VFromUnicodeConverter::ConvertRealloc(const UniChar* inSource, VIndex inSou
 				ioBytesInBuffer += bytesProduced;
 			}
 			
-			if (isOK && (inSourceChars>0) && (bytesProduced == 0))	
+			if (isOK && (inSourceChars>0) && (bytesProduced == 0) && (totalCharsConsumed > 0) )	
 			{
 				// means too small buffer 
 				// recurse
@@ -445,7 +445,7 @@ bool VFromUnicodeConverter_Null::Convert(const UniChar* inSource, VIndex inSourc
 bool VToUnicodeConverter_UTF32::Convert (const void *inSource, VSize inSourceBytes, VSize *outBytesConsumed, UniChar *inDestination, VIndex inDestinationChars, VIndex *outProducedChars)
 {
 	const uLONG *sourceStart = (uLONG *)(inSource);
-	uLONG *sourceEnd = (uLONG *)(sourceStart + inSourceBytes);
+	uLONG *sourceEnd = (uLONG *)((sBYTE*)inSource + inSourceBytes);
 	
 	uWORD *targetStart = (uWORD*)inDestination;
 	uWORD *targetEnd = (uWORD*)(inDestination + inDestinationChars);
@@ -457,35 +457,13 @@ bool VToUnicodeConverter_UTF32::Convert (const void *inSource, VSize inSourceByt
 													strictConversion,
 													fSwap);
 	
+	*outBytesConsumed = (sBYTE*)sourceStart - (sBYTE*)inSource;
+	*outProducedChars  = (targetStart - inDestination);
+	
+
 	return (result == conversionOK);
 }
 
-
-bool VToUnicodeConverter_UTF32::ConvertString (const void *inSource, VSize inSourceBytes, VSize *outBytesConsumed, VString& outDestination)
-{
-	const uLONG *sourceStart = (uLONG *)(inSource);
-	uLONG *sourceEnd = (uLONG *)(sourceStart + (inSourceBytes/sizeof(uLONG)));
-	
-	sLONG destinationSize = (sLONG) (inSourceBytes/sizeof(uLONG));
-	uWORD *targetBuffer = (uWORD*)outDestination.GetCPointerForWrite (destinationSize);
-	uWORD *targetStart = targetBuffer;
-	uWORD *targetEnd = (uWORD*)(targetStart + (destinationSize * sizeof(UniChar)));
-
-	ConversionResult result = ConvertUTF32toUTF16 (	&sourceStart,
-													sourceEnd,
-													&targetStart,
-													targetEnd,
-													strictConversion,
-													fSwap);
-
-	if (result == conversionOK)
-	{
-		*outBytesConsumed = destinationSize;
-		outDestination.Validate( (sLONG) (targetStart - targetBuffer));
-	}
-	
-	return (result == conversionOK);
-}
 
 
 bool VFromUnicodeConverter_UTF32::Convert( const UniChar *inSource, VIndex inSourceChars, VIndex *outCharsConsumed, void* inBuffer, VSize inBufferSize, VSize *outBytesProduced)
@@ -1438,4 +1416,23 @@ bool VTextConverters::ParseBOM( const void *inBytes, size_t inByteCount, size_t 
 		*outFoundCharSet = charSet;
 
 	return BOMSize != 0;
+}
+
+/*
+	static
+*/
+const char *VTextConverters::GetBOMForCharSet( CharSet inCharSet, size_t *outBOMSize)
+{
+	const char *bom = NULL;
+	size_t bomSize = 0;
+	switch( inCharSet)
+	{
+		case VTC_UTF_8:					bom = "\xef\xbb\xbf"; bomSize = 3; break;
+		case VTC_UTF_16_BIGENDIAN:		bom = "\xfe\xff"; bomSize = 2; break;
+		case VTC_UTF_16_SMALLENDIAN:	bom = "\xff\xfe"; bomSize = 2; break;
+		case VTC_UTF_32_BIGENDIAN:		bom = "\x00\x00\xfe\xff"; bomSize = 4; break;
+		case VTC_UTF_32_SMALLENDIAN:	bom = "\xff\xfe\x00\x00"; bomSize = 4; break;
+	}
+	*outBOMSize = bomSize;
+	return bom;
 }

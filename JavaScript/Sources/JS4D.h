@@ -17,18 +17,34 @@
 #define __JS4D__
 
 
-// private type, don't use.
+#include "Graphics/VGraphics.h"
+
+// redeclare JavaScriptCore basic types
+
+struct OpaqueJSContextGroup;
+struct OpaqueJSContext;
+struct OpaqueJSPropertyNameAccumulator;
+struct OpaqueJSValue;
+
 #if VERSIONMAC
-#ifndef BUILD_WEBVIEWER
-#include <4DJavaScriptCore/JavaScriptCore.h>
-#else
-#include <JavaScriptCore/JavaScriptCore.h>
-#endif
-#else
-#include <JavaScriptCore/JavaScript.h>
+namespace WK4D
+{
 #endif
 
-#include "Graphics/VGraphics.h"
+	struct OpaqueJSClass;
+	struct OpaqueJSContext;
+	struct OpaqueJSValue;
+	struct OpaqueJSString;
+	struct OpaqueJSPropertyNameArray;
+	struct OpaqueJSPropertyNameAccumulator;
+
+#if VERSIONMAC
+};
+#endif
+
+#if !VERSIONMAC
+#define WK4D
+#endif
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -40,43 +56,83 @@ class VJSObject;
 #endif
 
 
-#define nil NULL
-
 class XTOOLBOX_API JS4D
 {
 public:
-	typedef	JSClassRef					ClassRef;
-	typedef	JSContextRef				ContextRef;
-	typedef	JSGlobalContextRef			GlobalContextRef;
-	typedef	JSValueRef					ValueRef;
-	typedef	JSValueRef					ExceptionRef;
-	typedef	JSObjectRef					ObjectRef;
-	typedef	JSStringRef					StringRef;
-	typedef unsigned					PropertyAttributes;
-	typedef JSPropertyNameArrayRef		PropertyNameArrayRef;
+	typedef	struct WK4D::OpaqueJSClass*						ClassRef;
+	typedef	const struct WK4D::OpaqueJSContext*				ContextRef;
+	typedef	struct WK4D::OpaqueJSContext*					GlobalContextRef;
+	typedef	const struct WK4D::OpaqueJSValue*				ValueRef;
+	typedef	const struct WK4D::OpaqueJSValue*				ExceptionRef;
+	typedef	struct WK4D::OpaqueJSValue*						ObjectRef;
+	typedef	struct WK4D::OpaqueJSString*					StringRef;
+	typedef unsigned										ClassAttributes;
+	typedef unsigned										PropertyAttributes;
+	typedef struct WK4D::OpaqueJSPropertyNameArray*			PropertyNameArrayRef;
+	typedef struct WK4D::OpaqueJSPropertyNameAccumulator*	PropertyNameAccumulatorRef;
 
 	enum {
-		PropertyAttributeNone         = kJSPropertyAttributeNone,
-		PropertyAttributeReadOnly     = kJSPropertyAttributeReadOnly,
-		PropertyAttributeDontEnum     = kJSPropertyAttributeDontEnum,
-		PropertyAttributeDontDelete   = kJSPropertyAttributeDontDelete
+		PropertyAttributeNone         = 0,		// kJSPropertyAttributeNone,
+		PropertyAttributeReadOnly     = 1<<1,	// kJSPropertyAttributeReadOnly,
+		PropertyAttributeDontEnum     = 1<<2,	// kJSPropertyAttributeDontEnum,
+		PropertyAttributeDontDelete   = 1<<3	// kJSPropertyAttributeDontDelete
 	};
 
 	enum { 
-		ClassAttributeNone						= kJSClassAttributeNone,
-		ClassAttributeNoAutomaticPrototype		= kJSClassAttributeNoAutomaticPrototype
+		ClassAttributeNone						= 0,	// kJSClassAttributeNone,
+		ClassAttributeNoAutomaticPrototype		= 1>>1	// kJSClassAttributeNoAutomaticPrototype
 	};
 
-	static	bool					ValueToString( ContextRef inContext, ValueRef inValue, XBOX::VString& outString, ValueRef *outException = NULL);
-	static	XBOX::VValueSingle*		ValueToVValue( ContextRef inContext, ValueRef inValue, ValueRef *outException = NULL);
+
+	// Types returned by GetType().
+	enum EType {
+	
+		// A VJSValue with a NULL ValueRef is considered as undefined.
+
+		eTYPE_UNDEFINED	= 0,	// kJSTypeUndefined, 
+
+		// null is a special JavaScript value.
+
+		eTYPE_NULL		= 1,	// kJSTypeNull,
+
+		// Primitive types.
+
+    	eTYPE_BOOLEAN	= 2,	// kJSTypeBoolean,
+    	eTYPE_NUMBER	= 3,	// kJSTypeNumber,
+		eTYPE_STRING	= 4,	// kJSTypeString,
+
+		// An object can be a function, an Array, etc.
+
+		eTYPE_OBJECT	= 5,	// kJSTypeObject 
+
+	};
+
+	typedef void (__cdecl *ObjectInitializeCallback) ( ContextRef ctx, ObjectRef object);
+	typedef void (__cdecl *ObjectFinalizeCallback) ( ObjectRef object);
+	typedef bool (__cdecl *ObjectHasPropertyCallback) ( ContextRef ctx, ObjectRef object, StringRef propertyName);
+	typedef ObjectRef (__cdecl *ObjectCallAsConstructorCallback) ( ContextRef ctx, ObjectRef constructor, size_t argumentCount, const ValueRef arguments[], ExceptionRef* exception);
+	typedef ValueRef (__cdecl *ObjectGetPropertyCallback) ( ContextRef ctx, ObjectRef object, StringRef propertyName, ExceptionRef* exception);
+	typedef bool (__cdecl *ObjectSetPropertyCallback) ( ContextRef ctx, ObjectRef object, StringRef propertyName, ValueRef value, ExceptionRef* exception);
+	typedef bool (__cdecl *ObjectDeletePropertyCallback) ( ContextRef ctx, ObjectRef object, StringRef propertyName, ExceptionRef* exception);
+	typedef void (__cdecl *ObjectGetPropertyNamesCallback) ( ContextRef ctx, ObjectRef object, PropertyNameAccumulatorRef propertyNames);
+	typedef ValueRef (__cdecl *ObjectCallAsFunctionCallback) ( ContextRef ctx, ObjectRef function, ObjectRef thisObject, size_t argumentCount, const ValueRef arguments[], ExceptionRef* exception);
+	typedef bool (__cdecl *ObjectHasInstanceCallback)  ( ContextRef ctx, ObjectRef constructor, ValueRef possibleInstance, ValueRef* exception);
+	typedef ValueRef (__cdecl *ObjectConvertToTypeCallback) ( ContextRef ctx, ObjectRef object, EType type, ValueRef* exception);
+
+	static	bool					ValueToString( ContextRef inContext, ValueRef inValue, XBOX::VString& outString, ExceptionRef *outException = NULL);
+	static	XBOX::VValueSingle*		ValueToVValue( ContextRef inContext, ValueRef inValue, ExceptionRef *outException = NULL);
 
 	// produces a js null value if VValueSingle is null
-	static	ValueRef				VValueToValue( ContextRef inContext, const XBOX::VValueSingle& inValue, ValueRef *outException);
+	static	ValueRef				VValueToValue( ContextRef inContext, const XBOX::VValueSingle& inValue, ExceptionRef *outException);
+	
+	// converts a JavaScriptCore value into a xbox VJSONValue.
+	static	ValueRef				VJSONValueToValue( ContextRef inContext, const XBOX::VJSONValue& inValue, ExceptionRef *outException);
+	static	bool					ValueToVJSONValue( ContextRef inContext, ValueRef inValue, VJSONValue& outJSONValue, ExceptionRef *outException);
 
 	// produces a js null value if VFile or VFolder is NULL
 	static	ObjectRef				VFileToObject( ContextRef inContext, XBOX::VFile *inFile, ValueRef *outException);
 	static	ObjectRef				VFolderToObject( ContextRef inContext, XBOX::VFolder *inFolder, ValueRef *outException);
-	static	ObjectRef				VFilePathToObjectAsFileOrFolder( ContextRef inContext, const XBOX::VFilePath& inPath, ValueRef *outException);
+	static	ObjectRef				VFilePathToObjectAsFileOrFolder( ContextRef inContext, const XBOX::VFilePath& inPath, ExceptionRef *outException);
 	
 	// various wakanda apis accepts accepts a file path or an url. This method centralizes the detection algorithm.
 	// returns true if the url is valid
@@ -99,11 +155,10 @@ public:
 
 	static	ValueRef				BoolToValue( ContextRef inContext, bool inValue);
 	
+	static	ValueRef				DoubleToValue( ContextRef inContext, double inValue);
+
 	template<class Type>
-	static	ValueRef				NumberToValue( ContextRef inContext, const Type& inValue)
-	{
-		return JSValueMakeNumber( inContext, static_cast<double>( inValue));
-	}
+	static	ValueRef				NumberToValue( ContextRef inContext, const Type& inValue)	{ return DoubleToValue( inContext, static_cast<double>( inValue));}
 
 	// produces a Date object
 	// warning: returns NULL and not a js null value if the VTime is null
@@ -122,14 +177,44 @@ public:
 	// evaluates some javascript text and returns the result in outValue.
 	static	void					EvaluateScript( ContextRef inContext, const XBOX::VString& inScript, VJSValue& outValue, ExceptionRef *outException);
 
+	// Tests whether a JavaScript value's type is the undefined type.
+	static	bool					ValueIsUndefined( ContextRef inContext, ValueRef inValue);
+	static	ValueRef				MakeUndefined( ContextRef inContext);
+
+	// Tests whether a JavaScript value's type is the null type.
+	static	bool					ValueIsNull( ContextRef inContext, ValueRef inValue);
+	static	ValueRef				MakeNull( ContextRef inContext);
+
+	// Tests whether a JavaScript value's type is the boolean type.
+	static	bool					ValueIsBoolean( ContextRef inContext, ValueRef inValue);
+
+	// Tests whether a JavaScript value's type is the number type.
+	static	bool					ValueIsNumber( ContextRef inContext, ValueRef inValue);
+
+	// Tests whether a JavaScript value's type is the string type.
+	static	bool					ValueIsString( ContextRef inContext, ValueRef inValue);
+
+	// Tests whether a JavaScript value's type is the object type.
+	static	bool					ValueIsObject( ContextRef inContext, ValueRef inValue);
+	static	ObjectRef				ValueToObject( ContextRef inContext, ValueRef inValue, ExceptionRef* outException);
+	static	ObjectRef				MakeObject( ContextRef inContext, ClassRef inClassRef, void* inPrivateData);
+
+	// Tests whether a JavaScript value is an object with a given class in its class chain.
+	// true if value is an object and has jsClass in its class chain, otherwise false.
+	static	bool					ValueIsObjectOfClass( ContextRef inContext, ValueRef inValue, ClassRef inClassRef);
+
 	// same result as instanceof javascript operator 
 	static	bool					ValueIsInstanceOf( ContextRef inContext, ValueRef inValue, const XBOX::VString& inConstructorName, ExceptionRef *outException);
 
+	// Return type of value, note that eTYPE_OBJECT is very broad (an object can be a function, an Array, a Date, a String, etc.).
+	static	EType					GetValueType( ContextRef inContext, ValueRef inValue);
+
 	// creates a function object from some js code as body
 	static	ObjectRef				MakeFunction( ContextRef inContext, const VString& inName, const VectorOfVString *inParamNames, const VString& inBody, const VURL *inUrl, sLONG inStartingLineNumber, ExceptionRef *outException);
+	static	bool					ObjectIsFunction( ContextRef inContext, ObjectRef inObjectRef);
 
 	// call a function
-	static	ValueRef				CallFunction (const ContextRef inContext, const ObjectRef inFunctionObject, const ObjectRef inThisObject, sLONG inNumberArguments, const ValueRef *inArguments, ValueRef *ioException);
+	static	ValueRef				CallFunction (const ContextRef inContext, const ObjectRef inFunctionObject, const ObjectRef inThisObject, sLONG inNumberArguments, const ValueRef *inArguments, ExceptionRef *ioException);
 	
 	/*
 		JSC Docmentation extract :
@@ -142,11 +227,13 @@ public:
 		within a context group are automatically destroyed when the last reference
 		to the context group is released."
 
+		A value may be protected multiple times and must be unprotected an equal number of times before becoming eligible for garbage collection.
+
 		To force garbage collection, call VJSContext::GarbageCollect
  		
 	*/
-	static	void					ProtectValue( ContextRef inContext, ValueRef inValue)	{ JSValueProtect( inContext, inValue);}
-	static	void					UnprotectValue( ContextRef inContext, ValueRef inValue)	{ JSValueUnprotect( inContext, inValue);}
+	static	void					ProtectValue( ContextRef inContext, ValueRef inValue);
+	static	void					UnprotectValue( ContextRef inContext, ValueRef inValue);
 
 	// if being passed a non null javascript exception, throw an xbox VError that describe the exception.
 	// returns true if a VError was thrown.
@@ -159,8 +246,60 @@ public:
 		Utility functions to ease the creation of VJSClass object using operator new in javascript.
 		You should not use these functions directly but use instead VJSGlobalClass::AddConstructorObjectStaticValue.
 	*/
-	static	bool					RegisterConstructor( const char *inClassName, JSObjectCallAsConstructorCallback inConstructorCallBack);
-	static	JSValueRef __cdecl		GetConstructorObject( JSContextRef inContext, JSObjectRef inObject, JSStringRef inPropertyName, JSValueRef* outException);
+	static	bool					RegisterConstructor( const char *inClassName, ObjectCallAsConstructorCallback inConstructorCallBack);
+	static	ValueRef __cdecl		GetConstructorObject( ContextRef inContext, ObjectRef inObject, StringRef inPropertyName, ExceptionRef* outException);
+
+	// Gets an object's private data.
+	static	void*					GetObjectPrivate( ObjectRef inObject);
+
+	/*
+		Converts a JavaScript string into a null-terminated UTF8 string, 
+		and copies the result into an external byte buffer.
+		The destination byte buffer into which to copy a null-terminated 
+		UTF8 representation of string. On return, buffer contains a UTF8 string 
+		representation of string. If bufferSize is too small, buffer will contain only 
+		partial results. If buffer is not at least bufferSize bytes in size, 
+		behavior is undefined. 
+		returns the number of bytes written into buffer (including the null-terminator byte).
+	*/
+	static	size_t					StringRefToUTF8CString( StringRef inStringRef, void *outBuffer, size_t inBufferSize);
+
+
+	typedef struct {
+		const char* name;
+		ObjectGetPropertyCallback getProperty;
+		ObjectSetPropertyCallback setProperty;
+		PropertyAttributes attributes;
+	} StaticValue;
+
+	typedef struct {
+		const char* name;
+		ObjectCallAsFunctionCallback callAsFunction;
+		PropertyAttributes attributes;
+	} StaticFunction;
+
+	typedef struct {
+		ClassAttributes						attributes;
+
+		const char*							className;
+		ClassRef							parentClass;
+			
+		const StaticValue*					staticValues;
+		const StaticFunction*				staticFunctions;
+		
+		ObjectInitializeCallback			initialize;
+		ObjectFinalizeCallback				finalize;
+		ObjectHasPropertyCallback			hasProperty;
+		ObjectGetPropertyCallback			getProperty;
+		ObjectSetPropertyCallback			setProperty;
+		ObjectDeletePropertyCallback		deleteProperty;
+		ObjectGetPropertyNamesCallback		getPropertyNames;
+		ObjectCallAsFunctionCallback		callAsFunction;
+		ObjectCallAsConstructorCallback		callAsConstructor;
+		ObjectHasInstanceCallback			hasInstance;
+	} ClassDefinition;
+
+	static	ClassRef				ClassCreate( const ClassDefinition* inDefinition);
 };
 
 END_TOOLBOX_NAMESPACE

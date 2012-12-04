@@ -17,8 +17,6 @@
 #define __VGraphicsErrors__
 
 
-#include "KernelIPC/VKernelIPC.h"
-
 BEGIN_TOOLBOX_NAMESPACE
 
 // Graphic context errors: 2000->2099

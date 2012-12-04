@@ -79,6 +79,7 @@ public:
 			size_t						GetStackSize() const								{ return fStackSize;}
 			bool						IsMainTask() const									{ return fMainTask;}
 			pthread_t					GetSystemID() const									{ return fPThreadID;}
+	virtual	VTaskID						GetValueForVTaskID() const;
 	virtual	bool						GetCPUUsage(Real& outCPUUsage) const;
 	virtual bool						GetCPUTimes(Real& outSystemTime, Real& outUserTime) const;
 			
@@ -104,7 +105,8 @@ private:
 class XMacTask_preemptive : public XMacTask
 {
 public:
-										XMacTask_preemptive( VTask* inOwner);
+	static	XMacTask_preemptive*		Create( VTask* inOwner);
+
 										XMacTask_preemptive( VTask* inOwner, bool /*for main task*/);
 										~XMacTask_preemptive();
 
@@ -115,12 +117,16 @@ public:
 	virtual	bool						CheckSystemMessages()						{ return false;}					
 	virtual void						Exit( VTask *inDestinationTask);
 
+	virtual	VTaskID						GetValueForVTaskID() const;
+
 private:
+										XMacTask_preemptive( VTask* inOwner);
+	static	void*						_ThreadProc( void* inParam);
+			bool						_CreateThread();
+
 			vm_address_t				fAllocatedStackAddress;
 			size_t						fAllocatedStackSize;
 			semaphore_t					fSema;
-	
-	static	void*						_ThreadProc( void* inParam);
 };
 
 
@@ -184,7 +190,7 @@ public:
 
 			bool						IsFibersThreadingModel();
 
-			void						SetCurrentThreadName( const VString& inName) const;
+			void						SetCurrentThreadName( const VString& inName, VTaskID inTaskID) const;
 	
 protected:
 			pthread_key_t				fSlot_CurrentTask;

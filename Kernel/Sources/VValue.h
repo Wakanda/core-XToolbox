@@ -30,6 +30,7 @@ class VValueBag;
 class VArrayValue;
 class VBlob;
 class VIntlMgr;
+class VJSONValue;
 
 const sLONG	kMAX_PREDEFINED_VALUE_TYPES		= 100;
 const Real kDefaultEpsilon = (1.0e-06);
@@ -286,6 +287,14 @@ public:
 			void					SetNull( bool inSet = true);
 			bool					IsNull() const													{ return fFlags.fIsNull != 0; }
 
+	// convert to and from json.
+	// warning: doesn't handle null.
+	virtual VError					FromJSONString(const VString& inJSONString, JSONOption inModifier = JSON_Default);
+	virtual VError					GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const;
+
+	virtual	VError					FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError					GetJSONValue( VJSONValue& outJSONValue) const;
+
 	// Comparison support (inValue MUST be the same kind as this)
 	// CAUTION: checking is performed in debug mode only for performance reasons. So take care!
 
@@ -379,16 +388,6 @@ public:
 
 
 	virtual	VError					ReadRawFromStream( VStream* ioStream, sLONG inParam = 0); //used by db4d server to read data without interpretation (for example : pictures)
-
-	virtual VError					FromJSONString(const VString& inJSONString, JSONOption inModifier = JSON_Default)
-	{
-		return VE_UNIMPLEMENTED;
-	}
-
-	virtual VError					GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const
-	{
-		return VE_UNIMPLEMENTED;
-	}
 
 	virtual VValueSingle* GetDataBlob() const
 	{

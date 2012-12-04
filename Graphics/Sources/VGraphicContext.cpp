@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuicktimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "VGraphicContext.h"
 #if VERSIONWIN
@@ -393,14 +392,15 @@ VImageOffScreen::~VImageOffScreen()
 
 
 
-Boolean VGraphicContext::Init()
+Boolean VGraphicContext::Init(bool inEnableD2D, bool inEnableHardware)
 {
 #if VERSIONMAC
 	return VMacQuartzGraphicContext::Init();
 #else
 	VWinGDIGraphicContext::Init();
 #if ENABLE_D2D
-	VWinD2DGraphicContext::Init(true);
+	if (inEnableD2D)
+		VWinD2DGraphicContext::Init(inEnableHardware);
 	return VWinGDIPlusGraphicContext::Init();
 #else
 	return VWinGDIPlusGraphicContext::Init();
@@ -1844,6 +1844,8 @@ void VGraphicContext::_DrawLegacyTextBox (HDC inHDC, const VString& inString, co
 	
 	if ((inMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY) != 0)
 		format|=DT_PATH_ELLIPSIS;
+	else if ((inMode & TLM_TRUNCATE_END_IF_NECESSARY) != 0)
+		format|=DT_END_ELLIPSIS;
 
 	if (inMode & TLM_RIGHT_TO_LEFT)
 		format |= DT_RTLREADING;
@@ -2417,7 +2419,7 @@ void VGraphicContext::GetTextBoxLines( const VString& inText, const GReal inMaxW
 	VIndex lenText = inText.GetLength();
 
 	VectorOfStringSlice words;
-	VIntlMgr::GetDefaultMgr()->GetWordBoundaries(inText, words, true);
+	VIntlMgr::GetDefaultMgr()->GetWordBoundariesWithOptions(inText, words, eKW_UseICU | eKW_UseLineBreakingRule);
 
 	sLONG wordIndex = 0;
 	sLONG wordStart, wordEnd;
@@ -3101,8 +3103,8 @@ void VGraphicContext::_GetTextLayoutBounds( VTextLayout *inTextLayout, VRect& ou
 		return;
 	}
 
-	StUseContext_NoRetain	context(this);
-	inTextLayout->BeginUsingContext(this);
+	StUseContext_NoRetain_NoDraw context(this);
+	inTextLayout->BeginUsingContext(this, true);
 
 	outBounds.SetCoordsTo( inTopLeft.GetX(), inTopLeft.GetY(), 0.0f, 0.0f);
 	if (testAssert(inTextLayout->fLayoutIsValid))
@@ -3127,7 +3129,7 @@ void VGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *inTextLayou
 	}
 
 	StUseContext_NoRetain_NoDraw	context(this);
-	inTextLayout->BeginUsingContext(this);
+	inTextLayout->BeginUsingContext(this, true);
 	if (!testAssert(inTextLayout->fLayoutIsValid))
 	{
 		inTextLayout->EndUsingContext();
@@ -3164,7 +3166,7 @@ void VGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *inTextLayou
 void VGraphicContext::_GetTextLayoutCaretMetricsFromCharIndex( VTextLayout *inTextLayout, const VPoint& inTopLeft, const VIndex inCharIndex, VPoint& outCaretPos, GReal& outTextHeight, const bool inCaretLeading, const bool inCaretUseCharMetrics)
 {
 	StUseContext_NoRetain_NoDraw context(this);
-	inTextLayout->BeginUsingContext(this);
+	inTextLayout->BeginUsingContext(this, true);
 	if (!testAssert(inTextLayout->fLayoutIsValid))
 	{
 		inTextLayout->EndUsingContext();
@@ -3233,7 +3235,7 @@ bool VGraphicContext::_GetTextLayoutCharIndexFromPos( VTextLayout *inTextLayout,
 		return false;
 	}
 	StUseContext_NoRetain_NoDraw context(this);
-	inTextLayout->BeginUsingContext(this);
+	inTextLayout->BeginUsingContext(this, true);
 	if (!testAssert(inTextLayout->fLayoutIsValid))
 	{
 		inTextLayout->EndUsingContext();
@@ -3353,6 +3355,13 @@ void VGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 	//EndUsingParentContext(hdc);
 }
 
+/** GDI helper method for transparent blit */
+void VGraphicContext::gdiTransparentBlt( HDC hdcDest, const VRect& inDestBounds, HDC hdcSrc, const VRect& inSrcBounds, const VColor& inColorTransparent)
+{
+	::TransparentBlt(	hdcDest, floor(inDestBounds.GetX()), floor(inDestBounds.GetY()), ceil(inDestBounds.GetWidth()), ceil(inDestBounds.GetHeight()),
+						hdcSrc, floor(inSrcBounds.GetX()), floor(inSrcBounds.GetY()), ceil(inSrcBounds.GetWidth()), ceil(inSrcBounds.GetHeight()), 
+						inColorTransparent.WIN_ToCOLORREF());
+}
 
 #endif
 
@@ -3413,6 +3422,8 @@ VTextLayout::VTextLayout(bool inShouldEnableCache)
 	fBackupFont = NULL;
 	fIsPrinting = false;
 	fSkipDrawLayer = false;
+	fShouldDrawBackgroundColor = false;
+	fBackgroundColorDirty = true;
 }
 
 VTextLayout::~VTextLayout()
@@ -3440,7 +3451,7 @@ VTextLayout::~VTextLayout()
 void VTextLayout::BeginUsingContext( VGraphicContext *inGC, bool inNoDraw)
 {
 	xbox_assert(inGC);
-
+	
 	if (fGCUseCount > 0)
 	{
 		xbox_assert(fGC == inGC);
@@ -3451,6 +3462,9 @@ void VTextLayout::BeginUsingContext( VGraphicContext *inGC, bool inNoDraw)
 		fGCUseCount++;
 		return;
 	}
+	
+	fMutex.Lock();
+	
 	fGCUseCount++;
 	inGC->BeginUsingContext( inNoDraw);
 	inGC->UseReversedAxis();
@@ -3509,6 +3523,8 @@ void VTextLayout::EndUsingContext()
 
 	fGC->EndUsingContext();
 	_SetGC( NULL);
+	
+	fMutex.Unlock();
 }
 
 void VTextLayout::_BeginUsingStyles()
@@ -3545,6 +3561,12 @@ void VTextLayout::_ResetLayer(VGraphicContext *inGC, bool inAlways)
 	xbox_assert(inGC);
 
 	fLayerIsDirty = true;
+	if (!fShouldEnableCache)
+	{
+		fLayerIsForMetricsOnly = true;
+		ReleaseRefCountable(&fLayerOffScreen);
+		return;
+	}
 	if (!fLayerOffScreen || !fLayerIsForMetricsOnly || inAlways)
 	{
 		fLayerIsForMetricsOnly = true;
@@ -3556,12 +3578,172 @@ void VTextLayout::_ResetLayer(VGraphicContext *inGC, bool inAlways)
 	}
 }
 
+
+void VTextLayout::_UpdateBackgroundColorRenderInfo(const VPoint& inTopLeft, const VRect& inClipBounds)
+{
+	xbox_assert(fGC);
+
+	if (!fShouldDrawBackgroundColor)
+		return;
+	if (!fBackgroundColorDirty)
+		return;
+
+	fBackgroundColorDirty = false;
+	fBackgroundColorRenderInfo.clear();
+
+	VIndex start;
+	GetCharIndexFromPos( fGC, inTopLeft, inClipBounds.GetTopLeft(), start);
+	
+	VIndex end;
+	GetCharIndexFromPos( fGC, inTopLeft, inClipBounds.GetBotRight(), end);
+
+	if (start >= end)
+		return;
+
+	if (fStyles)
+		_UpdateBackgroundColorRenderInfoRec( inTopLeft, fStyles, start, end);
+	if (fExtStyles)
+		_UpdateBackgroundColorRenderInfoRec( inTopLeft, fExtStyles, start, end);
+}
+
+void VTextLayout::_UpdateBackgroundColorRenderInfoRec( const VPoint& inTopLeft, VTreeTextStyle *inStyles, const sLONG inStart, const sLONG inEnd)
+{
+	sLONG start, end;
+	inStyles->GetData()->GetRange( start, end);
+
+	if (start < inStart)
+		start  = inStart;
+	if (end > inEnd)
+		end = inEnd;
+
+	if (start < end)
+	{
+		if (!inStyles->GetData()->GetTransparent())
+		{
+			VectorOfRect runBounds;
+			GetRunBoundsFromRange( fGC, runBounds, VPoint(), start, end); //we compute with layout origin = (0,0) because while we draw background color, we add inTopLeft
+																		  //(and we do not want to compute again render info if layout has been translated only)
+
+			XBOX::VColor backcolor;
+			backcolor.FromRGBAColor(inStyles->GetData()->GetBackGroundColor());
+
+			fBackgroundColorRenderInfo.push_back(BoundsAndColor( runBounds, backcolor));
+		}
+
+		sLONG childCount = inStyles->GetChildCount();
+		for (int i = 1; i <= childCount; i++)
+			_UpdateBackgroundColorRenderInfoRec( inTopLeft, inStyles->GetNthChild( i), start, end);
+	}
+}
+
+
+void VTextLayout::_DrawBackgroundColor(const VPoint& inTopLeft)
+{
+	if (!fShouldDrawBackgroundColor)
+		return;
+
+	VectorOfBoundsAndColor::const_iterator it = fBackgroundColorRenderInfo.begin();
+	for (; it != fBackgroundColorRenderInfo.end(); it++)
+	{
+		fGC->SetFillColor( it->second);
+
+		VectorOfRect::const_iterator itRect = it->first.begin();
+		for (; itRect != it->first.end(); itRect++)
+		{
+			VRect bounds = *itRect;
+			bounds.SetPosBy( inTopLeft.GetX(), inTopLeft.GetY());
+			fGC->FillRect( bounds);
+		}
+	}
+}
+
+bool VTextLayout::_CheckLayerBounds(const VPoint& inTopLeft, VRect& outLayerBounds)
+{
+	fShouldDrawBackgroundColor = !fGC->CanDrawStyledTextBackColor() && ((fGC->GetTextRenderingMode() & TRM_LEGACY_OFF) || fUseFontTrueTypeOnly);	
+
+	if ((!fShouldDrawOnLayer || !fShouldEnableCache || fIsPrinting || fGC->IsGDIImpl()) //not draw on layer
+		&& 
+		!fShouldDrawBackgroundColor) //not draw background color
+		return true;
+
+	VAffineTransform ctm;	
+	fGC->UseReversedAxis();
+	fGC->GetTransformToScreen(ctm); //in case there is a pushed layer, we explicitly request transform from user space to hwnd space
+									//(because fLayerViewRect is in hwnd user space)
+	if (ctm.GetScaling() != fCurLayerCTM.GetScaling()
+		||
+		ctm.GetShearing() != fCurLayerCTM.GetShearing())
+	{
+		//if scaling or rotation has changed, mark layer and background color as dirty
+		fLayerIsDirty = true;
+		fBackgroundColorDirty = true;
+		fCurLayerCTM = ctm;
+	}
+
+	outLayerBounds = VRect( inTopLeft.GetX(), inTopLeft.GetY(), fCurLayoutWidth, fCurLayoutHeight); //on default, layer bounds = layout bounds
+
+	//determine layer bounds
+	if (!fLayerViewRect.IsEmpty())
+	{
+		//constraint layer bounds with view rect bounds
+
+		//clip layout bounds with view rect bounds in gc local user space
+		if (ctm.IsIdentity())
+			outLayerBounds.Intersect( fLayerViewRect);
+		else
+		{
+#if VERSIONMAC
+			//fLayerViewRect is window rectangle in QuickDraw coordinates so we need to convert it to Quartz2D coordinates
+			//(because transformed space is equal to Quartz2D space)
+			VRect boundsViewRect(fLayerViewRect);
+			VRect portBounds;
+			fGC->GetParentPortBounds(portBounds);
+			boundsViewRect.SetY(portBounds.GetHeight()-(fLayerViewRect.GetY()+fLayerViewRect.GetHeight()));
+			VRect boundsViewLocal = ctm.Inverse().TransformRect( boundsViewRect);
+#else
+			VRect boundsViewLocal = ctm.Inverse().TransformRect( fLayerViewRect);
+#endif
+			boundsViewLocal.NormalizeToInt();
+			outLayerBounds.Intersect( boundsViewLocal);
+		}
+		VPoint offset = outLayerBounds.GetTopLeft() - inTopLeft;
+		if (offset != fCurLayerOffsetViewRect)
+		{
+			//layout has scrolled in view window: mark it as dirty
+			fCurLayerOffsetViewRect = offset;
+			fLayerIsDirty = true;
+			fBackgroundColorDirty = true;
+		}
+	}
+
+	if (outLayerBounds.IsEmpty())
+	{
+		//do not draw at all if layout is fully clipped by fLayerViewRect
+		_ResetLayer();
+	
+		fBackgroundColorRenderInfo.clear();
+		fBackgroundColorDirty = false;
+		return false; 
+	}
+
+	_UpdateBackgroundColorRenderInfo(inTopLeft, outLayerBounds);
+	return true;
+}
+
+
 bool VTextLayout::_BeginDrawLayer(const VPoint& inTopLeft)
 {
 	xbox_assert(fGC);
 
+	VRect boundsLayout;
+	bool doDraw = _CheckLayerBounds( inTopLeft, boundsLayout);
+
 	if (!fShouldDrawOnLayer || !fShouldEnableCache || fIsPrinting || fGC->IsGDIImpl())
-		return true;
+	{
+		if (doDraw)
+			_DrawBackgroundColor( inTopLeft);
+		return doDraw;
+	}
 
 	if (!fLayerOffScreen)
 		fLayerIsDirty = true;
@@ -3577,56 +3759,16 @@ bool VTextLayout::_BeginDrawLayer(const VPoint& inTopLeft)
 				//(but keep layer in order to preserve the layout)
 				fSkipDrawLayer = true;
 				_ResetLayer();
-				return true;
+				if (doDraw)
+					_DrawBackgroundColor( inTopLeft);
+				return doDraw;
 			}
 	}
 #endif
 
+	if (!doDraw)
+		return false;
 
-	//determine layer bounds
-	VRect boundsLayout( inTopLeft.GetX(), inTopLeft.GetY(), fCurLayoutWidth, fCurLayoutHeight); //on default, layer bounds = layout bounds
-	if (!fLayerViewRect.IsEmpty())
-	{
-		//constraint layer bounds with view rect bounds
-
-		VAffineTransform ctm;	
-		fGC->UseReversedAxis();
-		fGC->GetTransformToScreen(ctm); //in case there is a pushed layer, we explicitly request transform from user space to hwnd space
-										//(because fLayerViewRect is in hwnd user space)
-
-		//clip layout bounds with view rect bounds in gc local user space
-		if (ctm.IsIdentity())
-			boundsLayout.Intersect( fLayerViewRect);
-		else
-		{
-#if VERSIONMAC
-			//fLayerViewRect is window rectangle in QuickDraw coordinates so we need to convert it to Quartz2D coordinates
-			//(because transformed space is equal to Quartz2D space)
-			VRect boundsViewRect(fLayerViewRect);
-			VRect portBounds;
-			fGC->GetParentPortBounds(portBounds);
-			boundsViewRect.SetY(portBounds.GetHeight()-(fLayerViewRect.GetY()+fLayerViewRect.GetHeight()));
-			VRect boundsViewLocal = ctm.Inverse().TransformRect( boundsViewRect);
-#else
-			VRect boundsViewLocal = ctm.Inverse().TransformRect( fLayerViewRect);
-#endif
-			boundsLayout.Intersect( boundsViewLocal);
-		}
-		if (boundsLayout.IsEmpty())
-		{
-			//do not draw at all if layout is fully clipped by fLayerViewRect
-			_ResetLayer();
-			return false; 
-		}
-		VPoint offset = boundsLayout.GetTopLeft() - inTopLeft;
-		if (offset != fCurLayerOffsetViewRect)
-		{
-			//layout has scrolled in view window: mark it as dirty
-			fCurLayerOffsetViewRect = offset;
-			fLayerIsDirty = true;
-		}
-	}
-	
 	bool doRedraw = true; 
 	if (!fLayerIsDirty)
 		doRedraw = !fGC->DrawLayerOffScreen( boundsLayout, fLayerOffScreen);
@@ -3646,6 +3788,7 @@ bool VTextLayout::_BeginDrawLayer(const VPoint& inTopLeft)
 		}
 		else
 			fLayerIsForMetricsOnly = false;
+		_DrawBackgroundColor( inTopLeft);
 	}
 	return doRedraw;
 }
@@ -3809,6 +3952,7 @@ void VTextLayout::SetDefaultFont( VFont *inFont, GReal inDPI)
 	if (inFont == NULL)
 	{
 		ReleaseRefCountable(&fDefaultFont);
+		ReleaseRefCountable(&fDefaultStyle);
 		return;
 	}
 
@@ -3821,6 +3965,7 @@ void VTextLayout::SetDefaultFont( VFont *inFont, GReal inDPI)
 		CopyRefCountable(&fDefaultFont, font);
 		ReleaseRefCountable(&font);
 	}
+	ReleaseRefCountable(&fDefaultStyle);
 }
 
 
@@ -4084,6 +4229,7 @@ void VTextLayout::SetExtStyles( VTreeTextStyle *inStyles, bool inCopyStyles)
 /** update text layout if it is not valid */
 void VTextLayout::_UpdateTextLayout()
 {
+	VTaskLock protect(&fMutex);
 	if (!fGC)
 	{
 		//text layout is invalid if gc is not defined
@@ -4231,6 +4377,8 @@ void VTextLayout::_UpdateTextLayout()
 #endif
 		else
 			fLayoutIsValid = false;
+
+		fBackgroundColorDirty = true;
 	}
 }
 
@@ -4291,6 +4439,8 @@ void VTextLayout::InsertText( sLONG inPos, const VString& inText)
 
 	VTaskLock protect(&fMutex);
 	xbox_assert(fTextPtr);
+	sLONG lengthPrev = fTextLength;
+	sLONG lengthPrevImpl = fTextPtr->GetLength();
 #if VERSIONMAC
 	bool needAddWhitespace = fTextPtr->GetLength() == fTextLength; //if not equal, a ending whitespace has been added yet to the impl layout
 #endif
@@ -4315,7 +4465,6 @@ void VTextLayout::InsertText( sLONG inPos, const VString& inText)
 		else if (fText.GetLength() > fTextLength)
 			fText.Truncate(fTextLength);
 	}
-	VString *textPtr = fTextPtrExternal ? fTextPtrExternal : &fText;
 
 	if (inPos < 0)
 		inPos = 0;
@@ -4327,7 +4476,7 @@ void VTextLayout::InsertText( sLONG inPos, const VString& inText)
 			fStyles->Truncate(0);
 		if (fExtStyles)
 			fExtStyles->Truncate(0);
-		*textPtr = inText;
+		*fTextPtr = inText;
 		if (fStyles)
 			fStyles->ExpandAtPosBy( 0, inText.GetLength());
 		if (fExtStyles)
@@ -4336,7 +4485,7 @@ void VTextLayout::InsertText( sLONG inPos, const VString& inText)
 	}
 	else
 	{
-		textPtr->Insert( inText, inPos+1);
+		fTextPtr->Insert( inText, inPos+1);
 		if (fStyles)
 			fStyles->ExpandAtPosBy( inPos, inText.GetLength());
 		if (fExtStyles)
@@ -4354,7 +4503,7 @@ void VTextLayout::InsertText( sLONG inPos, const VString& inText)
 			fText.FromString(*fTextPtr);
 		fText.AppendChar(' ');
 		fTextPtr = &fText;
-		addWhitespace = needAddWhitespace;
+		addWhitespace = true;
 	}
 #endif
 
@@ -4367,7 +4516,6 @@ void VTextLayout::InsertText( sLONG inPos, const VString& inText)
 	fStylesUseFontTrueTypeOnly = true;
 #endif
 
-#if VERSIONWIN //TODO: remove when Mac OS X impl for XMacStyledTextBox::InsertText & DeleteText are done
 	if (fLayoutIsValid && fTextBox)
 	{
 #if VERSIONWIN
@@ -4381,32 +4529,47 @@ void VTextLayout::InsertText( sLONG inPos, const VString& inText)
 			//direct update impl layout
 			fTextBox->SetDrawContext(NULL); //reset drawing context (it is not used for layout update)
 			fTextBox->InsertText( inPos, inText);
+			
+			if (lengthPrev == 0)
+			{
+#if VERSIONMAC				
+				needAddWhitespace = true;
+#endif
+				fTextBox->DeleteText(fTextLength, fTextLength+1); //remove dummy "x" for empty text
+			}
+			
 #if VERSIONMAC
-			if (addWhitespace)
+			if (addWhitespace && needAddWhitespace)
 				fTextBox->InsertText( fTextLength, VString(" "));
 #endif
 			fNeedUpdateBounds = true;
+#if VERSIONWIN
 		}
+#endif
 	}
 	else
-#endif
 		//layout direct update not supported are not implemented: compute all layout
 		//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent annoying perf issues
 		fLayoutIsValid = false;
+	
+	fBackgroundColorDirty = true;
 }
 
-/** delete text range */
-void VTextLayout::DeleteText( sLONG inStart, sLONG inEnd)
+
+/** replace text */
+void VTextLayout::ReplaceText( sLONG inStart, sLONG inEnd, const VString& inText)
 {
+	VTaskLock protect(&fMutex);
 	if (inStart < 0)
 		inStart = 0;
-	if (inStart >= inEnd)
-		return;
+	if (inStart > fTextLength)
+		inStart = fTextLength;
 	if (inEnd > fTextLength)
 		inEnd = fTextLength;
-
-	VTaskLock protect(&fMutex);
+	
 	xbox_assert(fTextPtr);
+	sLONG lengthPrev = fTextLength;
+	sLONG lengthPrevImpl = fTextPtr->GetLength();
 #if VERSIONMAC
 	bool needAddWhitespace = fTextPtr->GetLength() == fTextLength; //if not equal, a ending whitespace has been added yet to the impl layout
 #endif
@@ -4431,14 +4594,49 @@ void VTextLayout::DeleteText( sLONG inStart, sLONG inEnd)
 		else if (fText.GetLength() > fTextLength)
 			fText.Truncate(fTextLength);
 	}
-	VString *textPtr = fTextPtrExternal ? fTextPtrExternal : &fText;
 
 	if (fStyles)
-		fStyles->Truncate(inStart, inEnd-inStart);
+	{
+		if (inEnd > inStart && inText.GetLength() > 0)
+		{
+			fStyles->Truncate( inStart+1, inEnd-(inStart+1));
+			if (inText.GetLength() > 1)
+				fStyles->ExpandAtPosBy( inStart+1, inText.GetLength()-1);
+		}
+		else
+		{
+			if (inEnd > inStart)
+				fStyles->Truncate( inStart, inEnd-inStart);
+			if (inText.GetLength() > 0)
+				fStyles->ExpandAtPosBy( inStart, inText.GetLength());
+		}
+	}
 	if (fExtStyles)
-		fExtStyles->Truncate(inStart, inEnd-inStart);
-	textPtr->Remove( inStart+1, inEnd-inStart);
+	{
+		if (inEnd > inStart && inText.GetLength() > 0)
+		{
+			fExtStyles->Truncate( inStart+1, inEnd-(inStart+1));
+			if (inText.GetLength() > 1)
+				fExtStyles->ExpandAtPosBy( inStart+1, inText.GetLength()-1);
+		}
+		else
+		{
+			if (inEnd > inStart)
+				fExtStyles->Truncate( inStart, inEnd-inStart);
+			if (inText.GetLength() > 0)
+				fExtStyles->ExpandAtPosBy( inStart, inText.GetLength());
+		}
+	}
+	
+	if (inEnd > inStart)
+		fTextPtr->Replace(inText, inStart+1, inEnd-inStart);
+	else 
+		fTextPtr->Insert(inText, inStart+1);
+	
 	fTextLength = fTextPtr->GetLength();
+#if VERSIONMAC	
+	bool addWhitespace = false;
+#endif
 	if (fTextLength == 0)
 	{
 		//if text is empty, we need to set layout text to a dummy "x" text otherwise 
@@ -4446,12 +4644,10 @@ void VTextLayout::DeleteText( sLONG inStart, sLONG inEnd)
 		//(we use fTextLength to know the actual text length & stay consistent)
 		fText.FromCString("x");
 		fTextPtr = &fText;
-		fLayoutIsValid = false;
 	}
 #if VERSIONMAC
 	else
 	{
-		bool addWhitespace = false;
 		if (fTextPtr->GetUniChar(fTextLength) == 13)
 		{
 			//if last character is a CR, we need to append some dummy whitespace character otherwise 
@@ -4461,7 +4657,134 @@ void VTextLayout::DeleteText( sLONG inStart, sLONG inEnd)
 				fText.FromString(*fTextPtr);
 			fText.AppendChar(' ');
 			fTextPtr = &fText;
-			addWhitespace = needAddWhitespace;
+			addWhitespace = true;
+		}
+	}
+#endif
+	
+#if VERSIONWIN
+	bool useFontTrueTypeOnly = fStylesUseFontTrueTypeOnly;
+	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
+	if (fStylesUseFontTrueTypeOnly != useFontTrueTypeOnly)
+		fLayoutIsValid = false;
+#else
+	fStylesUseFontTrueTypeOnly = true;
+#endif
+	
+	if (fLayoutIsValid && fTextBox)
+	{
+#if VERSIONWIN
+		//FIXME: if we insert a single CR with RichTextEdit, we need to compute all layout otherwise RTE seems to not take account 
+		//CR and screws up styles too (if inText contains other characters but CR it is ok: quite annoying...)
+		if (inText.GetLength() == 1 && inText.GetUniChar(1) == 13)
+			fLayoutIsValid = false;
+		else
+		{
+#endif
+			//direct update impl layout
+			fTextBox->SetDrawContext(NULL); //reset drawing context (it is not used for layout update)
+			fTextBox->ReplaceText(inStart, inEnd, inText);
+			
+			if (lengthPrev == 0 && fTextLength > 0)
+			{
+#if VERSIONMAC				
+				needAddWhitespace = true;
+#endif
+				fTextBox->DeleteText(fTextLength, fTextLength+1); //remove dummy "x" for empty text
+			}
+			
+			if (fTextLength == 0 && lengthPrev > 0)
+				//add dummy "x" for empty text
+				fTextBox->InsertText(0, CVSTR("x"));
+#if VERSIONMAC
+			if (addWhitespace && needAddWhitespace)
+				fTextBox->InsertText( fTextLength, VString(" "));
+#endif
+			fNeedUpdateBounds = true;
+#if VERSIONWIN
+		}
+#endif
+	}
+	else
+		//layout direct update not supported are not implemented: compute all layout
+		//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent perf issues
+		fLayoutIsValid = false;
+	
+	fBackgroundColorDirty = true;
+}
+
+
+/** delete text range */
+void VTextLayout::DeleteText( sLONG inStart, sLONG inEnd)
+{
+	VTaskLock protect(&fMutex);
+	if (inStart < 0)
+		inStart = 0;
+	if (inStart > fTextLength)
+		inStart = fTextLength;
+	if (inEnd > fTextLength)
+		inEnd = fTextLength;
+	if (inStart >= inEnd)
+		return;
+
+	xbox_assert(fTextPtr);
+	sLONG lengthPrev = fTextLength;
+	sLONG lengthPrevImpl = fTextPtr->GetLength();
+#if VERSIONMAC
+	bool needAddWhitespace = fTextPtr->GetLength() == fTextLength; //if not equal, a ending whitespace has been added yet to the impl layout
+#endif
+	if (fTextPtr == &fText)
+	{
+		//restore actual text
+		if (fTextPtrExternal)
+		{
+			fTextPtr = fTextPtrExternal;
+			try
+			{
+				fTextLength = fTextPtrExternal->GetLength();
+			}
+			catch(...)
+			{
+				fTextPtrExternal = NULL;
+				fTextPtr = &fText;
+				if (fText.GetLength() > fTextLength)
+					fText.Truncate(fTextLength);
+			}
+		}
+		else if (fText.GetLength() > fTextLength)
+			fText.Truncate(fTextLength);
+	}
+
+	if (fStyles)
+		fStyles->Truncate(inStart, inEnd-inStart);
+	if (fExtStyles)
+		fExtStyles->Truncate(inStart, inEnd-inStart);
+	fTextPtr->Remove( inStart+1, inEnd-inStart);
+	fTextLength = fTextPtr->GetLength();
+#if VERSIONMAC	
+	bool addWhitespace = false;
+#endif
+	if (fTextLength == 0)
+	{
+		//if text is empty, we need to set layout text to a dummy "x" text otherwise 
+		//we cannot get correct metrics for caret or for text layout bounds  
+		//(we use fTextLength to know the actual text length & stay consistent)
+		fText.FromCString("x");
+		fTextPtr = &fText;
+	}
+#if VERSIONMAC
+	else
+	{
+		if (fTextPtr->GetUniChar(fTextLength) == 13)
+		{
+			//if last character is a CR, we need to append some dummy whitespace character otherwise 
+			//we cannot get correct metrics after last CR (CoreText bug)
+			//(we use fTextLength to know the actual text length & stay consistent)
+			if (fTextPtr != &fText)
+				fText.FromString(*fTextPtr);
+			fText.AppendChar(' ');
+			fTextPtr = &fText;
+			addWhitespace = true;
 		}
 	}
 #endif
@@ -4475,24 +4798,46 @@ void VTextLayout::DeleteText( sLONG inStart, sLONG inEnd)
 	fStylesUseFontTrueTypeOnly = true;
 #endif
 
-#if VERSIONWIN //TODO: remove when Mac OS X impl for XMacStyledTextBox::InsertText & DeleteText are done
 	if (fLayoutIsValid && fTextBox)
 	{
 		//direct update impl layout
 		fTextBox->SetDrawContext(NULL); //reset drawing context (it is not used for layout update)
 		fTextBox->DeleteText( inStart, inEnd);
+		
+		if (fTextLength == 0 && lengthPrev > 0)
+			//add dummy "x" for empty text
+			fTextBox->InsertText(0, CVSTR("x"));
+		
 #if VERSIONMAC
-		if (addWhitespace)
+		if (addWhitespace && needAddWhitespace)
 			fTextBox->InsertText( fTextLength, VString(" "));
 #endif
 		fNeedUpdateBounds = true;
 	}
 	else
-#endif
 		//layout direct update not supported are not implemented: compute all layout
 		//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent perf issues
 		fLayoutIsValid = false;
+	
+	fBackgroundColorDirty = true;
 }
+
+
+/** set min line height on the specified range 
+ @remarks
+	it is used while editing to prevent text wobble while editing with IME
+ */
+void VTextLayout::SetMinLineHeight(const GReal inMinHeight, sLONG inStart, sLONG inEnd)
+{
+#if VERSIONMAC	
+	if (fLayoutIsValid && fTextBox)
+	{
+		fTextBox->SetMinLineHeight(inMinHeight, inStart, inEnd);
+		fNeedUpdateBounds = true;
+	}
+#endif
+}
+
 
 VTreeTextStyle *VTextLayout::_RetainDefaultTreeTextStyle() const
 {
@@ -4579,7 +4924,7 @@ bool VTextLayout::ApplyStyle( VTextStyle* inStyle)
 		fStylesUseFontTrueTypeOnly = true;
 #endif
 
-#if VERSIONWIN //TODO: remove when Mac OS X impl for XMacStyledTextBox::ApplyStyle is done
+//#if VERSIONWIN //TODO: remove when Mac OS X impl for XMacStyledTextBox::ApplyStyle is done
 		if (fLayoutIsValid && fTextBox)
 		{
 			//direct update impl layout
@@ -4588,10 +4933,11 @@ bool VTextLayout::ApplyStyle( VTextStyle* inStyle)
 			fNeedUpdateBounds = true;
 		}
 		else
-#endif
+//#endif
 			//layout direct update not supported are not implemented: compute all layout
 			//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent perf issues
 			fLayoutIsValid = false;
+		fBackgroundColorDirty = true;
 		return true;
 	}
 	return false;
@@ -4753,6 +5099,7 @@ bool  VTextLayout::_ApplyStyle(VTextStyle *inStyle)
 		delete newStyle;
 	return needUpdate;
 }
+
 
 #if VERSIONWIN
 
@@ -5207,3 +5554,5 @@ bool VGCOffScreen::ShouldClear(XBOX::VGraphicContext *inGC, const VRect& inBound
 		return true;
 	return inGC->ShouldClearLayerOffScreen( inBounds, fLayerOffScreen);
 }
+
+

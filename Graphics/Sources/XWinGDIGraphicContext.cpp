@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "XWinGDIGraphicContext.h"
 #include "VRect.h"
@@ -1072,7 +1071,7 @@ void VWinGDIGraphicContext::DrawTextBox(const VString& inString, AlignStyle inHA
 	
 	StUseContext_NoRetain	context(this);
 
-	if (!(inOptions & TLM_DONT_WRAP))
+	//if (!(inOptions & TLM_DONT_WRAP))
 	{
 		XBOX::VRect re(inHwndBounds);
 		//NDJQ: it is done done by _DrawLegacyTextBox
@@ -1081,6 +1080,7 @@ void VWinGDIGraphicContext::DrawTextBox(const VString& inString, AlignStyle inHA
 		return;
 	}
 
+	/*
 	// Prepare rotation
 	HDC		hdc = fContext;
 
@@ -1105,7 +1105,7 @@ void VWinGDIGraphicContext::DrawTextBox(const VString& inString, AlignStyle inHA
 	sWORD	usedW;
 	sLONG	maxLength;
 	VString	threeDots(L"...", -1);
-	VStr<1>	ellipsis((UniChar) 0x2026 /*CHAR_HORIZONTAL_ELLIPSIS*/);
+	VStr<1>	ellipsis((UniChar) 0x2026); //CHAR_HORIZONTAL_ELLIPSIS
 	VString*	suffix = NULL;
 
 	::GetTextExtentExPointW(hdc, (LPCWSTR) inString.GetCPointer(), length, w, (int*) &maxLength, 0, &wordW);
@@ -1195,7 +1195,7 @@ void VWinGDIGraphicContext::DrawTextBox(const VString& inString, AlignStyle inHA
 		rCenter.SetX(cos(fTextAngle) * center.GetX() - sin(fTextAngle) * center.GetY());
 		rCenter.SetY(sin(fTextAngle) * center.GetX() + cos(fTextAngle) * center.GetY());
 
-		x -= rCenter.GetX() /*- (usedH / 2.0)*/+ alignmentOffsetV;
+		x -= rCenter.GetX() + alignmentOffsetV; //- (usedH / 2.0)
  		y -= rCenter.GetY() + (usedW / 2.0) + alignmentOffsetH;
 	}
 	else
@@ -1233,6 +1233,7 @@ void VWinGDIGraphicContext::DrawTextBox(const VString& inString, AlignStyle inHA
 		oldFont = (HFONT)::SelectObject(hdc, oldFont);
 		_DeleteObject(rotFont);
 	}
+	*/
 }
 
 void VWinGDIGraphicContext::GetTextBoxBounds( const VString& inString, VRect& ioHwndBounds, TextLayoutMode inMode)
@@ -1253,12 +1254,13 @@ void VWinGDIGraphicContext::GetTextBoxBounds( const VString& inString, VRect& io
 	
 	StUseContext_NoRetain	context(this);
 
-	if (!(inMode & TLM_DONT_WRAP))
+	//if (!(inMode & TLM_DONT_WRAP))
 	{
 		_GetLegacyTextBoxSize( inString,  ioHwndBounds, inMode);
 		return;
 	}
 
+	/*
 	// Prepare rotation
 	HDC		hdc = fContext;
 	HFONT	oldFont, rotFont = NULL;
@@ -1282,7 +1284,7 @@ void VWinGDIGraphicContext::GetTextBoxBounds( const VString& inString, VRect& io
 	sWORD	usedW,usedH;
 	sLONG	maxLength;
 	VString	threeDots(L"...", -1);
-	VStr<1>	ellipsis((UniChar) 0x2026 /*CHAR_HORIZONTAL_ELLIPSIS*/);
+	VStr<1>	ellipsis((UniChar) 0x2026); //CHAR_HORIZONTAL_ELLIPSIS
 	VString*	suffix = NULL;
 
 	::GetTextExtentExPointW(hdc, (LPCWSTR) inString.GetCPointer(), length, w, (int*) &maxLength, 0, &wordW);
@@ -1323,7 +1325,7 @@ void VWinGDIGraphicContext::GetTextBoxBounds( const VString& inString, VRect& io
 		rCenter.SetX(cos(fTextAngle) * center.GetX() - sin(fTextAngle) * center.GetY());
 		rCenter.SetY(sin(fTextAngle) * center.GetX() + cos(fTextAngle) * center.GetY());
 
-		x -= rCenter.GetX() /*- (usedH / 2.0)*/+alignmentOffsetH;
+		x -= rCenter.GetX() +alignmentOffsetH; //- (usedH / 2.0)
  		y -= rCenter.GetY() + (usedW / 2.0) + alignmentOffsetV;
 	}
 	else
@@ -1362,6 +1364,7 @@ void VWinGDIGraphicContext::GetTextBoxBounds( const VString& inString, VRect& io
 		oldFont = (HFONT)::SelectObject(hdc, oldFont);
 		_DeleteObject(rotFont);
 	}
+	*/
 }
 
 void VWinGDIGraphicContext::DrawText(const VString& inString, TextLayoutMode inOptions)
@@ -1815,8 +1818,16 @@ void VWinGDIGraphicContext::DrawPictureData (const VPictureData *inPictureData, 
 	if (inPictureData->IsKind( sCodec_svg))
 		//@remark: better to call this method for svg codec to avoid to create new VWinGDIPlusGraphicContext instance
 		inPictureData->DrawInVGraphicContext( *this, inHwndBounds, inSet?inSet:&drawSettings);
+	else if (inPictureData->IsKind( sCodec_pict))
+	{
+		//@remark: if the mac picture contains text or font opcode, ALTURA may change the current font DC and delete a HFONT referenced in a VFONT
+		HFONT saveFont=(HFONT)SelectObject(fContext,GetStockObject(SYSTEM_FONT));
+		inPictureData->DrawInPortRef( fContext, inHwndBounds, inSet?inSet:&drawSettings);
+		SelectObject(fContext,saveFont);
+	}
 	else
 		inPictureData->DrawInPortRef( fContext, inHwndBounds, inSet?inSet:&drawSettings);
+
 	
 	//restore current transformation matrix
 	SetTransform(ctm);

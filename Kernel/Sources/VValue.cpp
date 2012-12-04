@@ -24,6 +24,7 @@
 #include "VBlob.h"
 #include "VValueBag.h"
 #include "VArrayValue.h"
+#include "VJSONValue.h"
 #include "VMemoryCpp.h"
 #include "VKernelErrors.h"
 
@@ -439,7 +440,6 @@ VValue* VValue::FullyClone(bool ForAPush) const // no intelligent cloning (for e
 }
 
 
-
 CompareResult VValue::InvertCompResult(CompareResult comp)
 {
 	if (comp == CR_BIGGER)
@@ -453,3 +453,27 @@ CompareResult VValue::InvertCompResult(CompareResult comp)
 	}
 }
 
+
+VError VValue::FromJSONString(const VString& inJSONString, JSONOption inModifier)
+{
+	return vThrowError( VE_UNIMPLEMENTED);
+}
+
+
+VError VValue::GetJSONString(VString& outJSONString, JSONOption inModifier) const
+{
+	return vThrowError( VE_UNIMPLEMENTED);
+}
+
+
+VError VValue::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	return vThrowError( VE_UNIMPLEMENTED);
+}
+
+
+VError VValue::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	outJSONValue.SetUndefined();
+	return vThrowError( VE_UNIMPLEMENTED);
+}

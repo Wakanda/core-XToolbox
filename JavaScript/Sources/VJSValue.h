@@ -37,30 +37,6 @@ class XTOOLBOX_API VJSValue : public XBOX::VObject
 {
 public:
 
-	// Types returned by GetType().
-
-	enum EType {
-	
-		// A VJSValue with a NULL ValueRef is considered as undefined.
-
-		eTYPE_UNDEFINED	= kJSTypeUndefined, 
-
-		// null is a special JavaScript value.
-
-		eTYPE_NULL		= kJSTypeNull,
-
-		// Primitive types.
-
-    	eTYPE_BOOLEAN	= kJSTypeBoolean,
-    	eTYPE_NUMBER	= kJSTypeNumber,
-		eTYPE_STRING	= kJSTypeString,
-
-		// An object can be a function, an Array, etc.
-
-		eTYPE_OBJECT	= kJSTypeObject 
-
-	};
-
 	explicit					VJSValue( JS4D::ContextRef inContext) : fContext( inContext), fValue( NULL)	{}
 	explicit					VJSValue( JS4D::ContextRef inContext, JS4D::ValueRef inValue) : fContext( inContext), fValue( inValue)	{}
 								VJSValue( const VJSValue& inOther):fContext( inOther.fContext), fValue( inOther.fValue)	{}
@@ -68,27 +44,28 @@ public:
 								operator JS4D::ValueRef() const		{ return fValue;}
 			const VJSValue&		operator=( const VJSValue& inOther)	{ /*xbox_assert( fContext == inOther.fContext);*/ fValue = inOther.fValue; fContext = inOther.fContext; return *this; }
 
-			bool				IsUndefined() const		{ return (fValue == NULL) || JSValueIsUndefined( fContext, fValue); }
-			bool				IsNull() const			{ return (fValue == NULL) || JSValueIsNull( fContext, fValue); }
-			bool				IsNumber() const		{ return (fValue != NULL) && JSValueIsNumber( fContext, fValue); }
-			bool				IsBoolean() const		{ return (fValue != NULL) && JSValueIsBoolean( fContext, fValue); }
-			bool				IsString() const		{ return (fValue != NULL) && JSValueIsString( fContext, fValue); }
-			bool				IsObject() const		{ return (fValue != NULL) && JSValueIsObject( fContext, fValue); }
+			bool				IsUndefined() const		{ return JS4D::ValueIsUndefined( fContext, fValue); }
+			bool				IsNull() const			{ return JS4D::ValueIsNull( fContext, fValue); }
+			bool				IsNumber() const		{ return JS4D::ValueIsNumber( fContext, fValue); }
+			bool				IsBoolean() const		{ return JS4D::ValueIsBoolean( fContext, fValue); }
+			bool				IsString() const		{ return JS4D::ValueIsString( fContext, fValue); }
+			bool				IsObject() const		{ return JS4D::ValueIsObject( fContext, fValue); }
 			bool				IsFunction() const;
 			bool				IsInstanceOf( const XBOX::VString& inConstructorName, JS4D::ExceptionRef *outException = NULL) const		{ return JS4D::ValueIsInstanceOf( fContext, fValue, inConstructorName, outException);}
 			bool				IsArray() const			{ return IsInstanceOf("Array"); }
 
 			// Return type of value, note that eTYPE_OBJECT is very broad (an object can be a function, an Array, a Date, a String, etc.).
 
-			EType				GetType ()				{ return (fContext == NULL || fValue == NULL ? eTYPE_UNDEFINED : (EType) JSValueGetType(fContext, fValue));	}
+			JS4D::EType			GetType ()				{ return JS4D::GetValueType( fContext, fValue); }
 
 			// cast value into some type.
 			// If cast is not possible before the value type is not compatible, it doesn't throw an error or an exception but simply returns false or NULL.
 			bool				GetReal( Real *outValue, JS4D::ExceptionRef *outException = NULL) const;
 			bool				GetLong( sLONG *outValue, JS4D::ExceptionRef *outException = NULL) const;
 			bool				GetLong8( sLONG8 *outValue, JS4D::ExceptionRef *outException = NULL) const;
-			bool				GetULong( uLONG *outValue, JSValueRef *outException = NULL) const;
+			bool				GetULong( uLONG *outValue, JS4D::ExceptionRef *outException = NULL) const;
 			bool				GetString( XBOX::VString& outString, JS4D::ExceptionRef *outException = NULL) const;
+			bool				GetJSONValue( VJSONValue& outValue, JS4D::ExceptionRef *outException = NULL) const;
 
 			// if value is a string, make it a url, else returns false
 			bool				GetURL( XBOX::VURL& outURL, JS4D::ExceptionRef *outException = NULL) const;
@@ -105,7 +82,8 @@ public:
 			template<class NATIVE_CLASS>
 			typename NATIVE_CLASS::PrivateDataType*	GetObjectPrivateData( JS4D::ExceptionRef *outException = NULL) const
 			{
-				return static_cast<typename NATIVE_CLASS::PrivateDataType*>( ((fValue != NULL) && JSValueIsObjectOfClass( fContext, fValue, NATIVE_CLASS::Class())) ? JSObjectGetPrivate( JSValueToObject( fContext, fValue, outException) ) : NULL);
+				JS4D::ClassRef classRef = NATIVE_CLASS::Class();
+				return static_cast<typename NATIVE_CLASS::PrivateDataType*>( JS4D::ValueIsObjectOfClass( fContext, fValue, classRef) ? JS4D::GetObjectPrivate( JS4D::ValueToObject( fContext, fValue, outException) ) : NULL);
 			}
 
 			template<class Type>
@@ -115,13 +93,21 @@ public:
 			void				SetTime( const XBOX::VTime& inTime, JS4D::ExceptionRef *outException = NULL)					{ fValue = JS4D::VTimeToObject( fContext, inTime, outException); }
 			void				SetDuration( const XBOX::VDuration& inDuration, JS4D::ExceptionRef *outException = NULL)		{ fValue = JS4D::VDurationToValue( fContext, inDuration); }
 			void				SetVValue( const XBOX::VValueSingle& inValue, JS4D::ExceptionRef *outException = NULL)			{ fValue = JS4D::VValueToValue( fContext, inValue, outException); }
+			void				SetJSONValue( const VJSONValue& inValue, JS4D::ExceptionRef *outException = NULL)				{ fValue = JS4D::VJSONValueToValue( fContext, inValue, outException); }
 			void				SetFile( XBOX::VFile *inFile, JS4D::ExceptionRef *outException = NULL)							{ fValue = JS4D::VFileToObject( fContext, inFile, outException); }
 			void				SetFolder( XBOX::VFolder *inFolder, JS4D::ExceptionRef *outException = NULL)					{ fValue = JS4D::VFolderToObject( fContext, inFolder, outException); }
 			void				SetFilePathAsFileOrFolder( const XBOX::VFilePath& inPath, JS4D::ExceptionRef *outException = NULL)		{ fValue = JS4D::VFilePathToObjectAsFileOrFolder( fContext, inPath, outException); }
 
-			void				SetUndefined( JS4D::ExceptionRef *outException = NULL)											{ fValue = JSValueMakeUndefined( fContext);}
-			void				SetNull( JS4D::ExceptionRef *outException = NULL)												{ fValue = JSValueMakeNull( fContext);}
+			void				SetUndefined( JS4D::ExceptionRef *outException = NULL)											{ fValue = JS4D::MakeUndefined( fContext);}
+			void				SetNull( JS4D::ExceptionRef *outException = NULL)												{ fValue = JS4D::MakeNull( fContext);}
 
+			/*
+				Any value saved elsewhere than on the stack must be protected so that it doesn't get garbage collected.
+				Warning: be careful to balance calls to Protect/Unprotect on same ValueRef.
+			*/
+			void				Protect() const																					{ JS4D::ProtectValue( fContext, fValue);}
+			void				Unprotect() const																				{ JS4D::UnprotectValue( fContext, fValue);}
+			
 			void				SetValueRef( JS4D::ValueRef inValue)															{ fValue = inValue;}
 			JS4D::ValueRef		GetValueRef() const																				{ return fValue;}
 
@@ -161,10 +147,10 @@ public:
 			const VJSObject&	operator=( const VJSObject& inOther)	{ /*xbox_assert( fContext == inOther.fContext);*/ fObject = inOther.fObject; fContext = inOther.fContext; return *this; }
 
 			bool				IsInstanceOf( const XBOX::VString& inConstructorName, JS4D::ExceptionRef *outException = NULL) const		{ return JS4D::ValueIsInstanceOf( fContext, fObject, inConstructorName, outException);}
-			bool				IsFunction() const							{ return (fObject != NULL) ? JSObjectIsFunction( fContext, fObject) : false; }	// sc 03/09/2009 crash if fObject is null
+			bool				IsFunction() const							{ return (fObject != NULL) ? JS4D::ObjectIsFunction( fContext, fObject) : false; }	// sc 03/09/2009 crash if fObject is null
 			bool				IsArray() const								{ return IsInstanceOf("Array"); }
 			bool				IsObject() const							{ return fObject != NULL; }
-			bool				IsOfClass (JS4D::ClassRef inClassRef) const	{ return JSValueIsObjectOfClass(fContext, fObject, inClassRef); }
+			bool				IsOfClass (JS4D::ClassRef inClassRef) const	{ return JS4D::ValueIsObjectOfClass( fContext, fObject, inClassRef); }
 
 			void				MakeEmpty();	
 			void				MakeFile( XBOX::VFile *inFile, JS4D::ExceptionRef *outException = NULL)									{ fObject = JS4D::VFileToObject( fContext, inFile, outException); }
@@ -198,9 +184,24 @@ public:
 
 			// call a member function on this object.
 			// returns false if the function was not found.
-			bool				CallFunction( const VJSObject& inFunctionObject, const std::vector<VJSValue> *inValues, VJSValue *outResult, JS4D::ExceptionRef *outException);
-			bool				CallMemberFunction( const XBOX::VString& inFunctionName, const std::vector<VJSValue> *inValues, VJSValue *outResult, JS4D::ExceptionRef *outException)
-									{ return CallFunction( GetPropertyAsObject( inFunctionName, outException), inValues, outResult, outException);}
+			// If inFullPath is not NULL, set it as the "source" of the executing script.
+			// This is needed if files are referred relative to the script containing the function, require() for example.
+
+			bool				CallFunction(
+									const VJSObject& inFunctionObject, 
+									const std::vector<VJSValue> *inValues, 
+									VJSValue *outResult, 
+									JS4D::ExceptionRef *outException,
+									const XBOX::VFilePath *inFullPath = NULL);
+			bool				CallMemberFunction(
+									const XBOX::VString& inFunctionName, 
+									const std::vector<VJSValue> *inValues, 
+									VJSValue *outResult, 
+									JS4D::ExceptionRef *outException,
+									const XBOX::VFilePath *inFullPath = NULL)
+									{
+										return CallFunction(GetPropertyAsObject(inFunctionName, outException), inValues, outResult, outException, inFullPath);
+									}
 
 			// Call object as a constructor, return true if successful. outCreatedObject must not be NULL.
 
@@ -209,11 +210,19 @@ public:
 			template<class NATIVE_CLASS>
 			typename NATIVE_CLASS::PrivateDataType*	GetPrivateData() const
 			{
-				return static_cast<typename NATIVE_CLASS::PrivateDataType*>( ((fObject != NULL) && JSValueIsObjectOfClass( fContext, fObject, NATIVE_CLASS::Class())) ? JSObjectGetPrivate( fObject) : NULL);
+				JS4D::ClassRef classRef = NATIVE_CLASS::Class();
+				return static_cast<typename NATIVE_CLASS::PrivateDataType*>( JS4D::ValueIsObjectOfClass( fContext, fObject, classRef) ? JS4D::GetObjectPrivate( fObject) : NULL);
 			}
 
-			void				SetUndefined( JS4D::ExceptionRef *outException = NULL)		{ fObject = JSValueToObject( fContext, JSValueMakeUndefined( fContext), outException);}
-			void				SetNull (JS4D::ExceptionRef *outException = NULL)			{ fObject = JSValueToObject(fContext, JSValueMakeNull(fContext), outException); }
+			void				SetUndefined( JS4D::ExceptionRef *outException = NULL)		{ fObject = JS4D::ValueToObject( fContext, JS4D::MakeUndefined( fContext), outException);}
+			void				SetNull (JS4D::ExceptionRef *outException = NULL)			{ fObject = JS4D::ValueToObject( fContext, JS4D::MakeNull(fContext), outException); }
+
+			/*
+				any value saved elsewhere than on the stack must be protected so that it doesn't get garbage collected.
+				Warning: be careful to balance calls to Protect/Unprotect on same ValueRef.
+			*/
+			void				Protect() const												{ JS4D::ProtectValue( fContext, fObject);}
+			void				Unprotect() const											{ JS4D::UnprotectValue( fContext, fObject);}
 
 			void				SetObjectRef( JS4D::ObjectRef inObject)						{ fObject = inObject;}
 			JS4D::ObjectRef		GetObjectRef() const										{ return fObject;}
@@ -228,11 +237,15 @@ public:
 		
 			// Make object a C++ callback. Use js_callback<> template to set inCallbackFunction (see VJSClass.h).
 
-			void				MakeCallback (JSObjectCallAsFunctionCallback inCallbackFunction);
+			void				MakeCallback( JS4D::ObjectCallAsFunctionCallback inCallbackFunction);
 
 			// Make constructor object. Use js_constructor<> template to set inConstructor (see VJSClass.h).
 
-			void				MakeConstructor (JS4D::ClassRef inClassRef, JSObjectCallAsConstructorCallback inConstructor);
+			void				MakeConstructor( JS4D::ClassRef inClassRef, JS4D::ObjectCallAsConstructorCallback inConstructor);
+
+			// Return prototype of object.
+
+			XBOX::VJSObject		GetPrototype (const XBOX::VJSContext &inContext);
 	
 private:
 								VJSObject();	// forbidden (always need a context)
@@ -261,7 +274,7 @@ class XTOOLBOX_API VJSPropertyIterator : public XBOX::VObject
 {
 public:
 											VJSPropertyIterator( const VJSObject& inObject);
-											~VJSPropertyIterator()			{ if (fNameArray != NULL) JSPropertyNameArrayRelease( fNameArray);}
+											~VJSPropertyIterator();
 
 			const VJSPropertyIterator&		operator++()					{ ++fIndex; return *this;}
 
@@ -283,7 +296,7 @@ private:
 			void							_SetProperty( JS4D::ValueRef inValue, JS4D::PropertyAttributes inAttributes, JS4D::ExceptionRef *outException) const;
 
 			VJSObject						fObject;
-			JSPropertyNameArrayRef			fNameArray;
+			JS4D::PropertyNameArrayRef		fNameArray;
 			size_t							fIndex;
 			size_t							fCount;
 };
@@ -367,51 +380,94 @@ private:
 
 class XTOOLBOX_API VJSPictureContainer : public XBOX::VObject, public XBOX::IRefCountable
 {
-	public:
-		VJSPictureContainer(XBOX::VValueSingle* inPict, /*bool ownsPict,*/ JS4D::ContextRef inContext);
+public:
+	VJSPictureContainer(XBOX::VValueSingle* inPict, /*bool ownsPict,*/ JS4D::ContextRef inContext);
 
-		/*
-		virtual void SetModif()
-		{
-			// rien ici, est gere par DB4D pour les images qui proviennent de champs
-		}
-		*/
+	/*
+	virtual void SetModif()
+	{
+		// rien ici, est gere par DB4D pour les images qui proviennent de champs
+	}
+	*/
 
-		bool MetaInfoInited() const
-		{
-			return fMetaInfoIsValid;
-		}
+	bool MetaInfoInited() const
+	{
+		return fMetaInfoIsValid;
+	}
 
-		JS4D::ValueRef GetMetaInfo() const
-		{
-			return fMetaInfo;
-		}
+	JS4D::ValueRef GetMetaInfo() const
+	{
+		return fMetaInfo;
+	}
 
-		void SetMetaInfo(JS4D::ValueRef inMetaInfo, JS4D::ContextRef inContext);
+	void SetMetaInfo(JS4D::ValueRef inMetaInfo, JS4D::ContextRef inContext);
 
-		XBOX::VPicture* GetPict()
-		{
-			return fPict;
-		}
+	XBOX::VPicture* GetPict()
+	{
+		return fPict;
+	}
 
-		const XBOX::VValueBag* RetainMetaBag();
-		void SetMetaBag(const XBOX::VValueBag* metaBag);
-		
-	protected:
-		virtual ~VJSPictureContainer();
+	const XBOX::VValueBag* RetainMetaBag();
+	void SetMetaBag(const XBOX::VValueBag* metaBag);
+	
+protected:
+	virtual ~VJSPictureContainer();
 
-		XBOX::VPicture* fPict;
-		JS4D::ValueRef fMetaInfo;
-		JS4D::ContextRef fContext;
-		const XBOX::VValueBag* fMetaBag;
-		bool fMetaInfoIsValid;
-		//bool fOwnsPict;
+	XBOX::VPicture* fPict;
+	JS4D::ValueRef fMetaInfo;
+	JS4D::ContextRef fContext;
+	const XBOX::VValueBag* fMetaBag;
+	bool fMetaInfoIsValid;
+	//bool fOwnsPict;
 
 };
 
 #endif
 
 
+//======================================================
+
+/*
+	facility class to call a function in context with parameters.
+	
+	the function name can actually be any valid JavaScript expression that evaluates to a function object.
+*/
+class XTOOLBOX_API VJSFunction : public XBOX::VObject
+{
+public:
+									VJSFunction( const VString& inFuncName, JS4D::ContextRef inContext):fContext( inContext), fResult( inContext), fFuncName( inFuncName), fExcept( NULL)		{}
+	virtual							~VJSFunction();
+
+			void					AddParam( const VValueSingle* inVal);
+			void					AddParam( const VJSValue& inVal);
+			void					AddParam( const VJSONValue& inVal);
+			void					AddParam( const VString& inVal);
+			void					AddParam( sLONG inVal);
+			void					AddBoolParam( bool inVal);
+			void					AddLong8Param( sLONG8 inVal);
+
+			bool					Call();
+
+			bool					IsNullResult() const			{ return fResult.IsNull() || fResult.IsUndefined();}
+
+			bool					GetResultAsBool() const;
+			sLONG					GetResultAsLong() const;
+			sLONG8					GetResultAsLong8() const;
+			void					GetResultAsString( VString& outResult) const;
+			bool					GetResultAsJSONValue( VJSONValue& outResult) const;
+			const VJSValue&			GetResult() const				{ return fResult; }
+			
+			JS4D::ExceptionRef		GetException() const			{ return fExcept; }
+
+			void					ClearParamsAndResult();
+
+private:
+			std::vector<VJSValue>	fParams;
+			VString					fFuncName;
+			VJSValue				fResult;
+			VJSContext				fContext;
+			JS4D::ExceptionRef		fExcept;
+};
 
 END_TOOLBOX_NAMESPACE
 

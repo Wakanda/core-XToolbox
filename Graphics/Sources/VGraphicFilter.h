@@ -16,8 +16,6 @@
 #ifndef __VGraphicFilter__
 #define __VGraphicFilter__
 
-#include "KernelIPC/VKernelIPC.h"
-#include "Graphics/Sources/VGraphicsTypes.h"
 #include "Graphics/Sources/VGraphicImage.h"
 
 

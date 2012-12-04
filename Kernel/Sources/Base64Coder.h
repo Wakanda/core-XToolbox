@@ -30,7 +30,11 @@ public:
 		Conf_Schema
 	};
 
-	static	bool	Encode( const void *inData, size_t inDataSize, VMemoryBuffer<>& outResult);
+	static const size_t	BASE64_QUADSPERLINE	= 10000;	
+
+	// For SMTP (max 998 bytes per line), set inQuadsPerLine to 249 because 4 * 249 + 2 = 998 (CRLF = 2 bytes).	
+
+	static	bool	Encode( const void *inData, size_t inDataSize, VMemoryBuffer<>& outResult, sLONG inQuadsPerLine = BASE64_QUADSPERLINE);
 
 	static	bool	Decode( const void *inData, size_t inDataSize, VMemoryBuffer<>& outResult, Conformance inConform = Conf_RFC2045 );
 	

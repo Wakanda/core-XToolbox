@@ -36,7 +36,7 @@ static CFRunLoopGetMainProcPtr CFRunLoopGetMain = NULL;
 
 static void _CallBackProc( FSFileOperationRef fileOp, const FSRef *currentItem, FSFileOperationStage stage, OSStatus error, CFDictionaryRef statusDictionary, void *info )
 {
-	if ( stage ==  kFSOperationStageComplete )
+	if ( stage == kFSOperationStageComplete )
 		((VSyncEvent*)info)->Unlock();
 }
 
@@ -67,6 +67,63 @@ VError XMacFolder::Delete() const
 	FSRef fileRef;
 	_BuildFSRefFile(&fileRef);
 	return MAKE_NATIVE_VERROR(::FSDeleteObject(&fileRef));
+}
+
+
+VError XMacFolder::MoveToTrash() const
+{
+	FSRef folderRef;
+	_BuildFSRefFile( &folderRef);
+
+    OptionBits options = kFSFileOperationDefaultOptions;
+    
+    OSStatus status;
+    if (VTask::GetCurrent()->IsMain() )
+    {
+        status = ::FSMoveObjectToTrashSync( &folderRef, NULL, options);
+    }
+    else
+    {
+        VSyncEvent *syncEvent = new VSyncEvent();
+        if (syncEvent)
+        {
+            FSFileOperationClientContext clientContext;
+            clientContext.version = 0;
+            clientContext.info = (void*) syncEvent;
+            clientContext.retain = NULL;
+            clientContext.release = NULL;
+            clientContext.copyDescription = NULL;				
+            
+            FSFileOperationRef fileOp = ::FSFileOperationCreate( kCFAllocatorDefault );
+            if ( testAssert(fileOp != NULL) )
+            {
+                status = ::FSFileOperationScheduleWithRunLoop( fileOp, CFRunLoopGetMain(), kCFRunLoopCommonModes );
+                
+                if (status == noErr)
+                {
+                    status = ::FSMoveObjectToTrashAsync ( fileOp, &folderRef, options, &_CallBackProc, 1.0/60.0, &clientContext );
+                }
+                if (status == noErr)
+                {
+                    syncEvent->Lock();
+                    FSRef dstRef;
+                    ::FSFileOperationCopyStatus( fileOp, &dstRef, NULL, &status, NULL, NULL );
+                }
+                
+                ::CFRelease( fileOp );
+            }
+            else
+            {
+                status = mFulErr;
+            }
+        }
+        else
+        {
+           status = mFulErr;
+        }
+        ReleaseRefCountable( &syncEvent);
+    }
+	return MAKE_NATIVE_VERROR( status);
 }
 
 
@@ -217,12 +274,12 @@ VError XMacFolder::Move( const VFolder& inNewParent, VFolder** outFolder ) const
 							
 							if ( macError == noErr )
 							{
-								macError = ::FSMoveObjectAsync ( fileOp, &srcRef, &dstFolderRef, NULL, options, &_CallBackProc, 1/60, &clientContext );
+								macError = ::FSMoveObjectAsync ( fileOp, &srcRef, &dstFolderRef, NULL, options, &_CallBackProc, 1.0/60.0, &clientContext );
 							}
 							
 							if ( macError == noErr )
 							{
-								syncEvent->Lock();								
+								syncEvent->Lock();
 								::FSFileOperationCopyStatus( fileOp, &dstRef, NULL, &macError, NULL, NULL );
 							}
 							
@@ -362,7 +419,29 @@ VError XMacFolder::GetTimeAttributes( VTime* outLastModification, VTime* outCrea
 
 	return MAKE_NATIVE_VERROR(macError);
 }
+VError XMacFolder::GetVolumeCapacity (sLONG8 *outTotalBytes ) const
+{
+	FSRef fileRef;
+	OSErr macError = dirNFErr;
 
+	if ( _BuildFSRefFile(&fileRef) )
+	{
+		FSCatalogInfo info;
+		macError = ::FSGetCatalogInfo(&fileRef, kFSCatInfoVolume, &info, NULL, NULL, NULL);
+		if (macError == noErr)
+		{
+			FSVolumeInfo volinfo;
+			macError = ::FSGetVolumeInfo(info.volume, 0, NULL, kFSVolInfoSizes, &volinfo, NULL, NULL);
+			if (macError == noErr)
+			{
+				*outTotalBytes = volinfo.totalBytes;
+			}
+		}
+	}
+
+	return MAKE_NATIVE_VERROR(macError);
+
+}
 
 VError XMacFolder::GetVolumeFreeSpace(sLONG8 *outFreeBytes, bool inWithQuotas ) const
 {

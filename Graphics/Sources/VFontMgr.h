@@ -16,9 +16,6 @@
 #ifndef __VFontMgr__
 #define __VFontMgr__
 
-#include "KernelIPC/VKernelIPC.h"
-#include "Graphics/Sources/VGraphicsTypes.h"
-
 // Native declarations
 #if VERSIONWIN
 #include "Graphics/Sources/XWinFontMgr.h"
@@ -48,6 +45,8 @@ private:
 	mutable VCriticalSection	fCriticalSection;
 	VArrayRetainedPtrOf<VFont*>	fFonts;
 	
+	VFont*			fStdFonts[STDF_LAST]; // cache for std font
+
 	XFontMgrImpl	fFontMgr;
 };
 

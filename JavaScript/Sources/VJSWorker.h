@@ -15,7 +15,7 @@
 */
 #ifndef __VJS_WORKER__
 #define __VJS_WORKER__
-
+ 
 #include <list>
 
 #include "VJSContext.h"
@@ -34,15 +34,23 @@ class XTOOLBOX_API IJSWorkerDelegate
 {
 public:
 
-	virtual	VJSGlobalContext*	RetainJSContext (VError& outError, const VJSContext& inParentContext, bool inReusable) = 0;
+	virtual	VJSGlobalContext	*RetainJSContext (VError& outError, const VJSContext& inParentContext, bool inReusable) = 0;
 	virtual	VError				ReleaseJSContext (VJSGlobalContext* inContext) = 0;
 };
 
 // Worker execution.
 
-class XTOOLBOX_API VJSWorker : public XBOX::VObject
+class XTOOLBOX_API VJSWorker : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
+
+	enum {
+
+		TYPE_ROOT,
+		TYPE_DEDICATED,
+		TYPE_SHARED
+
+	};
 
 	// The caller is responsible for the destruction of the delegate
 
@@ -54,7 +62,7 @@ public:
 						
 	// If shared worker with given URL and name exists, return a pointer to it. If not, create it.
 
-	static VJSWorker	*GetSharedWorker (XBOX::VJSContext &inParentContext,
+	static VJSWorker	*RetainSharedWorker (XBOX::VJSContext &inParentContext,
 											const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext, 
 											bool *outCreatedWorker);
 
@@ -93,9 +101,9 @@ public:
 	static void			TerminateAll ();	
 
 	// Retrieve worker from context (then get it from global object). If VJSWorker doesn't exist ("root" javascript execution"), 
-	// create one so it can receive message from other workers. Hence, GetWorker() never return NULL.
+	// create one so it can receive message from other workers. Hence, RetainWorker() never return NULL.
 
-	static VJSWorker	*GetWorker (const XBOX::VJSContext &inContext);
+	static VJSWorker	*RetainWorker (const XBOX::VJSContext &inContext);
 
 	// Queue a message on worker's message queue.
 
@@ -114,11 +122,11 @@ public:
 
 	// Accessors.
 	
-	bool				IsDedicatedWorker ()	{	return fIsDedicatedWorker;		}
+	bool				IsDedicatedWorker ()	{	return fWorkerType == TYPE_DEDICATED;	}
 
-	VJSTimerContext		*GetTimerContext ()		{	return &fTimerContext;			}
+	VJSTimerContext		*GetTimerContext ()		{	return &fTimerContext;					}
 
-	bool				IsInsideWaitFor ()		{	return fInsideWaitCount > 0;	}
+	bool				IsInsideWaitFor ()		{	return fInsideWaitCount > 0;			}
 
 	// Global object's methods.
 
@@ -126,7 +134,7 @@ public:
 	static void			Wait (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject);
 	static void			ExitWait (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject);
 	
-	VJSLocalFileSystem	*GetLocalFileSystem ()	{	return fLocalFileSystem;	}
+	VJSLocalFileSystem	*RetainLocalFileSystem ();
 
 	// Return wait duration for wait() methods. Negative means infinite duration. 
 	// Zero just polling, execute all pending events. Positive, the value to wait 
@@ -134,41 +142,54 @@ public:
 
 	static sLONG		GetWaitDuration (VJSParms_callStaticFunction &ioParms);
 
+	// Return true if the queried shared worker is running.
+
+	static bool			IsSharedWorkerRunning (const XBOX::VString &inURL, const XBOX::VString &inName);
+
+	// Return number of workers running of queried type.
+
+	static sLONG		GetNumberRunning (sLONG inType);
+
 private:
 
-	static const uLONG				kSpecificKey	= ('J' << 24) | ('S' << 16) | ('W' << 8) | 'W'; 
+	static const uLONG						kSpecificKey	= ('J' << 24) | ('S' << 16) | ('W' << 8) | 'W'; 
 	
-	static XBOX::VCriticalSection	sMutex;				
-	static std::list<VJSWorker *>	sDedicatedWorkers;
-	static std::list<VJSWorker *>	sSharedWorkers;
-	static std::list<VJSWorker *>	sRootWorkers;				// Several "root" workers can run simultaneously.
-	static IJSWorkerDelegate		*sDelegate;
+	static XBOX::VCriticalSection			sMutex;
 
-	XBOX::VCriticalSection			fMutex;
-	XBOX::VTask						*fVTask;
+	static std::list<VJSWorker *>			sDedicatedWorkers;
+	static std::list<VJSWorker *>			sSharedWorkers;
+	static std::list<VJSWorker *>			sRootWorkers;				// Several "root" workers can run simultaneously.
 
-	XBOX::VJSGlobalContext			*fGlobalContext;			// "Child" (dedicated or shared) workers only. 
+	static IJSWorkerDelegate				*sDelegate;
 
-	bool							fClosingFlag, fExitWaitFlag;
-	XBOX::VSyncEvent				fSyncEvent;
-	bool							fIsLockedWaiting;			// True if locked waiting on fSyncEvent.
-	std::list<IJSEvent *>			fEventQueue;		
-	std::list<VJSMessagePort *>		fMessagePorts;				// List of all message ports (any type).
-	VJSTimerContext					fTimerContext;				// All timers.
+	XBOX::VCriticalSection					fMutex;	
+	XBOX::VTask								*fVTask;
+
+	XBOX::VJSGlobalContext					*fGlobalContext;			// "Child" (dedicated or shared) workers only. 
+
+	bool									fClosingFlag, fExitWaitFlag;
+	XBOX::VSyncEvent						fSyncEvent;
+	bool									fIsLockedWaiting;			// True if locked waiting on fSyncEvent.
+	std::list<IJSEvent *>					fEventQueue;		
+	std::list< VRefPtr<VJSMessagePort> >	fMessagePorts;				// List of all message ports (any type), they may be "duplicated" elsewhere.
+	VJSTimerContext							fTimerContext;				// All timers.
 	
-	bool							fIsDedicatedWorker;	
-	XBOX::VString					fURL, fName;				// URL and name make an unique couple, which identify each shared worker.
+	sLONG									fWorkerType;				// Root, dedicated, or shared.
+	XBOX::VString							fURL, fName;				// URL and name make an unique couple, which identify each shared worker.
 
-	VJSMessagePort					*fOnMessagePort;			// "onmessage" and postMessage() (dedicated workers only).	
-	VJSMessagePort					*fConnectionPort;			// "onconnect" (shared workers only).
+	VJSMessagePort							*fOnMessagePort;			// "onmessage" and postMessage() (dedicated workers only).	
+	VJSMessagePort							*fConnectionPort;			// "onconnect" (shared workers only).
 
-	std::list<VJSMessagePort *>		fErrorPorts;				// List of error ports.
+	std::list< VRefPtr<VJSMessagePort> >	fErrorPorts;				// List of error ports.
 
-	sLONG							fInsideWaitCount;			// Count recursive wait() calls.
-	XBOX::VTime						fStartTime;	
-	XBOX::VDuration					fTotalIdleDuration;
+	sLONG									fInsideWaitCount;			// Count recursive wait() calls.
+	XBOX::VTime								fStartTime;	
+	XBOX::VDuration							fTotalIdleDuration;
 
-	VJSLocalFileSystem				*fLocalFileSystem;
+	VJSLocalFileSystem						*fLocalFileSystem;
+
+	XBOX::VURL								fURLObject;					// Fullpath URL.
+	XBOX::VString							fScript;					// Loaded script to execute.
 
 	// Create a shared worker.
 
@@ -179,14 +200,19 @@ private:
 					VJSWorker (const XBOX::VJSContext &inContext);
 	virtual			~VJSWorker ();
 
-	void			_AddMessagePort (std::list<VJSMessagePort *> *ioMessagePorts, VJSMessagePort *inMessagePort);
-	void			_RemoveMessagePort (std::list<VJSMessagePort *> *ioMessagePorts, VJSMessagePort *inMessagePort);
+	void			_AddMessagePort (std::list< VRefPtr<VJSMessagePort> > *ioMessagePorts, VJSMessagePort *inMessagePort);
+	void			_RemoveMessagePort (std::list< VRefPtr<VJSMessagePort> > *ioMessagePorts, VJSMessagePort *inMessagePort);
 
 	// Add worker attributes and functions to global object.
 
 	void			_PopulateGlobalObject (XBOX::VJSContext inContext);
+	static void		_SetSpecificDestructor (void *p);
 
-	// Load script, evaluate and execute it, then service events.
+	// Load and check script, return true if successful. 
+
+	bool			_LoadAndCheckScript ();
+
+	// Execute script then service events.
 
 	static sLONG	_RunProc (XBOX::VTask *inVTask);
 	void			_DoRun ();
@@ -194,6 +220,12 @@ private:
 	// Dedicated workers only.
 	
 	static void		_PostMessage (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject);
+
+	// Release all references to this worker. That means discarding all events as some event objects
+	// may hold references. Closing all message ports and terminating all dedicated workers. Mutex 
+	// must have been acquired before calling.
+	
+	void			_ReleaseAllReferences ();
 	
 #if VERSIONDEBUG
 	

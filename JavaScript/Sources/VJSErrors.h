@@ -42,6 +42,16 @@ const XBOX::VError	VE_JVSC_WRONG_PARAMETER					= MAKE_VERROR(kJAVASCRIPT_SIGNATU
 
 const XBOX::VError	VE_JVSC_WRONG_PARAMETER_TYPE_DATACLASS	= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4012);
 
+// Try to create a File or Folder object but the path is not toward a file or folder.
+
+const XBOX::VError	VE_JVSC_NOT_A_FILE						= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4013);
+const XBOX::VError	VE_JVSC_NOT_A_FOLDER					= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4014);
+
+// Web workers and ImportScripts()
+
+const XBOX::VError	VE_JVSC_SYNTAX_ERROR					= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4020);
+const XBOX::VError	VE_JVSC_SCRIPT_NOT_FOUND				= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4021);
+
 // Invalid state error if you try to call a function you are not supposed to call.
 // For example, a TextStream is opened in read mode and you try to write in it. Or you try to read an 
 // already closed TextStream.
@@ -60,6 +70,10 @@ const XBOX::VError	VE_JVSC_UNSUPPORTED_ARGUMENT			= MAKE_VERROR(kJAVASCRIPT_SIGN
 
 const XBOX::VError	VE_JVSC_WRONG_NUMBER_ARGUMENT			= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4053);
 
+// It is forbidden to do this operation.
+
+const XBOX::VError	VE_JVSC_FORBIDDEN						= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4054);
+
 // Buffer errors:
 
 // Buffer failed encoding.
@@ -73,6 +87,20 @@ const XBOX::VError	VE_JVSC_BUFFER_OUT_OF_BOUND				= MAKE_VERROR(kJAVASCRIPT_SIGN
 // Unknown or unsupported encoding type.
 
 const XBOX::VError	VE_JVSC_BUFFER_UNSUPPORTED_ENCODING		= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4102);
+
+// ArrayBuffer errors:
+
+// Undelying ArrayBuffer has been "neutered".
+
+const XBOX::VError	VE_JVSC_ARRAY_BUFFER_IS_NEUTERED		= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4120);
+
+// Out of bound of the TypedArray.
+
+const XBOX::VError	VE_JVSC_TYPED_ARRAY_OUT_OF_BOUND		= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4121);
+
+// Trying to set a TypedArray with an Array or TypedArray too big.
+
+const XBOX::VError	VE_JVSC_TYPED_ARRAY_TOO_SMALL			= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4122);
 
 // Socket errors:
 
@@ -100,6 +128,10 @@ const XBOX::VError	VE_JVSC_FS_EXPECTING_DIR_ENTRY_SYNC		= MAKE_VERROR(kJAVASCRIP
 const XBOX::VError	VE_JVSC_FS_NEW_NAME_IS_EMTPY			= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4303);
 
 //DECLARE_VERROR( kJAVASCRIPT_SIGNATURE, 1, VE_UNKNOWN_ERROR)
+
+// BinaryStream only supports net.SocketSync objects.
+
+const XBOX::VError	VE_JVSC_BINARY_STREAM_SOCKET			= MAKE_VERROR(kJAVASCRIPT_SIGNATURE, 4400);
 
 END_TOOLBOX_NAMESPACE
 

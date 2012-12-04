@@ -27,6 +27,7 @@
 #include "VArray.h"
 #include "VCollator.h"
 #include "VValueBag.h"
+#include "VJSONValue.h"
 #include "Base64Coder.h"
 
 #if VERSIONWIN
@@ -1673,30 +1674,29 @@ uLONG VString::GetHashValue() const
     return result;
 }
 
+
 Real VString::GetReal() const
 {
-	Real result = 0.0;
-	char buffer[255];
-	VSize size = ToBlock(buffer, sizeof(buffer), VTC_StdLib_char, true, false);
+	Real result;
 
-	if (size < sizeof(buffer))
-	{
 #if VERSIONWIN
-		_locale_t englishLocale=_create_locale(LC_NUMERIC,"English");
-		_sscanf_l(buffer, "%lg", englishLocale, &result);
-		_free_locale(englishLocale);
+	static _locale_t sCLocale = _create_locale( LC_NUMERIC, "C");
+	result = _wcstod_l( GetCPointer(), NULL, sCLocale);
 #elif VERSIONMAC
-		locale_t englishLocale=newlocale(LC_NUMERIC_MASK,"English",NULL);
-		sscanf_l(buffer, englishLocale, "%lg", &result);
-		freelocale(englishLocale);
-#else	//sscanf_l ne semble pas dispo sous Linux.
-		 int res=sscanf(buffer, "%lg", &result);
-		 xbox_assert(res==1);
+	static locale_t sCLocale = newlocale( LC_NUMERIC_MASK, NULL, NULL);
+	VStringConvertBuffer buffer( *this, VTC_UTF_8);
+	result = strtod_l( buffer.GetCPointer(), NULL, sCLocale);
+#else
+	static locale_t sCLocale = newlocale( LC_NUMERIC_MASK, "C", NULL);
+	locale_t oldLocale = uselocale( sCLocale);
+	VStringConvertBuffer buffer( *this, VTC_UTF_8);
+	result = strtod( buffer.GetCPointer(), NULL);
+	uselocale( oldLocale);
 #endif
-	}
 
 	return result;
 }
+
 
 sLONG8 VString::GetLong8() const
 {
@@ -2283,7 +2283,7 @@ void VString::FromVUUID(const VUUID& inValue)
 }
 
 
-void VString::FromBlock(const void* inBuffer, VSize inCountBytes, CharSet inSet)
+void VString::FromBlock( const void* inBuffer, VSize inCountBytes, CharSet inSet)
 {
 	if (inSet == VTC_UTF_16)
 	{
@@ -2304,6 +2304,20 @@ void VString::FromBlock(const void* inBuffer, VSize inCountBytes, CharSet inSet)
 		converter->ConvertString( inBuffer, inCountBytes, NULL, *this);
 		converter->Release();
 	}
+}
+
+
+void VString::FromBlockWithOptionalBOM( const void* inBuffer, VSize inCountBytes, CharSet inDefaultSet)
+{
+	size_t bomSize;
+	CharSet charSet;
+	if (!VTextConverters::ParseBOM( inBuffer, inCountBytes, &bomSize, &charSet))
+	{
+		charSet = inDefaultSet;
+		bomSize = 0;
+	}
+	
+	FromBlock( (const char*) inBuffer + bomSize, inCountBytes - bomSize, charSet);
 }
 
 
@@ -2479,7 +2493,7 @@ void VString::ConvertCarriageReturns(ECarriageReturnMode inNewMode)
 			
 	*/
 
-	if (_PrepareWriteKeepContent( fLength))
+	if ( (inNewMode != eCRM_NONE) && _PrepareWriteKeepContent( fLength))
 	{
 		switch(inNewMode)
 		{
@@ -2488,20 +2502,40 @@ void VString::ConvertCarriageReturns(ECarriageReturnMode inNewMode)
 					/*
 						 \r\n -> \r
 						 \n	-> \r
-					*/ 
+					*/
+					UniChar* firstHole = NULL;
+					UniChar* startOfLine = NULL;
+					VSize previousLength = fLength;
 					for(UniChar* ptr = fString ; *ptr ; ++ptr)
 					{
 						if (*ptr == '\r')
 						{
 							if (*(ptr+1) == '\n')
 							{
-								::memmove(ptr+1, ptr+2, sizeof(UniChar) * (fLength - (ptr - fString) - 2));
+								if ( firstHole )
+								{
+									VSize uniCharsToMove = ( ptr  + 1 ) - startOfLine;
+									::memmove( firstHole, startOfLine, sizeof(UniChar) * uniCharsToMove );
+									firstHole += uniCharsToMove;
+								}
+								else
+								{
+									firstHole = ptr + 1;
+								}
+
 								--fLength;
+								startOfLine = ptr + 2;
 							}
 						}
 						else if (*ptr == '\n')
 							*ptr = '\r';
 					}
+	
+					if ( firstHole )
+					{
+						::memmove( firstHole, startOfLine, sizeof(UniChar) * ( ( fString + previousLength ) - startOfLine ) );
+					}
+
 					fString[fLength]=0;
 					break;
 				}
@@ -3523,6 +3557,26 @@ VError VString::GetJSONString(VString& outJSONString, JSONOption inModifier) con
 		outJSONString.Validate(len2);
 	}
 
+	return VE_OK;
+}
+
+
+VError VString::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	if (inJSONValue.IsNull())
+		SetNull( true);
+	else
+		inJSONValue.GetString( *this);
+	return VE_OK;
+}
+
+
+VError VString::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+		outJSONValue.SetString( *this);
 	return VE_OK;
 }
 

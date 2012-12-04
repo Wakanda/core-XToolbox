@@ -60,6 +60,20 @@ void VJSWorkerLocationClass::_Initialize (const XBOX::VJSParms_initialize &inPar
 	object.SetProperty("hash",		inWorkerLocation->fHash,		JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete);
 }
 
+VJSWebWorkerObject::VJSWebWorkerObject (VJSMessagePort *inMessagePort, VJSMessagePort *inErrorPort)
+{
+	xbox_assert(inMessagePort != NULL && inErrorPort != NULL);
+
+	fOnMessagePort = XBOX::RetainRefCountable<VJSMessagePort>(inMessagePort);
+	fOnErrorPort = XBOX::RetainRefCountable<VJSMessagePort>(inErrorPort);
+}
+
+VJSWebWorkerObject::~VJSWebWorkerObject () 
+{
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&fOnMessagePort);
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&fOnErrorPort);
+}
+
 VJSWebWorkerObject *VJSWebWorkerObject::_CreateWorker (XBOX::VJSContext &inParentContext, VJSWorker *inOutsideWorker, 
 														bool inReUseContext, 
 														const XBOX::VString &inUrl, bool inIsDedicated, const XBOX::VString &inName)
@@ -76,38 +90,44 @@ VJSWebWorkerObject *VJSWebWorkerObject::_CreateWorker (XBOX::VJSContext &inParen
 				
 	} else 
 
-		insideWorker = VJSWorker::GetSharedWorker(inParentContext, inUrl, inName, inReUseContext, &needToRun);
+		insideWorker = VJSWorker::RetainSharedWorker(inParentContext, inUrl, inName, inReUseContext, &needToRun);
 
-	if (insideWorker == NULL)
-
-		return NULL;
+	xbox_assert(insideWorker != NULL);
 	
-	VJSWebWorkerObject	*webWorkerObject;
-
-	webWorkerObject = new VJSWebWorkerObject();
-
-	webWorkerObject->fOnMessagePort = VJSMessagePort::Create(inOutsideWorker, insideWorker);
-	webWorkerObject->fOnMessagePort->SetCallbackName(inOutsideWorker, "onmessage");	
-	webWorkerObject->fOnMessagePort->SetCallbackName(insideWorker, "onmessage");
+	VJSMessagePort	*onMessagePort, *onErrorPort;
 	
-	webWorkerObject->fOnErrorPort = VJSMessagePort::Create(inOutsideWorker, insideWorker);
-	webWorkerObject->fOnErrorPort->SetCallbackName(inOutsideWorker, "onerror");	
-	webWorkerObject->fOnErrorPort->SetCallbackName(insideWorker, "onerror");
+	onMessagePort = VJSMessagePort::Create(inOutsideWorker, insideWorker);
+	onMessagePort->SetCallbackName(inOutsideWorker, "onmessage");	
+	onMessagePort->SetCallbackName(insideWorker, "onmessage");
+	
+	onErrorPort = VJSMessagePort::Create(inOutsideWorker, insideWorker);
+	onErrorPort->SetCallbackName(inOutsideWorker, "onerror");	
+	onErrorPort->SetCallbackName(insideWorker, "onerror");
 
-	inOutsideWorker->AddErrorPort(webWorkerObject->fOnErrorPort);
-	insideWorker->AddErrorPort(webWorkerObject->fOnErrorPort);
+	inOutsideWorker->AddErrorPort(onErrorPort);
+	insideWorker->AddErrorPort(onErrorPort);
 
 	if (inIsDedicated)
 
-		insideWorker->SetMessagePorts(webWorkerObject->fOnMessagePort, webWorkerObject->fOnErrorPort);
+		insideWorker->SetMessagePorts(onMessagePort, onErrorPort);
 
 	else
 
-		insideWorker->Connect(webWorkerObject->fOnMessagePort, webWorkerObject->fOnErrorPort);
-	
+		insideWorker->Connect(onMessagePort, onErrorPort);
+
+	xbox_assert(!(inIsDedicated && !needToRun));
 	if (needToRun) 
 
 		insideWorker->Run();
+	
+	XBOX::ReleaseRefCountable<VJSWorker>(&insideWorker);
+
+	VJSWebWorkerObject	*webWorkerObject;
+
+	webWorkerObject = new VJSWebWorkerObject(onMessagePort, onErrorPort);
+
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&onMessagePort);
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&onErrorPort);
 
 	return webWorkerObject;
 }
@@ -126,7 +146,20 @@ void VJSDedicatedWorkerClass::GetDefinition (ClassDefinition &outDefinition)
 	outDefinition.finalize = js_finalize<_Finalize>;	
 }
 
-void VJSDedicatedWorkerClass::Construct (XBOX::VJSParms_construct &ioParms)
+XBOX::VJSObject	VJSDedicatedWorkerClass::MakeConstructor (XBOX::VJSContext inContext)
+{
+	XBOX::VJSObject	constructor(inContext);
+	XBOX::VJSObject	function(inContext);
+
+	constructor.MakeConstructor(Class(), js_constructor<_Construct>);
+
+	function.MakeCallback(XBOX::js_callback<void, _GetNumberRunning>);
+	constructor.SetProperty("getNumberRunning", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+
+	return constructor;
+}
+
+void VJSDedicatedWorkerClass::_Construct (XBOX::VJSParms_callAsConstructor &ioParms)
 {
 	if (!ioParms.CountParams() || !ioParms.IsStringParam(1)) {
 
@@ -144,7 +177,7 @@ void VJSDedicatedWorkerClass::Construct (XBOX::VJSParms_construct &ioParms)
 	XBOX::VJSObject		constructedObject(context);	
 	
 	ioParms.GetStringParam(1, url);
-	outsideWorker = VJSWorker::GetWorker(context);
+	outsideWorker = VJSWorker::RetainWorker(context);
 
 	if (ioParms.CountParams() < 2 || !ioParms.IsBooleanParam(2) || !ioParms.GetBoolParam(2, &reUseContext))
 
@@ -159,8 +192,10 @@ void VJSDedicatedWorkerClass::Construct (XBOX::VJSParms_construct &ioParms)
 	} else 
 
 		constructedObject.SetNull();
-
+	
 	ioParms.ReturnConstructedObject(constructedObject);
+
+	XBOX::ReleaseRefCountable<VJSWorker>(&outsideWorker);
 }
 
 void VJSDedicatedWorkerClass::_Finalize (const XBOX::VJSParms_finalize &inParms, VJSWebWorkerObject *inDedicatedWorker)
@@ -174,10 +209,11 @@ void VJSDedicatedWorkerClass::_terminate (XBOX::VJSParms_callStaticFunction &ioP
 {
 	xbox_assert(inDedicatedWorker != NULL);
 
-	VJSWorker	*outsideWorker	= VJSWorker::GetWorker(ioParms.GetContext());
+	VJSWorker	*outsideWorker	= VJSWorker::RetainWorker(ioParms.GetContext());
 	VJSWorker	*insideWorker	= inDedicatedWorker->fOnMessagePort->GetOther(outsideWorker);
-
+	
 	insideWorker->Terminate();
+	XBOX::ReleaseRefCountable<VJSWorker>(&outsideWorker);
 }
 
 void VJSDedicatedWorkerClass::_postMessage (XBOX::VJSParms_callStaticFunction &ioParms, VJSWebWorkerObject *inDedicatedWorker)
@@ -187,13 +223,35 @@ void VJSDedicatedWorkerClass::_postMessage (XBOX::VJSParms_callStaticFunction &i
 	VJSMessagePort::PostMessageMethod(ioParms, inDedicatedWorker->fOnMessagePort);
 }
 
+void VJSDedicatedWorkerClass::_GetNumberRunning (XBOX::VJSParms_callStaticFunction &ioParms, void *)
+{
+	ioParms.ReturnNumber<sLONG>(VJSWorker::GetNumberRunning(VJSWorker::TYPE_DEDICATED));
+}
+
 void VJSSharedWorkerClass::GetDefinition (ClassDefinition &outDefinition)
 {
 	outDefinition.className	= "SharedWorker";
     outDefinition.finalize = js_finalize<_Finalize>;	
 }
 
-void VJSSharedWorkerClass::Construct (XBOX::VJSParms_construct &ioParms)
+
+XBOX::VJSObject	VJSSharedWorkerClass::MakeConstructor (XBOX::VJSContext inContext)
+{
+	XBOX::VJSObject	constructor(inContext);
+	XBOX::VJSObject	function(inContext);
+
+	constructor.MakeConstructor(Class(), js_constructor<_Construct>);
+
+	function.MakeCallback(XBOX::js_callback<void, _IsRunning>);
+	constructor.SetProperty("isRunning", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+
+	function.MakeCallback(XBOX::js_callback<void, _GetNumberRunning>);
+	constructor.SetProperty("getNumberRunning", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+
+	return constructor;
+}
+
+void VJSSharedWorkerClass::_Construct (XBOX::VJSParms_callAsConstructor &ioParms)
 {
 	if (!ioParms.CountParams()
 	|| !ioParms.IsStringParam(1)
@@ -217,7 +275,7 @@ void VJSSharedWorkerClass::Construct (XBOX::VJSParms_construct &ioParms)
 
 		ioParms.GetStringParam(2, name);
 
-	outsideWorker = VJSWorker::GetWorker(context);
+	outsideWorker = VJSWorker::RetainWorker(context);
 
 	if (ioParms.CountParams() < 3 || !ioParms.IsBooleanParam(3) || !ioParms.GetBoolParam(3, &reUseContext))
 
@@ -240,6 +298,8 @@ void VJSSharedWorkerClass::Construct (XBOX::VJSParms_construct &ioParms)
 		constructedObject.SetNull();
 
 	ioParms.ReturnConstructedObject(constructedObject);
+
+	XBOX::ReleaseRefCountable<VJSWorker>(&outsideWorker);
 }
 
 void VJSSharedWorkerClass::_Finalize (const XBOX::VJSParms_finalize &inParms, VJSWebWorkerObject *inSharedWorker)
@@ -247,4 +307,26 @@ void VJSSharedWorkerClass::_Finalize (const XBOX::VJSParms_finalize &inParms, VJ
 	xbox_assert(inSharedWorker != NULL);
 
 	delete inSharedWorker;
+}
+
+void VJSSharedWorkerClass::_IsRunning (XBOX::VJSParms_callStaticFunction &ioParms, void *)
+{
+	XBOX::VString	url, name;
+
+	if (!ioParms.GetStringParam(1, url)) 
+
+		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
+
+	else if (!ioParms.GetStringParam(2, name)) 
+
+		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
+
+	else 
+
+		ioParms.ReturnBool(VJSWorker::IsSharedWorkerRunning(url, name));
+}
+
+void VJSSharedWorkerClass::_GetNumberRunning (XBOX::VJSParms_callStaticFunction &ioParms, void *)
+{
+	ioParms.ReturnNumber<sLONG>(VJSWorker::GetNumberRunning(VJSWorker::TYPE_SHARED));
 }

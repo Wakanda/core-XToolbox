@@ -20,8 +20,6 @@
 #include "Graphics/Sources/VPolygon.h"	// Needed for Windows
 #include "Graphics/Sources/VAffineTransform.h"	
 
-#include <cmath> 
-
 #if VERSIONWIN
 #include <gdiplus.h> 
 #endif

@@ -78,17 +78,10 @@ public:
 	/** Returns true if the string was correctly formatted and produced a valid value.	**/
 	virtual	bool				FromXMLString( const VString& inString);
 
-	virtual VError				FromJSONString(const VString& inJSONString, JSONOption inModifier = JSON_Default)
-	{
-		FromString(inJSONString);
-		return VE_OK;
-	}
-
-	virtual VError				GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const
-	{
-		GetString(outJSONString);
-		return VE_OK;
-	}
+	// convert to and from json.
+	// warning: doesn't handle null.
+	virtual VError				FromJSONString(const VString& inJSONString, JSONOption inModifier = JSON_Default);
+	virtual VError				GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const;
 
 	// Utilities
 	virtual VValueSingle*		ConvertTo( sLONG inWhatType) const;
@@ -305,6 +298,9 @@ public:
 	virtual void				FromValue( const VValueSingle& inValue);
 	virtual Boolean				FromValueSameKind( const VValue* inValue);
 
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
+
 	virtual void*				LoadFromPtr( const void* inDataPtr, Boolean inRefOnly = false);
 	virtual void*				WriteToPtr( void* inDataPtr, Boolean inRefOnly = false, VSize inMax = 0) const;
 	virtual VSize				GetSpace(VSize inMax = 0) const							{ return sizeof(fValue); };
@@ -374,6 +370,9 @@ public:
 	virtual void				FromDuration( const VDuration& inValue);
 	virtual void				FromString( const VString& inValue);
 	virtual void				FromValue( const VValueSingle& inValue);
+
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
 
 	virtual void*				LoadFromPtr( const void* inDataPtr, Boolean inRefOnly = false);
 	virtual void*				WriteToPtr( void* inDataPtr, Boolean inRefOnly = false, VSize inMax = 0) const;
@@ -448,6 +447,9 @@ public:
 	virtual void				FromString( const VString& inValue);
 	virtual void				FromValue( const VValueSingle& inValue);
 
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
+
 	virtual void*				LoadFromPtr( const void* inDataPtr, Boolean inRefOnly = false);
 	virtual void*				WriteToPtr( void* inDataPtr, Boolean inRefOnly = false, VSize inMax = 0) const;
 	virtual VSize				GetSpace(VSize inMax = 0) const							{ return sizeof(fValue); }
@@ -519,6 +521,9 @@ public:
 	virtual void				FromDuration( const VDuration& inValue);
 	virtual void				FromString( const VString& inValue);
 	virtual void				FromValue( const VValueSingle& inValue);
+
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
 
 	virtual void*				LoadFromPtr(  const void* inDataPtr, Boolean inRefOnly = false);
 	virtual void*				WriteToPtr( void* inDataPtr, Boolean inRefOnly = false, VSize inMax = 0) const;
@@ -592,6 +597,9 @@ public:
 	virtual void				FromDuration( const VDuration& inValue);
 	virtual void				FromString( const VString& inValue);
 	virtual void				FromValue( const VValueSingle& inValue);
+
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
 
 	virtual	void				GetXMLString( VString& outString, XMLStringOptions inOptions) const;
 	virtual	bool				FromXMLString( const VString& inString);
@@ -682,6 +690,9 @@ public:
 
 	virtual	void				GetXMLString( VString& outString, XMLStringOptions inOptions) const;
 	virtual	bool				FromXMLString( const VString& inString);
+
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
 
 	static	void				RealToXMLString( Real inValue, VString& outString);
 

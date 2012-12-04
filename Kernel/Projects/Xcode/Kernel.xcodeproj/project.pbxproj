@@ -16,11 +16,9 @@
 		020C61E206F0C4FF0096EBBD /* VProgressIndicator.h in Headers */ = {isa = PBXBuildFile; fileRef = 020C61E006F0C4FF0096EBBD /* VProgressIndicator.h */; };
 		021AA1D30751FD8A009802A9 /* IRefCountable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021AA1CA0751FD89009802A9 /* IRefCountable.cpp */; };
 		021AA1D40751FD8A009802A9 /* IRefCountable.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CB0751FD89009802A9 /* IRefCountable.h */; };
-		021AA1D50751FD8A009802A9 /* ITreeable.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CC0751FD89009802A9 /* ITreeable.h */; };
 		021AA1D60751FD8A009802A9 /* VKernelExport.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CD0751FD89009802A9 /* VKernelExport.h */; };
 		021AA1D70751FD8A009802A9 /* VSmallCriticalSection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021AA1CE0751FD89009802A9 /* VSmallCriticalSection.cpp */; };
 		021AA1D80751FD8A009802A9 /* VSmallCriticalSection.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CF0751FD89009802A9 /* VSmallCriticalSection.h */; };
-		021AA1D90751FD8A009802A9 /* VTree.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1D00751FD89009802A9 /* VTree.h */; };
 		0235BC0E071EDC6D00BEEE2E /* M_APM_LC.H in Headers */ = {isa = PBXBuildFile; fileRef = 02C91A3A071141FB00C260C6 /* M_APM_LC.H */; };
 		0235BC0F071EDC6D00BEEE2E /* M_APM.H in Headers */ = {isa = PBXBuildFile; fileRef = 02C91A3B071141FB00C260C6 /* M_APM.H */; };
 		0235BC10071EDC6D00BEEE2E /* MAPM_ADD.C in Sources */ = {isa = PBXBuildFile; fileRef = 02C91A3C071141FB00C260C6 /* MAPM_ADD.C */; };
@@ -53,7 +51,6 @@
 		0235BC2B071EDC6D00BEEE2E /* MAPMSTCK.C in Sources */ = {isa = PBXBuildFile; fileRef = 02C91A57071141FB00C260C6 /* MAPMSTCK.C */; };
 		0235BC2C071EDC6D00BEEE2E /* MAPMUTIL.C in Sources */ = {isa = PBXBuildFile; fileRef = 02C91A58071141FB00C260C6 /* MAPMUTIL.C */; };
 		02416A5506F061BD00F0206C /* IStreamable.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A3F06F061BD00F0206C /* IStreamable.h */; };
-		02416A5606F061BD00F0206C /* VComponent.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4006F061BD00F0206C /* VComponent.h */; };
 		02416A5706F061BD00F0206C /* VKernelFlags.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4106F061BD00F0206C /* VKernelFlags.h */; };
 		02416A5806F061BD00F0206C /* VKernelTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4206F061BD00F0206C /* VKernelTypes.h */; };
 		02416A5906F061BD00F0206C /* VValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02416A4306F061BD00F0206C /* VValue.cpp */; };
@@ -155,8 +152,6 @@
 		02BB65A306F9C81F0074C123 /* XMacTextConverter.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB659306F9C81F0074C123 /* XMacTextConverter.h */; };
 		02BB65AB06F9C83E0074C123 /* VIntlMgr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65A906F9C83E0074C123 /* VIntlMgr.cpp */; };
 		02BB65AC06F9C83E0074C123 /* VIntlMgr.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65AA06F9C83E0074C123 /* VIntlMgr.h */; };
-		02BB65BE06F9C8780074C123 /* IPropertyCollector.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65AD06F9C8780074C123 /* IPropertyCollector.cpp */; };
-		02BB65BF06F9C8780074C123 /* IPropertyCollector.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65AE06F9C8780074C123 /* IPropertyCollector.h */; };
 		02BB65C006F9C8780074C123 /* ISortable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65AF06F9C8780074C123 /* ISortable.cpp */; };
 		02BB65C106F9C8780074C123 /* ISortable.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65B006F9C8780074C123 /* ISortable.h */; };
 		02BB65C206F9C8780074C123 /* VArrayValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65B106F9C8780074C123 /* VArrayValue.cpp */; };
@@ -208,6 +203,12 @@
 		42BF199B0CDBA1D30046B0E5 /* VKernelBagKeys.h in Headers */ = {isa = PBXBuildFile; fileRef = 42BF199A0CDBA1D30046B0E5 /* VKernelBagKeys.h */; };
 		42C2827E09DC330D0058B3D5 /* ILocalizer.h in Headers */ = {isa = PBXBuildFile; fileRef = 42C2827D09DC330D0058B3D5 /* ILocalizer.h */; };
 		42C3445C09865462001AC60A /* libM_APMDebug.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0235BC0C071EDC5200BEEE2E /* libM_APMDebug.a */; };
+		42CA98DF1585EE68009486BD /* VJSONValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 42CA98DD1585EE68009486BD /* VJSONValue.h */; };
+		42CA98E01585EE68009486BD /* VJSONValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42CA98DE1585EE68009486BD /* VJSONValue.cpp */; };
+		42CA98E11585EE68009486BD /* VJSONValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 42CA98DD1585EE68009486BD /* VJSONValue.h */; };
+		42CA98E21585EE68009486BD /* VJSONValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42CA98DE1585EE68009486BD /* VJSONValue.cpp */; };
+		42CA98E31585EE68009486BD /* VJSONValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 42CA98DD1585EE68009486BD /* VJSONValue.h */; };
+		42CA98E41585EE68009486BD /* VJSONValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42CA98DE1585EE68009486BD /* VJSONValue.cpp */; };
 		42D45644132F7D1D0001C112 /* VFullURL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 293EEE06132E40F50084E6AA /* VFullURL.cpp */; };
 		42D45645132F7D1D0001C112 /* VFullURL.h in Headers */ = {isa = PBXBuildFile; fileRef = 293EEE07132E40F50084E6AA /* VFullURL.h */; };
 		42D45646132F7D1E0001C112 /* VFullURL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 293EEE06132E40F50084E6AA /* VFullURL.cpp */; };
@@ -222,6 +223,18 @@
 		42EED7CA149BD1B300EBE595 /* VMacStackCrawl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB653906F9C74A0074C123 /* VMacStackCrawl.cpp */; };
 		42EED7CB149BD1BA00EBE595 /* VMacStackCrawl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB653906F9C74A0074C123 /* VMacStackCrawl.cpp */; };
 		42EED7CC149BD1BD00EBE595 /* VMacStackCrawl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB653906F9C74A0074C123 /* VMacStackCrawl.cpp */; };
+		42F95D1515FF9768004C5D60 /* VLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42F95D0D15FF9768004C5D60 /* VLibrary.cpp */; };
+		42F95D1615FF9768004C5D60 /* VLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F95D0E15FF9768004C5D60 /* VLibrary.h */; };
+		42F95D1915FF9768004C5D60 /* XMacLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42F95D1115FF9768004C5D60 /* XMacLibrary.cpp */; };
+		42F95D1A15FF9768004C5D60 /* XMacLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F95D1215FF9768004C5D60 /* XMacLibrary.h */; };
+		42F95D1D15FF9768004C5D60 /* VLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42F95D0D15FF9768004C5D60 /* VLibrary.cpp */; };
+		42F95D1E15FF9768004C5D60 /* VLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F95D0E15FF9768004C5D60 /* VLibrary.h */; };
+		42F95D2115FF9768004C5D60 /* XMacLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42F95D1115FF9768004C5D60 /* XMacLibrary.cpp */; };
+		42F95D2215FF9768004C5D60 /* XMacLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F95D1215FF9768004C5D60 /* XMacLibrary.h */; };
+		42F95D2515FF9768004C5D60 /* VLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42F95D0D15FF9768004C5D60 /* VLibrary.cpp */; };
+		42F95D2615FF9768004C5D60 /* VLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F95D0E15FF9768004C5D60 /* VLibrary.h */; };
+		42F95D2915FF9768004C5D60 /* XMacLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42F95D1115FF9768004C5D60 /* XMacLibrary.cpp */; };
+		42F95D2A15FF9768004C5D60 /* XMacLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F95D1215FF9768004C5D60 /* XMacLibrary.h */; };
 		42FA37AD14F3956300FF3354 /* VMessageCall.h in Headers */ = {isa = PBXBuildFile; fileRef = 42FA37AC14F3956300FF3354 /* VMessageCall.h */; };
 		42FA37AE14F3956300FF3354 /* VMessageCall.h in Headers */ = {isa = PBXBuildFile; fileRef = 42FA37AC14F3956300FF3354 /* VMessageCall.h */; };
 		42FA37AF14F3956300FF3354 /* VMessageCall.h in Headers */ = {isa = PBXBuildFile; fileRef = 42FA37AC14F3956300FF3354 /* VMessageCall.h */; };
@@ -264,7 +277,6 @@
 		C9BBA90309BC8C1300F3DCFC /* Kernel_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32BAE0B70371A74B00C91783 /* Kernel_Prefix.pch */; };
 		C9BBA90409BC8C1300F3DCFC /* VKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = 02539E4206EEFC430039845E /* VKernel.h */; };
 		C9BBA90509BC8C1300F3DCFC /* IStreamable.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A3F06F061BD00F0206C /* IStreamable.h */; };
-		C9BBA90609BC8C1300F3DCFC /* VComponent.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4006F061BD00F0206C /* VComponent.h */; };
 		C9BBA90709BC8C1300F3DCFC /* VKernelFlags.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4106F061BD00F0206C /* VKernelFlags.h */; };
 		C9BBA90809BC8C1300F3DCFC /* VKernelTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4206F061BD00F0206C /* VKernelTypes.h */; };
 		C9BBA90909BC8C1300F3DCFC /* VValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4406F061BD00F0206C /* VValue.h */; };
@@ -321,7 +333,6 @@
 		C9BBA93D09BC8C1300F3DCFC /* XMacIntlMgr.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB659106F9C81F0074C123 /* XMacIntlMgr.h */; };
 		C9BBA93E09BC8C1300F3DCFC /* XMacTextConverter.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB659306F9C81F0074C123 /* XMacTextConverter.h */; };
 		C9BBA93F09BC8C1300F3DCFC /* VIntlMgr.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65AA06F9C83E0074C123 /* VIntlMgr.h */; };
-		C9BBA94009BC8C1300F3DCFC /* IPropertyCollector.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65AE06F9C8780074C123 /* IPropertyCollector.h */; };
 		C9BBA94109BC8C1300F3DCFC /* ISortable.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65B006F9C8780074C123 /* ISortable.h */; };
 		C9BBA94209BC8C1300F3DCFC /* VBlob.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65B306F9C8780074C123 /* VBlob.h */; };
 		C9BBA94309BC8C1300F3DCFC /* VChain.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65B406F9C8780074C123 /* VChain.h */; };
@@ -337,10 +348,8 @@
 		C9BBA94D09BC8C1300F3DCFC /* VArrayValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 0262848506F9CA7F00EC43F9 /* VArrayValue.h */; };
 		C9BBA94E09BC8C1300F3DCFC /* VValueBag.h in Headers */ = {isa = PBXBuildFile; fileRef = 0262848706F9CA8C00EC43F9 /* VValueBag.h */; };
 		C9BBA95009BC8C1300F3DCFC /* IRefCountable.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CB0751FD89009802A9 /* IRefCountable.h */; };
-		C9BBA95109BC8C1300F3DCFC /* ITreeable.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CC0751FD89009802A9 /* ITreeable.h */; };
 		C9BBA95209BC8C1300F3DCFC /* VKernelExport.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CD0751FD89009802A9 /* VKernelExport.h */; };
 		C9BBA95309BC8C1300F3DCFC /* VSmallCriticalSection.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CF0751FD89009802A9 /* VSmallCriticalSection.h */; };
-		C9BBA95409BC8C1300F3DCFC /* VTree.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1D00751FD89009802A9 /* VTree.h */; };
 		C9BBA95509BC8C1300F3DCFC /* XMacFiber.h in Headers */ = {isa = PBXBuildFile; fileRef = 02C6C70D089517950073A0A0 /* XMacFiber.h */; };
 		C9BBA95609BC8C1300F3DCFC /* VInterlocked.h in Headers */ = {isa = PBXBuildFile; fileRef = 02C6C70F089517950073A0A0 /* VInterlocked.h */; };
 		C9BBA95709BC8C1300F3DCFC /* VPackedDictionary.h in Headers */ = {isa = PBXBuildFile; fileRef = 02B09E9C0896824C002CE1DF /* VPackedDictionary.h */; };
@@ -386,7 +395,6 @@
 		C9BBA98209BC8C6700F3DCFC /* XMacIntlMgr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB659006F9C81F0074C123 /* XMacIntlMgr.cpp */; };
 		C9BBA98309BC8C6700F3DCFC /* XMacTextConverter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB659206F9C81F0074C123 /* XMacTextConverter.cpp */; };
 		C9BBA98409BC8C6700F3DCFC /* VIntlMgr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65A906F9C83E0074C123 /* VIntlMgr.cpp */; };
-		C9BBA98509BC8C6700F3DCFC /* IPropertyCollector.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65AD06F9C8780074C123 /* IPropertyCollector.cpp */; };
 		C9BBA98609BC8C6700F3DCFC /* ISortable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65AF06F9C8780074C123 /* ISortable.cpp */; };
 		C9BBA98709BC8C6700F3DCFC /* VArrayValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65B106F9C8780074C123 /* VArrayValue.cpp */; };
 		C9BBA98809BC8C6700F3DCFC /* VBlob.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65B206F9C8780074C123 /* VBlob.cpp */; };
@@ -422,7 +430,6 @@
 		F4643091113E7A3E00639653 /* Kernel_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32BAE0B70371A74B00C91783 /* Kernel_Prefix.pch */; };
 		F4643092113E7A3E00639653 /* VKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = 02539E4206EEFC430039845E /* VKernel.h */; };
 		F4643093113E7A3E00639653 /* IStreamable.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A3F06F061BD00F0206C /* IStreamable.h */; };
-		F4643094113E7A3E00639653 /* VComponent.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4006F061BD00F0206C /* VComponent.h */; };
 		F4643095113E7A3E00639653 /* VKernelFlags.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4106F061BD00F0206C /* VKernelFlags.h */; };
 		F4643096113E7A3E00639653 /* VKernelTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4206F061BD00F0206C /* VKernelTypes.h */; };
 		F4643097113E7A3E00639653 /* VValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 02416A4406F061BD00F0206C /* VValue.h */; };
@@ -479,7 +486,6 @@
 		F46430CB113E7A3E00639653 /* XMacIntlMgr.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB659106F9C81F0074C123 /* XMacIntlMgr.h */; };
 		F46430CC113E7A3E00639653 /* XMacTextConverter.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB659306F9C81F0074C123 /* XMacTextConverter.h */; };
 		F46430CD113E7A3E00639653 /* VIntlMgr.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65AA06F9C83E0074C123 /* VIntlMgr.h */; };
-		F46430CE113E7A3E00639653 /* IPropertyCollector.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65AE06F9C8780074C123 /* IPropertyCollector.h */; };
 		F46430CF113E7A3E00639653 /* ISortable.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65B006F9C8780074C123 /* ISortable.h */; };
 		F46430D0113E7A3E00639653 /* VBlob.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65B306F9C8780074C123 /* VBlob.h */; };
 		F46430D1113E7A3E00639653 /* VChain.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65B406F9C8780074C123 /* VChain.h */; };
@@ -495,10 +501,8 @@
 		F46430DB113E7A3E00639653 /* VArrayValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 0262848506F9CA7F00EC43F9 /* VArrayValue.h */; };
 		F46430DC113E7A3E00639653 /* VValueBag.h in Headers */ = {isa = PBXBuildFile; fileRef = 0262848706F9CA8C00EC43F9 /* VValueBag.h */; };
 		F46430DE113E7A3E00639653 /* IRefCountable.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CB0751FD89009802A9 /* IRefCountable.h */; };
-		F46430DF113E7A3E00639653 /* ITreeable.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CC0751FD89009802A9 /* ITreeable.h */; };
 		F46430E0113E7A3E00639653 /* VKernelExport.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CD0751FD89009802A9 /* VKernelExport.h */; };
 		F46430E1113E7A3E00639653 /* VSmallCriticalSection.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1CF0751FD89009802A9 /* VSmallCriticalSection.h */; };
-		F46430E2113E7A3E00639653 /* VTree.h in Headers */ = {isa = PBXBuildFile; fileRef = 021AA1D00751FD89009802A9 /* VTree.h */; };
 		F46430E3113E7A3E00639653 /* XMacFiber.h in Headers */ = {isa = PBXBuildFile; fileRef = 02C6C70D089517950073A0A0 /* XMacFiber.h */; };
 		F46430E4113E7A3E00639653 /* VInterlocked.h in Headers */ = {isa = PBXBuildFile; fileRef = 02C6C70F089517950073A0A0 /* VInterlocked.h */; };
 		F46430E5113E7A3E00639653 /* VPackedDictionary.h in Headers */ = {isa = PBXBuildFile; fileRef = 02B09E9C0896824C002CE1DF /* VPackedDictionary.h */; };
@@ -566,7 +570,6 @@
 		F4643125113E7A3E00639653 /* XMacIntlMgr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB659006F9C81F0074C123 /* XMacIntlMgr.cpp */; };
 		F4643126113E7A3E00639653 /* XMacTextConverter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB659206F9C81F0074C123 /* XMacTextConverter.cpp */; };
 		F4643127113E7A3E00639653 /* VIntlMgr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65A906F9C83E0074C123 /* VIntlMgr.cpp */; };
-		F4643128113E7A3E00639653 /* IPropertyCollector.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65AD06F9C8780074C123 /* IPropertyCollector.cpp */; };
 		F4643129113E7A3E00639653 /* ISortable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65AF06F9C8780074C123 /* ISortable.cpp */; };
 		F464312A113E7A3E00639653 /* VArrayValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65B106F9C8780074C123 /* VArrayValue.cpp */; };
 		F464312B113E7A3E00639653 /* VBlob.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 02BB65B206F9C8780074C123 /* VBlob.cpp */; };
@@ -706,14 +709,11 @@
 		020C61E006F0C4FF0096EBBD /* VProgressIndicator.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VProgressIndicator.h; sourceTree = "<group>"; };
 		021AA1CA0751FD89009802A9 /* IRefCountable.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = IRefCountable.cpp; sourceTree = "<group>"; };
 		021AA1CB0751FD89009802A9 /* IRefCountable.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = IRefCountable.h; sourceTree = "<group>"; };
-		021AA1CC0751FD89009802A9 /* ITreeable.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = ITreeable.h; sourceTree = "<group>"; };
 		021AA1CD0751FD89009802A9 /* VKernelExport.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VKernelExport.h; sourceTree = "<group>"; };
 		021AA1CE0751FD89009802A9 /* VSmallCriticalSection.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VSmallCriticalSection.cpp; sourceTree = "<group>"; };
 		021AA1CF0751FD89009802A9 /* VSmallCriticalSection.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VSmallCriticalSection.h; sourceTree = "<group>"; };
-		021AA1D00751FD89009802A9 /* VTree.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VTree.h; sourceTree = "<group>"; };
 		0235BC0C071EDC5200BEEE2E /* libM_APMDebug.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libM_APMDebug.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		02416A3F06F061BD00F0206C /* IStreamable.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = IStreamable.h; sourceTree = "<group>"; };
-		02416A4006F061BD00F0206C /* VComponent.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VComponent.h; sourceTree = "<group>"; };
 		02416A4106F061BD00F0206C /* VKernelFlags.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VKernelFlags.h; sourceTree = "<group>"; };
 		02416A4206F061BD00F0206C /* VKernelTypes.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VKernelTypes.h; sourceTree = "<group>"; };
 		02416A4306F061BD00F0206C /* VValue.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VValue.cpp; sourceTree = "<group>"; };
@@ -839,8 +839,6 @@
 		02BB659806F9C81F0074C123 /* XWinTextConverter.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = XWinTextConverter.h; sourceTree = "<group>"; };
 		02BB65A906F9C83E0074C123 /* VIntlMgr.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VIntlMgr.cpp; sourceTree = "<group>"; };
 		02BB65AA06F9C83E0074C123 /* VIntlMgr.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VIntlMgr.h; sourceTree = "<group>"; };
-		02BB65AD06F9C8780074C123 /* IPropertyCollector.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = IPropertyCollector.cpp; sourceTree = "<group>"; };
-		02BB65AE06F9C8780074C123 /* IPropertyCollector.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = IPropertyCollector.h; sourceTree = "<group>"; };
 		02BB65AF06F9C8780074C123 /* ISortable.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = ISortable.cpp; sourceTree = "<group>"; };
 		02BB65B006F9C8780074C123 /* ISortable.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = ISortable.h; sourceTree = "<group>"; };
 		02BB65B106F9C8780074C123 /* VArrayValue.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VArrayValue.cpp; sourceTree = "<group>"; };
@@ -918,6 +916,8 @@
 		42BF199A0CDBA1D30046B0E5 /* VKernelBagKeys.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VKernelBagKeys.h; sourceTree = "<group>"; };
 		42C27FF009DBE1290058B3D5 /* XWinFolder.cpp */ = {isa = PBXFileReference; fileEncoding = 30; includeInIndex = 0; lastKnownFileType = sourcecode.cpp.cpp; path = XWinFolder.cpp; sourceTree = "<group>"; };
 		42C2827D09DC330D0058B3D5 /* ILocalizer.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = ILocalizer.h; sourceTree = "<group>"; };
+		42CA98DD1585EE68009486BD /* VJSONValue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VJSONValue.h; sourceTree = "<group>"; };
+		42CA98DE1585EE68009486BD /* VJSONValue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VJSONValue.cpp; sourceTree = "<group>"; };
 		42DAED9C0B4283FE00780E2C /* VBitField.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VBitField.h; sourceTree = "<group>"; };
 		42DC4F1B1497C35B00604EA7 /* ILogger.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ILogger.h; sourceTree = "<group>"; };
 		42DC4F201497C45B00604EA7 /* ILogger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ILogger.cpp; sourceTree = "<group>"; };
@@ -925,6 +925,14 @@
 		42DEB4320C104E5C0055C7A4 /* VRegexMatcher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VRegexMatcher.h; sourceTree = "<group>"; };
 		42E93DBB0A0131D8004D4F79 /* VArchiveStream.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VArchiveStream.cpp; sourceTree = "<group>"; };
 		42E93DBC0A0131D8004D4F79 /* VArchiveStream.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VArchiveStream.h; sourceTree = "<group>"; };
+		42F95D0D15FF9768004C5D60 /* VLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VLibrary.cpp; sourceTree = "<group>"; };
+		42F95D0E15FF9768004C5D60 /* VLibrary.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VLibrary.h; sourceTree = "<group>"; };
+		42F95D0F15FF9768004C5D60 /* XLinuxLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XLinuxLibrary.cpp; sourceTree = "<group>"; };
+		42F95D1015FF9768004C5D60 /* XLinuxLibrary.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XLinuxLibrary.h; sourceTree = "<group>"; };
+		42F95D1115FF9768004C5D60 /* XMacLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XMacLibrary.cpp; sourceTree = "<group>"; };
+		42F95D1215FF9768004C5D60 /* XMacLibrary.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XMacLibrary.h; sourceTree = "<group>"; };
+		42F95D1315FF9768004C5D60 /* XWinLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XWinLibrary.cpp; sourceTree = "<group>"; };
+		42F95D1415FF9768004C5D60 /* XWinLibrary.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XWinLibrary.h; sourceTree = "<group>"; };
 		42FA37AC14F3956300FF3354 /* VMessageCall.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VMessageCall.h; sourceTree = "<group>"; };
 		45C8829F0B1464F700B3B019 /* VScrapKind.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VScrapKind.h; sourceTree = "<group>"; };
 		6D1B4BE70F3F9AAD0014B3AB /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
@@ -1065,16 +1073,12 @@
 				F975EAF41153E35F00C42AEE /* Mac */,
 				F975EAF31153E35100C42AEE /* Win */,
 				3900294308C4B3A200E9BE52 /* VPackedDictionary.cpp */,
-				02BB65AD06F9C8780074C123 /* IPropertyCollector.cpp */,
-				02BB65AE06F9C8780074C123 /* IPropertyCollector.h */,
 				02BB65AF06F9C8780074C123 /* ISortable.cpp */,
 				02BB65B006F9C8780074C123 /* ISortable.h */,
-				021AA1CC0751FD89009802A9 /* ITreeable.h */,
 				0262848106F9CA6A00EC43F9 /* VArray.h */,
 				02BB65B406F9C8780074C123 /* VChain.h */,
 				02BB65B706F9C8780074C123 /* VIterator.h */,
 				0262848306F9CA7500EC43F9 /* VList.h */,
-				021AA1D00751FD89009802A9 /* VTree.h */,
 				02416A4306F061BD00F0206C /* VValue.cpp */,
 				02416A4406F061BD00F0206C /* VValue.h */,
 				02BB65B106F9C8780074C123 /* VArrayValue.cpp */,
@@ -1257,6 +1261,7 @@
 				F975E9CC1153DFDD00C42AEE /* Linux */,
 				F975E9CE1153E00200C42AEE /* Mac */,
 				F975E9CF1153E02300C42AEE /* Win */,
+				42F95D0C15FF9729004C5D60 /* Library */,
 				42BC7DC30ADC1A170028F0A0 /* MAPM */,
 				42E3812F09D45E10005BE078 /* Errors */,
 				02416A7306F0620B00F0206C /* Files & Streams */,
@@ -1281,11 +1286,12 @@
 				02BB64E806F9C6140074C123 /* VByteSwap.h */,
 				B55A1B3D0C057C65008BE727 /* VChecksumMD5.h */,
 				B55A1B3A0C057C2E008BE727 /* VChecksumMD5.cpp */,
-				02416A4006F061BD00F0206C /* VComponent.h */,
 				02C6C710089517950073A0A0 /* VInterlocked.cpp */,
 				02C6C70F089517950073A0A0 /* VInterlocked.h */,
 				153AC9F50EF1240E00DBFB6B /* VJSONTools.h */,
 				153AC9F60EF1240E00DBFB6B /* VJSONTools.cpp */,
+				42CA98DD1585EE68009486BD /* VJSONValue.h */,
+				42CA98DE1585EE68009486BD /* VJSONValue.cpp */,
 				42BF199A0CDBA1D30046B0E5 /* VKernelBagKeys.h */,
 				02416A4506F061BD00F0206C /* VObject.cpp */,
 				02416A4606F061BD00F0206C /* VObject.h */,
@@ -1372,6 +1378,21 @@
 				02BB64EC06F9C6140074C123 /* VProfiler.h */,
 			);
 			name = Profiler;
+			sourceTree = "<group>";
+		};
+		42F95D0C15FF9729004C5D60 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				42F95D0D15FF9768004C5D60 /* VLibrary.cpp */,
+				42F95D0E15FF9768004C5D60 /* VLibrary.h */,
+				42F95D0F15FF9768004C5D60 /* XLinuxLibrary.cpp */,
+				42F95D1015FF9768004C5D60 /* XLinuxLibrary.h */,
+				42F95D1115FF9768004C5D60 /* XMacLibrary.cpp */,
+				42F95D1215FF9768004C5D60 /* XMacLibrary.h */,
+				42F95D1315FF9768004C5D60 /* XWinLibrary.cpp */,
+				42F95D1415FF9768004C5D60 /* XWinLibrary.h */,
+			);
+			name = Library;
 			sourceTree = "<group>";
 		};
 		D207EA400B7CAD3E00C1FA30 /* Dependencies */ = {
@@ -1673,7 +1694,6 @@
 				8D07F2BE0486CC7A007CD1D0 /* Kernel_Prefix.pch in Headers */,
 				02539E4306EEFC430039845E /* VKernel.h in Headers */,
 				02416A5506F061BD00F0206C /* IStreamable.h in Headers */,
-				02416A5606F061BD00F0206C /* VComponent.h in Headers */,
 				02416A5706F061BD00F0206C /* VKernelFlags.h in Headers */,
 				02416A5806F061BD00F0206C /* VKernelTypes.h in Headers */,
 				02416A5A06F061BD00F0206C /* VValue.h in Headers */,
@@ -1730,7 +1750,6 @@
 				02BB65A106F9C81F0074C123 /* XMacIntlMgr.h in Headers */,
 				02BB65A306F9C81F0074C123 /* XMacTextConverter.h in Headers */,
 				02BB65AC06F9C83E0074C123 /* VIntlMgr.h in Headers */,
-				02BB65BF06F9C8780074C123 /* IPropertyCollector.h in Headers */,
 				02BB65C106F9C8780074C123 /* ISortable.h in Headers */,
 				02BB65C406F9C8780074C123 /* VBlob.h in Headers */,
 				02BB65C506F9C8780074C123 /* VChain.h in Headers */,
@@ -1746,10 +1765,8 @@
 				0262848606F9CA7F00EC43F9 /* VArrayValue.h in Headers */,
 				0262848806F9CA8C00EC43F9 /* VValueBag.h in Headers */,
 				021AA1D40751FD8A009802A9 /* IRefCountable.h in Headers */,
-				021AA1D50751FD8A009802A9 /* ITreeable.h in Headers */,
 				021AA1D60751FD8A009802A9 /* VKernelExport.h in Headers */,
 				021AA1D80751FD8A009802A9 /* VSmallCriticalSection.h in Headers */,
-				021AA1D90751FD8A009802A9 /* VTree.h in Headers */,
 				02C6C716089517950073A0A0 /* XMacFiber.h in Headers */,
 				02C6C718089517950073A0A0 /* VInterlocked.h in Headers */,
 				02B09E9D0896824D002CE1DF /* VPackedDictionary.h in Headers */,
@@ -1778,6 +1795,9 @@
 				42D45647132F7D1E0001C112 /* VFullURL.h in Headers */,
 				42DC4F1C1497C35B00604EA7 /* ILogger.h in Headers */,
 				42FA37AD14F3956300FF3354 /* VMessageCall.h in Headers */,
+				42CA98E11585EE68009486BD /* VJSONValue.h in Headers */,
+				42F95D1E15FF9768004C5D60 /* VLibrary.h in Headers */,
+				42F95D2215FF9768004C5D60 /* XMacLibrary.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1788,7 +1808,6 @@
 				C9BBA90309BC8C1300F3DCFC /* Kernel_Prefix.pch in Headers */,
 				C9BBA90409BC8C1300F3DCFC /* VKernel.h in Headers */,
 				C9BBA90509BC8C1300F3DCFC /* IStreamable.h in Headers */,
-				C9BBA90609BC8C1300F3DCFC /* VComponent.h in Headers */,
 				C9BBA90709BC8C1300F3DCFC /* VKernelFlags.h in Headers */,
 				C9BBA90809BC8C1300F3DCFC /* VKernelTypes.h in Headers */,
 				C9BBA90909BC8C1300F3DCFC /* VValue.h in Headers */,
@@ -1845,7 +1864,6 @@
 				C9BBA93D09BC8C1300F3DCFC /* XMacIntlMgr.h in Headers */,
 				C9BBA93E09BC8C1300F3DCFC /* XMacTextConverter.h in Headers */,
 				C9BBA93F09BC8C1300F3DCFC /* VIntlMgr.h in Headers */,
-				C9BBA94009BC8C1300F3DCFC /* IPropertyCollector.h in Headers */,
 				C9BBA94109BC8C1300F3DCFC /* ISortable.h in Headers */,
 				C9BBA94209BC8C1300F3DCFC /* VBlob.h in Headers */,
 				C9BBA94309BC8C1300F3DCFC /* VChain.h in Headers */,
@@ -1861,10 +1879,8 @@
 				C9BBA94D09BC8C1300F3DCFC /* VArrayValue.h in Headers */,
 				C9BBA94E09BC8C1300F3DCFC /* VValueBag.h in Headers */,
 				C9BBA95009BC8C1300F3DCFC /* IRefCountable.h in Headers */,
-				C9BBA95109BC8C1300F3DCFC /* ITreeable.h in Headers */,
 				C9BBA95209BC8C1300F3DCFC /* VKernelExport.h in Headers */,
 				C9BBA95309BC8C1300F3DCFC /* VSmallCriticalSection.h in Headers */,
-				C9BBA95409BC8C1300F3DCFC /* VTree.h in Headers */,
 				C9BBA95509BC8C1300F3DCFC /* XMacFiber.h in Headers */,
 				C9BBA95609BC8C1300F3DCFC /* VInterlocked.h in Headers */,
 				C9BBA95709BC8C1300F3DCFC /* VPackedDictionary.h in Headers */,
@@ -1891,6 +1907,9 @@
 				F13538CE11185AD200B7228A /* VTextStyle.h in Headers */,
 				42D45645132F7D1D0001C112 /* VFullURL.h in Headers */,
 				42FA37AE14F3956300FF3354 /* VMessageCall.h in Headers */,
+				42CA98E31585EE68009486BD /* VJSONValue.h in Headers */,
+				42F95D2615FF9768004C5D60 /* VLibrary.h in Headers */,
+				42F95D2A15FF9768004C5D60 /* XMacLibrary.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1901,7 +1920,6 @@
 				F4643091113E7A3E00639653 /* Kernel_Prefix.pch in Headers */,
 				F4643092113E7A3E00639653 /* VKernel.h in Headers */,
 				F4643093113E7A3E00639653 /* IStreamable.h in Headers */,
-				F4643094113E7A3E00639653 /* VComponent.h in Headers */,
 				F4643095113E7A3E00639653 /* VKernelFlags.h in Headers */,
 				F4643096113E7A3E00639653 /* VKernelTypes.h in Headers */,
 				F4643097113E7A3E00639653 /* VValue.h in Headers */,
@@ -1958,7 +1976,6 @@
 				F46430CB113E7A3E00639653 /* XMacIntlMgr.h in Headers */,
 				F46430CC113E7A3E00639653 /* XMacTextConverter.h in Headers */,
 				F46430CD113E7A3E00639653 /* VIntlMgr.h in Headers */,
-				F46430CE113E7A3E00639653 /* IPropertyCollector.h in Headers */,
 				F46430CF113E7A3E00639653 /* ISortable.h in Headers */,
 				F46430D0113E7A3E00639653 /* VBlob.h in Headers */,
 				F46430D1113E7A3E00639653 /* VChain.h in Headers */,
@@ -1974,10 +1991,8 @@
 				F46430DB113E7A3E00639653 /* VArrayValue.h in Headers */,
 				F46430DC113E7A3E00639653 /* VValueBag.h in Headers */,
 				F46430DE113E7A3E00639653 /* IRefCountable.h in Headers */,
-				F46430DF113E7A3E00639653 /* ITreeable.h in Headers */,
 				F46430E0113E7A3E00639653 /* VKernelExport.h in Headers */,
 				F46430E1113E7A3E00639653 /* VSmallCriticalSection.h in Headers */,
-				F46430E2113E7A3E00639653 /* VTree.h in Headers */,
 				F46430E3113E7A3E00639653 /* XMacFiber.h in Headers */,
 				F46430E4113E7A3E00639653 /* VInterlocked.h in Headers */,
 				F46430E5113E7A3E00639653 /* VPackedDictionary.h in Headers */,
@@ -2005,6 +2020,9 @@
 				F46430FB113E7A3E00639653 /* VTextStyle.h in Headers */,
 				293EEE09132E40F50084E6AA /* VFullURL.h in Headers */,
 				42FA37AF14F3956300FF3354 /* VMessageCall.h in Headers */,
+				42CA98DF1585EE68009486BD /* VJSONValue.h in Headers */,
+				42F95D1615FF9768004C5D60 /* VLibrary.h in Headers */,
+				42F95D1A15FF9768004C5D60 /* XMacLibrary.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2295,7 +2313,6 @@
 				02BB65A006F9C81F0074C123 /* XMacIntlMgr.cpp in Sources */,
 				02BB65A206F9C81F0074C123 /* XMacTextConverter.cpp in Sources */,
 				02BB65AB06F9C83E0074C123 /* VIntlMgr.cpp in Sources */,
-				02BB65BE06F9C8780074C123 /* IPropertyCollector.cpp in Sources */,
 				02BB65C006F9C8780074C123 /* ISortable.cpp in Sources */,
 				02BB65C206F9C8780074C123 /* VArrayValue.cpp in Sources */,
 				02BB65C306F9C8780074C123 /* VBlob.cpp in Sources */,
@@ -2334,6 +2351,9 @@
 				42D45646132F7D1E0001C112 /* VFullURL.cpp in Sources */,
 				42DC4F211497C45B00604EA7 /* ILogger.cpp in Sources */,
 				42EED7CA149BD1B300EBE595 /* VMacStackCrawl.cpp in Sources */,
+				42CA98E21585EE68009486BD /* VJSONValue.cpp in Sources */,
+				42F95D1D15FF9768004C5D60 /* VLibrary.cpp in Sources */,
+				42F95D2115FF9768004C5D60 /* XMacLibrary.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2382,7 +2402,6 @@
 				C9BBA98209BC8C6700F3DCFC /* XMacIntlMgr.cpp in Sources */,
 				C9BBA98309BC8C6700F3DCFC /* XMacTextConverter.cpp in Sources */,
 				C9BBA98409BC8C6700F3DCFC /* VIntlMgr.cpp in Sources */,
-				C9BBA98509BC8C6700F3DCFC /* IPropertyCollector.cpp in Sources */,
 				C9BBA98609BC8C6700F3DCFC /* ISortable.cpp in Sources */,
 				C9BBA98709BC8C6700F3DCFC /* VArrayValue.cpp in Sources */,
 				C9BBA98809BC8C6700F3DCFC /* VBlob.cpp in Sources */,
@@ -2420,6 +2439,9 @@
 				42D45644132F7D1D0001C112 /* VFullURL.cpp in Sources */,
 				42EED7CC149BD1BD00EBE595 /* VMacStackCrawl.cpp in Sources */,
 				425037BD149BE72B003F5E03 /* ILogger.cpp in Sources */,
+				42CA98E41585EE68009486BD /* VJSONValue.cpp in Sources */,
+				42F95D2515FF9768004C5D60 /* VLibrary.cpp in Sources */,
+				42F95D2915FF9768004C5D60 /* XMacLibrary.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2468,7 +2490,6 @@
 				F4643125113E7A3E00639653 /* XMacIntlMgr.cpp in Sources */,
 				F4643126113E7A3E00639653 /* XMacTextConverter.cpp in Sources */,
 				F4643127113E7A3E00639653 /* VIntlMgr.cpp in Sources */,
-				F4643128113E7A3E00639653 /* IPropertyCollector.cpp in Sources */,
 				F4643129113E7A3E00639653 /* ISortable.cpp in Sources */,
 				F464312A113E7A3E00639653 /* VArrayValue.cpp in Sources */,
 				F464312B113E7A3E00639653 /* VBlob.cpp in Sources */,
@@ -2507,6 +2528,9 @@
 				293EEE08132E40F50084E6AA /* VFullURL.cpp in Sources */,
 				42EED7CB149BD1BA00EBE595 /* VMacStackCrawl.cpp in Sources */,
 				425037BE149BE72C003F5E03 /* ILogger.cpp in Sources */,
+				42CA98E01585EE68009486BD /* VJSONValue.cpp in Sources */,
+				42F95D1515FF9768004C5D60 /* VLibrary.cpp in Sources */,
+				42F95D1915FF9768004C5D60 /* XMacLibrary.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2614,6 +2638,10 @@
 				GCC_PREFIX_HEADER = Kernel_Prefix.pch;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = NO;
+				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS}",
+					"${HEADER_SEARCH_PATHS_MECAB}",
+				);
 				INIT_ROUTINE = __EnterLibrary;
 				OTHER_CFLAGS = "";
 				SEPARATE_STRIP = YES;
@@ -2648,6 +2676,10 @@
 				GCC_UNROLL_LOOPS = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = NO;
+				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS}",
+					"${HEADER_SEARCH_PATHS_MECAB}",
+				);
 				INIT_ROUTINE = __EnterLibrary;
 				SEPARATE_STRIP = YES;
 				USER_HEADER_SEARCH_PATHS = "$(HEADER_SEARCH_PATHS) $(HEADER_SEARCH_PATHS_ICU)";
@@ -2687,7 +2719,7 @@
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
 			name = Coverage;
@@ -2703,6 +2735,10 @@
 				GCC_PREFIX_HEADER = Kernel_Prefix.pch;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = NO;
+				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS}",
+					"${HEADER_SEARCH_PATHS_MECAB}",
+				);
 				INIT_ROUTINE = __EnterLibrary;
 				SEPARATE_STRIP = YES;
 				USER_HEADER_SEARCH_PATHS = "$(HEADER_SEARCH_PATHS) $(HEADER_SEARCH_PATHS_ICU)";
@@ -2742,6 +2778,10 @@
 				GCC_UNROLL_LOOPS = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = NO;
+				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS}",
+					"${HEADER_SEARCH_PATHS_MECAB}",
+				);
 				INIT_ROUTINE = __EnterLibrary;
 				SEPARATE_STRIP = YES;
 				SKIP_INSTALL = NO;
@@ -2781,7 +2821,7 @@
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = NO;
 			};
 			name = Performance;
@@ -2797,6 +2837,10 @@
 				GCC_UNROLL_LOOPS = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = NO;
+				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS}",
+					"${HEADER_SEARCH_PATHS_MECAB}",
+				);
 				INIT_ROUTINE = __EnterLibrary;
 				SEPARATE_STRIP = YES;
 				SKIP_INSTALL = NO;
@@ -2820,7 +2864,7 @@
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
 			name = Debug;
@@ -2838,7 +2882,7 @@
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
 			name = Beta;
@@ -2859,7 +2903,7 @@
 				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
 				STRIP_STYLE = debugging;
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = NO;
 			};
 			name = Release;

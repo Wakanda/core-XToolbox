@@ -151,7 +151,7 @@ sLONG VTCPSessionManager::Run ( VTask* vTask )
 			
 			if ( vError == VE_OK && bIsTimedOut )
 			{
-				iterEndPoints = sEndPointsPostponed. erase ( iterEndPoints );
+				iterEndPoints++;//iterEndPoints = sEndPointsPostponed. erase ( iterEndPoints );
 				DebugMessage ( CVSTR ( "Postponed expired" ), vtcpEndPoint, vError );
 			}
 			else

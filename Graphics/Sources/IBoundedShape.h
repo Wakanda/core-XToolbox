@@ -57,7 +57,7 @@ public:
 	GReal	GetTop () const { return fBounds.GetTop(); };
 	GReal	GetBottom () const { return fBounds.GetBottom(); };
 
-#if USE_OBSOLETE_API
+#if USE_OBSOLETE_API && 0
 	void	SetX (sLONG inX) { SetPosBy(inX - GetX(), 0); };
 	void	SetY (sLONG inY) { SetPosBy(0, inY - GetY()); };
 	void	SetWidth (sLONG inWidth) { SetSizeTo(inWidth, -1); };
@@ -76,34 +76,6 @@ protected:
 	//void	_ComputeBounds ();	// You should allways syncronize fBounds when modifying the shape
 };
 
-
-// Following classes are obsolete. Use Vectorial services.
-#if USE_OBSOLETE_API
-
-class VArc : public VObject, public IBoundedShape
-{
-protected:
-	GReal	fStart;
-	GReal	fArc;
-};
-
-class VLine : public VObject, public IBoundedShape {
-protected:
-	Boolean fTlbr;
-};
-
-class VRoundRect : public VRect {
-protected:
-	sLONG	fRoundH;
-	sLONG	fRoundV;
-};
-
-class VPolyLine : public VObject, public IBoundedShape {};
-class VOval : public VObject, public IBoundedShape {};
-class VPie : public VArc {};
-class VChord : public VArc {};
-
-#endif
 
 END_TOOLBOX_NAMESPACE
 

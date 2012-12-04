@@ -16,8 +16,6 @@
 #ifndef __VJS_NET__
 #define __VJS_NET__
 
-#include "ServerNet/VServerNet.h"
-
 #include "VJSClass.h"
 #include "VJSValue.h"
 

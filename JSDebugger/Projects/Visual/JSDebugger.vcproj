@@ -46,7 +46,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..\Headers;..\..\Interfaces;&quot;..\..\..\..\..\Components\$(BranchName)\&quot;"
+				AdditionalIncludeDirectories="..\..\Headers;..\..\Interfaces;&quot;..\..\..\..\..\Components\$(BranchName)\&quot;;&quot;$(SolutionDir)\..\..\webkit\534.53\JavaScriptCore\4D&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JSDEBUGGER_EXPORTS"
 				MinimalRebuild="true"
 				UsePrecompiledHeader="0"
@@ -115,7 +115,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..\Headers;..\..\Interfaces;&quot;..\..\..\..\..\Components\$(BranchName)\&quot;"
+				AdditionalIncludeDirectories="..\..\Headers;..\..\Interfaces;&quot;..\..\..\..\..\Components\$(BranchName)\&quot;;&quot;$(SolutionDir)\..\..\webkit\534.53\JavaScriptCore\4D\&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;JSDEBUGGER_EXPORTS"
 				MinimalRebuild="true"
 				UsePrecompiledHeader="0"
@@ -480,7 +480,19 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\Sources\VChrmDebugHandler.cpp"
+				RelativePath="..\..\Sources\VChromeDbgHdlPage.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VChromeDebugHandler.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VLogHandler.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VRemoteDebugPilot.cpp"
 				>
 			</File>
 		</Filter>
@@ -498,11 +510,27 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\Headers\VChrmDebugHandler.h"
+				RelativePath="..\..\Headers\VChromeDbgHdlPage.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\Headers\VChrmDebugHandlerPrv.h"
+				RelativePath="..\..\Headers\VChromeDebugHandler.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Headers\VChromeDebugHandlerPrv.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Headers\VLogHandler.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Headers\VRemoteDebugPilot.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Headers\WebInspDebugContext.h"
 				>
 			</File>
 		</Filter>

@@ -427,6 +427,15 @@ Boolean VTCPSelectIOHandler::DoRun ( )
 		std::for_each (
 					fReadSockList. begin ( ), fReadSockList. end ( ),
 					std::bind2nd ( std::ptr_fun( AddToFDSet ), &fdsErrors ) );
+
+		int			nMaxSocket = 0;
+		for( std::list<XBOX::VRefPtr<VTCPSelectAction> >::iterator i = fReadSockList.begin() ; i != fReadSockList.end() ; ++i)
+		{
+			int		nSocket = (*i)->GetRawSocket();
+			if ( nMaxSocket < nSocket )
+				nMaxSocket = nSocket;
+		}
+		
 		if ( !fReadSockLock. Unlock ( ) )
 			break;
 
@@ -440,7 +449,7 @@ Boolean VTCPSelectIOHandler::DoRun ( )
 		}
 		else
 		{
-			nSocketsReadyForRead = select ( FD_SETSIZE, &fReadSockSet, ( fd_set* ) 0, &fdsErrors, &tvTimeout );
+			nSocketsReadyForRead = select ( nMaxSocket + 1, &fReadSockSet, ( fd_set* ) 0, &fdsErrors, &tvTimeout );
 			DEBUG_CHECK_RESULT( nSocketsReadyForRead, "select from IOHandler");
 //#if WITH_DEBUGMSG && VERSIONWIN
 			//if (WSAGetLastError() == WSAENOTSOCK)

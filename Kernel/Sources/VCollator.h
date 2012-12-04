@@ -40,6 +40,7 @@ public:
 	
 
 	virtual	sLONG					FindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength) = 0;
+	virtual	sLONG					ReversedFindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength) = 0;
 	virtual	bool					BeginsWithString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
 	virtual	bool					EndsWithString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
 
@@ -88,6 +89,7 @@ class XTOOLBOX_API VCollator_system : public VCollator
 typedef  VCollator inherited;
 public:
 	virtual	sLONG					FindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
+	virtual	sLONG					ReversedFindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
 	virtual	CompareResult			CompareString (const UniChar* inText1, sLONG inSize1, const UniChar* inText2, sLONG inSize2, bool inWithDiacritics);
 	virtual bool					EqualString(const UniChar* inText1, sLONG inSize1, const UniChar* inText2, sLONG inSize2, bool inWithDiacritics);
 
@@ -140,6 +142,7 @@ public:
 	virtual bool						EqualString(const UniChar* inText1, sLONG inSize1, const UniChar* inText2, sLONG inSize2, bool inWithDiacritics);
 
 	virtual	sLONG						FindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
+	virtual	sLONG						ReversedFindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
 	virtual	bool						BeginsWithString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
 	virtual	bool						EndsWithString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength);
 	
@@ -150,6 +153,8 @@ public:
 
 	static	void						GetLocalesHavingCollator( const xbox_icu::Locale& inDisplayNameLocale, std::vector<const char*>& outLocales, std::vector<VString>& outCollatorDisplayNames);
 
+			xbox_icu::Locale*			GetLocale() const	{ return fLocale;}
+			
 private:
 										VICUCollator( const VICUCollator& inCollator);
 										VICUCollator( DialectCode inDialect, xbox_icu::Locale *inLocale, xbox_icu::Collator *inPrimary, xbox_icu::Collator *inTertiary, UCollationElements *inTextElements, UCollationElements *inPatternElements, CollatorOptions inOptions);

@@ -114,22 +114,38 @@ void VJSTimerContext::ClearAll ()
 
 void VJSTimer::SetTimeout (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject)
 {
-	VJSTimer::_SetTimer(ioParms, VJSWorker::GetWorker(ioParms.GetContext()), false);
+	VJSWorker	*worker;
+
+	worker = VJSWorker::RetainWorker(ioParms.GetContext());
+	VJSTimer::_SetTimer(ioParms, worker, false);
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 }
 
 void VJSTimer::ClearTimeout (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject)
 {
-	VJSTimer::_ClearTimer(ioParms, VJSWorker::GetWorker(ioParms.GetContext()), false);
+	VJSWorker	*worker;
+
+	worker = VJSWorker::RetainWorker(ioParms.GetContext());
+	VJSTimer::_ClearTimer(ioParms, worker, false);
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 }
 
 void VJSTimer::SetInterval (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject)
 {
-	VJSTimer::_SetTimer(ioParms, VJSWorker::GetWorker(ioParms.GetContext()), true);
+	VJSWorker	*worker;
+
+	worker = VJSWorker::RetainWorker(ioParms.GetContext());
+	VJSTimer::_SetTimer(ioParms, worker, true);
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 }
 
 void VJSTimer::ClearInterval (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject)
 {
-	VJSTimer::_ClearTimer(ioParms, VJSWorker::GetWorker(ioParms.GetContext()), true);
+	VJSWorker	*worker;
+
+	worker = VJSWorker::RetainWorker(ioParms.GetContext());
+	VJSTimer::_ClearTimer(ioParms, worker, true);
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 }
 
 VJSTimer::VJSTimer (XBOX::VJSObject &inFunctionObject, sLONG inInterval)
@@ -165,6 +181,8 @@ void VJSTimer::_SetTimer (VJSParms_callStaticFunction &ioParms, VJSWorker *inWor
 	if (!functionObject.IsFunction())
 
 		return;
+
+	functionObject.Protect();
 
 	Real	duration;
 

@@ -386,12 +386,12 @@ VError XLinuxFile::Move(const VFilePath& inDestinationPath, VFile** outFile, Fil
 	}
 
 	//First we try to rename the file...
-	VError verr=Rename(dstPath.GetPath(), outFile);
+	VError verr=Rename(dstPath, outFile);
 
 	//If Rename() fails beacause src and dst are not on the same fs, we try a Copy()
 	if(verr!=VE_OK && IS_NATIVE_VERROR(verr) && NATIVE_ERRCODE_FROM_VERROR(verr)==EXDEV)
 		verr=Copy(inDestinationPath, outFile, inOptions);
-	
+
 	return verr;
 }
 
@@ -501,8 +501,20 @@ VError XLinuxFile::GetFileAttributes(EFileAttributes &outFileAttributes) const
 	//FATT_LockedFile = 1,  <- on aimerait bien le savoir :) Creuser la piste mode readonly sur fd et perms ?
 	//FATT_HidenFile = 2	<- pas de fichier caché sous Linux
 
-    return VE_UNIMPLEMENTED;    // Postponed Linux Implementation !
+	// Hidden files still no supported. (Check for a file name starting with a dot "." ?)
+
+	StatHelper	statHelper;
+	XBOX::VError	error;
+
+	outFileAttributes = 0;
+	if ((error = statHelper.Stat(fPath)) == XBOX::VE_OK && !statHelper.ProcessCanWrite()) 
+
+		outFileAttributes |= FATT_LockedFile;
+
+	return error;
 }
+
+
 
 
 VError XLinuxFile::SetFileAttributes(EFileAttributes inFileAttributes) const
@@ -603,9 +615,11 @@ VError XLinuxFile::ConformsTo(const VFileKind& inKind, bool *outConformant) cons
 	{
 		*outConformant = IsFileKindConformsTo( *fileKind, inKind);
 		fileKind->Release();
+
+		return VE_OK;
 	}
 
-	return VE_OK;
+	return VE_INVALID_PARAMETER;
 }
 
 

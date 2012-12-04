@@ -16,7 +16,7 @@
 #ifndef __VRegion__
 #define __VRegion__
 
-#include "Graphics/Sources/IBoundedShape.h"
+#include "Graphics/Sources/VRect.h"
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -28,7 +28,7 @@ class VGraphicPath;
 class VRegionNode;
 #endif
 
-class XTOOLBOX_API VRegion : public VObject, public IBoundedShape, public IStreamable
+class XTOOLBOX_API VRegion : public VObject
 {
 public:
 				VRegion (const VRegion* inRgn = NULL);
@@ -39,12 +39,19 @@ public:
 	explicit	VRegion (GReal inX, GReal inY, GReal inWidth, GReal inHeight);
 	virtual		~VRegion ();
 	
-	// IBoundedShape API
-	virtual void	SetPosBy (GReal inHoriz, GReal inVert);
-	virtual void	SetSizeBy (GReal inHoriz, GReal inVert);
+	void	SetPosBy (GReal inHoriz, GReal inVert);
+	void	SetSizeBy (GReal inHoriz, GReal inVert);
+
+	void	SetPosTo (const VPoint& inPos)				{ SetPosBy(inPos.GetX() - fBounds.GetX(), inPos.GetY() - fBounds.GetY()); }
+	void	SetSizeTo (GReal inWidth, GReal inHeight)	{ xbox_assert(inWidth > -2); xbox_assert(inHeight > -2); SetSizeBy((inWidth != -1) ? inWidth - fBounds.GetWidth() : 0, (inHeight != -1) ? inHeight - fBounds.GetHeight() : 0); }
 	
-	virtual Boolean	HitTest (const VPoint& inPoint) const;
-	virtual void	Inset (GReal inHoriz, GReal inVert);
+	void	ScaleSizeBy (GReal inHorizScale, GReal inVertScale)	{ SetSizeBy(fBounds.GetWidth() * (inHorizScale - 1), fBounds.GetHeight() * (inVertScale - 1));}
+	void	ScalePosBy (GReal inHorizScale, GReal inVertScale)	{ SetPosBy(fBounds.GetX() * (inHorizScale - 1), fBounds.GetY() * (inVertScale - 1));}
+	
+	Boolean	HitTest (const VPoint& inPoint) const;
+	void	Inset (GReal inHoriz, GReal inVert);
+
+	const VRect&	GetBounds() const { return fBounds; }
 	
 	void	SetEmpty ();
 	Boolean	IsEmpty () const;
@@ -60,10 +67,15 @@ public:
 	VRegion&	operator += (const VRegion& inRgn) { Union(inRgn); return *this; };
 	VRegion&	operator -= (const VRegion& inRgn) { Substract(inRgn); return *this; };
 	VRegion&	operator &= (const VRegion& inRgn) { Intersect(inRgn); return *this; };
-	Boolean	operator != (const VRegion& inRgn) const { return !(*this == inRgn); };
-	Boolean	operator == (const VRegion& inRgn) const;
+	Boolean		operator != (const VRegion& inRgn) const { return !(*this == inRgn); };
+	Boolean		operator == (const VRegion& inRgn) const;
 	
 	// Native operators
+
+#if VERSIONWIN
+	/** return true if region is more than a single rectangle */
+	bool IsComplex() const;
+#endif
 
 #if ENABLE_D2D
 	/** get the complex path made from the internal complex region 
@@ -101,11 +113,8 @@ public:
 	void	Xor (const VRegion& inRgn);		// Much slower than the 3 basic operations
 	Boolean	Overlap (const VRegion& inRgn);	// Much slower than the 3 basic operations
 	
-	// Stream API
-	virtual VError	WriteToStream (VStream* ioStream, sLONG inParam) const;
-	virtual VError	ReadFromStream (VStream* ioStream, sLONG inParam);
-	
 protected:
+	VRect	fBounds;			// Cached bounds for the shape
 #if VERSIONWIN
 #if USE_GDIPLUS
 	Gdiplus::Region*	fRegion;

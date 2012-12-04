@@ -37,17 +37,25 @@ void VJSLocalFileSystem::AddInterfacesSupport (const XBOX::VJSContext &inContext
 
 	globalObject.SetProperty("TEMPORARY", (sLONG) TEMPORARY, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 	globalObject.SetProperty("PERSISTENT", (sLONG) PERSISTENT, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
-			
+
 	XBOX::VJSObject	function(inContext);
 
 	function.MakeCallback(XBOX::js_callback<void, _requestFileSystem>);
 	globalObject.SetProperty("requestFileSystem", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+
+	function.MakeCallback(XBOX::js_callback<void, _fileSystem>);
+	globalObject.SetProperty("FileSystem", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	function = globalObject.GetPropertyAsObject("FileSystem");
+	_addTypeConstants(function);
 
 	function.MakeCallback(XBOX::js_callback<void, _resolveLocalFileSystemURL>);
 	globalObject.SetProperty("resolveLocalFileSystemURL", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 
 	function.MakeCallback(XBOX::js_callback<void, _requestFileSystemSync>);
 	globalObject.SetProperty("requestFileSystemSync", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	globalObject.SetProperty("FileSystemSync", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	function = globalObject.GetPropertyAsObject("FileSystemSync");
+	_addTypeConstants(function);
 
 	function.MakeCallback(XBOX::js_callback<void, _resolveLocalFileSystemSyncURL>);
 	globalObject.SetProperty("resolveLocalFileSystemSyncURL", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
@@ -302,7 +310,7 @@ void VJSLocalFileSystem::ReleaseAllFileSystems ()
 	fFileSystems.clear();
 }
 
-sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, sLONG inType, VSize inQuota, XBOX::VJSObject *outResult)
+sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, sLONG inType, VSize inQuota, XBOX::VJSObject *outResult, bool inIsSync)
 {
 	xbox_assert(outResult != NULL);
 
@@ -312,14 +320,14 @@ sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, 
 	{
 		StErrorContextInstaller	context(false, true);
 
-		if (inType == TEMPORARY)
+		switch (inType) {
 
-			fileSystem = RetainTemporaryFileSystem(inQuota);
+			case TEMPORARY:		fileSystem = RetainTemporaryFileSystem(inQuota); break;
+			case PERSISTENT:	fileSystem = RetainPersistentFileSystem(inQuota); break;
+			case DATA:			fileSystem = RetainRelativeFileSystem(fProjectPath.GetPath()); break;
+			default:			xbox_assert(false); break;
 
-		else 
-
-			fileSystem = RetainPersistentFileSystem(inQuota);
-			
+		}			
 		error = context.GetLastError();
 	
 	} 
@@ -328,7 +336,14 @@ sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, 
 
 		xbox_assert(fileSystem != NULL);
 
-		*outResult = VJSFileSystemSyncClass::GetInstance(inContext, fileSystem);
+		if (inIsSync)
+
+			*outResult = VJSFileSystemSyncClass::GetInstance(inContext, fileSystem);
+
+		else
+
+			*outResult = VJSFileSystemClass::GetInstance(inContext, fileSystem);
+
 		XBOX::ReleaseRefCountable<VJSFileSystem>(&fileSystem);
 
 		return VJSFileErrorClass::OK;
@@ -421,17 +436,13 @@ void VJSLocalFileSystem::_resolveLocalFileSystemSyncURL (XBOX::VJSParms_callStat
 	_resolveLocalFileSystemURL(ioParms, true);
 }
 
-void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &ioParms, bool inIsSync)
+void VJSLocalFileSystem::_fileSystem (XBOX::VJSParms_callStaticFunction &ioParms, void *)
 {
-	VJSWorker			*worker				= VJSWorker::GetWorker(ioParms.GetContext());
-	VJSLocalFileSystem	*localFileSystem	= worker->GetLocalFileSystem();
+	_requestFileSystem(ioParms, false, true);
+}
 
-	xbox_assert(worker != NULL);
-
-	if (localFileSystem == NULL)
-		
-		return;	// Worker has failed to create a local file system, that error has already been reported. Ignore.
-	
+void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &ioParms, bool inIsSync, bool inFromFunction)
+{	
 	sLONG	type;
 
 	if (!ioParms.IsNumberParam(1) || !ioParms.GetLongParam(1, &type)) {
@@ -440,13 +451,13 @@ void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &
 		return;
 
 	}
-	if (type != TEMPORARY && type != PERSISTENT) {
+	if (type < FS_FIRST_TYPE || type > FS_LAST_TYPE) {
 
 		XBOX::vThrowError(XBOX::VE_JVSC_FS_WRONG_TYPE, "1");
 		return;
 
 	}
-
+	
 	sLONG	size;
 	VSize	quota;
 
@@ -463,22 +474,10 @@ void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &
 
 	}
 
-	if (inIsSync) {
+	XBOX::VJSObject	successCallback(ioParms.GetContext());
+	XBOX::VJSObject	errorCallback(ioParms.GetContext());
 
-		XBOX::VJSObject	resultObject(ioParms.GetContext());
-
-		if (localFileSystem->RequestFileSystem(ioParms.GetContext(), type, quota, &resultObject) == VJSFileErrorClass::OK)
-
-			ioParms.ReturnValue(resultObject);
-
-		else
-
-			ioParms.SetException(resultObject);
-
-	} else {
-
-		XBOX::VJSObject	successCallback(ioParms.GetContext());
-		XBOX::VJSObject	errorCallback(ioParms.GetContext());
+	if (!inIsSync && !inFromFunction) {
 
 		if (!ioParms.IsObjectParam(3) || !ioParms.GetParamFunc(3, successCallback)) {
 
@@ -494,6 +493,37 @@ void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &
 
 		}
 
+	}
+
+	VJSWorker			*worker				= VJSWorker::RetainWorker(ioParms.GetContext());
+	VJSLocalFileSystem	*localFileSystem	= worker->RetainLocalFileSystem();
+
+	// If worker has failed to create a local file system, that error has already been reported. Ignore.
+
+	if (localFileSystem == NULL) {
+
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+		return;	
+
+	}	
+
+	// If inFromFunction is true, this will return an asynchronous FileSystem object. 
+	// We use this to implement FileSystem().
+
+	if (inIsSync || inFromFunction) {
+
+		XBOX::VJSObject	resultObject(ioParms.GetContext());
+
+		if (localFileSystem->RequestFileSystem(ioParms.GetContext(), type, quota, &resultObject, inIsSync) == VJSFileErrorClass::OK)
+
+			ioParms.ReturnValue(resultObject);
+
+		else
+
+			ioParms.SetException(resultObject);
+
+	} else {
+
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::RequestFS(localFileSystem, type, quota, successCallback, errorCallback)) == NULL)
@@ -505,25 +535,51 @@ void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &
 			worker->QueueEvent(request);
 
 	}
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+	XBOX::ReleaseRefCountable<VJSLocalFileSystem>(&localFileSystem);
 }
 
 void VJSLocalFileSystem::_resolveLocalFileSystemURL (XBOX::VJSParms_callStaticFunction &ioParms, bool inIsSync)
 {
-	VJSWorker			*worker				= VJSWorker::GetWorker(ioParms.GetContext());
-	VJSLocalFileSystem	*localFileSystem	= worker->GetLocalFileSystem();
-
-	xbox_assert(worker != NULL);
-
-	if (localFileSystem == NULL) 
-
-		return;		// See comment for _requestFileSystem().
-
 	XBOX::VString	url;
 
 	if (!ioParms.IsStringParam(1) || !ioParms.GetStringParam(1, url)) {
 
 		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
 		return;
+
+	}
+
+	XBOX::VJSObject	successCallback(ioParms.GetContext());
+	XBOX::VJSObject	errorCallback(ioParms.GetContext());
+
+	if (!inIsSync) {
+
+		if (!ioParms.IsObjectParam(2) || !ioParms.GetParamFunc(2, successCallback)) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, "2");
+			return;
+
+		}
+		if (ioParms.CountParams() >= 3 
+		&& (!ioParms.IsObjectParam(3) || !ioParms.GetParamFunc(3, errorCallback))) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, "3");
+			return;
+
+		}
+
+	}
+
+	VJSWorker			*worker				= VJSWorker::RetainWorker(ioParms.GetContext());
+	VJSLocalFileSystem	*localFileSystem	= worker->RetainLocalFileSystem();
+
+	// See comment for _requestFileSystem().
+	
+	if (localFileSystem == NULL) {
+
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+		return;		
 
 	}
 
@@ -541,23 +597,6 @@ void VJSLocalFileSystem::_resolveLocalFileSystemURL (XBOX::VJSParms_callStaticFu
 
 	} else {
 
-		XBOX::VJSObject	successCallback(ioParms.GetContext());
-		XBOX::VJSObject	errorCallback(ioParms.GetContext());
-
-		if (!ioParms.IsObjectParam(2) || !ioParms.GetParamFunc(2, successCallback)) {
-
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, "2");
-			return;
-
-		}
-		if (ioParms.CountParams() >= 3 
-		&& (!ioParms.IsObjectParam(3) || !ioParms.GetParamFunc(3, errorCallback))) {
-
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, "3");
-			return;
-
-		}
-
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::ResolveURL(localFileSystem, url, successCallback, errorCallback)) == NULL)
@@ -569,6 +608,15 @@ void VJSLocalFileSystem::_resolveLocalFileSystemURL (XBOX::VJSParms_callStaticFu
 			worker->QueueEvent(request);
 
 	}	
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+	XBOX::ReleaseRefCountable<VJSLocalFileSystem>(&localFileSystem);
+}
+
+void VJSLocalFileSystem::_addTypeConstants (XBOX::VJSObject &inFileSystemObject)
+{
+	inFileSystemObject.SetProperty("TEMPORARY", (sLONG) TEMPORARY, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	inFileSystemObject.SetProperty("PERSISTENT", (sLONG) PERSISTENT, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	inFileSystemObject.SetProperty("DATA", (sLONG) DATA, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 }
 
 VJSFileSystem::VJSFileSystem (VJSLocalFileSystem *inLocalFileSystem, const XBOX::VString &inName, const XBOX::VFilePath &inRoot, VSize inQuota)
@@ -1579,12 +1627,12 @@ sLONG VJSEntry::GetParent (const XBOX::VJSContext &inContext, XBOX::VJSObject *o
 	return code;
 }
 
-sLONG VJSEntry::GetFile (const XBOX::VJSContext &inContext, VJSEntry *inFolderEntry, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult)
+sLONG VJSEntry::GetFile (const XBOX::VJSContext &inContext, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult)
 {
-	xbox_assert(inFolderEntry != NULL && !inFolderEntry->IsFile() && outResult != NULL);
+	xbox_assert(!IsFile() && outResult != NULL);
 
 	sLONG		code;
-	VFilePath	path(inFolderEntry->GetPath());
+	VFilePath	path(GetPath());
 	bool		isFile;
 
 	if ((code = fFileSystem->ParseURL(inURL, &path, &isFile)) == VJSFileErrorClass::OK) {
@@ -1665,12 +1713,12 @@ sLONG VJSEntry::GetFile (const XBOX::VJSContext &inContext, VJSEntry *inFolderEn
 	return code;
 }
 
-sLONG VJSEntry::GetDirectory (const XBOX::VJSContext &inContext, VJSEntry *inFolderEntry, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult)
+sLONG VJSEntry::GetDirectory (const XBOX::VJSContext &inContext, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult)
 {
-	xbox_assert(inFolderEntry != NULL && !inFolderEntry->IsFile() && outResult != NULL);
+	xbox_assert(!IsFile() && outResult != NULL);
 
 	sLONG		code;
-	VFilePath	path(inFolderEntry->GetPath());
+	VFilePath	path(GetPath());
 	bool		isFile;
 
 	if ((code = fFileSystem->ParseURL(inURL, &path, &isFile)) == VJSFileErrorClass::OK) {
@@ -1962,19 +2010,21 @@ void VJSEntry::_getMetadata (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntr
 
 		}
 
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::GetMetadata(inEntry, successCallback, errorCallback)) == NULL)
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2002,8 +2052,7 @@ void VJSEntry::_toURL (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inE
 
 	}
  
-	VIndex	rootLength;
-	VSize	relativeSize;
+	VIndex	rootLength, relativeSize;
 	
 	rootLength = inEntry->fFileSystem->GetRoot().GetPath().GetLength();
 
@@ -2073,19 +2122,21 @@ void VJSEntry::_remove (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *in
 
 		}
 
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::Remove(inEntry, successCallback, errorCallback)) == NULL)
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2120,19 +2171,21 @@ void VJSEntry::_getParent (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry 
 
 		}
 
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::GetParent(inEntry, successCallback, errorCallback)) == NULL)
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2184,20 +2237,22 @@ void VJSEntry::_removeRecursively (XBOX::VJSParms_callStaticFunction &ioParms, V
 			return;
 
 		}
-
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
+		
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::RemoveRecursively(inEntry, successCallback, errorCallback)) == NULL)
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2237,19 +2292,21 @@ void VJSEntry::_folder (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *in
 
 		}
 
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::Folder(inEntry, successCallback, errorCallback)) == NULL)
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2296,19 +2353,21 @@ void VJSEntry::_file (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEn
 
 		}
 
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
 		VJSW3CFSEvent	*request;
 
 		if ((request = VJSW3CFSEvent::File(inEntry, successCallback, errorCallback)) == NULL)
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2423,10 +2482,6 @@ void VJSEntry::_moveOrCopyTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEnt
 
 		}
 
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
 		VJSW3CFSEvent	*request;
 
 		if (inIsMoveTo) 
@@ -2441,9 +2496,15 @@ void VJSEntry::_moveOrCopyTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEnt
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2503,11 +2564,11 @@ void VJSEntry::_getFileOrDirectory (XBOX::VJSParms_callStaticFunction &ioParms, 
 
 		if (inIsGetFile)
 
-			code = inEntry->GetFile(ioParms.GetContext(), inEntry, url, flags, &resultObject);
+			code = inEntry->GetFile(ioParms.GetContext(), url, flags, &resultObject);
 
 		else
 
-			code = inEntry->GetDirectory(ioParms.GetContext(), inEntry, url, flags, &resultObject);
+			code = inEntry->GetDirectory(ioParms.GetContext(), url, flags, &resultObject);
 	
 		if (code == VJSFileErrorClass::OK)
 
@@ -2542,10 +2603,6 @@ void VJSEntry::_getFileOrDirectory (XBOX::VJSParms_callStaticFunction &ioParms, 
 
 		}
 
-		VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-		xbox_assert(worker != NULL);
-
 		VJSW3CFSEvent	*request;
 
 		if (inIsGetFile) 
@@ -2560,9 +2617,15 @@ void VJSEntry::_getFileOrDirectory (XBOX::VJSParms_callStaticFunction &ioParms, 
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
-		else
+		else {
 
+			VJSWorker	*worker;
+			
+			worker = VJSWorker::RetainWorker(ioParms.GetContext());
 			worker->QueueEvent(request);
+			XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+		}
 
 	}
 }
@@ -2742,7 +2805,7 @@ sLONG VJSDirectoryReader::ReadEntries (const XBOX::VJSContext &inContext, XBOX::
 
 		}
 
-		numberEntries = entriesArray.GetLength();
+		numberEntries = (sLONG) entriesArray.GetLength();	//** ???
 		*outResult = entriesArray;
 		code =  VJSFileErrorClass::OK;
 
@@ -2854,10 +2917,6 @@ void VJSDirectoryReaderClass::_readEntries (XBOX::VJSParms_callStaticFunction &i
 
 	}
 
-	VJSWorker	*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	
-	xbox_assert(worker != NULL);
-
 	VJSW3CFSEvent	*request;
 
 	if ((request = VJSW3CFSEvent::ReadEntries(inDirectoryReader, successCallback, errorCallback)) == NULL)
@@ -2866,10 +2925,15 @@ void VJSDirectoryReaderClass::_readEntries (XBOX::VJSParms_callStaticFunction &i
 
 	else {
 
+		VJSWorker	*worker;
+			
+		worker = VJSWorker::RetainWorker(ioParms.GetContext());
 		inDirectoryReader->SetAsReading();
 		worker->QueueEvent(request);
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 
 	}
+
 }
 
 void VJSDirectoryReaderSyncClass::GetDefinition (ClassDefinition &outDefinition)
@@ -2880,7 +2944,7 @@ void VJSDirectoryReaderSyncClass::GetDefinition (ClassDefinition &outDefinition)
 		{	0,				0,										0																			},
 	};
 
-    outDefinition.className			= "DirectoryReader";
+    outDefinition.className			= "DirectoryReaderSync";
 	outDefinition.staticFunctions	= functions;	
 	outDefinition.initialize		= js_initialize<VJSDirectoryReaderClass::_Initialize>;
 	outDefinition.finalize			= js_finalize<VJSDirectoryReaderClass::_Finalize>;

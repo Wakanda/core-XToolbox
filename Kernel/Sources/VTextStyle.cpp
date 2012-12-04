@@ -666,6 +666,9 @@ void VTreeTextStyle::Translate(sLONG inValue)
 */
 void VTreeTextStyle::ExpandAtPosBy(sLONG inStart, sLONG inInflate)
 {
+	if (inInflate <= 0)
+		return;
+
 	VTextStyle *style = GetData();
 	sLONG start, end;
 	style->GetRange( start, end);
@@ -700,6 +703,9 @@ void VTreeTextStyle::ExpandAtPosBy(sLONG inStart, sLONG inInflate)
 */
 void VTreeTextStyle::Truncate(sLONG inStart, sLONG inLength)
 {
+	if (inLength == 0)
+		return;
+
 	VTextStyle *style = GetData();
 	sLONG start, end;
 	style->GetRange( start, end);
@@ -1189,6 +1195,7 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 								delete newStyle2;
 							
 							stylesLastChild = newStyles;
+							styleLastChild = stylesLastChild->GetData();
 							InsertChild( newStyles, i);
 							indexLastChild = i;
 							endLastChild = endTemp;
@@ -1274,6 +1281,7 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 						childStyles->Release();
 
 						stylesLastChild = newStyles;
+						styleLastChild = stylesLastChild->GetData();
 						InsertChild( newStyles, i);
 						indexLastChild = i;
 						endLastChild = childEnd;

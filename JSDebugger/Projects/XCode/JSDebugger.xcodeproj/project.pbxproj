@@ -21,10 +21,24 @@
 		4179BFF514697D3C00477448 /* CJSWDebuggerFactory.h in Headers */ = {isa = PBXBuildFile; fileRef = 4179BFF314697D3C00477448 /* CJSWDebuggerFactory.h */; };
 		8D07F2BE0486CC7A007CD1D0 /* JSDebugger_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32BAE0B70371A74B00C91783 /* JSDebugger_Prefix.pch */; };
 		8D07F2C00486CC7A007CD1D0 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C1666FE841158C02AAC07 /* InfoPlist.strings */; };
-		95C847201507AE560073A7A3 /* VChrmDebugHandlerPrv.h in Headers */ = {isa = PBXBuildFile; fileRef = 95C8471F1507AE560073A7A3 /* VChrmDebugHandlerPrv.h */; };
-		95C847211507AE560073A7A3 /* VChrmDebugHandlerPrv.h in Headers */ = {isa = PBXBuildFile; fileRef = 95C8471F1507AE560073A7A3 /* VChrmDebugHandlerPrv.h */; };
-		95C847231507AE730073A7A3 /* VChrmDebugHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 95C847221507AE730073A7A3 /* VChrmDebugHandler.cpp */; };
-		95C847241507AE730073A7A3 /* VChrmDebugHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 95C847221507AE730073A7A3 /* VChrmDebugHandler.cpp */; };
+		9520083E15FDD721009B1874 /* VRemoteDebugPilot.h in Headers */ = {isa = PBXBuildFile; fileRef = 9520083D15FDD721009B1874 /* VRemoteDebugPilot.h */; };
+		9520083F15FDD721009B1874 /* VRemoteDebugPilot.h in Headers */ = {isa = PBXBuildFile; fileRef = 9520083D15FDD721009B1874 /* VRemoteDebugPilot.h */; };
+		9520084715FDD732009B1874 /* VRemoteDebugPilot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9520084615FDD732009B1874 /* VRemoteDebugPilot.cpp */; };
+		9520084815FDD732009B1874 /* VRemoteDebugPilot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9520084615FDD732009B1874 /* VRemoteDebugPilot.cpp */; };
+		95340F7D16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 95340F7C16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp */; };
+		95340F7E16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 95340F7C16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp */; };
+		95340F8416085DF800F46CD7 /* VChromeDbgHdlPage.h in Headers */ = {isa = PBXBuildFile; fileRef = 95340F8316085DF800F46CD7 /* VChromeDbgHdlPage.h */; };
+		95340F8516085DF800F46CD7 /* VChromeDbgHdlPage.h in Headers */ = {isa = PBXBuildFile; fileRef = 95340F8316085DF800F46CD7 /* VChromeDbgHdlPage.h */; };
+		957E19A21608507600C2DFBE /* VChromeDebugHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 957E19A11608507600C2DFBE /* VChromeDebugHandler.cpp */; };
+		957E19A31608507600C2DFBE /* VChromeDebugHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 957E19A11608507600C2DFBE /* VChromeDebugHandler.cpp */; };
+		957E19A6160850A400C2DFBE /* VChromeDebugHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 957E19A4160850A400C2DFBE /* VChromeDebugHandler.h */; };
+		957E19A7160850A400C2DFBE /* VChromeDebugHandlerPrv.h in Headers */ = {isa = PBXBuildFile; fileRef = 957E19A5160850A400C2DFBE /* VChromeDebugHandlerPrv.h */; };
+		957E19A8160850A400C2DFBE /* VChromeDebugHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 957E19A4160850A400C2DFBE /* VChromeDebugHandler.h */; };
+		957E19A9160850A400C2DFBE /* VChromeDebugHandlerPrv.h in Headers */ = {isa = PBXBuildFile; fileRef = 957E19A5160850A400C2DFBE /* VChromeDebugHandlerPrv.h */; };
+		95B5603C15FDD659007B055F /* VLogHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 95B5603B15FDD659007B055F /* VLogHandler.cpp */; };
+		95B5603D15FDD659007B055F /* VLogHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 95B5603B15FDD659007B055F /* VLogHandler.cpp */; };
+		95B5604015FDD6B0007B055F /* VLogHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 95B5603F15FDD6B0007B055F /* VLogHandler.h */; };
+		95B5604115FDD6B0007B055F /* VLogHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 95B5603F15FDD6B0007B055F /* VLogHandler.h */; };
 		F4643723113E93A500639653 /* JSDebugger_Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 32BAE0B70371A74B00C91783 /* JSDebugger_Prefix.pch */; };
 		F4643724113E93A500639653 /* JSWDebugger.h in Headers */ = {isa = PBXBuildFile; fileRef = 41251C50108CB0ED00B4DB6A /* JSWDebugger.h */; };
 		F4643725113E93A500639653 /* JSWServer.h in Headers */ = {isa = PBXBuildFile; fileRef = 41251C51108CB0ED00B4DB6A /* JSWServer.h */; };
@@ -145,13 +159,6 @@
 			remoteGlobalIDString = F46431F9113E7CBD00639653;
 			remoteInfo = "KernelIPC x64";
 		};
-		F4643741113E93F100639653 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 41251C6A108CB14B00B4DB6A /* ServerNet.xcodeproj */;
-			proxyType = 1;
-			remoteGlobalIDString = F464342D113E8FB200639653;
-			remoteInfo = "ServerNet x64";
-		};
 		F4643743113E93F500639653 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 41251C67108CB14B00B4DB6A /* KernelIPC.xcodeproj */;
@@ -165,6 +172,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = F464308B113E7A3E00639653;
 			remoteInfo = "Kernel x64";
+		};
+		F94AAF66153C48D500F79EFE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 41251C6A108CB14B00B4DB6A /* ServerNet.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = F464342D113E8FB200639653;
+			remoteInfo = "ServerNet x86_64";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -190,8 +204,15 @@
 		4179BFF314697D3C00477448 /* CJSWDebuggerFactory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CJSWDebuggerFactory.h; path = ../../Interfaces/CJSWDebuggerFactory.h; sourceTree = SOURCE_ROOT; };
 		8D07F2C70486CC7A007CD1D0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8D07F2C80486CC7A007CD1D0 /* JSDebuggerDebug.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = JSDebuggerDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		95C8471F1507AE560073A7A3 /* VChrmDebugHandlerPrv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VChrmDebugHandlerPrv.h; path = ../../Headers/VChrmDebugHandlerPrv.h; sourceTree = SOURCE_ROOT; };
-		95C847221507AE730073A7A3 /* VChrmDebugHandler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VChrmDebugHandler.cpp; path = ../../Sources/VChrmDebugHandler.cpp; sourceTree = SOURCE_ROOT; };
+		9520083D15FDD721009B1874 /* VRemoteDebugPilot.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VRemoteDebugPilot.h; path = ../../Headers/VRemoteDebugPilot.h; sourceTree = SOURCE_ROOT; };
+		9520084615FDD732009B1874 /* VRemoteDebugPilot.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VRemoteDebugPilot.cpp; path = ../../Sources/VRemoteDebugPilot.cpp; sourceTree = SOURCE_ROOT; };
+		95340F7C16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VChromeDbgHdlPage.cpp; path = ../../Sources/VChromeDbgHdlPage.cpp; sourceTree = SOURCE_ROOT; };
+		95340F8316085DF800F46CD7 /* VChromeDbgHdlPage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VChromeDbgHdlPage.h; path = ../../Headers/VChromeDbgHdlPage.h; sourceTree = SOURCE_ROOT; };
+		957E19A11608507600C2DFBE /* VChromeDebugHandler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VChromeDebugHandler.cpp; path = ../../Sources/VChromeDebugHandler.cpp; sourceTree = SOURCE_ROOT; };
+		957E19A4160850A400C2DFBE /* VChromeDebugHandler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VChromeDebugHandler.h; path = ../../Headers/VChromeDebugHandler.h; sourceTree = SOURCE_ROOT; };
+		957E19A5160850A400C2DFBE /* VChromeDebugHandlerPrv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VChromeDebugHandlerPrv.h; path = ../../Headers/VChromeDebugHandlerPrv.h; sourceTree = SOURCE_ROOT; };
+		95B5603B15FDD659007B055F /* VLogHandler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = VLogHandler.cpp; path = ../../Sources/VLogHandler.cpp; sourceTree = SOURCE_ROOT; };
+		95B5603F15FDD6B0007B055F /* VLogHandler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = VLogHandler.h; path = ../../Headers/VLogHandler.h; sourceTree = SOURCE_ROOT; };
 		F4643718113E935500639653 /* xtoolbox_x64.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = xtoolbox_x64.xcconfig; path = ../../../xtoolbox_x64.xcconfig; sourceTree = SOURCE_ROOT; };
 		F4643739113E93A500639653 /* JSDebuggerDebug.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = JSDebuggerDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -263,7 +284,10 @@
 		08FB77ACFE841707C02AAC07 /* Source */ = {
 			isa = PBXGroup;
 			children = (
-				95C847221507AE730073A7A3 /* VChrmDebugHandler.cpp */,
+				95340F7C16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp */,
+				957E19A11608507600C2DFBE /* VChromeDebugHandler.cpp */,
+				9520084615FDD732009B1874 /* VRemoteDebugPilot.cpp */,
+				95B5603B15FDD659007B055F /* VLogHandler.cpp */,
 				41251C54108CB0F900B4DB6A /* JSWDebugger.cpp */,
 				41251C55108CB0F900B4DB6A /* JSWDebuggerClient.cpp */,
 				41251C56108CB0F900B4DB6A /* JSWServer.cpp */,
@@ -289,7 +313,11 @@
 		41251C4F108CB0DD00B4DB6A /* Headers */ = {
 			isa = PBXGroup;
 			children = (
-				95C8471F1507AE560073A7A3 /* VChrmDebugHandlerPrv.h */,
+				95340F8316085DF800F46CD7 /* VChromeDbgHdlPage.h */,
+				957E19A4160850A400C2DFBE /* VChromeDebugHandler.h */,
+				957E19A5160850A400C2DFBE /* VChromeDebugHandlerPrv.h */,
+				9520083D15FDD721009B1874 /* VRemoteDebugPilot.h */,
+				95B5603F15FDD6B0007B055F /* VLogHandler.h */,
 				41251C50108CB0ED00B4DB6A /* JSWDebugger.h */,
 				41251C51108CB0ED00B4DB6A /* JSWServer.h */,
 			);
@@ -362,7 +390,11 @@
 				41251C60108CB11200B4DB6A /* JSWDebuggerClient.h in Headers */,
 				41251C61108CB11200B4DB6A /* JSWDebuggerErrors.h in Headers */,
 				4179BFF414697D3C00477448 /* CJSWDebuggerFactory.h in Headers */,
-				95C847201507AE560073A7A3 /* VChrmDebugHandlerPrv.h in Headers */,
+				95B5604015FDD6B0007B055F /* VLogHandler.h in Headers */,
+				9520083E15FDD721009B1874 /* VRemoteDebugPilot.h in Headers */,
+				957E19A6160850A400C2DFBE /* VChromeDebugHandler.h in Headers */,
+				957E19A7160850A400C2DFBE /* VChromeDebugHandlerPrv.h in Headers */,
+				95340F8416085DF800F46CD7 /* VChromeDbgHdlPage.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -376,7 +408,11 @@
 				F4643727113E93A500639653 /* JSWDebuggerClient.h in Headers */,
 				F4643728113E93A500639653 /* JSWDebuggerErrors.h in Headers */,
 				4179BFF514697D3C00477448 /* CJSWDebuggerFactory.h in Headers */,
-				95C847211507AE560073A7A3 /* VChrmDebugHandlerPrv.h in Headers */,
+				95B5604115FDD6B0007B055F /* VLogHandler.h in Headers */,
+				9520083F15FDD721009B1874 /* VRemoteDebugPilot.h in Headers */,
+				957E19A8160850A400C2DFBE /* VChromeDebugHandler.h in Headers */,
+				957E19A9160850A400C2DFBE /* VChromeDebugHandlerPrv.h in Headers */,
+				95340F8516085DF800F46CD7 /* VChromeDbgHdlPage.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,9 +455,9 @@
 			buildRules = (
 			);
 			dependencies = (
-				F4643742113E93F100639653 /* PBXTargetDependency */,
 				F4643744113E93F500639653 /* PBXTargetDependency */,
 				F4643746113E93F900639653 /* PBXTargetDependency */,
+				F94AAF67153C48D500F79EFE /* PBXTargetDependency */,
 			);
 			name = "JSDebugger x64";
 			productInstallPath = "$(HOME)/Library/Frameworks";
@@ -603,7 +639,10 @@
 				41251C57108CB0F900B4DB6A /* JSWDebugger.cpp in Sources */,
 				41251C58108CB0F900B4DB6A /* JSWDebuggerClient.cpp in Sources */,
 				41251C59108CB0F900B4DB6A /* JSWServer.cpp in Sources */,
-				95C847231507AE730073A7A3 /* VChrmDebugHandler.cpp in Sources */,
+				95B5603C15FDD659007B055F /* VLogHandler.cpp in Sources */,
+				9520084715FDD732009B1874 /* VRemoteDebugPilot.cpp in Sources */,
+				957E19A21608507600C2DFBE /* VChromeDebugHandler.cpp in Sources */,
+				95340F7D16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -614,7 +653,10 @@
 				F464372C113E93A500639653 /* JSWDebugger.cpp in Sources */,
 				F464372D113E93A500639653 /* JSWDebuggerClient.cpp in Sources */,
 				F464372E113E93A500639653 /* JSWServer.cpp in Sources */,
-				95C847241507AE730073A7A3 /* VChrmDebugHandler.cpp in Sources */,
+				95B5603D15FDD659007B055F /* VLogHandler.cpp in Sources */,
+				9520084815FDD732009B1874 /* VRemoteDebugPilot.cpp in Sources */,
+				957E19A31608507600C2DFBE /* VChromeDebugHandler.cpp in Sources */,
+				95340F7E16085D7A00F46CD7 /* VChromeDbgHdlPage.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -636,11 +678,6 @@
 			name = ServerNet;
 			targetProxy = 85655F17108DDA1200874003 /* PBXContainerItemProxy */;
 		};
-		F4643742113E93F100639653 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = "ServerNet x64";
-			targetProxy = F4643741113E93F100639653 /* PBXContainerItemProxy */;
-		};
 		F4643744113E93F500639653 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = "KernelIPC x64";
@@ -650,6 +687,11 @@
 			isa = PBXTargetDependency;
 			name = "Kernel x64";
 			targetProxy = F4643745113E93F900639653 /* PBXContainerItemProxy */;
+		};
+		F94AAF67153C48D500F79EFE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = "ServerNet x86_64";
+			targetProxy = F94AAF66153C48D500F79EFE /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 

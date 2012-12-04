@@ -19,58 +19,64 @@
 
 #include "Tools.h"
 #include "VUDPEndPoint.h"
-
+#include "VNetAddr.h"
 
 BEGIN_TOOLBOX_NAMESPACE
 
-
 using namespace ServerNetTools;
-
 
 class Bonjour 
 {
 public:	
 	
 	// Default mDNS multicast address and port.
+
+	static const VString	kIPv4MulticastAddress;
+	static const VString	kIPv6MulticastAddress;
+
+#if WITH_DEPRECATED_IPV4_API
+
+	static const uLONG		kIPv4MCastBinAddress	= 0xe00000fb;
+
+#endif
 	
-	static const uLONG	kIPv4MulticastAddress	= 0xe00000fb;	// 224.0.0.251
-	static const PortNumber	kPort				= 5353;
+	static const PortNumber	kPort					= 5353;
 	
 	// Maximum DNS name length.
 	
-	static const uLONG	kMaximumNameLength		= 63;
+	static const uLONG		kMaximumNameLength		= 63;
 
 	// Packet sent will never be bigger than kBufferSize (MTU sized). 
 	// However, the read buffer is bigger to accomodate with bigger MTU or cut packets.
 
-	static const uLONG	kBufferSize				= 1500;			// Standard MTU for ethernet is 1500 bytes.
-	static const uLONG	kReadBufferSize			= 4096;			// Loopback has huge MTU size, also packets can be cut and re-assembled.
+	static const uLONG		kBufferSize				= 1500;		// Standard MTU for ethernet is 1500 bytes.
+	static const uLONG		kReadBufferSize			= 4096;		// Loopback has huge MTU size, also packets can be cut and re-assembled.
 																// Too big packets will be rejected by read() function.
 	
 	// Supported DNS resource record types.
 	
-	static const uWORD	kTypeA					= 1,	// IPv4 address.
-						kTypePTR				= 12,	// "Pointer".
-						kTypeTXT				= 16,	// Text (pairs of key = value).
-						kTypeAAAA				= 28,	// IPv6 address.
-						kTypeSRV				= 33;	// Service.
+	static const uWORD		kTypeA					= 1,		// IPv4 address.
+							kTypePTR				= 12,		// "Pointer".
+							kTypeTXT				= 16,		// Text (pairs of key = value).
+							kTypeAAAA				= 28,		// IPv6 address.
+							kTypeSRV				= 33;		// Service.
 	
 	// Default time to live is 1 minute.
 	
-	static const uLONG	kDefaultTimeToLive		= 60;
+	static const uLONG		kDefaultTimeToLive		= 60;
 			
 	// Encode or parse a DNS name. Encoder doesn't make use of compression.
 	
-	static VError	EncodeDNSName (uBYTE *outBuffer, uLONG *ioSize, const VString &inString);			
-	static VError	ParseDNSName (const uBYTE *inPacket, uLONG *ioPacketSize, uLONG inIndex, VString *outName);
+	static VError			EncodeDNSName (uBYTE *outBuffer, uLONG *ioSize, const VString &inString);			
+	static VError			ParseDNSName (const uBYTE *inPacket, uLONG *ioPacketSize, uLONG inIndex, VString *outName);
 	
 	// Encode or parse a DNS resource record. Time to live parameter is in seconds.
 	
-	static VError	EncodeResourceRecord (uBYTE *outBuffer, uLONG *ioSize, 
+	static VError			EncodeResourceRecord (uBYTE *outBuffer, uLONG *ioSize, 
 											  const VString &inName, uWORD inType, 
 											  const uBYTE *inData, uLONG inDataSize, 
 											  uLONG inTimeToLive = kDefaultTimeToLive);
-	static VError	ParseResourceRecord (const uBYTE *inPacket, uLONG *ioPacketSize, uLONG inIndex, 
+	static VError			ParseResourceRecord (const uBYTE *inPacket, uLONG *ioPacketSize, uLONG inIndex, 
 											 VString *outName, uWORD *outType, 
 											 uLONG *outDataSize, const uBYTE **outData, 
 											 uLONG *outTimeToLive = NULL);
@@ -78,15 +84,17 @@ public:
 	// Encode/parse a VValueBag to/from a DNS resource record TXT data field. Encoder use one more byte from ioSize to detect too long string,
 	// so maximum encoded TXT data length is inSize - 1.
 	
-	static VError	ValueBagToTXT (uBYTE *outBuffer, uLONG *ioSize, const VValueBag &inValueBag);
-	static VError	TXTToValueBag (const uBYTE *inData, uLONG *ioDataSize, VValueBag *outValueBag);
+	static VError			ValueBagToTXT (uBYTE *outBuffer, uLONG *ioSize, const VValueBag &inValueBag);
+	static VError			TXTToValueBag (const uBYTE *inData, uLONG *ioDataSize, VValueBag *outValueBag);
 		
 	// Read/write 2 bytes in network order.
 	
-	static uLONG	Read2Bytes (const uBYTE *inBuffer);
-	static void		Write2Bytes (uBYTE *outBuffer, uWORD inValue);
+	static uLONG			Read2Bytes (const uBYTE *inBuffer);
+	static void				Write2Bytes (uBYTE *outBuffer, uWORD inValue);
 };
 
+const VString			Bonjour::kIPv4MulticastAddress					= "224.0.0.251";
+const VString			Bonjour::kIPv6MulticastAddress					= "ff02::fb";
 VServiceDiscoveryServer	*VServiceDiscoveryServer::sSingletonInstance	= NULL;
 VCriticalSection		VServiceDiscoveryServer::sCriticalSection;
 
@@ -95,7 +103,7 @@ VError Bonjour::EncodeDNSName (uBYTE *outBuffer, uLONG *ioSize, const VString &i
 	xbox_assert(outBuffer != NULL && ioSize != NULL);
 	
 	VError	error;	
-	uBYTE			buffer[kMaximumNameLength + 2];
+	uBYTE	buffer[kMaximumNameLength + 2];
 		
 	error = VE_OK;	
 		
@@ -536,7 +544,7 @@ void VServiceRecord::SetHostName ()
 {
 	VSystem::GetHostName(fHostName);
 
-	fHostName.ToLowerCase();			// This will change 'ç' to 'c', 'é' to 'e', etc.
+	fHostName.ToLowerCase();			// This will change '' to 'c', '' to 'e', etc.
 	fHostName.ExchangeAll(' ', '-');	
 	if (fHostName.GetLength() && !fHostName.EndsWith(".local", true))
 		
@@ -595,13 +603,45 @@ VError VServiceDiscoveryServer::RemoveServiceRecord (const VString &inServiceNam
 
 VError VServiceDiscoveryServer::Start ()
 {
-	if ((fUDPEndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv4MulticastAddress, Bonjour::kPort)) == NULL) 
-		return VE_SRVR_BONJOUR_NETWORK_FAILURE;
-	else
-	{	
-		Run();
+	bool	isOk	= true;
 
+#if WITH_DEPRECATED_IPV4_API
+
+	if ((fIPv4EndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv4MCastBinAddress, Bonjour::kPort)) == NULL)
+
+		isOk = false;
+
+#else
+
+	if (ResolveToV4()) {
+
+		if ((fIPv4EndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv4MulticastAddress, Bonjour::kPort)) == NULL)
+
+			isOk = false;
+
+	}
+
+	if (ResolveToV6()) {
+
+		if ((fIPv6EndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv6MulticastAddress, Bonjour::kPort)) == NULL) 
+
+			isOk = false;
+
+	}
+
+#endif
+
+	if (isOk) {
+
+		Run();
 		return VE_OK;
+
+	} else {
+
+		// VServiceDiscoveryServer destructor will destroy remaining endpoint if necessary.
+
+		return VE_SRVR_BONJOUR_NETWORK_FAILURE;
+	
 	}
 }
 
@@ -612,7 +652,7 @@ VError VServiceDiscoveryServer::PublishServiceRecord (const VString &inServiceNa
 	std::list<VServiceRecord>::iterator		i;
 	uBYTE									buffer[Bonjour::kBufferSize];	
 	
-	if (GetState() != TS_RUNNING || fUDPEndPoint == NULL) 
+	if (GetState() != TS_RUNNING || (fIPv4EndPoint == NULL && fIPv6EndPoint == NULL)) 
 
 		return VE_SRVR_BONJOUR_SERVER_NOT_RUNNING;
 		
@@ -627,9 +667,20 @@ VError VServiceDiscoveryServer::PublishServiceRecord (const VString &inServiceNa
 			
 		return VE_SRVR_BONJOUR_RECORD_NOT_FOUND;
 
-	memset(buffer, 0, 12);
+	VError	error;
 
-	return _SendPTRAnswer(buffer, Bonjour::kBufferSize, 12, *i);
+	error = VE_OK;
+	if (fIPv4EndPoint != NULL) {
+
+		memset(buffer, 0, 12);
+		error = _SendPTRAnswer(fIPv4EndPoint, buffer, Bonjour::kBufferSize, 12, *i);
+
+	}
+	if (error == VE_OK && fIPv6EndPoint != NULL) 
+
+		error = _SendPTRAnswer(fIPv6EndPoint, buffer, Bonjour::kBufferSize, 12, *i);
+
+	return error;
 }
 
 void VServiceDiscoveryServer::KillAndWaitTermination ()
@@ -644,11 +695,23 @@ void VServiceDiscoveryServer::KillAndWaitTermination ()
 VServiceDiscoveryServer::VServiceDiscoveryServer ()
 : VTask(NULL, 0, eTaskStylePreemptive, NULL)
 {
-	fUDPEndPoint = NULL;
+	fIPv4EndPoint = fIPv6EndPoint = NULL;
 }
 
 VServiceDiscoveryServer::~VServiceDiscoveryServer ()
 {
+	if (fIPv4EndPoint != NULL) {
+
+		delete fIPv4EndPoint;
+		fIPv4EndPoint = NULL;
+
+	}
+	if (fIPv6EndPoint != NULL) {
+
+		delete fIPv6EndPoint;
+		fIPv6EndPoint = NULL;
+
+	}
 }
 
 void VServiceDiscoveryServer::DoOnRefCountZero ()
@@ -662,6 +725,31 @@ void VServiceDiscoveryServer::DoOnRefCountZero ()
 
 Boolean VServiceDiscoveryServer::DoRun ()
 {
+	VUDPEndPoint	*endPoints[2];
+	sLONG			index;
+	
+	if (fIPv4EndPoint == NULL) {
+
+		xbox_assert(fIPv6EndPoint != NULL);
+		endPoints[0] = endPoints[1] = fIPv6EndPoint;
+		fIPv6EndPoint->SetIsBlocking(false);
+
+	} else if (fIPv6EndPoint == NULL) {
+
+		xbox_assert(fIPv4EndPoint != NULL);
+		endPoints[0] = endPoints[1] = fIPv4EndPoint;
+		fIPv4EndPoint->SetIsBlocking(false);
+
+	} else {
+
+		endPoints[0] = fIPv4EndPoint;
+		fIPv4EndPoint->SetIsBlocking(false);
+		endPoints[1] = fIPv6EndPoint;
+		fIPv6EndPoint->SetIsBlocking(false);
+
+	}
+	index = 0;
+
 	while (GetState() == TS_RUNNING) {
 		
 		StDropErrorContext errCtx;
@@ -670,21 +758,28 @@ Boolean VServiceDiscoveryServer::DoRun ()
 		uLONG					size;
 		VError					result;
 		std::vector<VString>	queriedServices;
+		VUDPEndPoint			*endPoint;
 		
 		size = Bonjour::kReadBufferSize;
-		
-		const XNetAddr bonjourInfo(Bonjour::kIPv4MulticastAddress, Bonjour::kPort);
-				
-		XNetAddr senderInfo;
 
-		result = fUDPEndPoint->Read(readBuffer, &size, &senderInfo);
+#if WITH_DEPRECATED_IPV4_API
+		VNetAddress bonjourInfo(Bonjour::kIPv4MulticastAddress, Bonjour::kPort);
+#else
+		VNetAddress bonjourInfo(ResolveToV6() ? Bonjour::kIPv6MulticastAddress : Bonjour::kIPv4MulticastAddress, Bonjour::kPort);
+#endif
+		
+		VNetAddress senderInfo;
+
+		endPoint = endPoints[index];
+		index = (index + 1) & 1;
+		result = endPoint->Read(readBuffer, &size, &senderInfo);
 
 		// fUDPEndPoint->Read() should only return XBOX::VE_SRVR_READ_FAILED error.
 
-		if (result != XBOX::VE_OK) {
+		if (result != XBOX::VE_OK || !size) {
 
-			// UDP is connectionless, error may be transient or permanent, 
-			// no way to find out. Just wait and retry.
+			// If nothing to read, just wait. 
+			// If erroneous, just wait. UDP is connectionless, error may be transient or permanent, no way to find out. 
 
 			XBOX::VTask::Sleep(100);
 			continue;
@@ -698,18 +793,18 @@ Boolean VServiceDiscoveryServer::DoRun ()
 
 			if (senderInfo.GetPort() != Bonjour::kPort) 
 
-				fUDPEndPoint->SetDestination(senderInfo);
+				endPoint->SetDestination(senderInfo);
 
 			else
 				
-				fUDPEndPoint->SetDestination(bonjourInfo);
+				endPoint->SetDestination(bonjourInfo);
 
 			// Currently drop packets bigger than Bonjour::kBufferSize (MTU).
 			// If answering those packets, the resulting packet would be bigger.
 			
 			if (size < Bonjour::kBufferSize)
 
-				_HandlePacket(readBuffer, size, Bonjour::kBufferSize);
+				_HandlePacket(endPoint, readBuffer, size, Bonjour::kBufferSize);
 
 			sCriticalSection.Unlock();	
 
@@ -717,22 +812,12 @@ Boolean VServiceDiscoveryServer::DoRun ()
 		
 	}
 	
-	sCriticalSection.Lock();
-	
-	if (fUDPEndPoint != NULL) {
-		
-		delete fUDPEndPoint;
-		fUDPEndPoint = NULL;
-		
-	}
-	
-	sCriticalSection.Unlock();	
-	
 	return false;
 }
 
-VError VServiceDiscoveryServer::_HandlePacket (uBYTE *inPacket, uLONG inPacketSize, uLONG inBufferSize)
+VError VServiceDiscoveryServer::_HandlePacket (VUDPEndPoint *inEndPoint, uBYTE *inPacket, uLONG inPacketSize, uLONG inBufferSize)
 {
+	xbox_assert(inEndPoint != NULL);
 	xbox_assert(inPacket != NULL);
 		
 	uLONG									numberQuestions, size, i, offset;
@@ -777,6 +862,9 @@ VError VServiceDiscoveryServer::_HandlePacket (uBYTE *inPacket, uLONG inPacketSi
 			if (vString.EndsWith(".local", true)) {
 			
 				vString.Truncate(vString.GetLength() - 6);
+				
+				int x = fServiceRecords.size();
+				
 				for (j = fServiceRecords.begin(); j != fServiceRecords.end(); j++)
 
 					if (j->fServiceName.EqualToString(vString, true)) {
@@ -807,11 +895,11 @@ VError VServiceDiscoveryServer::_HandlePacket (uBYTE *inPacket, uLONG inPacketSi
 
 		if (k->first.EqualToString("_services._dns-sd._udp", true))
 
-			error = _SendServiceList(inPacket, inBufferSize, offset);
+			error = _SendServiceList(inEndPoint, inPacket, inBufferSize, offset);
 
 		else
 		
-			error = _AnswerQuery(inPacket, inBufferSize, offset, k->first);
+			error = _AnswerQuery(inEndPoint, inPacket, inBufferSize, offset, k->first);
 	
 	for (k = queriedAddresses.begin(); k != queriedAddresses.end(); k++) 
 		
@@ -819,7 +907,7 @@ VError VServiceDiscoveryServer::_HandlePacket (uBYTE *inPacket, uLONG inPacketSi
 		
 			if (j->fHostName.EqualToString(k->first, false)) {
 				
-				error = _SendAAnswer(inPacket, inBufferSize, offset, k->first, j->fAddress);
+				error = _SendAddressAnswer(inEndPoint, inPacket, inBufferSize, offset, *j);
 				break;
 				
 			}
@@ -827,7 +915,7 @@ VError VServiceDiscoveryServer::_HandlePacket (uBYTE *inPacket, uLONG inPacketSi
 	return error;
 }
 
-VError VServiceDiscoveryServer::_AnswerQuery (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VString &inQueriedService)
+VError VServiceDiscoveryServer::_AnswerQuery (VUDPEndPoint *inEndPoint, uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VString &inQueriedService)
 {
 	xbox_assert(ioPacket != NULL);
 	
@@ -839,13 +927,14 @@ VError VServiceDiscoveryServer::_AnswerQuery (uBYTE *ioPacket, uLONG inBufferSiz
 
 		if (i->fServiceName.EqualToString(inQueriedService, true))
 		
-			error = _SendPTRAnswer(ioPacket, inBufferSize, inOffset, *i);
+			error = _SendPTRAnswer(inEndPoint, ioPacket, inBufferSize, inOffset, *i);
 	
 	return error;
 }
 
-VError VServiceDiscoveryServer::_SendServiceList (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset)
+VError VServiceDiscoveryServer::_SendServiceList (VUDPEndPoint *inEndPoint, uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset)
 {
+	xbox_assert(inEndPoint != NULL);
 	xbox_assert(ioPacket != NULL);
 	
 	VError									error;
@@ -909,7 +998,7 @@ VError VServiceDiscoveryServer::_SendServiceList (uBYTE *ioPacket, uLONG inBuffe
 			Bonjour::Write2Bytes(&ioPacket[10], 0);
 
 			xbox_assert(p - ioPacket <= inBufferSize);
-			fUDPEndPoint->WriteExactly(ioPacket, p - ioPacket);
+			inEndPoint->WriteExactly(ioPacket, p - ioPacket);
 
 		}
 	}
@@ -917,19 +1006,23 @@ VError VServiceDiscoveryServer::_SendServiceList (uBYTE *ioPacket, uLONG inBuffe
 	return error;
 }
 
-VError VServiceDiscoveryServer::_SendPTRAnswer (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VServiceRecord &inServiceRecord)
+VError VServiceDiscoveryServer::_SendPTRAnswer (VUDPEndPoint *inEndPoint, 
+												uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, 
+												const VServiceRecord &inServiceRecord)
 {
+	xbox_assert(inEndPoint != NULL);
 	xbox_assert(ioPacket != NULL);
 
 	VError	error;
-	uBYTE			*p, *q, buffer[Bonjour::kBufferSize];
-	uLONG			size, dataSize;
+	uBYTE	*p, *q, buffer[Bonjour::kBufferSize];
+	uLONG	size, dataSize;
 	VString	serviceName, providerName, hostName;
+	sLONG	numberAdditionalRecords;
 
 	ioPacket[2] |= 0x84;
 	Bonjour::Write2Bytes(&ioPacket[6], 1);
 	Bonjour::Write2Bytes(&ioPacket[8], 0);
-	Bonjour::Write2Bytes(&ioPacket[10], 3);
+	numberAdditionalRecords = 2;
 			
 	serviceName = inServiceRecord.fServiceName;
 	serviceName.AppendString(".local");
@@ -980,22 +1073,8 @@ VError VServiceDiscoveryServer::_SendPTRAnswer (uBYTE *ioPacket, uLONG inBufferS
 		
 	p += size;
 
-	// Encode A and TXT resource records. (Should AAAA records for IPv6 support).
-		
-	buffer[0] = inServiceRecord.fAddress >> 24;
-	buffer[1] = inServiceRecord.fAddress >> 16;
-	buffer[2] = inServiceRecord.fAddress >> 8;
-	buffer[3] = inServiceRecord.fAddress;
+	// Encode TXT resource records.
 
-	size = q - p;
-	if ((error = Bonjour::EncodeResourceRecord(p, &size, 
-											   hostName, Bonjour::kTypeA, 
-											   buffer, 4, 
-											   Bonjour::kDefaultTimeToLive)) != VE_OK)	
-		return error;
-			
-	p += size;
-			
 	dataSize = Bonjour::kBufferSize;
 	if ((error = Bonjour::ValueBagToTXT(buffer, &dataSize, inServiceRecord.fValueBag)) != VE_OK)
 				
@@ -1011,46 +1090,137 @@ VError VServiceDiscoveryServer::_SendPTRAnswer (uBYTE *ioPacket, uLONG inBufferS
 
 	p += size;
 	
-	xbox_assert(p - ioPacket <= inBufferSize);
-	return fUDPEndPoint->WriteExactly(ioPacket, p - ioPacket);
+	// If IPv4 address is supported, encode an A resource record.
+
+	if (inServiceRecord.fIPv4Address.GetLength()) {
+
+		VNetAddress	address(inServiceRecord.fIPv4Address);
+
+		xbox_assert(address.IsV4());
+
+		address.FillIpV4((IP4 *) buffer);
+
+		size = q - p;
+		if ((error = Bonjour::EncodeResourceRecord(p, &size, 
+												   hostName, Bonjour::kTypeA, 
+												   buffer, 4, 
+												   Bonjour::kDefaultTimeToLive)) != VE_OK)	
+			return error;
+		
+		numberAdditionalRecords++;
+
+		p += size;
+
+	}
+
+	// If IPv6 address is supported, encode an AAAA resource record.
+
+	if (inServiceRecord.fIPv6Address.GetLength()) {
+
+		VNetAddress	address(inServiceRecord.fIPv6Address);
+
+		xbox_assert(address.IsV6());
+
+		address.FillIpV6((IP6 *) buffer);
+
+		size = q - p;
+		if ((error = Bonjour::EncodeResourceRecord(p, &size, 
+												   hostName, Bonjour::kTypeAAAA, 
+												   buffer, 16, 
+												   Bonjour::kDefaultTimeToLive)) != VE_OK)	
+			return error;
+		
+		numberAdditionalRecords++;
+
+		p += size;
+
+	}
+
+	// Must at least send an A or AAAA resource record.
+
+	xbox_assert(numberAdditionalRecords >= 3);
+	Bonjour::Write2Bytes(&ioPacket[10], numberAdditionalRecords);
+
+	xbox_assert(p - ioPacket <= inBufferSize);	
+	return inEndPoint->WriteExactly(ioPacket, p - ioPacket);
 }
 
-VError VServiceDiscoveryServer::_SendAAnswer (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VString &inHostName, uLONG inIPv4)
+VError VServiceDiscoveryServer::_SendAddressAnswer (VUDPEndPoint *inEndPoint,
+													uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, 
+													const VServiceRecord &inServiceRecord)
 {
+	xbox_assert(inEndPoint != NULL);
 	xbox_assert(ioPacket != NULL);
 	
-	uBYTE			*p, *q, buffer[4];
-	uLONG			size;
+	uBYTE	*p, *q, buffer[4];
+	uLONG	size;
 	VError	error;	
+	sLONG	numberAnswers;
 
-	ioPacket[2] |= 0x84;
-	Bonjour::Write2Bytes(&ioPacket[6], 1);
+	numberAnswers = 0;
+	ioPacket[2] |= 0x84;	
 	Bonjour::Write2Bytes(&ioPacket[8], 0);
 	Bonjour::Write2Bytes(&ioPacket[10], 0);
 
 	p = &ioPacket[inOffset];
 	q = ioPacket + inBufferSize;
 
-	buffer[0] = inIPv4 >> 24;
-	buffer[1] = inIPv4 >> 16;
-	buffer[2] = inIPv4 >> 8;
-	buffer[3] = inIPv4;
-	size = q - p;
-	if ((error = Bonjour::EncodeResourceRecord(p, &size, 
-											   inHostName, Bonjour::kTypeA, 
-											   buffer, 4, 
-											   Bonjour::kDefaultTimeToLive)) != VE_OK)
-				
-		return error;
+	// If IPv4 address is supported, encode an A resource record.
 
-	p[size - 12] |= 0x80;
-	p += size;
+	if (inServiceRecord.fIPv4Address.GetLength()) {
+
+		VNetAddress	address(inServiceRecord.fIPv4Address);
+
+		xbox_assert(address.IsV4());
+
+		address.FillIpV4((IP4 *) buffer);
+
+		size = q - p;
+		if ((error = Bonjour::EncodeResourceRecord(p, &size, 
+												   inServiceRecord.fHostName, Bonjour::kTypeA, 
+												   buffer, 4, 
+												   Bonjour::kDefaultTimeToLive)) != VE_OK)	
+			return error;
+		
+		numberAnswers++;
+
+		p += size;
+
+	}
+
+	// If IPv6 address is supported, encode an AAAA resource record.
+
+	if (inServiceRecord.fIPv6Address.GetLength()) {
+
+		VNetAddress	address(inServiceRecord.fIPv6Address);
+
+		xbox_assert(address.IsV6());
+
+		address.FillIpV6((IP6 *) buffer);
+
+		size = q - p;
+		if ((error = Bonjour::EncodeResourceRecord(p, &size, 
+												   inServiceRecord.fHostName, Bonjour::kTypeAAAA, 
+												   buffer, 16, 
+												   Bonjour::kDefaultTimeToLive)) != VE_OK)	
+			return error;
+		
+		numberAnswers++;
+
+		p += size;
+
+	}
+
+	// Must at least send an A or AAAA resource record.
+
+	xbox_assert(numberAnswers >= 1);
+	Bonjour::Write2Bytes(&ioPacket[6], numberAnswers);
 	
 	xbox_assert(p - ioPacket <= inBufferSize);
-	return fUDPEndPoint->WriteExactly(ioPacket, p - ioPacket);	
+	return inEndPoint->WriteExactly(ioPacket, p - ioPacket);	
 }
 
-VServiceDiscoveryClient::VServiceDiscoveryClient ()
+VServiceDiscoveryClient::VServiceDiscoveryClient (bool inIsIPv4)
 {
 	fUDPEndPoint = NULL;
 	Reset();
@@ -1068,10 +1238,29 @@ VServiceDiscoveryClient::~VServiceDiscoveryClient ()
 
 VError VServiceDiscoveryClient::Reset ()
 {
-	fUDPEndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv4MulticastAddress, Bonjour::kPort);
+#if WITH_DEPRECATED_IPV4_API 
+
+	fUDPEndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv4MCastBinAddress, Bonjour::kPort);
+
+#else
+
+	if (ResolveToV6()) 
+		fUDPEndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv6MulticastAddress, Bonjour::kPort);
+	else
+		fUDPEndPoint = VUDPEndPointFactory::CreateMulticastEndPoint(Bonjour::kIPv4MulticastAddress, Bonjour::kPort);
+		
+
+#endif
 
 	if ( fUDPEndPoint != NULL)
 	{
+		VNetAddress bonjourInfo(Bonjour::kIPv4MulticastAddress, Bonjour::kPort);
+
+		if (ResolveToV6())
+			fUDPEndPoint->SetDestination(VNetAddress(Bonjour::kIPv6MulticastAddress, Bonjour::kPort));
+		else
+			fUDPEndPoint->SetDestination(VNetAddress(Bonjour::kIPv4MulticastAddress, Bonjour::kPort));
+		
 		fUDPEndPoint->SetIsBlocking(false);
 		
 		fIdentifier = VSystem::Random(false);
@@ -1120,7 +1309,7 @@ VError VServiceDiscoveryClient::SendQuery (const std::vector<VString> &inService
 			
 		} else if ((error = fUDPEndPoint->WriteExactly(buffer, size)) != VE_OK)
 			
-			break;
+				break;
 
 		else if (outNumberRequestSent != NULL)
 				
@@ -1209,7 +1398,7 @@ VError VServiceDiscoveryClient::_EncodePTRQuery (uBYTE *outBuffer, uLONG *ioSize
 
 	xbox_assert(*ioSize >=  12 + size + 4);		// Check encoded packet size.
 	*ioSize = 12 + size + 4;	
-
+	
 	return VE_OK;
 }
 
@@ -1234,7 +1423,7 @@ VError VServiceDiscoveryClient::_ParsePacket (const uBYTE *inPacket, uLONG inPac
 		return VE_OK;		// Ignore.
 	
 	// If identifier isn't used, allow service detection from any "captured" packets.
-		
+	
 	if ((inIdentifier >= 0 && (Bonjour::Read2Bytes(inPacket) != inIdentifier)) || !(inPacket[2] & 0x80)) 
 		
 		return VE_OK;		// Ignore.
@@ -1254,13 +1443,13 @@ VError VServiceDiscoveryClient::_ParsePacket (const uBYTE *inPacket, uLONG inPac
 		if ((error = Bonjour::ParseDNSName(inPacket, &size, p - inPacket, &vString)) != VE_OK)
 			
 			return error;
-		
+				
 		if ((p += size + 4) > q) 
 		
 			return VE_SRVR_BONJOUR_MALFORMED_PACKET;
 		
 	}
-		
+	
 	std::vector<PendingRecord>	pendingRecords;
 	uLONG						i, j;
 	
@@ -1286,8 +1475,6 @@ VError VServiceDiscoveryClient::_ParsePacket (const uBYTE *inPacket, uLONG inPac
 
 			case Bonjour::kTypeA: {
 
-				uLONG	address;
-			
 				if (dataSize != 4) {
 				
 					error = VE_SRVR_BONJOUR_MALFORMED_PACKET;
@@ -1295,23 +1482,45 @@ VError VServiceDiscoveryClient::_ParsePacket (const uBYTE *inPacket, uLONG inPac
 					
 				}
 			
-				address = data[0] << 24;
-				address |= data[1] << 16;
-				address |= data[2] << 8;
-				address |= data[3];
-			
 				for (j = 0; j < pendingRecords.size(); j++)
 				
 					if (pendingRecords[j].fHasSRV
 					&& pendingRecords[j].fTarget.EqualToString(name, true)) {
+
+						VNetAddress	address(*((IP4 *) data));
 					
-						pendingRecords[j].fServiceRecord.fAddress = address;
+						pendingRecords[j].fServiceRecord.fIPv4Address = address.GetIP(NULL);
 						pendingRecords[j].fHasA = true;
 						
 					}
 				
 				break;
 				
+			}
+
+			case Bonjour::kTypeAAAA: {
+
+				if (dataSize != 16) {
+				
+					error = VE_SRVR_BONJOUR_MALFORMED_PACKET;
+					break;
+					
+				}
+
+				for (j = 0; j < pendingRecords.size(); j++)
+				
+					if (pendingRecords[j].fHasSRV
+					&& pendingRecords[j].fTarget.EqualToString(name, true)) {
+						
+						VNetAddress	address(*((IP6 *) data));
+					
+						pendingRecords[j].fServiceRecord.fIPv6Address = address.GetIP(NULL);
+						pendingRecords[j].fHasAAAA = true;
+						
+					}
+				
+				break;
+
 			}
 				
 			case Bonjour::kTypePTR: {
@@ -1359,7 +1568,7 @@ VError VServiceDiscoveryClient::_ParsePacket (const uBYTE *inPacket, uLONG inPac
 					record.fServiceRecord.fServiceName = name;
 					record.fServiceRecord.fProviderName = vString;
 					record.fServiceRecord.fValueBag.Clear();						
-					record.fHasSRV = record.fHasA = false;
+					record.fHasSRV = record.fHasA = record.fHasAAAA = false;
 					record.fTarget.Clear();
 					
 					pendingRecords.push_back(record);
@@ -1392,19 +1601,7 @@ VError VServiceDiscoveryClient::_ParsePacket (const uBYTE *inPacket, uLONG inPac
 				break;
 				
 			}
-				
-			case Bonjour::kTypeAAAA: {
-			
-				if (dataSize != 16) 
-					
-					return VE_SRVR_BONJOUR_MALFORMED_PACKET;
-				
-				// TODO: Retrieve IPv6 address, ignore for now.
-				
-				break;	
-				
-			}				
-		
+
 			case Bonjour::kTypeSRV: {
 				
 				for (j = 0; j < pendingRecords.size(); j++)
@@ -1449,7 +1646,7 @@ VError VServiceDiscoveryClient::_ParsePacket (const uBYTE *inPacket, uLONG inPac
 	
 	for (i = 0; i < pendingRecords.size(); i++)
 		
-		if (pendingRecords[i].fHasSRV && pendingRecords[i].fHasA) {
+		if (pendingRecords[i].fHasSRV && (pendingRecords[i].fHasA || pendingRecords[i].fHasAAAA)) {
 			
 			if (pendingRecords[i].fServiceRecord.fProviderName.EndsWith(pendingRecords[i].fServiceRecord.fServiceName))
 

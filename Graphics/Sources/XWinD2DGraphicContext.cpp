@@ -18,7 +18,6 @@
 
 #if ENABLE_D2D
 
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "XWinD2DGraphicContext.h"
 #include <d2d1.h>
@@ -164,7 +163,7 @@ Boolean VWinD2DGraphicContext::Init( bool inUseHardwareIfPresent)
 	{
 		VTaskLock lock(&fMutexDWriteFactory);
 		HRESULT hr = DWriteCreateFactory(
-				DWRITE_FACTORY_TYPE_SHARED,
+				DWRITE_FACTORY_TYPE_ISOLATED,
 				__uuidof(IDWriteFactory),
 				reinterpret_cast<IUnknown**>(&fDWriteFactory)
 				);
@@ -2767,7 +2766,7 @@ void VWinD2DGraphicContext::_InitDeviceDependentObjects() const
 			xbox_assert(fHwndRenderTarget == NULL);
 
 			D2D1_RENDER_TARGET_PROPERTIES props;
-			D2D1_HWND_RENDER_TARGET_PROPERTIES propsHwnd = D2D1::HwndRenderTargetProperties(fHwnd, size, D2D1_PRESENT_OPTIONS_NONE);
+			D2D1_HWND_RENDER_TARGET_PROPERTIES propsHwnd = D2D1::HwndRenderTargetProperties(fHwnd, size, D2D1_PRESENT_OPTIONS_IMMEDIATELY|D2D1_PRESENT_OPTIONS_RETAIN_CONTENTS);
 			fIsRTHardware = FALSE;
 			if (sUseHardwareIfPresent && sHardwareEnabled && (!fIsRTSoftwareOnly))
 			{
@@ -3142,7 +3141,7 @@ void VWinD2DGraphicContext::BeginUsingContext(bool inNoDraw)
 
 		_InitDeviceDependentObjects();
 
-		if (inNoDraw && fHDC) //for bitmap context (fHDC = NULL), we need always to begin context in order to be able to get GDI context from bitmap later
+		if (inNoDraw && (fHDC || fHwnd)) //for bitmap context (fHDC = NULL && fHwnd == NULL), we need always to begin context in order to be able to get GDI context from bitmap later
 			return;
 
 #if VERSIONDEBUG
@@ -3236,6 +3235,22 @@ void VWinD2DGraphicContext::BeginUsingContext(bool inNoDraw)
 					fHDCBindRectLast = fHDCBounds;
 					fHDCBindRectDirty = false;
 					fHDCBindDCDirty = false;
+				}
+			}
+			else if (fHwnd)
+			{
+				//resize render target if window has been resized
+				RECT rect;
+				::GetClientRect( fHwnd, &rect);
+				GReal width = rect.right-rect.left;
+				GReal height = rect.bottom-rect.top;
+				if (width != fHDCBounds.GetWidth() || height != fHDCBounds.GetHeight())
+				{
+					xbox_assert(fHwndRenderTarget != NULL);
+					D2D1_SIZE_U size;
+					size.width = (UINT32)width;
+					size.height = (UINT32)height;
+					fHwndRenderTarget->Resize( size);
 				}
 			}
 
@@ -7641,12 +7656,14 @@ void VWinD2DGraphicContext::_ClipRect(const VRect& inHwndBounds, Boolean inAddTo
 	if (sDebugNoClipping)
 		return;
 #endif
-	if (fGDI_HDC)
+
+	VAffineTransform ctm;
+	_GetTransform(ctm);
+
+	if (fGDI_HDC && ctm.GetShearX() == 0.0f && ctm.GetShearY() == 0.0f)
 	{
 		//for GDI, clipping must be specified in GDI viewport space = rt transformed space
 		VRect boundsTransformed(inHwndBounds);
-		VAffineTransform ctm;
-		_GetTransform(ctm);
 		if (ctm.IsIdentity())
 			boundsTransformed.FromRect(inHwndBounds);
 		else
@@ -7667,14 +7684,14 @@ void VWinD2DGraphicContext::_ClipRect(const VRect& inHwndBounds, Boolean inAddTo
 		}
 		return;
 	}
-
+	
 	if (fUseCount <= 0)
 		return;
 
+	FlushGDI();
+
 	//StUseContext_NoRetain	context(this);
 
-	VAffineTransform ctm;
-	_GetTransform(ctm);
 	if (ctm.GetShearX() == 0.0f && ctm.GetShearY() == 0.0f)
 	{
 		//we can use axis-aligned clipping because there is no transform rotation

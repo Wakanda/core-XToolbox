@@ -18,7 +18,6 @@
 #include "Kernel/VKernel.h"
 
 #include <vector>
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #if ENABLE_D2D
 #include "XWinD2DGraphicContext.h"
@@ -679,7 +678,9 @@ void VPictureData_GDIPlus::_DoLoad()const
 		//backfall to gdiplus decoder if failed
 		VPictureDataProvider_Stream* st=new VPictureDataProvider_Stream(fDataProvider);
 		fBitmap=new Gdiplus::Bitmap(st);
-		fBitmap->SetResolution( 96.0f, 96.0f); //JQ 16/04/2012: fixed ACI0076335 - ensure dpi=96
+		//JQ 10/07/2012: fixed ACI0077506
+		if (VSystem::IsVista())
+			fBitmap->SetResolution( 96.0f, 96.0f); //JQ 16/04/2012: fixed ACI0076335 - ensure dpi=96
 		st->Release();
 		fBounds.SetCoords(0,0,fBitmap->GetWidth(),fBitmap->GetHeight());
 	}

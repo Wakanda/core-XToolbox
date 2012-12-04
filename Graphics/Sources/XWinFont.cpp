@@ -447,15 +447,20 @@ FontRef XWinFont::_CreateFontRef (const VString& inFontFamilyName, const VFontFa
 	delete fontFamily;
 #endif
 
-#if VERSIONDEBUG
 	LOGFONTW logfont2;
 	::memset(&logfont2, 0, sizeof(logfont2));
 	{
 	Gdiplus::Graphics graphics( hDC);
 	fGDIPlusFont->GetLogFontW( &graphics, &logfont2);
-	//xbox_assert(logfont2.lfHeight == logfont.lfHeight);
+
+	//if font family is not modified, we still need to update GDI logfont style from Gdiplus logfont style
+	//because if gdiplus has returned another style, it is because font does not have this style either
+	//and so we need to use gdiplus logfont to create the GDI font to ensure GDI font will have the proper supported styles
+	//(for instance, if we request for Aharoni font, il will return a Aharoni bold font which is supported but not regular font
+	// and so lfWeight needs to be set to bold)
+	if (wcscmp( logfont.lfFaceName, logfont2.lfFaceName) == 0)
+		memcpy(&logfont, &logfont2, sizeof(LOGFONTW));
 	}
-#endif
 #endif
     DeleteDC( hDC );
 
@@ -873,7 +878,7 @@ IDWriteTextLayout *XWinFont::CreateTextLayout(
 			IDWriteInlineObject* inlineObject = NULL;
             DWRITE_TRIMMING trimming = { DWRITE_TRIMMING_GRANULARITY_NONE, 0, 0 };
             textLayout->GetTrimming(&trimming, &inlineObject);
-            DWRITE_TRIMMING_GRANULARITY granularity = ((inMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY) != 0)
+            DWRITE_TRIMMING_GRANULARITY granularity = ((inMode & (TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_TRUNCATE_END_IF_NECESSARY)) != 0) //FIXME: for now, D2D does trimming only at the end
 													 ? DWRITE_TRIMMING_GRANULARITY_CHARACTER
 													 : DWRITE_TRIMMING_GRANULARITY_NONE;
 			if (granularity != trimming.granularity 

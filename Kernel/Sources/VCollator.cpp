@@ -562,6 +562,43 @@ sLONG VCollator_system::FindString( const UniChar* inText, sLONG inTextSize, con
 	return fImpl.FindString( inText, inTextSize, inPattern, inPatternSize, inWithDiacritics, outFoundLength);
 }
 
+
+sLONG VCollator_system::ReversedFindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength)
+{
+	// finding null strings is system dependant. check that case here.
+	if ( (inTextSize == 0) || (inPatternSize == 0) )
+	{
+		if (outFoundLength != NULL)
+			*outFoundLength = 0;
+		return ( (inPatternSize == 0) && (inTextSize > 0) ) ? 1 : 0;
+	}
+
+	const UniChar* text = inText;
+	sLONG textSize = inTextSize;
+	sLONG lastPos = 0;
+	sLONG lastFoundLength = 0;
+	sLONG pos;
+	do
+	{
+		sLONG foundLength;
+		pos = fImpl.FindString( text, textSize, inPattern, inPatternSize, inWithDiacritics, &foundLength);
+		if (pos <= 0)
+			break;
+		
+		lastPos = pos;
+		lastFoundLength = foundLength;
+		
+		text += pos;
+		textSize -= pos;
+
+	} while(textSize > 0);
+	
+	if (outFoundLength != NULL)
+		*outFoundLength = lastFoundLength;
+	
+	return lastPos;
+}
+
 #endif
 
 /************************************************************/
@@ -1966,6 +2003,48 @@ sLONG VICUCollator::FindString( const UniChar* inText, sLONG inTextSize, const U
 		xbox_assert( debug_matchedLength == matchedLength);
 	}
 #endif
+
+	if (outFoundLength)
+		*outFoundLength = matchedLength;
+
+	return pos;
+}
+
+
+sLONG VICUCollator::ReversedFindString( const UniChar* inText, sLONG inTextSize, const UniChar* inPattern, sLONG inPatternSize, bool inWithDiacritics, sLONG *outFoundLength)
+{
+	sLONG pos;
+	sLONG matchedLength;
+
+	UErrorCode status;
+	UStringSearch *search = _InitSearch( inText, inTextSize, inPattern, inPatternSize, inWithDiacritics, &status);
+	if (U_SUCCESS(status))
+	{
+		sLONG result = usearch_last( search, &status);
+		if (result != USEARCH_DONE)
+		{
+			pos = result + 1;
+			matchedLength = usearch_getMatchedLength( search);
+		}
+		else
+		{
+			pos = 0;
+			matchedLength = 0;
+		}
+	}
+	else if (testAssert( status == U_ILLEGAL_ARGUMENT_ERROR))	// the only one we silently accept
+	{
+		if ( (inPatternSize == 0) && (inTextSize != 0) )
+		{
+			pos = 1;
+			matchedLength = 0;
+		}
+		else
+		{
+			pos = 0;
+			matchedLength = 0;
+		}
+	}
 
 	if (outFoundLength)
 		*outFoundLength = matchedLength;

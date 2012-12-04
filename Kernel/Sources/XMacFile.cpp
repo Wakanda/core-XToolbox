@@ -617,10 +617,11 @@ VError XMacFile::Copy( const VFilePath& inDestinationPath, VFile** outFile, File
 
 	OSStatus macError = noErr;
 	FSRef srcRef, dstRef;
+	VFilePath path_destination_folder;
+	VStr31 destinationFileName;
 	if (_BuildFSRefFile( &srcRef))
 	{
 		// get destination file name
-		VStr31 destinationFileName;
 		if (inDestinationPath.IsFile())
 		{
 			inDestinationPath.GetFileName( destinationFileName);
@@ -632,7 +633,6 @@ VError XMacFile::Copy( const VFilePath& inDestinationPath, VFile** outFile, File
 
 		// get destination folder ref
 		FSRef dstFolderRef;
-		VFilePath path_destination_folder;
 		inDestinationPath.GetFolder( path_destination_folder);
 		macError = HFSPathToFSRef( path_destination_folder.GetPath(), &dstFolderRef);
 		
@@ -706,7 +706,20 @@ VError XMacFile::Copy( const VFilePath& inDestinationPath, VFile** outFile, File
 								scheduler->SetSystemCallCFRunloop(false);
 							ReleaseRefCountable(&scheduler);
 							
-							::FSFileOperationCopyStatus( fileOp, &dstRef, NULL, &macError, NULL, NULL );
+							CFDictionaryRef dico = NULL;
+							FSFileOperationStage stage = 0;
+							void *returnedClientContext = 0;
+							OSStatus operationStatus = ::FSFileOperationCopyStatus( fileOp, &dstRef, &stage, &macError, &dico, &returnedClientContext );
+							xbox_assert( operationStatus == noErr);
+							xbox_assert( returnedClientContext == clientContext.info);
+
+							if (dico != NULL)
+							{
+								#if 0
+								CFShow( dico);
+								#endif
+								CFRelease( dico);
+							}
 						}
 
 						::CFRelease( fileOp );
@@ -728,7 +741,12 @@ VError XMacFile::Copy( const VFilePath& inDestinationPath, VFile** outFile, File
 	if (outFile != NULL)
 	{
 		if (macError == noErr)
-			*outFile = new VFile( dstRef);
+		{
+			// unfortunately, the FSRef returned by FSFileOperationCopyStatus is sometime invalid!
+			// so one can't use it.
+			VFilePath path( path_destination_folder, destinationFileName);
+			*outFile = new VFile( path);
+		}
 		else
 			*outFile = NULL;
 	}

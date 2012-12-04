@@ -17,6 +17,7 @@
 #define __VComponentLibrary__
 
 #include "Kernel/VKernel.h"
+#include "KernelIPC/Sources/CComponent.h"
 
 
 BEGIN_TOOLBOX_NAMESPACE

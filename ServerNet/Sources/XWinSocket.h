@@ -19,13 +19,12 @@
 
 #include "ServerNetTypes.h"
 
-#include "XWinNetAddr.h" //todo : VNetAddr.h à la place...
 
 
 BEGIN_TOOLBOX_NAMESPACE
 
 
-class VKeyCertPair;
+class VKeyCertChain;
 class VNetAddress;
 class VSslDelegate;
 
@@ -39,6 +38,7 @@ class XTOOLBOX_API XWinTCPSocket : public VObject
 #if WITH_DEPRECATED_IPV4_API
 	static XWinTCPSocket* NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock=kBAD_SOCKET);
 #else
+	//jmo - TODO : Mettre une VString pour l'adresse.
 	static XWinTCPSocket* NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock=kBAD_SOCKET);
 #endif
 
@@ -72,7 +72,7 @@ class XTOOLBOX_API XWinTCPSocket : public VObject
 
 	XBOX::VError SetNoDelay (bool inYesNo);
 	
-	VError PromoteToSSL(VKeyCertPair* inKeyCertPair=NULL);
+	VError PromoteToSSL(VKeyCertChain* inKeyCertChain=NULL);
 	bool IsSSL();
 
 // Used by SSJS socket implementation only (for doing handshake).
@@ -124,7 +124,8 @@ class XWinAcceptIterator : public VObject
 	//Pas thread-safe ! Mais en principe pas necessaire vu que tous les appels decoulent de VTCPConnectionListener::StartListening()
 
 public :
-	
+
+	XWinAcceptIterator();
 	VError AddServiceSocket(XWinTCPSocket* inSock);
 	VError ClearServiceSockets();
 	VError GetNewConnectedSocket(XWinTCPSocket** outSock, sLONG inMsTimeout);
@@ -148,8 +149,16 @@ class XTOOLBOX_API XWinUDPSocket : public VObject
 {
 public :
 
+#if WITH_DEPRECATED_IPV4_API
+
 	static XWinUDPSocket* NewMulticastSock(uLONG inLocalIpv4, uLONG inMulticastIPv4, PortNumber inPort);
+
+#else
 	
+	static XWinUDPSocket* NewMulticastSock(const VString& inMultiCastIP, PortNumber inPort);
+	
+#endif
+
 	virtual ~XWinUDPSocket();
 	
 	VError SetBlocking(uBOOL inBlocking);
@@ -158,24 +167,27 @@ public :
 
 	VError Close();
 		
-	VError Read(void* outBuff, uLONG* ioLen, XWinNetAddr* outSenderInfo=NULL);
+	VError Read(void* outBuff, uLONG* ioLen, VNetAddress* outSenderInfo=NULL);
 	
-	VError Write(const void *inBuffer, uLONG inLength, const XWinNetAddr& inReceiverInfo);
+	VError Write(const void *inBuffer, uLONG inLength, const VNetAddress& inReceiverInfo);
 	
 		
 private :
 	
-	XWinUDPSocket(sLONG inSockFD, const sockaddr_storage& inSockAddr);
-	XWinUDPSocket(sLONG inSockFD, const sockaddr_in& inSockAddr);
+	XWinUDPSocket(Socket inSock) : fSock(inSock) {}
+	
+#if WITH_DEPRECATED_IPV4_API
 	
 	VError SubscribeMulticast(uLONG inLocalIpv4, uLONG inMulticastIPv4);
 	
-	VError Bind();
+	VError Bind(const VNetAddress& inBindAddr);
+	
+#endif
 
 	sLONG	fSock;
-
-	XWinNetAddr fSockAddr;	//Addr de la socket, utilisée pour bind().
 };
+
+#define WITH_SELECTIVE_GETADDRINFO 0
 
 
 END_TOOLBOX_NAMESPACE

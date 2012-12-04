@@ -173,6 +173,9 @@ public:
 
 	virtual VError	GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const;
 
+	virtual	VError	FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError	GetJSONValue( VJSONValue& outJSONValue) const;
+
 	virtual VError	ReadFromStream (VStream* ioStream, sLONG inParam = 0);
 	virtual VError	WriteToStream (VStream* ioStream, sLONG inParam = 0) const;
 	

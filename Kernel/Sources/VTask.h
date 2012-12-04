@@ -16,6 +16,7 @@
 #ifndef __VTask__
 #define __VTask__
 
+#include <stack>
 #include "Kernel/Sources/VObject.h"
 #include "Kernel/Sources/IRefCountable.h"
 #include "Kernel/Sources/VMessage.h"
@@ -37,13 +38,13 @@ class VValueBag;
 // Needed declarations
 class VCriticalSection;
 class VErrorTaskContext;
+class VErrorContext;
 class VErrorBase;
 class IIdleable;
 class VString;
 class IMessageable;
 class VMessage;
 class VMessageQueue;
-class VTaskWithHolesVector;
 class XTaskMgrMutexImpl;
 class VIntlMgr;
 class VSyncEvent;
@@ -236,7 +237,8 @@ private:
 			XTaskMgrImpl					fImpl;
 			std::vector<VMessage*>*			fDelayedMessages;	// Synchronized for time sorting
 			std::vector<sLONG>*				fDelayedMessagesTimes;
-			VTaskWithHolesVector*			fTasks;
+			VTaskID							fSeedFiberTaskID;	// next fiber task ID
+			std::stack<VTaskID>				fRecycledFiberTaskIDs;	// dead fibers task ids free to be used again
 		 	VTaskDataKeyDescVector			fDataDescriptors;
 			IFiberScheduler*				fFiberScheduler;
 	mutable	VTaskID							fSeedForeignTaskID;	// id generator for foreign tasks
@@ -398,6 +400,11 @@ public:
 	*/
 	static	bool						PushRetainedError( VErrorBase* inError);
 
+	// Push errors from one context into current task error context.
+	// Convenient to transfer one task error stack into another.
+	// Does nothing if inErrorContext is NULL or empty.
+	static	void						PushErrors( const VErrorContext* inErrorContext);
+
 
 	//============= Message support =============
 
@@ -524,6 +531,7 @@ public:
 	
 	// Main task (the one created by the system when the application launches)
 	static	VTask*						GetMain()											{ return VTaskMgr::Get()->GetMainTask(); }
+	static	bool						IsCurrentMain();
 	
 	// The currently running task
 	static	VTask*						GetCurrent()										{ return VTaskMgr::Get()->GetCurrentTask(); }

@@ -66,8 +66,9 @@ class XTOOLBOX_API XMLHttpRequest
     XMLHttpRequest();
     virtual ~XMLHttpRequest();
 
-    XBOX::VError    Open                    (const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync=true, const XBOX::VString& inUser="", const XBOX::VString& inPasswd="");
+    XBOX::VError    Open                    (const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync=true);
     XBOX::VError    SetProxy                (const XBOX::VString& inProxy, const uLONG inPort);
+	XBOX::VError    SetUserInfos            (const XBOX::VString& inUser, const XBOX::VString& inPasswd, bool inAllowBasic);
     XBOX::VError    SetRequestHeader        (const XBOX::VString& inKey, const XBOX::VString& inValue);
     XBOX::VError    OnReadyStateChange      (XBOX::VJSObject inReceiver, const XBOX::VJSObject& inFunction);
     XBOX::VError    Send                    (const XBOX::VString& inData="", XBOX::VError* outImplErr=NULL);
@@ -81,10 +82,8 @@ class XTOOLBOX_API XMLHttpRequest
 
 
  private :
-    //XBOX::CharSet   GuessRequestCharSet     () const;
-    //XBOX::CharSet   GuessResponseCharSet    () const;
-    //XBOX::CharSet   GetCharSet              (const char* inHeader) const;
-    XBOX::CharSet   GuessCharSet            () const;
+
+    XBOX::CharSet   GetCharSetFromHeaders     () const;
     const bool      fAsync;
     ReadyState      fReadyState;
     unsigned short  fStatus;
@@ -111,6 +110,9 @@ class XTOOLBOX_API VJSXMLHttpRequest : public XBOX::VJSClass<VJSXMLHttpRequest, 
 
     typedef XBOX::VJSClass<VJSXMLHttpRequest, XMLHttpRequest> inherited;
 
+	static XBOX::VJSObject	MakeConstructor (XBOX::VJSContext inContext);
+	static void _Construct				(XBOX::VJSParms_callAsConstructor& ioParms);
+	
     static void GetDefinition           (ClassDefinition& outDefinition);
     static void Initialize              (const XBOX::VJSParms_initialize& inParms,   XMLHttpRequest* inXhr);
     static void Finalize                (const XBOX::VJSParms_finalize& inParms,     XMLHttpRequest* inXhr);

@@ -16,13 +16,12 @@
 #ifndef __VJS_EVENT__
 #define __VJS_EVENT__
 
-#include "ServerNet/VServerNet.h"
-
 #include "VJSClass.h"
 #include "VJSValue.h"
 
 BEGIN_TOOLBOX_NAMESPACE
 
+class VTCPEndPoint;
 class VJSGlobalObject;
 class VJSWorker;
 class VJSMessagePort;
@@ -38,7 +37,7 @@ class VJSSystemWorker;
 
 // Worker event interface.
 
-class XTOOLBOX_API IJSEvent : public XBOX::IRefCountable
+class XTOOLBOX_API IJSEvent : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
 
@@ -90,7 +89,7 @@ protected:
 
 // Interface to an event generator.
 
-class XTOOLBOX_API IJSEventGenerator : public XBOX::IRefCountable
+class XTOOLBOX_API IJSEventGenerator : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
 
@@ -167,7 +166,9 @@ public:
 	// Create an event for an error.
 
 	static VJSErrorEvent	*Create (VJSMessagePort *inMessagePort, 
-										const XBOX::VString &inMessage, const XBOX::VString &inFileName, sLONG inLineNumber);
+										const XBOX::VString &inMessage, 
+										const XBOX::VString &inFileName, 
+										sLONG inLineNumber);
 
 	void					Process (XBOX::VJSContext inContext, VJSWorker *inWorker);
 	void					Discard ();
@@ -175,7 +176,6 @@ public:
 private:
 
 	VJSMessagePort			*fMessagePort;		// Message port to receive message.
-
 	XBOX::VString			fMessage;
 	XBOX::VString			fFileName;
 	sLONG					fLineNumber;
@@ -229,12 +229,7 @@ public:
 		bool	fHasStarted;
 		bool	fForcedTermination; 
 		sLONG	fExitStatus;
-
-#if VERSIONMAC || VERSION_LINUX 
-
 		sLONG	fPID;
-
-#endif
 
 	};
 	

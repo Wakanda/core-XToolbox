@@ -26,10 +26,10 @@ class XTOOLBOX_API VJSStream : public VJSClass<VJSStream, XBOX::VStream>
 public:
 	typedef VJSClass<VJSStream, XBOX::VStream> inherited;
 	
-	static	void			Initialize( const VJSParms_initialize& inParms, XBOX::VStream* inStream);
-	static	void			Finalize( const VJSParms_finalize& inParms, XBOX::VStream* inStream);
-	static	void			GetDefinition( ClassDefinition& outDefinition);
-	static	void			do_BinaryStream( VJSParms_callStaticFunction& ioParms);
+	static void	Initialize( const VJSParms_initialize& inParms, XBOX::VStream* inStream);
+	static void	Finalize( const VJSParms_finalize& inParms, XBOX::VStream* inStream);
+	static void	GetDefinition( ClassDefinition& outDefinition);
+	static void	do_BinaryStream( VJSParms_callStaticFunction& ioParms);
 	
 	static void _Close(VJSParms_callStaticFunction& ioParms, XBOX::VStream* inStream); // Close()
 	static void _Flush(VJSParms_callStaticFunction& ioParms, XBOX::VStream* inStream); // flush()
@@ -60,6 +60,10 @@ public:
 	static void _IsByteSwapping(VJSParms_callStaticFunction& ioParms, XBOX::VStream* inStream); // bool : IsByteSwapping();
 
 private: 
+
+	// Default time out for BinaryStream using net.SocketSync.
+
+	static const sLONG	kDefaultTimeOut	= 1000;
 
 	static void	_GetBinary (VJSParms_callStaticFunction &ioParms, XBOX::VStream *inStream, bool inIsBuffer);
 	static void	_PutBinary (VJSParms_callStaticFunction &ioParms, XBOX::VStream *inStream);	

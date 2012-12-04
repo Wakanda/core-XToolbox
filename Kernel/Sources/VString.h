@@ -596,6 +596,10 @@ public:
 
 			void				FromOsType( OsType inType);
 
+			// The charset is deduced from the leading BOM if any.
+			// If no BOM has been found, inDefaultSet is used.
+			void				FromBlockWithOptionalBOM( const void* inBuffer, VSize inCountBytes, CharSet inDefaultSet);
+
 			void				FromBlock( const void* inBuffer, VSize inCountBytes, CharSet inSet);
 			VSize				ToBlock( void* inBuffer, VSize inBufferSize, CharSet inSet, bool inWithTrailingZero, bool inWithLengthPrefix) const;	// Returns number of bytes written
 			
@@ -675,6 +679,9 @@ public:
 
 	virtual VError					FromJSONString(const VString& inJSONString, JSONOption inModifier = JSON_Default);
 	virtual VError					GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const;
+
+	virtual	VError					FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError					GetJSONValue( VJSONValue& outJSONValue) const;
 
 	virtual	VString*				Clone() const;
 

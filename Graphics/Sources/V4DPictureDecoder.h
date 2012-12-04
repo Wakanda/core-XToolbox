@@ -44,6 +44,34 @@ XTOOLBOX_API extern const VString sCodec_4DMeta_sign1;
 XTOOLBOX_API extern const VString sCodec_4DMeta_sign2;
 XTOOLBOX_API extern const VString sCodec_4DMeta_sign3;
 
+class XTOOLBOX_API VQTSpatialSettingsBag :public VObject,public IBaggable
+{
+	public:
+			
+	// IBaggable interface
+	virtual VError	LoadFromBag( const VValueBag& inBag);
+	virtual VError	SaveToBag( VValueBag& ioBag, VString& outKind) const;
+	/** ********* ********* **/
+	VQTSpatialSettingsBag();
+	VQTSpatialSettingsBag(OsType inCodecType,sWORD depth,uLONG inSpatialQuality);
+	virtual ~VQTSpatialSettingsBag();
+			
+	void SetCodecType(OsType inCodecType);
+	void SetDepth(sWORD inDepth);
+	void SetSpatialQuality(uLONG inCodecQ);
+	
+	void Reset();
+
+	OsType				GetCodecType() const;
+	sWORD				GetDepth() const;
+	uLONG				GetSpatialQuality() const;
+private:
+
+	OsType				fCodecType;
+	sWORD				fDepth;
+	uLONG				fSpatialQuality;
+};
+
 #if VERSIONWIN
 
 class xGDIPlusCodecInfo :public VObject
@@ -300,9 +328,6 @@ protected:
 	virtual HBITMAP					_CreateHBitmap(VPictureDataProvider& inDataProvider)const;
 	virtual HENHMETAFILE			_CreateMetafile(VPictureDataProvider& inDataProvider)const;
 	#else
-	#if USE_QUICKTIME
-	virtual VError					_Quicktime_Encode(const OsType inType,const VPictureData& inData,const VValueBag *inSettings,VBlob& outBlob,VPictureDrawSettings* inSet=NULL)const;
-	#endif
 	virtual CGImageRef				_CreateCGImageRef(VPictureDataProvider& inDataProvider)const;
 	#endif
 	virtual void*					_CreateMacPicture(VPictureDataProvider& inDataProvider)const;
@@ -407,6 +432,10 @@ class XTOOLBOX_API VPictureCodecFactory : public IRefCountable ,public IPictureH
 	void GetCodecList(VectorOfVPictureCodecConstRef &outList,bool inEncoderOnly=false,bool inIncludePrivate=false);
 	
 	void RegisterCodec(VPictureCodec* inCodec);
+	void RegisterQuicktimeDecoder(VPictureCodec* inCodec);
+
+	bool IsQuicktimeCodec(const VPictureCodec* inCodec);
+
 	const VPictureCodec* RegisterAndRetainUnknownDataCodec(const VString& inIdentifier);
 
 	sLONG CountEncoder()const;
@@ -763,30 +792,6 @@ protected:
 	virtual VError DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet=NULL) const;
 
 };
-
-#if USE_QUICKTIME
-
-class XTOOLBOX_API VPictureCodec_Quicktime :public VPictureCodec
-{
-	typedef VPictureCodec inherited;
-	public:
-	VPictureCodec_Quicktime();
-	VPictureCodec_Quicktime( class VQT_IEComponentInfo& inComponent);
-	virtual ~VPictureCodec_Quicktime();
-	
-	virtual bool ValidateData(VFile& inFile)const;
-	virtual bool ValidateData(VPictureDataProvider& inDataProvider)const;
-
-	virtual VPictureData* _CreatePictData(VPictureDataProvider& inDataProvider,_VPictureAccumulator* inRecorder=0) const;
-
-	protected:
-	virtual VError DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet=NULL) const;
-	virtual VError DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet=NULL) const;
-
-	private:
-	OsType fExporterSubType;
-};
-#endif
 
 class XTOOLBOX_API VPictureCodec_PDF :public VPictureCodec
 {

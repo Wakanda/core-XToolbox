@@ -1,6 +1,6 @@
 //Architecture
 ARCHS = x86_64
-
+SDKROOT = macosx
 //Build Locations
 
 //Build Option

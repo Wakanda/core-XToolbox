@@ -37,12 +37,9 @@
 #include "VError.h"
 #include "Base64Coder.h"
 
-
 static const size_t	B64CODER_BASELENGTH	= 255;
 static const size_t	B64CODER_FOURBYTE	= 4;
 static const uBYTE	BASE64_PADDING		= 0x3D;
-static const size_t	BASE64_QUADSPERLINE	= 10000;
-
 
 const uBYTE Base64Coder::sBase64Alphabet[] = {
     0x41, 0x42, 0x43, 0x44, 0x45, /* 'A', 'B', 'C', ... */
@@ -105,9 +102,10 @@ inline void split3rdOctet(const uBYTE& ch, uBYTE& b3, uBYTE& b4)
     b4 = ( ch & 0x3f );
 }
 
-
-bool Base64Coder::Encode( const void *inInputData, size_t inInputSize, VMemoryBuffer<>&	outResult)
+bool Base64Coder::Encode( const void *inInputData, size_t inInputSize, VMemoryBuffer<>&	outResult, sLONG inQuadsPerLine)
 {
+	xbox_assert(inQuadsPerLine > 0);
+
 	Init();
 
 	outResult.Clear();
@@ -119,10 +117,12 @@ bool Base64Coder::Encode( const void *inInputData, size_t inInputSize, VMemoryBu
     if (quadrupletCount == 0)
         return false;
 
-    // number of rows in encoded stream ( including the last one )
-    size_t lineCount = ( quadrupletCount + BASE64_QUADSPERLINE-1 ) / BASE64_QUADSPERLINE;
-	
-	if (!outResult.SetSize( quadrupletCount*B64CODER_FOURBYTE + lineCount + 1))
+    // Number of rows in encoded stream (*not* including the last one, because we don't add a "final" line break)
+	size_t lineCount = quadrupletCount / inQuadsPerLine;
+
+	// Compute size of encoded string, note that we add 2 bytes per line breaks, and that it is not null ended.
+
+	if (!outResult.SetSize( quadrupletCount*B64CODER_FOURBYTE + lineCount * 2))
 		return false;
 
     //
@@ -153,8 +153,14 @@ bool Base64Coder::Encode( const void *inInputData, size_t inInputSize, VMemoryBu
 		encodedData[ outputIndex++ ] = sBase64Alphabet[ b3 ];
 		encodedData[ outputIndex++ ] = sBase64Alphabet[ b4 ];
 
-		if (( quad % BASE64_QUADSPERLINE) == 0 )
+		// Use CRLF for line breaks.
+
+		if (( quad % inQuadsPerLine) == 0 ) {
+
+			encodedData[ outputIndex++ ] = 0x0D;
 			encodedData[ outputIndex++ ] = 0x0A;
+
+		}
 	}
 
 	//
@@ -194,6 +200,8 @@ bool Base64Coder::Encode( const void *inInputData, size_t inInputSize, VMemoryBu
 		encodedData[ outputIndex++ ] = BASE64_PADDING;
 		encodedData[ outputIndex++ ] = BASE64_PADDING;
 	}
+
+	xbox_assert(outResult.GetDataSize() == outputIndex);
 
 	// write out end of the last line
 	//encodedData[ outputIndex++ ] = 0x0A;

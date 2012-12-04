@@ -56,7 +56,7 @@ private:
 
 // A one-shot (setTimeout()) or periodic (setInterval()) timer function.
 
-class XTOOLBOX_API VJSTimer : public XBOX::IRefCountable
+class XTOOLBOX_API VJSTimer : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
 

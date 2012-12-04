@@ -32,6 +32,8 @@ typedef uLONG8 VError;
 
 const OsType	kCOMPONENT_SYSTEM	= 0;
 const OsType	kCOMPONENT_XTOOLBOX	= kXTOOLBOX_SIGNATURE;
+const OsType	kCOMPONENT_MACH		= 'MACH';	// for OSX Mach subsystem (kern_return_t)
+const OsType	kCOMPONENT_POSIX	= 'POSX';	// for posix/bsd subsystem (mac, linux, win)
 
 // Utility macros for creating or using VErrors
 #define MAKE_VERROR(inComponentSignature, inErrCode) ((XBOX::VError) ((((uLONG8) inComponentSignature)<<32)|((uLONG)inErrCode)) )

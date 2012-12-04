@@ -422,9 +422,16 @@ template<class Type>
 VIndex VArrayOf<Type>::FindPos(const Type& inData) const
 {
 	const Type* found = DoFindData(fFirst, fFirst + fCount, inData);
-	size_t pos = found - fFirst;
+	if (found >= fFirst)
+	{
+		size_t pos = found - fFirst;
 	
-	return (pos >= fCount || pos < 0) ? -1 : (VIndex) (pos+1);
+		return (pos >= fCount) ? -1 : (VIndex) (pos+1);
+	}
+	else
+	{
+		return -1;
+	}
 }
 
 

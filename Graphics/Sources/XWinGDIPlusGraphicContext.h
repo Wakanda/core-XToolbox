@@ -16,7 +16,6 @@
 #ifndef __XWinGDIPlusGraphicContext__
 #define __XWinGDIPlusGraphicContext__
 
-#include "KernelIPC/VKernelIPC.h"
 #include "Graphics/Sources/VGraphicContext.h"
 #include <gdiplus.h> 
 #include <stack>

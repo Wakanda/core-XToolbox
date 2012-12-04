@@ -174,8 +174,8 @@ public:
 		Beware that as soon as VJSGlobalClass::Class() is being called, calling AddStaticFunction or AddStaticValue won't have any effect.
 		(an assert will remind it to you)
 	*/
-	static	void	AddStaticFunction( const char *inName, JSObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes);
-	static	void	AddStaticValue( const char *inName, JSObjectGetPropertyCallback inGetCallback, JSObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes);
+	static	void	AddStaticFunction( const char *inName, JS4D::ObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes);
+	static	void	AddStaticValue( const char *inName, JS4D::ObjectGetPropertyCallback inGetCallback, JS4D::ObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes);
 	
 	/*
 		Add a constructor object as static value.
@@ -187,7 +187,7 @@ public:
 			AddConstructorObjectStaticValue( "myClass", XBOX::VJSParms_construct::Callback<Construct>);
 
 	*/
-	static	void	AddConstructorObjectStaticValue( const char *inClassName, JSObjectCallAsConstructorCallback inCallback);
+	static	void	AddConstructorObjectStaticValue( const char *inClassName, JS4D::ObjectCallAsConstructorCallback inCallback);
 
 	static	void	GetDefinition( ClassDefinition& outDefinition);
 	static	void	CreateGlobalClasses();
@@ -226,38 +226,26 @@ public:
 	
 	static	void	do_GenerateUUID(VJSParms_callStaticFunction& ioParms, VJSGlobalObject*);
 
-	static	void	do_Require(VJSParms_callStaticFunction& ioParms, VJSGlobalObject*);
-
 	static	void	do_SetCurrentUser(VJSParms_callStaticFunction& ioParms, VJSGlobalObject*);
 
+	static void		requireNative (VJSParms_callStaticFunction& ioParms, VJSGlobalObject *inGlobalObject);
 
 private:
 	static	void	_CheckInitStaticFunctions();
 	static	void	_CheckInitStaticValues();
-	static	void	_PushBackStaticFunction( const char *inName, JSObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes);
-	static	void	_PushBackStaticValue( const char *inName, JSObjectGetPropertyCallback inGetCallback, JSObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes);
+	static	void	_PushBackStaticFunction( const char *inName, JS4D::ObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes);
+	static	void	_PushBackStaticValue( const char *inName, JS4D::ObjectGetPropertyCallback inGetCallback, JS4D::ObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes);
 
-// have to redefine this struct to remove the stupid const and use it in a std::vector
-	typedef struct {
-		const char* name;
-		JSObjectCallAsFunctionCallback callAsFunction;
-		JSPropertyAttributes attributes;
-	} _StaticFunction;
-	typedef		std::vector<_StaticFunction>	VectorOfStaticFunction;
+	typedef		std::vector<JS4D::StaticFunction>	VectorOfStaticFunction;
 	static VectorOfStaticFunction	sStaticFunctions;
 
-	
-// have to redefine this struct to remove the stupid const and use it in a std::vector
-	typedef struct {
-		const char* name;
-		JSObjectGetPropertyCallback getProperty;
-		JSObjectSetPropertyCallback setProperty;
-		JSPropertyAttributes attributes;
-	} _StaticValue;
-	typedef		std::vector<_StaticValue>	VectorOfStaticValue;
+	typedef		std::vector<JS4D::StaticValue>	VectorOfStaticValue;
 	static VectorOfStaticValue	sStaticValues;
 	
 	static	bool	sGetDefinitionHasBeenCalled;	// spy to know if one can still call AddStaticFunction & AddStaticValue
+
+	static void		_importScripts (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject);	
+	static void		_requireFile (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *);
 };
 
 END_TOOLBOX_NAMESPACE

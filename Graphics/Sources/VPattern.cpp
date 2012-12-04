@@ -16,8 +16,6 @@
 #include "VGraphicsPrecompiled.h"
 #include "VPattern.h"
 #include "VRect.h"
-#include "VGraphicsTypes.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #if VERSIONMAC
 #include <Quicktime/Quicktime.h>

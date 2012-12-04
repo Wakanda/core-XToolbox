@@ -15,6 +15,12 @@
 */
 #include "VJavaScriptPrecompiled.h"
 
+#if VERSIONMAC
+#include <4DJavaScriptCore/JavaScriptCore.h>
+#else
+#include <JavaScriptCore/JavaScript.h>
+#endif
+
 #include "VJSValue.h"
 #include "VJSJSON.h"
 
@@ -39,7 +45,7 @@ VJSValue VJSJSON::Parse( const VString& inJSON, JS4D::ExceptionRef *outException
 }
 
 
-VJSValue VJSJSON::Parse( const VString& inJSON, JSObjectCallAsFunctionCallback inReviverFunction, JS4D::ExceptionRef *outException)
+VJSValue VJSJSON::Parse( const VString& inJSON, JS4D::ObjectCallAsFunctionCallback inReviverFunction, JS4D::ExceptionRef *outException)
 {
 	JSObjectRef reviverFunction = JSObjectMakeFunctionWithCallback( fContext, NULL, inReviverFunction);
 	JSStringRef jsString = JS4D::VStringToString( inJSON);
@@ -113,7 +119,7 @@ void VJSJSON::_Stringify( JS4D::ValueRef inValue, JS4D::ValueRef inReplacer, JS4
 /*
 	static
 */
-JSObjectRef VJSJSON::_GetJSON( JS4D::ContextRef inContext, JS4D::ExceptionRef *outException)
+JS4D::ObjectRef VJSJSON::_GetJSON( JS4D::ContextRef inContext, JS4D::ExceptionRef *outException)
 {
     JSStringRef jsString = JSStringCreateWithUTF8CString( "JSON");
 	JSValueRef jsonValue = JSObjectGetProperty( inContext, JSContextGetGlobalObject( inContext), jsString, outException);
@@ -123,7 +129,7 @@ JSObjectRef VJSJSON::_GetJSON( JS4D::ContextRef inContext, JS4D::ExceptionRef *o
 }
 
 
-JSObjectRef VJSJSON::_GetParseFunction( JS4D::ExceptionRef *outException)
+JS4D::ObjectRef VJSJSON::_GetParseFunction( JS4D::ExceptionRef *outException)
 {
 	if (fParseFunction == NULL)
 	{
@@ -136,7 +142,7 @@ JSObjectRef VJSJSON::_GetParseFunction( JS4D::ExceptionRef *outException)
 }
 
 
-JSObjectRef VJSJSON::_GetStringifyFunction( JS4D::ExceptionRef *outException)
+JS4D::ObjectRef VJSJSON::_GetStringifyFunction( JS4D::ExceptionRef *outException)
 {
 	if (fStringifyFunction == NULL)
 	{

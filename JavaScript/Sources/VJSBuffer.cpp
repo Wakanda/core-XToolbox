@@ -25,7 +25,7 @@
 
 USING_TOOLBOX_NAMESPACE
 
-VJSBufferObject::VJSBufferObject (VSize inLength, void *inBuffer)
+VJSBufferObject::VJSBufferObject (VSize inLength, void *inBuffer, bool inFromMemoryBuffer)
 {
 	xbox_assert(inLength >= 0);
 	xbox_assert(!(inLength > 0 && inBuffer == NULL));
@@ -33,6 +33,7 @@ VJSBufferObject::VJSBufferObject (VSize inLength, void *inBuffer)
 	fParent = NULL;
 	fLength = inLength;
 	fBuffer = (uBYTE *) inBuffer;
+	fFromMemoryBuffer = inFromMemoryBuffer;
 }
 
 VJSBufferObject::VJSBufferObject (VSize inLength)
@@ -42,6 +43,7 @@ VJSBufferObject::VJSBufferObject (VSize inLength)
 	fParent = NULL;
 	fLength = inLength;
 	fBuffer = inLength ? (uBYTE *) malloc(inLength) : NULL;
+	fFromMemoryBuffer = false;
 }
 
 CharSet VJSBufferObject::GetEncodingType (const XBOX::VString &inEncodingName)
@@ -394,6 +396,7 @@ VJSBufferObject::VJSBufferObject (VJSBufferObject *inParent, sLONG inStart, sLON
 	fParent = inParent;
 	fLength = inEnd - inStart;
 	fBuffer = &inParent->fBuffer[inStart];
+	fFromMemoryBuffer = false;
 }
 
 VJSBufferObject::~VJSBufferObject ()
@@ -402,9 +405,17 @@ VJSBufferObject::~VJSBufferObject ()
 
 		ReleaseRefCountable(&fParent);
 		
-	else if (fBuffer != NULL) 
+	else if (fBuffer != NULL) {
 
-		::free((void *) fBuffer);
+		if (fFromMemoryBuffer)
+
+			VMemory::DisposePtr((void *) fBuffer);
+
+		else
+
+			::free((void *) fBuffer);
+
+	}
 		
 	fBuffer	= NULL;
 }

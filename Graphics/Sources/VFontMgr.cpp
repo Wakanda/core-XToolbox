@@ -23,12 +23,16 @@
 
 VFontMgr::VFontMgr()
 {
+	for(sLONG i=0;i<STDF_LAST;i++)
+		fStdFonts[i]=NULL;
 }
 
 
 VFontMgr::~VFontMgr()
 {
 	fFonts.Destroy(DESTROY);
+	for(sLONG i=0;i<STDF_LAST;i++)
+		ReleaseRefCountable(&fStdFonts[i]);
 }
 
 	
@@ -109,25 +113,20 @@ VFont* VFontMgr::RetainStdFont(StdFont inFont)
 	
 	VFont*	theFont = NULL;
 	
-	for(sLONG i = 0 ; i < fFonts.GetCount() ; ++i)
-	{
-		VFont*	oneFont = fFonts[i];
-		if(oneFont->Match(inFont))
-		{
-			oneFont->Retain();
-			theFont = oneFont;
-			break;
-		}
-	}
-	
-	if(theFont == NULL)
+	xbox_assert(inFont>STDF_NONE && inFont<STDF_LAST);
+
+	theFont=fStdFonts[inFont];
+	if(theFont==NULL)
 	{
 		VStr31	name;
 		VFontFace	style;
 		GReal	size;
 		fFontMgr.GetStdFont(inFont, name, style, size);
 		theFont = RetainFont(name, style, size);
+		fStdFonts[inFont] = theFont;
 	}
+	if(theFont)
+		theFont->Retain();
 	
 	return theFont;
 }

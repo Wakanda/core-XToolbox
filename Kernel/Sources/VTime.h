@@ -123,11 +123,14 @@ public:
 	virtual	CompareResult		CompareToSameKindPtrWithOptions( const void* inPtrToValueData, const VCompareOptions& inOptions) const;
 	virtual bool				EqualToSameKindPtrWithOptions( const void* inPtrToValueData, const VCompareOptions& inOptions) const;
 
-	virtual CompareResult	CompareTo (const VValueSingle& inValue,Boolean inDiacritic = false) const ;
-	CompareResult	CompareTo (const VDuration& inTime) const;
+	virtual CompareResult		CompareTo (const VValueSingle& inValue,Boolean inDiacritic = false) const ;
+			CompareResult		CompareTo (const VDuration& inTime) const;
 
 	virtual VError				FromJSONString(const VString& inJSONString, JSONOption inModifier = JSON_Default);
 	virtual VError				GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const;
+
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
 
 	/** convert to xml duration string : PdddDTddHddMdd[.dddddd]S (where d is digit)  (XSO_Duration_ISO)
 										 or
@@ -299,11 +302,14 @@ public:
 	virtual	CompareResult		CompareToSameKindPtrWithOptions( const void* inPtrToValueData, const VCompareOptions& inOptions) const;
 	virtual bool				EqualToSameKindPtrWithOptions( const void* inPtrToValueData, const VCompareOptions& inOptions) const;
 
-	virtual CompareResult	CompareTo (const VValueSingle& inValue,Boolean inDiacritic = false) const ;
-	CompareResult	CompareTo (const VTime& inTime) const;
+	virtual CompareResult		CompareTo (const VValueSingle& inValue,Boolean inDiacritic = false) const ;
+			CompareResult		CompareTo (const VTime& inTime) const;
 
 	virtual VError				FromJSONString(const VString& inJSONString, JSONOption inModifier = JSON_Default);
 	virtual VError				GetJSONString(VString& outJSONString, JSONOption inModifier = JSON_Default) const;
+
+	virtual	VError				FromJSONValue( const VJSONValue& inJSONValue);
+	virtual	VError				GetJSONValue( VJSONValue& outJSONValue) const;
 
 	bool operator == (const VTime &inTime) const;
 	bool operator > (const VTime &inTime) const;

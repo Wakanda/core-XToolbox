@@ -88,6 +88,7 @@ private:
 	static void				_CallAsFunction (VJSParms_callAsFunction &ioParms);
 	static bool				_HasInstance (const VJSParms_hasInstance &inParms);
 	static XBOX::VJSObject	_Construct (VJSParms_withArguments &ioParms);
+	static XBOX::VJSObject	_ConstructFromW3CFS (VJSParms_withArguments &ioParms);
 
 	static void				_IsFolder (XBOX::VJSParms_callStaticFunction &ioParms, XBOX::VObject *);
 
@@ -202,6 +203,7 @@ private:
 	static void				_CallAsFunction (VJSParms_callAsFunction &ioParms);
 	static bool				_HasInstance (const VJSParms_hasInstance &inParms);
 	static XBOX::VJSObject	_Construct (VJSParms_withArguments &ioParms);
+	static XBOX::VJSObject	_ConstructFromW3CFS (VJSParms_withArguments &ioParms);
 
 	static void				_IsFile (XBOX::VJSParms_callStaticFunction &ioParms, XBOX::VObject *);
 
@@ -272,19 +274,21 @@ public:
 	
 #else
 	
-	static void	CleanPath (XBOX::VString *ioPath)	{	xbox_assert(ioPath != NULL);	}
+	static void	CleanPath (XBOX::VString *ioPath)		{	xbox_assert(ioPath != NULL);	}
 	
 #endif	
 		
 #if VERSIONMAC == 1 || VERSION_LINUX == 1
 	
-	// Resolve a POSIX path, especially follow all its link(s). Does nothing on Windows platform.
+	// Resolve a POSIX path, especially follow all its link(s). 
 		
 	static void ResolvePath (XBOX::VString *ioPath);
 	
-#else
+#else	// VERSIONWIN
 
-	static void ResolvePath (XBOX::VString *ioPath)	{	xbox_assert(ioPath != NULL);	}
+	// Remove double slashes from a POSIX path, must no be used with "file://c:/folder/test.txt" type of URL.
+
+	static void ResolvePath (XBOX::VString *ioPath);
 	
 #endif
 		

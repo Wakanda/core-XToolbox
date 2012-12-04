@@ -506,7 +506,12 @@ protected:
 				if ((*i)->GetMessageable() != NULL && !(*i)->IsVObject(inExceptTarget))
 				{
 					VSignalMessageT<ARG1, ARG2, ARG3, ARG4> *msg = new VSignalMessageT<ARG1, ARG2, ARG3, ARG4>( *i, v1, v2, v3, v4);
-					msg->SendOrPostTo((*i)->GetMessagingContext(), 0, IsAllwaysSynchronous() || IsSynchronousIfSameTask(), IsAllwaysSynchronous());
+					
+					// use PostToAndWaitExecutingMessages to be able to process messages whil waiting for response
+					if (IsAllwaysSynchronous() && (*i)->GetMessagingContext()->GetMessagingTask() != VTask::GetCurrentID())
+						msg->PostToAndWaitExecutingMessages( (*i)->GetMessageable());
+					else
+						msg->SendOrPostTo((*i)->GetMessagingContext(), 0, IsAllwaysSynchronous() || IsSynchronousIfSameTask(), IsAllwaysSynchronous());
 					msg->Release();
 					++nbCalls;
 				}

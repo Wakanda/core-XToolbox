@@ -15,39 +15,23 @@
 */
 #include "VKernelPrecompiled.h"
 
-//#include "VProcess.h"
-//#include "VArrayValue.h"
-//#include "VString.h"
 
-#if VERSION_LINUX_ON_XCODE
-
-    #define USE_MACH_SEMAPHORE 1
-    #define USE_MAC_PTHREAD_NP 1
-
-#elif VERSION_LINUX_STRICT
-
-    #define USE_POSIX_UNNAMED_SEMAPHORE 1
-    #define USE_LINUX_PTHREAD_NP 1
-
-#endif
+#include "VTask.h"	//indirect include of "XLinuxTask.h"
+#include "VError.h"
 
 
+#include <time.h>
 #include <pthread.h>
 
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 #if USE_POSIX_UNNAMED_SEMAPHORE
     #include <semaphore.h>
 #elif USE_MACH_SEMAPHORE
     #include <mach/mach.h>
-#endif 
-
-#include <time.h>
-
-#include "VSystem.h"
-#include "VTask.h"
-
-//#include "XLinuxTask.h"
-
+#endif
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,17 +80,17 @@ VTask* XLinuxTask::GetOwner() const
 bool XLinuxTask::GetCPUUsage(Real& outCPUUsage) const
 {
     // Used in VTask::GetCPUUsage
-	bool GetCPUUsageMethod=false;
+    bool GetCPUUsageMethod=false;
     xbox_assert(GetCPUUsageMethod); // Postponed Linux Implementation !
     return false;
 }
 
 
-//virtual 
+//virtual
 bool XLinuxTask::GetCPUTimes(Real& outSystemTime, Real& outUserTime) const
 {
     // Used in VTask::GetCPUTimes
-	bool GetCPUTimesMethod=false;
+    bool GetCPUTimesMethod=false;
     xbox_assert(GetCPUTimesMethod); // Postponed Linux Implementation !
     return false;
 }
@@ -120,18 +104,29 @@ void XLinuxTask::_Run()
     VTask* owner=GetOwner();
     xbox_assert(owner!=NULL);
 
-	mgr->SetCurrentTask(owner);
+    mgr->SetCurrentTask(owner);
 
-	try
-	{
-		fOwner->_Run();
-	}
-	catch(...)
-	{
+    try
+    {
+        fOwner->_Run();
+    }
+    catch(...)
+    {
         throw;
-	}
+    }
 
-	Exit();
+    Exit();
+}
+
+
+//virtual
+VTaskID	XLinuxTask::GetValueForVTaskID() const
+{
+    //Active waiting and no explicit atomic stuff (discussed with L.E.)
+    while(GetSystemID()==-1)
+        pthread_yield();	//Do not fail on Linux
+
+    return GetSystemID();
 }
 
 
@@ -148,7 +143,7 @@ XLinuxTask_preemptive::SemWrapper::SemWrapper()
 {
     memset(&fSem, 0, sizeof(fSem));
 }
-   
+
 int XLinuxTask_preemptive::SemWrapper::Init(uLONG val)
 {
     int res=sem_init(&fSem, 0/*not shared between process*/, 0 /*init. count*/);
@@ -242,11 +237,23 @@ bool XLinuxTask_preemptive::SemWrapper::IsOk(int res)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+XLinuxTask_preemptive *XLinuxTask_preemptive::Create( VTask* inOwner)
+{
+    XLinuxTask_preemptive *task = new XLinuxTask_preemptive( inOwner);
+    if (!task->_CreateThread())
+    {
+        delete task;
+        task = NULL;
+    }
+    return task;
+}
+
+
 //This ctor is only used by main task ?
 XLinuxTask_preemptive::XLinuxTask_preemptive(VTask* inOwner, bool unUsedFromMainTask) :
-    XLinuxTask(inOwner, true)
+    XLinuxTask(inOwner, true), fPthread(0)
 {
-	memset(&fPthread, 0, sizeof(pthread_t));
+    fTid=syscall(SYS_gettid);	//gettid() is always successful.
 
     fSem.Init(0);
     fSem.Post();
@@ -255,7 +262,7 @@ XLinuxTask_preemptive::XLinuxTask_preemptive(VTask* inOwner, bool unUsedFromMain
 
 //This ctor is nerver used by main task ?
 XLinuxTask_preemptive::XLinuxTask_preemptive(VTask* inOwner) :
-    XLinuxTask(inOwner, false)
+    XLinuxTask(inOwner, false), fTid(-1)
 {
     fSem.Init(0);
 }
@@ -263,11 +270,11 @@ XLinuxTask_preemptive::XLinuxTask_preemptive(VTask* inOwner) :
 
 XLinuxTask_preemptive::~XLinuxTask_preemptive()
 {
-	if(fPthread!=0)
-	{
-		int res=pthread_join(fPthread, NULL);
-		xbox_assert(res==0);
-	}
+    if(fPthread!=0)
+    {
+        int res=pthread_join(fPthread, NULL);
+        xbox_assert(res==0);
+    }
 
     fSem.Destroy();
 }
@@ -278,9 +285,9 @@ void XLinuxTask_preemptive::Exit(VTask *unusedDestTask)
     VTask* owner=GetOwner();
     xbox_assert(owner!=NULL);
 
-	owner->_SetStateDead();
+    owner->_SetStateDead();
 
-	pthread_exit(NULL); //never returns
+    pthread_exit(NULL); //never returns
 }
 
 
@@ -289,18 +296,20 @@ void* XLinuxTask_preemptive::readySteadyGO(void* thisPtr)
 {
     xbox_assert(thisPtr!=NULL);
 
-	XLinuxTask_preemptive* task=static_cast<XLinuxTask_preemptive*>(thisPtr);
-    
+    XLinuxTask_preemptive* task=static_cast<XLinuxTask_preemptive*>(thisPtr);
+
+    //Parent thread is waiting (looping) for this ID. (Discussed with L.E.)
+    task->fTid=syscall(SYS_gettid);	//gettid() is always successful.
+
     task->Freeze();
 
     task->_Run();   //never returns
-	
-	return NULL;
+
+    return NULL;
 }
 
 
-//virtual
-bool XLinuxTask_preemptive::Run()
+bool XLinuxTask_preemptive::_CreateThread()
 {
     bool ok;
     pthread_attr_t attr;
@@ -321,51 +330,58 @@ bool XLinuxTask_preemptive::Run()
     if(stackSize<PTHREAD_STACK_MIN)
         stackSize=PTHREAD_STACK_MIN;
 
-    res=pthread_attr_setstacksize(&attr, stackSize); 
+    res=pthread_attr_setstacksize(&attr, stackSize);
     xbox_assert(res==0);
 
     //As long as we do not play with the stack adress, the (standard) default
     //behavior of pthread is to put a gard page to detect stack overflow.
 
-	res=pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	xbox_assert(res==0);
-	
+    res=pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    xbox_assert(res==0);
+
     res=pthread_create(&fPthread, &attr, readySteadyGO, this);
     xbox_assert(res==0);
     if (res == 0)
     {
-		ok = true;	
+        ok = true;
     }
     else
     {
-		ok = false;
+        vThrowPosixError(res);
+        ok = false;
     }
-    
-    
+
     res=pthread_attr_destroy(&attr);
     xbox_assert(res==0);
-		
-    fSem.Post();
 
     return ok;
 }
 
 
-//virtual 
+//virtual
+bool XLinuxTask_preemptive::Run()
+{
+    fSem.Post();
+
+    return true;
+}
+
+
+//virtual
 void XLinuxTask_preemptive::WakeUp()
 {
     fSem.Post();
 }
 
 
-//virtual 
+//virtual
 void XLinuxTask_preemptive::Freeze()
 {
     fSem.Wait();
 }
 
 
-//virtual 
+//virtual
 void XLinuxTask_preemptive::Sleep(sLONG inMilliSeconds)
 {
     timespec  timeA;
@@ -392,7 +408,7 @@ void XLinuxTask_preemptive::Sleep(sLONG inMilliSeconds)
 }
 
 
-//virtual 
+//virtual
 bool XLinuxTask_preemptive::CheckSystemMessages()
 {
     return false;
@@ -424,15 +440,15 @@ void XLinuxTask_preemptive::GetStack(void** outStackAddr, size_t* outStackSize)
 
     if(outStackAddr)
         *outStackAddr=stackAddr;
-    
+
     if(outStackSize)
         *outStackSize=stackSize;
-  
+
 #else
 
     if(outStackAddr)
         *outStackAddr=NULL;
-    
+
     if(outStackSize)
         *outStackSize=0;
 
@@ -441,9 +457,9 @@ void XLinuxTask_preemptive::GetStack(void** outStackAddr, size_t* outStackSize)
 
 
 //virtual
-pthread_t XLinuxTask_preemptive::GetSystemID() const
+sLONG XLinuxTask_preemptive::GetSystemID() const
 {
-	return fPthread;
+     return fTid;	//pid_t -> signed 32 bit int
 }
 
 
@@ -456,33 +472,33 @@ pthread_t XLinuxTask_preemptive::GetSystemID() const
 
 XLinuxTaskMgr::XLinuxTaskMgr()
 {
-	int res=pthread_key_create(&fSlotCurrentTask, NULL);
-	xbox_assert(res==0);
+    int res=pthread_key_create(&fSlotCurrentTask, NULL);
+    xbox_assert(res==0);
 
-	res=pthread_key_create(&fSlotCurrentTaskID, NULL);
-	xbox_assert(res==0);
+    res=pthread_key_create(&fSlotCurrentTaskID, NULL);
+    xbox_assert(res==0);
 
     VTaskID* tid=new VTaskID();
-	xbox_assert(tid!=NULL);
+    xbox_assert(tid!=NULL);
 
     res=pthread_setspecific(fSlotCurrentTaskID, tid);
-	xbox_assert(res==0);
+    xbox_assert(res==0);
 }
 
 
 //virtual
 XLinuxTaskMgr::~XLinuxTaskMgr()
 {
-	int res=pthread_key_delete(fSlotCurrentTask);
-	xbox_assert(res==0);
+    int res=pthread_key_delete(fSlotCurrentTask);
+    xbox_assert(res==0);
 
     VTaskID* tid=reinterpret_cast<VTaskID*>(pthread_getspecific(fSlotCurrentTaskID));
-	xbox_assert(tid!=NULL);
+    xbox_assert(tid!=NULL);
 
     if(tid) delete tid;
 
-	res=pthread_key_delete(fSlotCurrentTaskID);
-	xbox_assert(res==0);
+    res=pthread_key_delete(fSlotCurrentTaskID);
+    xbox_assert(res==0);
 }
 
 
@@ -522,7 +538,7 @@ void XLinuxTaskMgr::YieldNow()
 
 bool XLinuxTaskMgr::IsFibersThreadingModel() const
 {
-	return false;
+    return false;
 }
 
 
@@ -540,23 +556,23 @@ XLinuxTask* XLinuxTaskMgr::Create(VTask* inOwner, ETaskStyle inStyle)
 {
     xbox_assert(inStyle==eTaskStylePreemptive);
 
-	XLinuxTask* linuxTask=NULL;
-	
+    XLinuxTask* linuxTask=NULL;
+
     if(inStyle==eTaskStylePreemptive)
-        linuxTask=new XLinuxTask_preemptive(inOwner);
-		
-	return linuxTask; 
+        linuxTask=XLinuxTask_preemptive::Create(inOwner);
+
+    return linuxTask;
 }
 
 
 XLinuxTask* XLinuxTaskMgr::CreateMain(VTask* inOwner)
 {
-	XLinuxTask* task=new XLinuxTask_preemptive(inOwner, true);
-	inOwner->SetCanBlockOnSyncObject(true);	//BUG ICI ???
+    XLinuxTask* task=new XLinuxTask_preemptive(inOwner, true);
+    inOwner->SetCanBlockOnSyncObject(true);	//BUG ICI ???
 
-	SetCurrentTask(inOwner);
+    SetCurrentTask(inOwner);
 
-	return task;
+    return task;
 }
 
 
@@ -597,9 +613,9 @@ void XLinuxTaskMgr::SetCurrentTaskID(VTaskID inTaskID) const
 }
 
 
-void XLinuxTaskMgr::SetCurrentThreadName(const VString& inName) const
+void XLinuxTaskMgr::SetCurrentThreadName(const VString& inName, VTaskID inTaskID) const
 {
     // Un patch semble avoir été rajouté récemment au noyau pour avoir pthread_setname_np()
     // Used in VTask::SetName VTaskMgr::_TaskStarted
-	return;
+    return;
 }

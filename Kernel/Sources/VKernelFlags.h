@@ -116,12 +116,15 @@
 #if VERSION_LINUX
 	#define USE_ICU     1
     #define WITH_ICU    1
+	#define USE_MECAB	0
 //#define icu icu_3_8
 
 #elif XTOOLBOX_AS_STANDALONE
 	#define USE_ICU 0
+	#define USE_MECAB 0
 #else
 	#define USE_ICU 1
+	#define USE_MECAB 1
 	// exclude some unneeded parts (should match icu project settings)
 	#if VERSIONMAC
 	#define UCONFIG_NO_LEGACY_CONVERSION 1

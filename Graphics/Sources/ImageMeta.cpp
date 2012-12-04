@@ -58,7 +58,7 @@ namespace ImageMeta
 namespace ImageEncoding
 {
 	//image quality (0 : worst quality, 1: best quality = lossless if codec support it)
-	CREATE_BAGKEY_WITH_DEFAULT_SCALAR(ImageQuality,	XBOX::VReal, Real, 0.8);	
+	CREATE_BAGKEY_WITH_DEFAULT_SCALAR(ImageQuality,	XBOX::VReal, Real, 1);	
 
 	//image lossless compression (0 : worst/fastest compression, 1: best/slowest compression)
 	//@remarks

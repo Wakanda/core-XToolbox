@@ -18,6 +18,7 @@
 #include "VProcess.h"
 #include "VString.h"
 #include "VSyncObject.h"
+#include "VError.h"
 #include "XWinCrashDump.h"
 
 #include <process.h>
@@ -110,6 +111,12 @@ size_t XWinTask::GetCurrentFreeStackSize()
 }
 
 
+VTaskID XWinTask::GetValueForVTaskID() const
+{
+	return NULL_TASK_ID;
+}
+
+
 void XWinTask::_Run()
 {
 	char c;
@@ -153,9 +160,9 @@ bool XWinTask::GetCPUTimes(Real& outSystemTime, Real& outUserTime) const
 //================================================================================================================
 
 XWinTask_preemptive::XWinTask_preemptive( VTask *inOwner, bool /* for main task */ )
-	:XWinTask( inOwner, true)
-	, fThread( ::GetCurrentThread())
-	, fSystemID( ::GetCurrentThreadId())
+: XWinTask( inOwner, true)
+, fThread( ::GetCurrentThread())
+, fSystemID( ::GetCurrentThreadId())
 {
 	if (GetManager()->WithFibers())
 	{
@@ -171,9 +178,9 @@ XWinTask_preemptive::XWinTask_preemptive( VTask *inOwner, bool /* for main task 
 
 
 XWinTask_preemptive::XWinTask_preemptive( VTask *inOwner)
-	:XWinTask( inOwner, false)
-	, fThread( INVALID_HANDLE_VALUE)
-	, fSystemID( 0)
+: XWinTask( inOwner, false)
+, fThread( NULL)
+, fSystemID( 0)
 {
 }
 
@@ -184,7 +191,16 @@ XWinTask_preemptive::~XWinTask_preemptive()
 	{
 		::CloseHandle( fThread);
 	}
-} 
+}
+
+
+VTaskID XWinTask_preemptive::GetValueForVTaskID() const
+{
+	if (testAssert( (VTaskID) fSystemID == fSystemID))
+		return (VTaskID) fSystemID;
+	
+	return NULL_TASK_ID;
+}
 
 
 void XWinTask_preemptive::Exit( VTask *inDestinationTask)
@@ -266,10 +282,12 @@ bool XWinTask_preemptive::CheckSystemMessages()
 	
 	return gotAnEvent;
 }
- 
- 
-bool XWinTask_preemptive::Run()
+
+
+bool XWinTask_preemptive::_CreateThread()
 {
+	xbox_assert( fThread == NULL);
+
 	SECURITY_ATTRIBUTES sa;
 	sa.nLength = sizeof(SECURITY_ATTRIBUTES);
 	sa.lpSecurityDescriptor = 0; 
@@ -285,9 +303,37 @@ bool XWinTask_preemptive::Run()
 	if (testAssert( fThread != NULL))
 	{
 		fSystemID = threadID;
+	}
+	else
+	{
+		vThrowPosixError( errno);
+	}
 	
+	return fThread != NULL;
+}
+
+
+/*
+	static
+*/
+XWinTask_preemptive *XWinTask_preemptive::Create( VTask* inOwner)
+{
+	XWinTask_preemptive *task = new XWinTask_preemptive( inOwner);
+	if (!task->_CreateThread())
+	{
+		delete task;
+		task = NULL;
+	}
+	return task;
+}
+
+
+bool XWinTask_preemptive::Run()
+{
+	if (testAssert( fThread != NULL))
+	{
 		// let it go
-		::ResumeThread(fThread);
+		::ResumeThread( fThread);
 	}
 	return fThread != NULL;
 }
@@ -322,7 +368,8 @@ bool XWinTask_preemptive::GetCPUTimes(Real& outSystemTime, Real& outUserTime) co
 	bool valuesFound = false;
 
 	FILETIME creationTime, exitTime, kernelTime, userTime;
-	if(GetThreadTimes(fThread, &creationTime, &exitTime, &kernelTime, &userTime)){
+	if(GetThreadTimes(fThread, &creationTime, &exitTime, &kernelTime, &userTime))
+	{
 
 		ULARGE_INTEGER kernelTimeInteger, userTimeInteger;
 		kernelTimeInteger.LowPart = kernelTime.dwLowDateTime; 
@@ -485,8 +532,7 @@ XWinTask *XWinTaskMgr::Create( VTask *inOwner, ETaskStyle inStyle)
 
 		case eTaskStylePreemptive:
 			{
-				//macTask = new XMacTask_preemptive( inOwner, false);
-				winTask = new XWinTask_preemptive( inOwner);
+				winTask = XWinTask_preemptive::Create( inOwner);
 				break;
 			}
 		
@@ -584,7 +630,7 @@ bool XWinTaskMgr::IsFibersThreadingModel()
 }
 
 
-void XWinTaskMgr::SetCurrentThreadName( const VString& inName) const
+void XWinTaskMgr::SetCurrentThreadName( const VString& inName, VTaskID inTaskID) const
 {
 	// don't use system converters that use a fiber lock which is forbidden here
 	VStringConvertBuffer buffer( inName, VTC_UTF_8 /*VTC_Win32Ansi*/);

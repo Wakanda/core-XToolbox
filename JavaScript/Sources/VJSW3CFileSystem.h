@@ -38,14 +38,20 @@ BEGIN_TOOLBOX_NAMESPACE
 
 class VJSFileSystem;
 
-class XTOOLBOX_API VJSLocalFileSystem : public XBOX::IRefCountable
+class XTOOLBOX_API VJSLocalFileSystem : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
 
 	enum {
 
-		TEMPORARY	= 0,
-		PERSISTENT	= 1,
+		FS_FIRST_TYPE	= 0,
+
+		TEMPORARY		= 0,
+		PERSISTENT		= 1,
+
+		DATA			= 2,	// Not part of W3C specification.
+
+		FS_LAST_TYPE	= 2,
 
 	};
 
@@ -87,9 +93,9 @@ public:
 	VJSFileSystem				*RetainRelativeFileSystem (const XBOX::VString &inPath);
 	void						ReleaseFileSystem (VJSFileSystem *inFileSystem);
 
-	// Only to be used by VJSLocalFileSystem and VJSW3CFSEvent
+	// Only to be used by VJSLocalFileSystem and VJSW3CFSEvent. If inType is DATA, inQuota is just ignored.
 
-	sLONG						RequestFileSystem (const XBOX::VJSContext &inContext, sLONG inType, VSize inQuota, XBOX::VJSObject *outResult);
+	sLONG						RequestFileSystem (const XBOX::VJSContext &inContext, sLONG inType, VSize inQuota, XBOX::VJSObject *outResult, bool inIsSync = true);
 	sLONG						ResolveURL (const XBOX::VJSContext &inContext, const XBOX::VString &inURL, bool inIsSync, XBOX::VJSObject *outResult);
 
 private: 
@@ -110,18 +116,24 @@ private:
     static void					_resolveLocalFileSystemURL (XBOX::VJSParms_callStaticFunction &ioParms, void *);
 	static void					_requestFileSystemSync (XBOX::VJSParms_callStaticFunction &ioParms, void *);
     static void					_resolveLocalFileSystemSyncURL (XBOX::VJSParms_callStaticFunction &ioParms, void *);
+	static void					_fileSystem (XBOX::VJSParms_callStaticFunction &ioParms, void *);
 
-	static void					_requestFileSystem (XBOX::VJSParms_callStaticFunction &ioParms, bool inIsSync);
+	// inFromFunction is used for FileSystem() function implementation. Return an asynchronous FileSystem object but the
+	// FileSystem() function is synchronous.
+
+	static void					_requestFileSystem (XBOX::VJSParms_callStaticFunction &ioParms, bool inIsSync, bool inFromFunction = false);
 
 	// resolveLocalFileSystemURL() and resolveLocalFileSystemSyncURL() always return a VJSEntry from the "relative" file system.
 	// However the URL can be absolute or relative.
 
 	static void					_resolveLocalFileSystemURL (XBOX::VJSParms_callStaticFunction &ioParms, bool inIsSync);
+
+	static void					_addTypeConstants (XBOX::VJSObject &inFileSystemObject);
 };
 
 // FileSystem (section 5.1) and FileSystemSync (section 6.1) objects. Any file or folder belongs to a "file system" (sandbox).
 
-class XTOOLBOX_API VJSFileSystem : public XBOX::IRefCountable
+class XTOOLBOX_API VJSFileSystem : public VObject, public XBOX::IRefCountable
 {
 public:
 
@@ -211,7 +223,7 @@ private:
 
 	static void				_Initialize (const XBOX::VJSParms_initialize &inParms, VJSFileSystem *inFileSystem);
 	static void				_Finalize (const XBOX::VJSParms_finalize &inParms, VJSFileSystem *inFileSystem);
-	static bool				_HasInstance (const VJSParms_hasInstance &inParms);
+	static bool				_HasInstance (const VJSParms_hasInstance &inParms);	
 };
 
 class XTOOLBOX_API VJSFileSystemSyncClass : public XBOX::VJSClass<VJSFileSystemSyncClass, VJSFileSystem>
@@ -228,12 +240,12 @@ private:
 
 	static void				_Initialize (const XBOX::VJSParms_initialize &inParms, VJSFileSystem *inFileSystem);
 	static void				_Finalize (const XBOX::VJSParms_finalize &inParms, VJSFileSystem *inFileSystem);
-	static bool				_HasInstance (const VJSParms_hasInstance &inParms);
+	static bool				_HasInstance (const VJSParms_hasInstance &inParms);		
 };
 
 // Files and folders have a shared set of attributes and methods.
 
-class XTOOLBOX_API VJSEntry : public IRefCountable
+class XTOOLBOX_API VJSEntry : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
 
@@ -267,8 +279,8 @@ public:
 
 	// DirectoryEntry and DirectoryEntrySync specific.
 
-	sLONG					GetFile (const XBOX::VJSContext &inContext, VJSEntry *inFolderEntry, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult);
-	sLONG					GetDirectory (const XBOX::VJSContext &inContext, VJSEntry *inFolderEntry, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult);
+	sLONG					GetFile (const XBOX::VJSContext &inContext, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult);
+	sLONG					GetDirectory (const XBOX::VJSContext &inContext, const XBOX::VString &inURL, sLONG inFlags, XBOX::VJSObject *outResult);
 	sLONG					RemoveRecursively (const XBOX::VJSContext &inContext, XBOX::VJSObject *outException);
 
 	sLONG					Folder (const XBOX::VJSContext &inContext, XBOX::VJSObject *outResult);
@@ -355,7 +367,7 @@ private:
 	static bool	_HasInstance (const VJSParms_hasInstance &inParms);
 };
 
-class XTOOLBOX_API VJSDirectoryReader : public XBOX::IRefCountable
+class XTOOLBOX_API VJSDirectoryReader : public VObject, public XBOX::IRefCountable
 {
 public:
 

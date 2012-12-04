@@ -81,6 +81,10 @@ VJSNetSocketObject::~VJSNetSocketObject ()
 {
 	xbox_assert(fEndPoint == NULL);
 	xbox_assert(fBufferedData.empty());
+
+	if (fWorker != NULL)
+
+		XBOX::ReleaseRefCountable<VJSWorker>(&fWorker);
 }
 
 bool VJSNetSocketObject::_ReadCallback (Socket inRawSocket, VEndPoint* inEndPoint, void *inData, sLONG inErrorCode)
@@ -187,8 +191,13 @@ bool VJSNetSocketObject::_ReadSocket ()
 	} else {
 		
 		if (!length) {
- 
+
+			// Do not support "half close", consider them as "full" close. 
+			// Queue both events.
+
 			fWorker->QueueEvent(VJSNetEvent::Create(this, "end"));
+			fWorker->QueueEvent(VJSNetEvent::CreateClose(this, false));
+
 			isOk = false;
 			
 		} else if (fIsPaused) {
@@ -312,7 +321,7 @@ void VJSNetSocketClass::Construct (XBOX::VJSParms_callAsConstructor &ioParms)
 		createdObject = VJSNetSocketClass::CreateInstance(ioParms.GetContext(), socketObject);
 	
 		socketObject->fObjectRef = createdObject.GetObjectRef();
-		socketObject->fWorker = VJSWorker::GetWorker(ioParms.GetContext());
+		socketObject->fWorker = VJSWorker::RetainWorker(ioParms.GetContext());
 			
 		ioParms.ReturnConstructedObject(createdObject);
 
@@ -460,7 +469,7 @@ void VJSNetSocketClass::NewInstance (XBOX::VJSContext inContext,
 	VJSWorker			*worker;
 	VJSNetSocketObject	*socketObject; 
 	
-	worker = VJSWorker::GetWorker(inContext);
+	worker = VJSWorker::RetainWorker(inContext);
 	if ((socketObject = new VJSNetSocketObject(false, VJSNetSocketObject::eTYPE_TCP4, false)) == NULL) {
 
 		XBOX::VString	errorMessage;
@@ -470,30 +479,32 @@ void VJSNetSocketClass::NewInstance (XBOX::VJSContext inContext,
 
 		outValue->SetNull();	// Prevent callback call.
 
-		return;
+	} else {
+
+		socketObject->fEndPoint = inEndPoint;
+
+		XBOX::VJSObject		createdObject(inContext);
+	
+		createdObject = VJSNetSocketClass::CreateInstance(inContext, socketObject);
+		socketObject->fObjectRef = createdObject.GetObjectRef();
+		socketObject->fWorker = XBOX::RetainRefCountable<VJSWorker>(worker);
+
+		socketObject->fEndPoint->SetNoDelay(false);
+		socketObject->fEndPoint->SetIsSelectIO(false);
+		socketObject->fEndPoint->SetIsBlocking(true);
+
+		socketObject->fEndPoint->SetReadCallback(VJSNetSocketObject::_ReadCallback, socketObject);
+
+		XBOX::VString	address;
+	
+		socketObject->fEndPoint->GetIP(address);
+		createdObject.SetProperty("remoteAddress", address);
+		createdObject.SetProperty("remotePort", (sLONG) socketObject->fEndPoint->GetPort() & 0xffff);
+
+		*outValue = createdObject;
 
 	}
-	socketObject->fEndPoint = inEndPoint;
-
-	XBOX::VJSObject		createdObject(inContext);
-	
-	createdObject = VJSNetSocketClass::CreateInstance(inContext, socketObject);
-	socketObject->fObjectRef = createdObject.GetObjectRef();
-	socketObject->fWorker = worker;
-
-	socketObject->fEndPoint->SetNoDelay(false);
-	socketObject->fEndPoint->SetIsSelectIO(false);
-	socketObject->fEndPoint->SetIsBlocking(true);
-
-	socketObject->fEndPoint->SetReadCallback(VJSNetSocketObject::_ReadCallback, socketObject);
-
-	XBOX::VString	address;
-	
-	socketObject->fEndPoint->GetIP(address);
-	createdObject.SetProperty("remoteAddress", address);
-	createdObject.SetProperty("remotePort", (sLONG) socketObject->fEndPoint->GetPort() & 0xffff);
-
-	*outValue = createdObject;
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 }
 
 void VJSNetSocketClass::_Initialize (const XBOX::VJSParms_initialize &inParms, VJSNetSocketObject *inSocket)
@@ -688,7 +699,7 @@ void VJSNetSocketClass::_write (XBOX::VJSParms_callStaticFunction &ioParms, VJSN
 	{
 		// If SSL is used, mutex will prevent SSL_write() during SSL_read() in callback.
 
-		XBOX::StLocker<XBOX::VCriticalSection>	lock(&inSocket->fMutex);
+///		XBOX::StLocker<XBOX::VCriticalSection>	lock(&inSocket->fMutex);	// FIX THAT
 		StErrorContextInstaller					context(false, true);
 	
 		error = inSocket->fEndPoint->Write(buffer, (uLONG *) &length);
@@ -894,7 +905,7 @@ void VJSNetSocketSyncClass::GetDefinition (ClassDefinition &outDefinition)
 void VJSNetSocketSyncClass::_Initialize (const XBOX::VJSParms_initialize &inParms, VJSNetSocketObject *inSocket)
 {
 	xbox_assert(inSocket != NULL);
-
+	
 	// Writes are synchronous so bufferSize attribute will always be zero.
 
 	inParms.GetObject().SetProperty("bufferSize", (sLONG) 0);
@@ -991,7 +1002,7 @@ void VJSNetSocketSyncClass::Construct (XBOX::VJSParms_callAsConstructor &ioParms
 		createdObject = VJSNetSocketSyncClass::CreateInstance(ioParms.GetContext(), socketObject);
 	
 		socketObject->fObjectRef = createdObject.GetObjectRef();
-		socketObject->fWorker = VJSWorker::GetWorker(ioParms.GetContext());
+		socketObject->fWorker = VJSWorker::RetainWorker(ioParms.GetContext());
 			
 		ioParms.ReturnConstructedObject(createdObject);
 
@@ -1018,7 +1029,7 @@ void VJSNetSocketSyncClass::Connect (XBOX::VJSParms_withArguments &ioParms, XBOX
 
 	sLONG	numberArguments;
 
-	if (!(numberArguments = ioParms.CountParams())) {
+	if (!(numberArguments = (sLONG) ioParms.CountParams())) {
 
 		XBOX::vThrowError(XBOX::VE_JVSC_EXPECTING_PARAMETER);
 		return;

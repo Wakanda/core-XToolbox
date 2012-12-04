@@ -9,14 +9,10 @@
 /* Begin PBXBuildFile section */
 		020C61B506F0C0B10096EBBD /* VKernelIPCPrecompiled.h in Headers */ = {isa = PBXBuildFile; fileRef = 020C61B406F0C0B10096EBBD /* VKernelIPCPrecompiled.h */; };
 		021832DD08963FA400D45133 /* XMacProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832BD08963FA300D45133 /* XMacProcessMain.h */; };
-		021832DE08963FA400D45133 /* XMacLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832BE08963FA300D45133 /* XMacLibrary.h */; };
-		021832DF08963FA400D45133 /* XMacLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832BF08963FA300D45133 /* XMacLibrary.cpp */; };
 		021832E208963FA400D45133 /* VSignal.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C208963FA300D45133 /* VSignal.h */; };
 		021832E308963FA400D45133 /* VSignal.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C308963FA300D45133 /* VSignal.cpp */; };
 		021832E408963FA400D45133 /* VProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C408963FA300D45133 /* VProcessMain.h */; };
 		021832E508963FA400D45133 /* VPluginImp.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C508963FA300D45133 /* VPluginImp.h */; };
-		021832E608963FA400D45133 /* VLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C608963FA300D45133 /* VLibrary.h */; };
-		021832E708963FA400D45133 /* VLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C708963FA300D45133 /* VLibrary.cpp */; };
 		021832E808963FA400D45133 /* VDebugAttachments.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C808963FA400D45133 /* VDebugAttachments.h */; };
 		021832E908963FA400D45133 /* VDebugAttachments.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C908963FA400D45133 /* VDebugAttachments.cpp */; };
 		021832EA08963FA400D45133 /* VDaemon.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832CA08963FA400D45133 /* VDaemon.h */; };
@@ -51,6 +47,8 @@
 		42C0D5000ADA9C1E00B56805 /* IStreamRequest.h in Headers */ = {isa = PBXBuildFile; fileRef = 42C0D4FF0ADA9C1E00B56805 /* IStreamRequest.h */; };
 		42C788C8123F615F0040EE90 /* XMacFileSystemNotification.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4279BE19123E782C00B83C8C /* XMacFileSystemNotification.cpp */; };
 		42C788C9123F615F0040EE90 /* XMacFileSystemNotification.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4279BE19123E782C00B83C8C /* XMacFileSystemNotification.cpp */; };
+		42F44A5515DE7C57009D4CDB /* CComponent.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F44A5015DE7C57009D4CDB /* CComponent.h */; };
+		42F44A5A15DE7C57009D4CDB /* CComponent.h in Headers */ = {isa = PBXBuildFile; fileRef = 42F44A5015DE7C57009D4CDB /* CComponent.h */; };
 		6DCA19360F3F9D3600EF41C9 /* CoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DCA19350F3F9D3600EF41C9 /* CoreServices.framework */; };
 		6DCA19370F3F9D3600EF41C9 /* CoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DCA19350F3F9D3600EF41C9 /* CoreServices.framework */; };
 		82B546720BD758ED00AB38CB /* VProcessLauncher.h in Headers */ = {isa = PBXBuildFile; fileRef = 82B546700BD758ED00AB38CB /* VProcessLauncher.h */; };
@@ -69,11 +67,9 @@
 		B54AA7600BEA4630005240A2 /* VKernelIPCPrecompiled.h in Headers */ = {isa = PBXBuildFile; fileRef = 020C61B406F0C0B10096EBBD /* VKernelIPCPrecompiled.h */; };
 		B54AA7610BEA4630005240A2 /* VKernelIPCErrors.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65D206F9C91A0074C123 /* VKernelIPCErrors.h */; };
 		B54AA7620BEA4630005240A2 /* XMacProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832BD08963FA300D45133 /* XMacProcessMain.h */; };
-		B54AA7630BEA4630005240A2 /* XMacLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832BE08963FA300D45133 /* XMacLibrary.h */; };
 		B54AA7650BEA4630005240A2 /* VSignal.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C208963FA300D45133 /* VSignal.h */; };
 		B54AA7660BEA4630005240A2 /* VProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C408963FA300D45133 /* VProcessMain.h */; };
 		B54AA7670BEA4630005240A2 /* VPluginImp.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C508963FA300D45133 /* VPluginImp.h */; };
-		B54AA7680BEA4630005240A2 /* VLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C608963FA300D45133 /* VLibrary.h */; };
 		B54AA7690BEA4630005240A2 /* VDebugAttachments.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C808963FA400D45133 /* VDebugAttachments.h */; };
 		B54AA76A0BEA4630005240A2 /* VDaemon.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832CA08963FA400D45133 /* VDaemon.h */; };
 		B54AA76B0BEA4630005240A2 /* VComponentManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832CC08963FA400D45133 /* VComponentManager.h */; };
@@ -86,9 +82,7 @@
 		B54AA7720BEA4630005240A2 /* IStreamRequest.h in Headers */ = {isa = PBXBuildFile; fileRef = 42C0D4FF0ADA9C1E00B56805 /* IStreamRequest.h */; };
 		B54AA7730BEA4630005240A2 /* VProcessLauncher.h in Headers */ = {isa = PBXBuildFile; fileRef = 82B546700BD758ED00AB38CB /* VProcessLauncher.h */; };
 		B54AA7750BEA4630005240A2 /* XWinProcessLauncher.h in Headers */ = {isa = PBXBuildFile; fileRef = 82B5467F0BD7594800AB38CB /* XWinProcessLauncher.h */; };
-		B54AA7760BEA4657005240A2 /* XMacLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832BF08963FA300D45133 /* XMacLibrary.cpp */; };
 		B54AA7780BEA4657005240A2 /* VSignal.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C308963FA300D45133 /* VSignal.cpp */; };
-		B54AA7790BEA4657005240A2 /* VLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C708963FA300D45133 /* VLibrary.cpp */; };
 		B54AA77A0BEA4657005240A2 /* VDebugAttachments.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C908963FA400D45133 /* VDebugAttachments.cpp */; };
 		B54AA77B0BEA4657005240A2 /* VDaemon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832CB08963FA400D45133 /* VDaemon.cpp */; };
 		B54AA77C0BEA4657005240A2 /* VComponentManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832CD08963FA400D45133 /* VComponentManager.cpp */; };
@@ -103,11 +97,9 @@
 		F46431C8113E7CBD00639653 /* VKernelIPCPrecompiled.h in Headers */ = {isa = PBXBuildFile; fileRef = 020C61B406F0C0B10096EBBD /* VKernelIPCPrecompiled.h */; };
 		F46431C9113E7CBD00639653 /* VKernelIPCErrors.h in Headers */ = {isa = PBXBuildFile; fileRef = 02BB65D206F9C91A0074C123 /* VKernelIPCErrors.h */; };
 		F46431CA113E7CBD00639653 /* XMacProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832BD08963FA300D45133 /* XMacProcessMain.h */; };
-		F46431CB113E7CBD00639653 /* XMacLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832BE08963FA300D45133 /* XMacLibrary.h */; };
 		F46431CD113E7CBD00639653 /* VSignal.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C208963FA300D45133 /* VSignal.h */; };
 		F46431CE113E7CBD00639653 /* VProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C408963FA300D45133 /* VProcessMain.h */; };
 		F46431CF113E7CBD00639653 /* VPluginImp.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C508963FA300D45133 /* VPluginImp.h */; };
-		F46431D0113E7CBD00639653 /* VLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C608963FA300D45133 /* VLibrary.h */; };
 		F46431D1113E7CBD00639653 /* VDebugAttachments.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C808963FA400D45133 /* VDebugAttachments.h */; };
 		F46431D2113E7CBD00639653 /* VDaemon.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832CA08963FA400D45133 /* VDaemon.h */; };
 		F46431D3113E7CBD00639653 /* VComponentManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832CC08963FA400D45133 /* VComponentManager.h */; };
@@ -122,9 +114,7 @@
 		F46431DD113E7CBD00639653 /* XWinProcessLauncher.h in Headers */ = {isa = PBXBuildFile; fileRef = 82B5467F0BD7594800AB38CB /* XWinProcessLauncher.h */; };
 		F46431DE113E7CBD00639653 /* VEnvironmentVariables.h in Headers */ = {isa = PBXBuildFile; fileRef = 15EE979B0EF27420006F4F1E /* VEnvironmentVariables.h */; };
 		F46431E0113E7CBD00639653 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C1666FE841158C02AAC07 /* InfoPlist.strings */; };
-		F46431E2113E7CBD00639653 /* XMacLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832BF08963FA300D45133 /* XMacLibrary.cpp */; };
 		F46431E4113E7CBD00639653 /* VSignal.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C308963FA300D45133 /* VSignal.cpp */; };
-		F46431E5113E7CBD00639653 /* VLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C708963FA300D45133 /* VLibrary.cpp */; };
 		F46431E6113E7CBD00639653 /* VDebugAttachments.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C908963FA400D45133 /* VDebugAttachments.cpp */; };
 		F46431E7113E7CBD00639653 /* VDaemon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832CB08963FA400D45133 /* VDaemon.cpp */; };
 		F46431E8113E7CBD00639653 /* VComponentManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832CD08963FA400D45133 /* VComponentManager.cpp */; };
@@ -167,12 +157,10 @@
 		F9E517641268554C0088DAE9 /* VFileSystemNotification.h in Headers */ = {isa = PBXBuildFile; fileRef = 9383C31C115A572900E080E9 /* VFileSystemNotification.h */; };
 		F9E51768126855610088DAE9 /* VDaemon.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832CA08963FA400D45133 /* VDaemon.h */; };
 		F9E51769126855610088DAE9 /* VProcessIPC.h in Headers */ = {isa = PBXBuildFile; fileRef = 4238E7AB1247CB1900951270 /* VProcessIPC.h */; };
-		F9E5176A126855610088DAE9 /* VLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C608963FA300D45133 /* VLibrary.h */; };
 		F9E5176B126855610088DAE9 /* VDaemon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832CB08963FA400D45133 /* VDaemon.cpp */; };
 		F9E5176C126855610088DAE9 /* VProcessLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82B546710BD758ED00AB38CB /* VProcessLauncher.cpp */; };
 		F9E5176D126855610088DAE9 /* VEnvironmentVariables.h in Headers */ = {isa = PBXBuildFile; fileRef = 15EE979B0EF27420006F4F1E /* VEnvironmentVariables.h */; };
 		F9E5176E126855610088DAE9 /* VProcessLauncher.h in Headers */ = {isa = PBXBuildFile; fileRef = 82B546700BD758ED00AB38CB /* VProcessLauncher.h */; };
-		F9E5176F126855610088DAE9 /* VLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 021832C708963FA300D45133 /* VLibrary.cpp */; };
 		F9E51770126855610088DAE9 /* VProcessIPC.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4238E7AA1247CB1900951270 /* VProcessIPC.cpp */; };
 		F9E51771126855610088DAE9 /* VEnvironmentVariables.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 15EE979A0EF27420006F4F1E /* VEnvironmentVariables.cpp */; };
 		F9E51772126855610088DAE9 /* VProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = 021832C408963FA300D45133 /* VProcessMain.h */; };
@@ -188,8 +176,6 @@
 		F9E517EA12685DE30088DAE9 /* XPosixDaemon.h in Headers */ = {isa = PBXBuildFile; fileRef = F9E517DE12685DE30088DAE9 /* XPosixDaemon.h */; };
 		F9E517EB12685DE30088DAE9 /* XPosixProcessLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F9E517DF12685DE30088DAE9 /* XPosixProcessLauncher.cpp */; };
 		F9E517EC12685DE30088DAE9 /* XPosixProcessLauncher.h in Headers */ = {isa = PBXBuildFile; fileRef = F9E517E012685DE30088DAE9 /* XPosixProcessLauncher.h */; };
-		F9E5184312688F280088DAE9 /* XLinuxLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F9E5184112688F280088DAE9 /* XLinuxLibrary.cpp */; };
-		F9E5184412688F280088DAE9 /* XLinuxLibrary.h in Headers */ = {isa = PBXBuildFile; fileRef = F9E5184212688F280088DAE9 /* XLinuxLibrary.h */; };
 		F9E5184C1268900E0088DAE9 /* XLinuxProcessMain.h in Headers */ = {isa = PBXBuildFile; fileRef = F9E5184B1268900E0088DAE9 /* XLinuxProcessMain.h */; };
 /* End PBXBuildFile section */
 
@@ -248,19 +234,13 @@
 /* Begin PBXFileReference section */
 		020C61B406F0C0B10096EBBD /* VKernelIPCPrecompiled.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VKernelIPCPrecompiled.h; sourceTree = "<group>"; };
 		021832B808963FA300D45133 /* XWinProcessMain.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = XWinProcessMain.h; sourceTree = "<group>"; };
-		021832B908963FA300D45133 /* XWinLibrary.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = XWinLibrary.h; sourceTree = "<group>"; };
-		021832BA08963FA300D45133 /* XWinLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = XWinLibrary.cpp; sourceTree = "<group>"; };
 		021832BB08963FA300D45133 /* XWinDaemon.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = XWinDaemon.h; sourceTree = "<group>"; };
 		021832BC08963FA300D45133 /* XWinDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = XWinDaemon.cpp; sourceTree = "<group>"; };
 		021832BD08963FA300D45133 /* XMacProcessMain.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = XMacProcessMain.h; sourceTree = "<group>"; };
-		021832BE08963FA300D45133 /* XMacLibrary.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = XMacLibrary.h; sourceTree = "<group>"; };
-		021832BF08963FA300D45133 /* XMacLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = XMacLibrary.cpp; sourceTree = "<group>"; };
 		021832C208963FA300D45133 /* VSignal.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VSignal.h; sourceTree = "<group>"; };
 		021832C308963FA300D45133 /* VSignal.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VSignal.cpp; sourceTree = "<group>"; };
 		021832C408963FA300D45133 /* VProcessMain.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VProcessMain.h; sourceTree = "<group>"; };
 		021832C508963FA300D45133 /* VPluginImp.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VPluginImp.h; sourceTree = "<group>"; };
-		021832C608963FA300D45133 /* VLibrary.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VLibrary.h; sourceTree = "<group>"; };
-		021832C708963FA300D45133 /* VLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VLibrary.cpp; sourceTree = "<group>"; };
 		021832C808963FA400D45133 /* VDebugAttachments.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VDebugAttachments.h; sourceTree = "<group>"; };
 		021832C908963FA400D45133 /* VDebugAttachments.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VDebugAttachments.cpp; sourceTree = "<group>"; };
 		021832CA08963FA400D45133 /* VDaemon.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VDaemon.h; sourceTree = "<group>"; };
@@ -294,6 +274,7 @@
 		4279BE25123E78B800B83C8C /* XWinFileSystemNotification.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XWinFileSystemNotification.h; sourceTree = "<group>"; };
 		4279BE26123E78B800B83C8C /* XWinFileSystemNotification.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XWinFileSystemNotification.cpp; sourceTree = "<group>"; };
 		42C0D4FF0ADA9C1E00B56805 /* IStreamRequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IStreamRequest.h; path = ../../Sources/IStreamRequest.h; sourceTree = SOURCE_ROOT; };
+		42F44A5015DE7C57009D4CDB /* CComponent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CComponent.h; sourceTree = "<group>"; };
 		6DCA19350F3F9D3600EF41C9 /* CoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreServices.framework; path = System/Library/Frameworks/CoreServices.framework; sourceTree = SDKROOT; };
 		82B546700BD758ED00AB38CB /* VProcessLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VProcessLauncher.h; sourceTree = "<group>"; };
 		82B546710BD758ED00AB38CB /* VProcessLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VProcessLauncher.cpp; sourceTree = "<group>"; };
@@ -328,8 +309,6 @@
 		F9E517DE12685DE30088DAE9 /* XPosixDaemon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XPosixDaemon.h; sourceTree = "<group>"; };
 		F9E517DF12685DE30088DAE9 /* XPosixProcessLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XPosixProcessLauncher.cpp; sourceTree = "<group>"; };
 		F9E517E012685DE30088DAE9 /* XPosixProcessLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XPosixProcessLauncher.h; sourceTree = "<group>"; };
-		F9E5184112688F280088DAE9 /* XLinuxLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XLinuxLibrary.cpp; sourceTree = "<group>"; };
-		F9E5184212688F280088DAE9 /* XLinuxLibrary.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XLinuxLibrary.h; sourceTree = "<group>"; };
 		F9E5184B1268900E0088DAE9 /* XLinuxProcessMain.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XLinuxProcessMain.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -390,6 +369,7 @@
 		021832F908963FD100D45133 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				42F44A5015DE7C57009D4CDB /* CComponent.h */,
 				021832CD08963FA400D45133 /* VComponentManager.cpp */,
 				021832CC08963FA400D45133 /* VComponentManager.h */,
 				021832CF08963FA400D45133 /* VComponentLibrary.cpp */,
@@ -401,7 +381,7 @@
 			name = Components;
 			sourceTree = "<group>";
 		};
-		021832FA08963FDD00D45133 /* Processes & Libraries */ = {
+		021832FA08963FDD00D45133 /* Process */ = {
 			isa = PBXGroup;
 			children = (
 				F9E517C712685B560088DAE9 /* Posix (Mac & Linux) */,
@@ -415,12 +395,10 @@
 				15EE979A0EF27420006F4F1E /* VEnvironmentVariables.cpp */,
 				15EE979B0EF27420006F4F1E /* VEnvironmentVariables.h */,
 				021832C408963FA300D45133 /* VProcessMain.h */,
-				021832C708963FA300D45133 /* VLibrary.cpp */,
-				021832C608963FA300D45133 /* VLibrary.h */,
 				82B546700BD758ED00AB38CB /* VProcessLauncher.h */,
 				82B546710BD758ED00AB38CB /* VProcessLauncher.cpp */,
 			);
-			name = "Processes & Libraries";
+			name = Process;
 			sourceTree = "<group>";
 		};
 		02416A6D06F061C900F0206C /* Headers */ = {
@@ -488,7 +466,7 @@
 				9383C318115A571100E080E9 /* File System Notifications */,
 				021832F808963FCA00D45133 /* Communication */,
 				021832F908963FD100D45133 /* Components */,
-				021832FA08963FDD00D45133 /* Processes & Libraries */,
+				021832FA08963FDD00D45133 /* Process */,
 			);
 			name = Sources;
 			path = ../../Sources;
@@ -594,8 +572,6 @@
 		F9E5175612684D380088DAE9 /* Linux */ = {
 			isa = PBXGroup;
 			children = (
-				F9E5184112688F280088DAE9 /* XLinuxLibrary.cpp */,
-				F9E5184212688F280088DAE9 /* XLinuxLibrary.h */,
 				F9E5184B1268900E0088DAE9 /* XLinuxProcessMain.h */,
 			);
 			name = Linux;
@@ -604,8 +580,6 @@
 		F9E5175712684D5C0088DAE9 /* Mac */ = {
 			isa = PBXGroup;
 			children = (
-				021832BF08963FA300D45133 /* XMacLibrary.cpp */,
-				021832BE08963FA300D45133 /* XMacLibrary.h */,
 				021832BD08963FA300D45133 /* XMacProcessMain.h */,
 			);
 			name = Mac;
@@ -616,8 +590,6 @@
 			children = (
 				021832BC08963FA300D45133 /* XWinDaemon.cpp */,
 				021832BB08963FA300D45133 /* XWinDaemon.h */,
-				021832BA08963FA300D45133 /* XWinLibrary.cpp */,
-				021832B908963FA300D45133 /* XWinLibrary.h */,
 				82B546800BD7594800AB38CB /* XWinProcessLauncher.cpp */,
 				82B5467F0BD7594800AB38CB /* XWinProcessLauncher.h */,
 				021832B808963FA300D45133 /* XWinProcessMain.h */,
@@ -650,11 +622,9 @@
 				020C61B506F0C0B10096EBBD /* VKernelIPCPrecompiled.h in Headers */,
 				02BB65D306F9C91A0074C123 /* VKernelIPCErrors.h in Headers */,
 				021832DD08963FA400D45133 /* XMacProcessMain.h in Headers */,
-				021832DE08963FA400D45133 /* XMacLibrary.h in Headers */,
 				021832E208963FA400D45133 /* VSignal.h in Headers */,
 				021832E408963FA400D45133 /* VProcessMain.h in Headers */,
 				021832E508963FA400D45133 /* VPluginImp.h in Headers */,
-				021832E608963FA400D45133 /* VLibrary.h in Headers */,
 				021832E808963FA400D45133 /* VDebugAttachments.h in Headers */,
 				021832EA08963FA400D45133 /* VDaemon.h in Headers */,
 				021832EC08963FA400D45133 /* VComponentManager.h in Headers */,
@@ -676,6 +646,7 @@
 				F9807150124B88080056791E /* VSharedSemaphore.h in Headers */,
 				F9E517EA12685DE30088DAE9 /* XPosixDaemon.h in Headers */,
 				F9E517EC12685DE30088DAE9 /* XPosixProcessLauncher.h in Headers */,
+				42F44A5515DE7C57009D4CDB /* CComponent.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -690,11 +661,9 @@
 				B54AA7600BEA4630005240A2 /* VKernelIPCPrecompiled.h in Headers */,
 				B54AA7610BEA4630005240A2 /* VKernelIPCErrors.h in Headers */,
 				B54AA7620BEA4630005240A2 /* XMacProcessMain.h in Headers */,
-				B54AA7630BEA4630005240A2 /* XMacLibrary.h in Headers */,
 				B54AA7650BEA4630005240A2 /* VSignal.h in Headers */,
 				B54AA7660BEA4630005240A2 /* VProcessMain.h in Headers */,
 				B54AA7670BEA4630005240A2 /* VPluginImp.h in Headers */,
-				B54AA7680BEA4630005240A2 /* VLibrary.h in Headers */,
 				B54AA7690BEA4630005240A2 /* VDebugAttachments.h in Headers */,
 				B54AA76A0BEA4630005240A2 /* VDaemon.h in Headers */,
 				B54AA76B0BEA4630005240A2 /* VComponentManager.h in Headers */,
@@ -723,11 +692,9 @@
 				F46431C8113E7CBD00639653 /* VKernelIPCPrecompiled.h in Headers */,
 				F46431C9113E7CBD00639653 /* VKernelIPCErrors.h in Headers */,
 				F46431CA113E7CBD00639653 /* XMacProcessMain.h in Headers */,
-				F46431CB113E7CBD00639653 /* XMacLibrary.h in Headers */,
 				F46431CD113E7CBD00639653 /* VSignal.h in Headers */,
 				F46431CE113E7CBD00639653 /* VProcessMain.h in Headers */,
 				F46431CF113E7CBD00639653 /* VPluginImp.h in Headers */,
-				F46431D0113E7CBD00639653 /* VLibrary.h in Headers */,
 				F46431D1113E7CBD00639653 /* VDebugAttachments.h in Headers */,
 				F46431D2113E7CBD00639653 /* VDaemon.h in Headers */,
 				F46431D3113E7CBD00639653 /* VComponentManager.h in Headers */,
@@ -749,6 +716,7 @@
 				F9807154124B88080056791E /* VSharedSemaphore.h in Headers */,
 				F9E517E612685DE30088DAE9 /* XPosixDaemon.h in Headers */,
 				F9E517E812685DE30088DAE9 /* XPosixProcessLauncher.h in Headers */,
+				42F44A5A15DE7C57009D4CDB /* CComponent.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -770,13 +738,11 @@
 				F9E517641268554C0088DAE9 /* VFileSystemNotification.h in Headers */,
 				F9E51768126855610088DAE9 /* VDaemon.h in Headers */,
 				F9E51769126855610088DAE9 /* VProcessIPC.h in Headers */,
-				F9E5176A126855610088DAE9 /* VLibrary.h in Headers */,
 				F9E5176D126855610088DAE9 /* VEnvironmentVariables.h in Headers */,
 				F9E5176E126855610088DAE9 /* VProcessLauncher.h in Headers */,
 				F9E51772126855610088DAE9 /* VProcessMain.h in Headers */,
 				F9E517E212685DE30088DAE9 /* XPosixDaemon.h in Headers */,
 				F9E517E412685DE30088DAE9 /* XPosixProcessLauncher.h in Headers */,
-				F9E5184412688F280088DAE9 /* XLinuxLibrary.h in Headers */,
 				F9E5184C1268900E0088DAE9 /* XLinuxProcessMain.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -994,9 +960,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				021832DF08963FA400D45133 /* XMacLibrary.cpp in Sources */,
 				021832E308963FA400D45133 /* VSignal.cpp in Sources */,
-				021832E708963FA400D45133 /* VLibrary.cpp in Sources */,
 				021832E908963FA400D45133 /* VDebugAttachments.cpp in Sources */,
 				021832EB08963FA400D45133 /* VDaemon.cpp in Sources */,
 				021832ED08963FA400D45133 /* VComponentManager.cpp in Sources */,
@@ -1020,9 +984,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B54AA7760BEA4657005240A2 /* XMacLibrary.cpp in Sources */,
 				B54AA7780BEA4657005240A2 /* VSignal.cpp in Sources */,
-				B54AA7790BEA4657005240A2 /* VLibrary.cpp in Sources */,
 				B54AA77A0BEA4657005240A2 /* VDebugAttachments.cpp in Sources */,
 				B54AA77B0BEA4657005240A2 /* VDaemon.cpp in Sources */,
 				B54AA77C0BEA4657005240A2 /* VComponentManager.cpp in Sources */,
@@ -1038,9 +1000,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F46431E2113E7CBD00639653 /* XMacLibrary.cpp in Sources */,
 				F46431E4113E7CBD00639653 /* VSignal.cpp in Sources */,
-				F46431E5113E7CBD00639653 /* VLibrary.cpp in Sources */,
 				F46431E6113E7CBD00639653 /* VDebugAttachments.cpp in Sources */,
 				F46431E7113E7CBD00639653 /* VDaemon.cpp in Sources */,
 				F46431E8113E7CBD00639653 /* VComponentManager.cpp in Sources */,
@@ -1071,12 +1031,10 @@
 				F9E517631268554C0088DAE9 /* VFileSystemNotification.cpp in Sources */,
 				F9E5176B126855610088DAE9 /* VDaemon.cpp in Sources */,
 				F9E5176C126855610088DAE9 /* VProcessLauncher.cpp in Sources */,
-				F9E5176F126855610088DAE9 /* VLibrary.cpp in Sources */,
 				F9E51770126855610088DAE9 /* VProcessIPC.cpp in Sources */,
 				F9E51771126855610088DAE9 /* VEnvironmentVariables.cpp in Sources */,
 				F9E517E112685DE30088DAE9 /* XPosixDaemon.cpp in Sources */,
 				F9E517E312685DE30088DAE9 /* XPosixProcessLauncher.cpp in Sources */,
-				F9E5184312688F280088DAE9 /* XLinuxLibrary.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1218,7 +1176,7 @@
 					"-framework",
 					Carbon,
 				);
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = NO;
 			};
 			name = Performance;
@@ -1255,7 +1213,7 @@
 					"-framework",
 					Carbon,
 				);
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
 			name = Debug;
@@ -1274,7 +1232,7 @@
 					"-framework",
 					Carbon,
 				);
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
 			name = Coverage;
@@ -1295,7 +1253,7 @@
 					"-framework",
 					Carbon,
 				);
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
 			name = Beta;
@@ -1316,7 +1274,7 @@
 					"-framework",
 					Carbon,
 				);
-				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/WAK2/Libraries/MachO";
+				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = NO;
 			};
 			name = Release;

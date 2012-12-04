@@ -148,11 +148,13 @@ namespace CW
 
 
     const uLONG CW_PROXY_SIZE=256;
-    const uLONG CW_URL_SIZE=512;
+	//http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url
+    const uLONG CW_URL_SIZE=2048;
     
 
     typedef size_t (*CurlWriteFunction) (void *ptr, size_t size, size_t nmemb, void *stream);
     typedef size_t (*CurlReadFunction)  (void *ptr, size_t size, size_t nmemb, void *stream);
+	typedef int	   (*CurlSeekFunction)	(void *stream, size_t offset, int origin);
 
 
     XBOX::VString   VStringFromAsciiStdString   (const std::string inStr);
@@ -167,7 +169,9 @@ namespace CW
         uLONG               fRead;  //Past participle :)
 
         static size_t CW_CDECL  WriteFunction   (void *ptr, size_t size, size_t nmemb, void *thisPtr);   
-        static size_t CW_CDECL  ReadFunction    (void *ptr, size_t size, size_t nmemb, void *stream); 
+        static size_t CW_CDECL  ReadFunction    (void *ptr, size_t size, size_t nmemb, void *stream);
+		static int	  CW_CDECL  SeekFunction	(void *stream, size_t offset, int origin);
+
         void                Push                (char c);
 
     public :
@@ -178,6 +182,9 @@ namespace CW
         CurlReadFunction    GetReadFunction     () const;
         size_t              GetReadSize         () const;
 
+		void*               GetSeekData         ();
+        CurlSeekFunction    GetSeekFunction     () const;
+		
         void*               GetWriteData        ();
         CurlWriteFunction   GetWriteFunction    () const;
 
@@ -231,10 +238,12 @@ namespace CW
     public :
 
         typedef enum {GET, HEAD, POST, PUT, CUSTOM} Method;
+		typedef enum {BASIC, DIGEST} AuthMethod;
 
         HttpRequest(const XBOX::VString& inUrl, const Method inMethod);
         ~HttpRequest();
-    
+		
+		bool		SetUserInfos			(const XBOX::VString& inUser, const XBOX::VString& inPasswd, bool inAllowBasic);
         void        SetProxy                (const XBOX::VString& inProxy, uLONG inPort=-1);
         bool        SetRequestHeader        (const XBOX::VString& inKey, const XBOX::VString& inValue);
         //bool        SetData                 (const XBOX::VString& inData);

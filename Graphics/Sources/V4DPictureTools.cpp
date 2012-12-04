@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 namespace V4DPicturesSettingsBagKeys
 {

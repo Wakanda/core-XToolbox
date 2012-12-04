@@ -158,7 +158,7 @@ public:
 	static VXMLDOMElementRef GetRootNodeElement( VXMLDOMNodeRef inNode);
 
 	/** set element attribute */
-	static void	SetNodeElementAttribute( VXMLDOMElementRef inNodeElement, const VString& inName, const VString& inValue, bool inRemoveIfValueEmpty = true, bool *outIsDirtyMapID = NULL);
+	static bool	SetNodeElementAttribute( VXMLDOMElementRef inNodeElement, const VString& inName, const VString& inValue, bool inRemoveIfValueEmpty = true, bool *outIsDirtyMapID = NULL);
 
 };
 

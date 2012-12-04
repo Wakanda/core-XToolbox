@@ -152,10 +152,6 @@ void VJSNetClass::CreateServer (XBOX::VJSParms_callStaticFunction &ioParms, bool
 		
 		createdObject = VJSNetServerClass::CreateInstance(ioParms.GetContext(), serverObject);
 
-	VJSWorker	*worker;
-
-	worker = VJSWorker::GetWorker(ioParms.GetContext());
-
 	// If the object is ServerSync, the "connection" event listener, if any, is silently ignored.
 
 	if (!inIsSync && listener.IsFunction())
@@ -175,7 +171,7 @@ void VJSNetClass::ConnectSocket (XBOX::VJSParms_callStaticFunction &ioParms, boo
 
 		XBOX::VJSObject	createdObject(ioParms.GetContext());
 
-		socketObject->fWorker = VJSWorker::GetWorker(ioParms.GetContext());
+		socketObject->fWorker = VJSWorker::RetainWorker(ioParms.GetContext());
 		if (!inIsSync) {
 
 			createdObject = VJSNetSocketClass::CreateInstance(ioParms.GetContext(), socketObject);
@@ -300,8 +296,7 @@ uLONG VJSNetClass::_isIPAddress (XBOX::VJSParms_callStaticFunction &ioParms)
 
 			return ServerNetTools::GetIPAddress(ipAddress) != 0xffffffff ? 4 : 0;
 
-#elif DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE
-
+#else
 		StErrorContextInstaller	context(false, true);
 		XBOX::VNetAddress			addr(ipAddress, 1234);
 
@@ -311,7 +306,7 @@ uLONG VJSNetClass::_isIPAddress (XBOX::VJSParms_callStaticFunction &ioParms)
 
 		else
 
-			addr.IsV4() ? 4 : 6;
+			return addr.IsV4() ? 4 : 6;
 		
 #endif
 

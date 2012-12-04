@@ -1054,6 +1054,7 @@ VError VStream::GetTextLine(VString& outText, bool inAppendCarriageReturn, UniCh
 						{
 							// that was the last buffered char -> needs to pull one more char
 							UniChar extra;
+							nbBytesCopied=0;
 							GetData(&extra, sizeof(UniChar), &nbBytesCopied);
 							if (nbBytesCopied == sizeof(UniChar))
 							{
@@ -1157,7 +1158,7 @@ VError VStream::GetTextLine(VString& outText, bool inAppendCarriageReturn, UniCh
 						{
 							// that was the last buffered char -> needs to pull one more char
 							char extra;
-							VSize nbBytesCopied;
+							VSize nbBytesCopied=0;
 							GetData(&extra, sizeof(char), &nbBytesCopied);
 							if (nbBytesCopied == sizeof(char))
 							{

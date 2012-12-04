@@ -1029,6 +1029,9 @@ public:
 	//	this method is used by SVG component
 	virtual void	DrawText (const VString& inString, const VPoint& inPos, TextLayoutMode inLayoutMode = TLM_NORMAL);
 
+	/** return true if graphic context can natively draw styled text background color */
+	virtual bool	CanDrawStyledTextBackColor() const { return (GetTextRenderingMode() & TRM_LEGACY_ON) != 0; }
+
 	virtual void	DrawStyledText( const VString& inText, VTreeTextStyle *inStyles, AlignStyle inHoriz, AlignStyle inVert, const VRect& inHwndBounds, TextLayoutMode inMode = TLM_NORMAL, const GReal inRefDocDPI = 72.0f);
 	
 	//return styled text box bounds

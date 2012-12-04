@@ -20,6 +20,7 @@
 #include "VJSClass.h"
 #include "VJSGlobalClass.h"
 #include "VJSEvent.h"
+#include "VJSRuntime_file.h"
 #include "VJSRuntime_stream.h"
 #include "VJSBuffer.h"
 
@@ -107,7 +108,7 @@ VJSSystemWorker::VJSSystemWorker (const XBOX::VString &inCommandLine, const XBOX
 {
 	xbox_assert(inWorker != NULL);
 
-	fWorker = inWorker;
+	fWorker = XBOX::RetainRefCountable<VJSWorker>(inWorker);
 
 	fCommandLine = inCommandLine;
 	
@@ -154,12 +155,19 @@ VJSSystemWorker::VJSSystemWorker (const XBOX::VString &inCommandLine, const XBOX
 
 	fPID = -1;
 
+#else	// VERSIONWIN
+
+	fPID = 0;
+
 #endif
 }
 
 VJSSystemWorker::~VJSSystemWorker ()
 {
 	xbox_assert(fVTask == NULL);
+	xbox_assert(fWorker != NULL);
+
+	XBOX::ReleaseRefCountable<VJSWorker>(&fWorker);
 }
 
 void VJSSystemWorker::_DoRun ()
@@ -189,13 +197,9 @@ void VJSSystemWorker::_DoRun ()
 		fIsTerminated = true;	// Launched failed!
 
 	else {
-		
-#if VERSIONMAC || VERSION_LINUX
-		
+				
 		fPID = fProcessLauncher.GetPid();
-		
-#endif
-		
+				
 		XBOX::VInterlocked::Increment((sLONG *) &VJSSystemWorker::sNumberRunning);
 
 		uBYTE	*readBuffer;
@@ -317,12 +321,7 @@ void VJSSystemWorker::_DoRun ()
 		data->fHasStarted = fStartupStatus > 0;
 		data->fForcedTermination = fForcedTermination;
 		data->fExitStatus = fExitStatus;
-
-#if VERSIONMAC || VERSION_LINUX 
-
 		data->fPID = fPID;
-
-#endif
 
 		fWorker->QueueEvent(VJSSystemWorkerEvent::Create(this, VJSSystemWorkerEvent::eTYPE_TERMINATION, fThis, (uBYTE *) data, sizeof(*data)));
 			
@@ -383,20 +382,18 @@ void VJSSystemWorkerClass::_Construct (XBOX::VJSParms_callAsConstructor &ioParms
 		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
 		isOk = false;
 				
-	} else if (ioParms.CountParams() >= 2 && !ioParms.GetStringParam(2, folderPath)) {
+	} else
+
+		isOk = _RetrieveFolder(ioParms, 2, &folderPath);
 	
-		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
-		isOk = false;
-
-	} else 
-
-		isOk = true;
-
 	if (isOk) {
  
 		VJSSystemWorker	*systemWorker;
+		VJSWorker		*worker;
 
-		systemWorker = new VJSSystemWorker(commandLine, folderPath, VJSWorker::GetWorker(ioParms.GetContext()));
+		worker = VJSWorker::RetainWorker(ioParms.GetContext());
+		systemWorker = new VJSSystemWorker(commandLine, folderPath, worker);
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 
 		XBOX::VJSObject	constructedObject = VJSSystemWorkerClass::CreateInstance(ioParms.GetContext(), systemWorker);
 
@@ -605,12 +602,7 @@ void VJSSystemWorkerClass::_getInfos (XBOX::VJSParms_callStaticFunction &ioParms
 	object.SetProperty("commandLine", inSystemWorker->fCommandLine);	
 	object.SetProperty("hasStarted", inSystemWorker->fStartupStatus > 0);
 	object.SetProperty("isTerminated", inSystemWorker->fIsTerminated);
-	
-#if VERSIONMAC || VERSION_LINUX
-	
 	object.SetProperty("pid", inSystemWorker->fPID);	
-	
-#endif
 	
 	ioParms.ReturnValue(object);
 }
@@ -654,8 +646,11 @@ void VJSSystemWorkerClass::_wait (XBOX::VJSParms_callStaticFunction &ioParms, VJ
 	if (!isTerminated) {
 
 		XBOX::VJSContext	context(ioParms.GetContext());
+		VJSWorker			*worker;
 
-		isTerminated = (VJSWorker::GetWorker(context)->WaitFor(context, waitDuration, inSystemWorker, VJSSystemWorkerEvent::eTYPE_TERMINATION) == -1);
+		worker = VJSWorker::RetainWorker(context);
+		isTerminated = (worker->WaitFor(context, waitDuration, inSystemWorker, VJSSystemWorkerEvent::eTYPE_TERMINATION) == -1);
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);		
 
 	}
 
@@ -715,9 +710,8 @@ void VJSSystemWorkerClass::_Exec (XBOX::VJSParms_callStaticFunction &ioParms, vo
 
 	} 
 
-	if (ioParms.CountParams() >= 3 && !ioParms.GetStringParam(3, executionPath)) {
-
-		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "3");
+	if (!_RetrieveFolder(ioParms, 3, &executionPath)) {
+		
 		ReleaseRefCountable<VJSBufferObject>(&inputBuffer);
 		return;
 
@@ -771,8 +765,27 @@ void VJSSystemWorkerClass::_Exec (XBOX::VJSParms_callStaticFunction &ioParms, vo
 	} else
 
 		stdinBufferPointer = NULL;
+	
+	bool	isOk;
 
-	if (!VProcessLauncher::ExecuteCommandLine(commandLine, OPTION, stdinBufferPointer, &stdoutBuffer, &stderrBuffer, NULL, defaultDirectory, &exitStatus)) {
+	isOk = !VProcessLauncher::ExecuteCommandLine(commandLine, OPTION, stdinBufferPointer, &stdoutBuffer, &stderrBuffer, NULL, defaultDirectory, &exitStatus);
+	
+#if !VERSIONWIN
+	
+	// XPosixProcessLauncher.cpp will return an error in stderr. Hence in case of error, isOk can still be true. So check error code.
+	
+	if (isOk) {
+		
+		static const char	errorMessage[]	= "********** XPosixProcessLauncher::Start/fork() -> child -> Error:";
+		static const int	messageLength	= sizeof(errorMessage) - 1;
+		
+		isOk = stderrBuffer.GetDataSize() < messageLength || ::memcmp(stderrBuffer.GetDataPtr(), errorMessage, messageLength);
+				
+	}
+
+#endif
+	
+	if (isOk) {
 
 		// Successful call, set up "result" object.
 
@@ -794,3 +807,72 @@ void VJSSystemWorkerClass::_Exec (XBOX::VJSParms_callStaticFunction &ioParms, vo
 	stdinBuffer.ForgetData();
 	ReleaseRefCountable<VJSBufferObject>(&inputBuffer);
 }
+
+bool VJSSystemWorkerClass::_RetrieveFolder (VJSParms_withArguments &inParms, sLONG inIndex, XBOX::VString *outFolderPath)
+{
+	xbox_assert(inIndex >= 1);
+	xbox_assert(outFolderPath != NULL);	
+
+	outFolderPath->Clear();
+
+	bool			isOk;
+	XBOX::VString	indexString;
+
+	isOk = true;	
+	indexString.FromLong(inIndex);
+	if (inParms.CountParams() >= inIndex) {
+		
+		if (inParms.IsStringParam(inIndex)) {
+
+			if (!inParms.GetStringParam(inIndex, *outFolderPath)) {
+
+				XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, indexString);
+				isOk = false;
+
+			} else {
+
+#if VERSIONWIN
+
+				XBOX::VFilePath	path(*outFolderPath, FPS_SYSTEM);
+
+#else
+
+				XBOX::VFilePath	path(*outFolderPath, FPS_POSIX);
+
+#endif
+
+				path.GetPath(*outFolderPath);
+
+			}
+			
+		} else if (inParms.IsObjectParam(inIndex)) {
+
+			XBOX::VJSObject	folderObject(inParms.GetContext());
+
+			if (!inParms.GetParamObject(inIndex, folderObject) || !folderObject.IsOfClass(VJSFolderIterator::Class()) ) {
+
+				XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, indexString);
+				isOk = false;
+
+			} else {
+
+				JS4DFolderIterator	*folderIterator;
+
+				folderIterator = folderObject.GetPrivateData<VJSFolderIterator>();
+				xbox_assert(folderIterator != NULL);
+
+				folderIterator->GetFolder()->GetPath(*outFolderPath);
+
+			}			
+			
+		} else {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, indexString);
+			isOk = false;
+
+		}
+
+	}
+
+	return isOk;
+}	

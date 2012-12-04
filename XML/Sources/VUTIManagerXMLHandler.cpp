@@ -102,7 +102,7 @@ void VUTIManagerArrayHandler::EndElement(const XBOX::VString&)
 
 #pragma mark VUTIManagerUTIHandler
 
-VUTIManagerUTIHandler::VUTIManagerUTIHandler(VUTIManager* inUTIManager):fUTIManager(inUTIManager)
+VUTIManagerUTIHandler::VUTIManagerUTIHandler(VUTIManager* inUTIManager):fUTIManager(inUTIManager),fCanAnalyseText(false)
 {
 	fCurrentUTI = new VUTI();
 	assert(fCurrentUTI != NULL);
@@ -210,7 +210,8 @@ void VUTIManagerUTIHandler::EndElement(const XBOX::VString&)
 
 #pragma mark VUTIManagerUTIKeyUTISpecificationHandler 
 
-VUTIManagerUTIKeyUTISpecificationHandler::VUTIManagerUTIKeyUTISpecificationHandler(VUTIManager* inUTIManager, VUTI* inUTI):fUTIManager(inUTIManager), fCurrentUTI(inUTI)
+VUTIManagerUTIKeyUTISpecificationHandler::VUTIManagerUTIKeyUTISpecificationHandler(VUTIManager* inUTIManager, VUTI* inUTI):fUTIManager(inUTIManager), fCurrentUTI(inUTI), fCanAnalyseText(false)
+
 {
 	
 }
@@ -304,7 +305,7 @@ void VUTIManagerUTIKeyUTISpecificationHandler::SetText( const VString& inText)
 #pragma mark VUTIManagerUTIKeyArrayStringHandler 
 
 
-VUTIManagerUTIKeyArrayStringHandler::VUTIManagerUTIKeyArrayStringHandler(VUTIManager* inUTIManager, VUTI* inUTI, VString inKey): fUTIManager(inUTIManager), fCurrentUTI(inUTI), fKeyName(inKey)
+VUTIManagerUTIKeyArrayStringHandler::VUTIManagerUTIKeyArrayStringHandler(VUTIManager* inUTIManager, VUTI* inUTI, VString inKey): fUTIManager(inUTIManager), fCurrentUTI(inUTI), fKeyName(inKey), fCanAnalyseText(false)
 {
 	
 }

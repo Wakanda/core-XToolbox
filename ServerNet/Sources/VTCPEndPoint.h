@@ -55,16 +55,18 @@ public:
 	VError		   DisableReadCallback ();
 	
 	
-	virtual VError Read ( void *outBuff, uLONG *ioLen );
-	virtual VError ReadExactly (
-								void *outBuff,
-								uLONG inLen,
-								sLONG inTimeOutMillis = 0 /* Currently, time-out is supported only for non-blocking, non-select I/O */ );
-	virtual VError Write ( void *inBuff, uLONG *ioLen, bool inWithEmptyTail = false );
-	virtual VError WriteExactly (
-								 const void *inBuff,
-								 uLONG inLen,
-								 sLONG inTimeOutMillis = 0 /* Currently, time-out is supported only for non-blocking, non-select I/O */ );
+	//Needed because we inherit from VEndPoint
+	virtual VError Read ( void *outBuff, uLONG *ioLen) { return ReadWithTimeout(outBuff, ioLen, NULL); }
+	virtual VError Write ( void *inBuff, uLONG *ioLen, bool inWithEmptyTail=false) { return WriteWithTimeout(inBuff, ioLen, NULL, inWithEmptyTail); }
+
+	//inTimeoutMs : if <=0 means blocking or not blocking according to socket mode, else timeout is honored and socket mode is changed and restored if needed
+	virtual VError ReadWithTimeout ( void *outBuff, uLONG *ioLen, sLONG inTimeoutMs);
+	virtual VError WriteWithTimeout ( void *inBuff, uLONG *ioLen, sLONG inTimeoutMs, bool inWithEmptyTail=false);
+	
+	//inTimeOutMillis : if 0 means blocking, whatever the socket blocking mode (*Exactly*)
+	virtual VError ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMillis=0);
+	virtual VError WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeOutMillis=0);
+
 	
 	virtual VError Close ( );
 	virtual VError ForceClose ( );
@@ -77,9 +79,11 @@ public:
 #endif
 	
 	short GetPort ( ) { return fPort; }
-	void GetIP ( XBOX::VString& outIP );
+	void GetIP ( XBOX::VString& outIP );	
+	VString GetIP() const;
+
 	virtual bool IsSSL ( );
-	virtual Socket GetRawSocket ( );
+	virtual Socket GetRawSocket ( ) const;
 	
 	virtual sLONG GetSimpleID ( ) const { return fSimpleID; }
 	
@@ -138,10 +142,11 @@ public:
 	
 	
 private :
-	virtual VError DoRead(void *outBuff, uLONG *ioLen);
+
+	virtual VError DoRead(void *outBuff, uLONG *ioLen, sLONG inTimeoutMs=0, sLONG* outMsSpent=NULL);
 	virtual VError DoReadExactly(void *outBuff, uLONG* ioLen, sLONG inTimeOutMillis=0);
 	
-	virtual VError DoWrite(void *inBuff, uLONG *ioLen, bool inWithEmptyTail=false);
+	virtual VError DoWrite(void *inBuff, uLONG *ioLen, sLONG inTimeoutMs=0, sLONG* outMsSpent=NULL, bool inWithEmptyTail=false);
 	virtual VError DoWriteExactly(const void *inBuff, uLONG* ioLen, sLONG inTimeOutMillis=0);
 	
 	virtual VError DoClose ( );

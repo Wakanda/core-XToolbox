@@ -16,7 +16,7 @@
 #ifndef __VComponentManager__
 #define __VComponentManager__
 
-#include "KernelIPC/Sources/VLibrary.h"
+#include "KernelIPC/Sources/CComponent.h"
 
 BEGIN_TOOLBOX_NAMESPACE
 

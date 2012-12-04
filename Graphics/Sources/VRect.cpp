@@ -152,33 +152,33 @@ uLONG sCounterNormalizeIsDone = 0;
 
 void VRect::NormalizeToInt(bool inStickOriginToNearestInteger)
 {
-	GReal xRounded = floor(fX+0.5f);
-	GReal yRounded = floor(fY+0.5f);
+	GReal xRounded = std::floor(fX+0.5f);
+	GReal yRounded = std::floor(fY+0.5f);
 
 #if VERSIONDEBUG //this help to test cases where normalizing is necessary
-	if (fX != floor(fX) || fY != floor(fY) || fWidth != ceil(fWidth) || fHeight != ceil(fHeight))
+	if (fX != std::floor(fX) || fY != std::floor(fY) || fWidth != std::ceil(fWidth) || fHeight != std::ceil(fHeight))
 		sCounterNormalizeIsDone++;
 #endif
 	if (inStickOriginToNearestInteger)
 	{
 		fX = xRounded;
 		fY = yRounded;
-		fWidth = ceil(fWidth);
-		fHeight = ceil(fHeight);
+		fWidth = std::ceil(fWidth);
+		fHeight = std::ceil(fHeight);
 		return;
 	}
 
-	Real dx = fX-floor(fX);
-	Real dy = fY-floor(fY);
-	if (xRounded != floor(fX))
-		dx = 1.0f;
-	if (yRounded != floor(fY))
-		dy = 1.0f;
+	GReal dx = fX-std::floor(fX);
+	GReal dy = fY-std::floor(fY);
+	if (xRounded != std::floor(fX))
+		dx = 1;
+	if (yRounded != std::floor(fY))
+		dy = 1;
 
-	fX = floor(fX);
-	fY = floor(fY);
-	fWidth = ceil(fWidth+dx);
-	fHeight = ceil(fHeight+dy);
+	fX = std::floor(fX);
+	fY = std::floor(fY);
+	fWidth = std::ceil(fWidth+dx);
+	fHeight = std::ceil(fHeight+dy);
 }
 
 

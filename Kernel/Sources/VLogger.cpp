@@ -243,7 +243,7 @@ VLog4jMsgFileLogger::VLog4jMsgFileLogger( const VFolder& inLogFolder, const VStr
 : fLogName(inLogName)
 , fOutput(NULL)
 , fIsStarted( false)
-, fFilter((1<<EML_Information) | (1<<EML_Warning) | (1<<EML_Error) | (1<<EML_Fatal) /* | (1<<EML_Trace) | (1<<EML_Dump) */)
+, fFilter((1<<EML_Information) | (1<<EML_Warning) | (1<<EML_Error) | (1<<EML_Fatal) /*| (1<<EML_Trace) | (1<<EML_Dump)*/)
 {
 	inLogFolder.GetPath( fFolderPath);
 }
@@ -406,7 +406,21 @@ void VLog4jMsgFileLogger::LogBag( const VValueBag *inMessage)
 		message.AppendString(CVSTR(", socket "));
 		message.AppendLong(socketDescriptor);
 	}
-
+	
+	VString localAddr;
+	if (ILoggerBagKeys::local_addr.Get(inMessage, localAddr))
+	{
+		message.AppendString(CVSTR(", local addr is "));
+		message.AppendString(localAddr);
+	}
+	
+	VString peerAddr;
+	if (ILoggerBagKeys::peer_addr.Get(inMessage, peerAddr))
+	{
+		message.AppendString(CVSTR(", peer addr is "));
+		message.AppendString(peerAddr);
+	}
+	
 	bool exchangeEndPointID=false;
 	if (ILoggerBagKeys::exchange_id.Get(inMessage, exchangeEndPointID))
 	{
@@ -475,6 +489,14 @@ void VLog4jMsgFileLogger::LogBag( const VValueBag *inMessage)
 		message.AppendString(CVSTR(" byte(s)"));
 	}
 	
+	sLONG ioSpent=-1;
+	if (ILoggerBagKeys::ms_spent.Get(inMessage, ioSpent))
+	{
+		message.AppendString(CVSTR(", done in "));
+		message.AppendLong(ioSpent);
+		message.AppendString(CVSTR("ms"));
+	}
+	
 	sLONG dumpOffset=-1;
 	if (ILoggerBagKeys::dump_offset.Get(inMessage, dumpOffset))
 	{
@@ -522,6 +544,33 @@ bool VLog4jMsgFileLogger::ShouldLog( EMessageLevel inMessageLevel) const
 	// no filtering for now. Accept any kind of message.
 	return fIsStarted && ((fFilter & (1 << inMessageLevel)) != 0);
 }
+
+bool VLog4jMsgFileLogger::WithTag(uLONG inTag, bool inFlag)
+{
+	uLONG filter=GetLevelFilter();
+
+	inTag=(1<<inTag);
+
+	bool rv=(filter&inTag) ? true : false;
+	
+	if(inFlag)
+		filter|=inTag;
+	else
+		filter&=~inTag;
+	
+	SetLevelFilter(filter);
+	
+	return rv;
+}
+
+bool VLog4jMsgFileLogger::WithTrace(bool inWithTag)		{ return WithTag(EML_Trace,		 	inWithTag); }
+bool VLog4jMsgFileLogger::WithDump(bool inWithTag)		{ return WithTag(EML_Dump,		 	inWithTag); }
+bool VLog4jMsgFileLogger::WithDebug(bool inWithTag)		{ return WithTag(EML_Debug,		 	inWithTag); }
+bool VLog4jMsgFileLogger::WithWarning(bool inWithTag)	{ return WithTag(EML_Warning,	 	inWithTag); }
+bool VLog4jMsgFileLogger::WithError(bool inWithTag)		{ return WithTag(EML_Error,		 	inWithTag); }
+bool VLog4jMsgFileLogger::WithFatal(bool inWithTag)		{ return WithTag(EML_Fatal,		 	inWithTag); }
+bool VLog4jMsgFileLogger::WithAssert(bool inWithTag)	{ return WithTag(EML_Assert,	 	inWithTag); }
+bool VLog4jMsgFileLogger::WithInfo(bool inWithTag)		{ return WithTag(EML_Information, 	inWithTag); }
 
 
 void VLog4jMsgFileLogger::Log( const VString& inLoggerID, EMessageLevel inLevel, const VString& inMessage, VString* outFormattedMessage)

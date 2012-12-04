@@ -325,6 +325,16 @@ bool VErrorTaskContext::PushError( VErrorBase* inError, bool *outSilent)
 }
 
 
+void VErrorTaskContext::PushErrorsFromContext( const VErrorContext* inErrorContext)
+{
+	if (inErrorContext != NULL)
+	{
+		for( VErrorStack::const_iterator i = inErrorContext->GetErrorStack().begin() ; i != inErrorContext->GetErrorStack().end() ; ++i)
+			PushError( *i, NULL);
+	}
+}
+
+
 void VErrorTaskContext::PushErrorsFromBag( const VValueBag& inBag)
 {
 	const VBagArray *bags = inBag.GetElements( ErrorBagKeys::error);
@@ -428,18 +438,6 @@ void VErrorTaskContext::RecycleContext( VErrorContext* inContext)
 			fRecycledCleanContext = inContext;
 		else
 			inContext->Release();
-	}
-}
-
-
-void VErrorTaskContext::PushContext( VErrorContext* inContext)
-{
-	try
-	{
-		fStack.push_back( inContext);
-	}
-	catch(...)
-	{
 	}
 }
 

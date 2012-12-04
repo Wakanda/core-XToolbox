@@ -23,7 +23,9 @@
 #include "VArray.h"
 #include "ILocalizer.h"
 
-
+#if VERSIONMAC
+#include <mach/mach_error.h>
+#endif
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -366,6 +368,38 @@ void VErrorBase::GetErrorDescription( VString& outError) const
 	OsType component = COMPONENT_FROM_VERROR(fError);
 
 	bool found = CallLocalizer( GetLocalizer( component), fError, outError);
+	
+	#if VERSIONMAC
+	if (!found && (component == kCOMPONENT_MACH) )
+	{
+		const char *s = mach_error_string( (mach_error_t) errCode);
+		if ( (s != NULL) && (strlen( s) != 0) )
+		{
+			outError.FromBlock( s, strlen( s), VTC_UTF_8);
+			found = true;
+		}
+	}
+	#endif
+
+	if (!found && (component == kCOMPONENT_POSIX) )
+	{
+#if VERSIONWIN
+		wchar_t buff[1024];
+		if (_wcserror_s( buff, sizeof( buff)/sizeof(wchar_t), (int) errCode) == 0)
+		{
+			outError.FromUniCString( buff);
+			found = true;
+		}
+#else
+		char buff[1024];
+		int r = strerror_r( (int) errCode, buff, sizeof( buff));
+		if ( (r == 0 || r == ERANGE) && (strlen( buff) != 0) )
+		{
+			outError.FromBlock( buff, strlen( buff), VTC_UTF_8);
+			found = true;
+		}
+#endif
+	}
 
 	if (!found && (fNativeError != VNE_OK) )
 	{
@@ -486,8 +520,9 @@ void _ThrowError( VError inErrCode, const VString* p1, const VString* p2, const 
 				err->GetBag()->SetString("p2", *p2);
 			if (p3 != NULL)
 				err->GetBag()->SetString("p3", *p3);
-			VTask::GetCurrent()->PushRetainedError(err);
+			VTask::GetCurrent()->PushError(err);
 		}
+		ReleaseRefCountable( &err);
 	}
 }
 
@@ -499,7 +534,10 @@ VError _ThrowNativeError( VNativeError inNativeErrCode)
 	if (VProcess::Get() != NULL)
 	{
 		StAllocateInMainMem mainAllocator;
-		VTask::GetCurrent()->PushRetainedError( new VErrorBase( xbox_err, inNativeErrCode));
+		
+		VErrorBase* err = new VErrorBase( xbox_err, inNativeErrCode);
+		VTask::GetCurrent()->PushError( err);
+		ReleaseRefCountable( &err);
 	}
 
 	return xbox_err;
@@ -508,7 +546,8 @@ VError _ThrowNativeError( VNativeError inNativeErrCode)
 
 void _PushRetainedError( VErrorBase *inError)
 {
-	VTask::PushRetainedError( inError);
+	VTask::PushError( inError);
+	ReleaseRefCountable( &inError);
 }
 
 
@@ -544,8 +583,9 @@ protected:
 
 VError vThrowUserGeneratedError(VError inErrCode, const VString& errorMessage)
 {
-	VErrorUserGenerated* error = new VErrorUserGenerated(inErrCode, errorMessage);
-	VTask::GetCurrent()->PushRetainedError( error);
+	VErrorUserGenerated* error = new VErrorUserGenerated( inErrCode, errorMessage);
+	VTask::GetCurrent()->PushError( error);
+	ReleaseRefCountable( &error);
 	return inErrCode;
 
 }

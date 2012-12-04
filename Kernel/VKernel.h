@@ -44,12 +44,12 @@
 #include "Kernel/Sources/VErrorContext.h"
 #include "Kernel/Sources/VProgressIndicator.h"
 #include "Kernel/Sources/VSystem.h"
-#include "Kernel/Sources/CComponent.h"
 #include "Kernel/Sources/IWatchable.h"
 #include "Kernel/Sources/Base64Coder.h"
 #include "Kernel/Sources/VRegexMatcher.h"
 #include "Kernel/Sources/VPictureHelper.h"
 #include "Kernel/Sources/VJSONTools.h"
+#include "Kernel/Sources/VJSONValue.h"
 #include "Kernel/Sources/VLogger.h"
 #include "Kernel/Sources/VTextStyle.h"
 
@@ -65,6 +65,7 @@
 #include "Kernel/Sources/VFileStream.h"
 #include "Kernel/Sources/VResource.h"
 #include "Kernel/Sources/VArchiveStream.h"
+#include "Kernel/Sources/VLibrary.h"
 
 #if VERSIONMAC
 #include "Kernel/Sources/XMacResource.h"
@@ -104,14 +105,11 @@
 #include "Kernel/Sources/ILocalizer.h"
 
 // Values Headers
-#include "Kernel/Sources/IPropertyCollector.h"
 #include "Kernel/Sources/ISortable.h"
-#include "Kernel/Sources/ITreeable.h"
 #include "Kernel/Sources/VIterator.h"
 #include "Kernel/Sources/VArray.h"
 #include "Kernel/Sources/VChain.h"
 #include "Kernel/Sources/VList.h"
-#include "Kernel/Sources/VTree.h"
 #include "Kernel/Sources/VValue.h"
 #include "Kernel/Sources/VBlob.h"
 #include "Kernel/Sources/VFloat.h"

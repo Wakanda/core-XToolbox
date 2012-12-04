@@ -25,6 +25,7 @@ BEGIN_TOOLBOX_NAMESPACE
 typedef enum eCallBackAction
 {
 	CB_OpenProgress,
+	CB_OpenProgressUndetermined,
 	CB_UpdateProgress,
 	CB_CloseProgress
 } eCallBackAction;
@@ -65,6 +66,8 @@ protected:
 typedef std::vector<VArchiveCatalog*> ArchiveCatalog;
 typedef std::vector<VString> VectorOfVString;
 typedef std::vector<VFileDesc*> VectorOfFileDesc;
+typedef std::set<VFilePath> SetOfVFilePath;
+typedef std::vector<VFilePath >	VectorOfPaths;
 
 typedef void (*CB_VArchiveStream)( eCallBackAction inCBA, uLONG8 inBytesCount, uLONG8 inTotalBytesCount, bool &outAbort );
 
@@ -75,7 +78,6 @@ public:
 	~VArchiveStream();
 
 			VError AddFileDesc( VFileDesc* inFileDesc, const VString &inExtra );
-
 			VError	AddFile( VFile* inFile );
 			VError	AddFile( VFile* inFile, const VString &inExtra );
 			VError	AddFile( VFilePath &inFilePath );
@@ -95,6 +97,7 @@ public:
 
 protected:
 
+	VError			_AddOneFolder(VFolder& inFolder,const VString& inExtraInfo);
 	virtual VError	_WriteCatalog( const VFile* inFile, const VString &inExtraInfo, uLONG8 &ioTotalByteCount );
 	virtual VError	_WriteFile( const VFileDesc* inFileDesc, char* buffToUse, VSize buffSize, uLONG8 &ioPartialByteCount, uLONG8 inTotalByteCount );
 
@@ -106,6 +109,12 @@ protected:
 
 	VectorOfFileDesc	fFileDescList;		/* list of filedesc to be saved */
 	VectorOfVString		fFileDescExtra;		/* extra information about this filedesc */
+
+	VectorOfPaths		fFolderPathList;	/* List of folder paths to be stored (with all files and sub-folders) */
+	VectorOfVString		fFolderExtra;		/* extra information about entries in the folder list */
+
+
+	SetOfVFilePath		*fUniqueFilesCollection; /* collection of unique file paths that will be processed */
 
 	VStream				*fStream;			/* streaming used for pushing data */
 	CB_VArchiveStream	fCallBack;			/* compression progress call back */

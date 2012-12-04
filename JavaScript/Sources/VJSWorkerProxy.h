@@ -62,17 +62,17 @@ class XTOOLBOX_API VJSWebWorkerObject : public XBOX::VObject
 friend class VJSDedicatedWorkerClass;
 friend class VJSSharedWorkerClass;
 
-	VJSMessagePort	*fOnMessagePort;	// Message port for "onmessage" and postMessage().
-	VJSMessagePort	*fOnErrorPort;		// Unidirectional port for "onerror".
-
-								VJSWebWorkerObject () {}
-	virtual						~VJSWebWorkerObject () {}
+								VJSWebWorkerObject (VJSMessagePort *inMessagePort, VJSMessagePort *inErrorPort);
+	virtual						~VJSWebWorkerObject ();
 
 	// Create a web worker.
 
 	static VJSWebWorkerObject	*_CreateWorker (XBOX::VJSContext &inParentContext, VJSWorker *inOutsideWorker, 
 												bool inReUseContext, 
 												const XBOX::VString &inUrl, bool inIsDedicated, const XBOX::VString &inName = "");
+
+	VJSMessagePort				*fOnMessagePort;	// Message port for "onmessage" and postMessage().
+	VJSMessagePort				*fOnErrorPort;		// Unidirectional port for "onerror".
 };
 
 // Dedicated web worker. 
@@ -81,17 +81,20 @@ class XTOOLBOX_API VJSDedicatedWorkerClass : public XBOX::VJSClass<VJSDedicatedW
 {
 public:
 
-	static void	GetDefinition (ClassDefinition &outDefinition);
-	static void	Construct (XBOX::VJSParms_construct &ioParms);	
+	static void				GetDefinition (ClassDefinition &outDefinition);
+	static XBOX::VJSObject	MakeConstructor (XBOX::VJSContext inContext);
 
 private:
 
 	typedef XBOX::VJSClass<VJSDedicatedWorkerClass, VJSWebWorkerObject>	inherited;
 
+	static void	_Construct (XBOX::VJSParms_callAsConstructor &ioParms);
 	static void _Finalize (const XBOX::VJSParms_finalize &inParms, VJSWebWorkerObject *inDedicatedWorker);
 
 	static void	_terminate (XBOX::VJSParms_callStaticFunction &ioParms, VJSWebWorkerObject *inDedicatedWorker);
 	static void	_postMessage (XBOX::VJSParms_callStaticFunction &ioParms, VJSWebWorkerObject *inDedicatedWorker);
+
+	static void	_GetNumberRunning (XBOX::VJSParms_callStaticFunction &ioParms, void *);
 };
 
 // Shared web worker. 
@@ -100,14 +103,18 @@ class XTOOLBOX_API VJSSharedWorkerClass : public XBOX::VJSClass<VJSSharedWorkerC
 {
 public:
 
-	static void	GetDefinition (ClassDefinition &outDefinition);
-	static void	Construct (XBOX::VJSParms_construct &ioParms);
-
+	static void				GetDefinition (ClassDefinition &outDefinition);
+	static XBOX::VJSObject	MakeConstructor (XBOX::VJSContext inContext);
+	
 private:
 
 	typedef XBOX::VJSClass<VJSSharedWorkerClass, VJSWebWorkerObject>	inherited;
 	
+	static void	_Construct (XBOX::VJSParms_callAsConstructor &ioParms);
 	static void _Finalize (const XBOX::VJSParms_finalize &inParms, VJSWebWorkerObject *inSharedWorker);    
+
+	static void	_IsRunning (XBOX::VJSParms_callStaticFunction &ioParms, void *);
+	static void	_GetNumberRunning (XBOX::VJSParms_callStaticFunction &ioParms, void *);
 };
 
 END_TOOLBOX_NAMESPACE

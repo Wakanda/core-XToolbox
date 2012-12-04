@@ -127,7 +127,9 @@ CFMutableDictionaryRef CTHelper::CreateStringAttributes( const VFont *inFont, co
 			if (inLayoutMode & TLM_DONT_WRAP)
 			{
 				//set line break mode
-				if (inLayoutMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY)
+				if (inLayoutMode & TLM_TRUNCATE_END_IF_NECESSARY)
+					lineBreakMode = kCTLineBreakByTruncatingTail;
+				else if (inLayoutMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY)
 					lineBreakMode = kCTLineBreakByTruncatingMiddle;
 				else
 					lineBreakMode = kCTLineBreakByClipping;
@@ -230,7 +232,9 @@ CFMutableDictionaryRef CTHelper::CreateStringAttributes( const VFont *inFont, co
 		if (inLayoutMode & TLM_DONT_WRAP)
 		{
 			//set line break mode
-			if (inLayoutMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY)
+			if (inLayoutMode & TLM_TRUNCATE_END_IF_NECESSARY)
+				lineBreakMode = kCTLineBreakByTruncatingTail;
+			else if (inLayoutMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY)
 				lineBreakMode = kCTLineBreakByTruncatingMiddle;
 			else
 				lineBreakMode = kCTLineBreakByClipping;
@@ -1265,7 +1269,7 @@ void XMacFont::FMFontStyleToFontFace(FMFontStyle inFace, VFontFace& outFace)
 	StyleToFontFace(face, outFace);
 }
 
-#if !VERSION_64BIT
+#if WITH_QUICKDRAW
 sWORD XMacFont::FontNameToFontNum(const VString& inFontName)
 {
 	Str255	macName;

@@ -118,13 +118,10 @@ void VProcessLauncher::WIN_CanGetExitStatus()
 }
 #endif
 
-#if VERSIONMAC || VERSION_LINUX
 sLONG VProcessLauncher::GetPid ()
 {
 	return fProcessLauncherImpl->GetPid();
 }
-#endif
-
 
 sLONG VProcessLauncher::Start()
 {

@@ -952,7 +952,8 @@ Boolean XMacStyledTextBox::DoDraw(const VRect& inBounds)
 
 void XMacStyledTextBox::DoGetSize(GReal &outWidth, GReal &outHeight)
 {
-	_ComputeCurFrame( outWidth, 100000.0);
+	GReal maxHeight = outHeight ? outHeight : 100000.0f; //if height is 0, max height is assumed to be infinite
+	_ComputeCurFrame( outWidth, maxHeight);
 	outWidth = fCurTypoWidth;
 	outHeight = fCurTypoHeight;
 }
@@ -1013,6 +1014,61 @@ void XMacStyledTextBox::_SetText(const VString& inText)
 		CFRelease( cfString);
 		fCurLayoutIsDirty = true;
 	}
+}
+
+
+/** insert text at the specified position */
+void XMacStyledTextBox::InsertText( sLONG inPos, const VString& inText)
+{
+	CFIndex length = CFAttributedStringGetLength(fAttributedString);
+	if (inPos > length)
+		inPos = length;
+	CFStringRef cfText = inText.MAC_RetainCFStringCopy();
+	CFAttributedStringReplaceString(fAttributedString, CFRangeMake(inPos, 0), cfText);
+	CFRelease(cfText);
+	
+	fCurLayoutIsDirty = true;
+}
+
+           
+/** delete text range */
+void XMacStyledTextBox::DeleteText( sLONG rangeStart, sLONG rangeEnd)
+{
+	CFIndex length = CFAttributedStringGetLength(fAttributedString);
+	if (rangeStart > length)
+		rangeStart = length;
+	if (rangeEnd > length)
+		rangeEnd = length;
+	if (rangeStart >= rangeEnd)
+		return;
+	
+	CFAttributedStringReplaceString(fAttributedString, CFRangeMake(rangeStart, rangeEnd-rangeStart), CFSTR(""));
+	
+	fCurLayoutIsDirty = true;
+}
+
+
+/** replace text range */
+void XMacStyledTextBox::ReplaceText( sLONG rangeStart, sLONG rangeEnd, const VString& inText)
+{
+	CFIndex length = CFAttributedStringGetLength(fAttributedString);
+	if (rangeStart > length)
+		rangeStart = length;
+	if (rangeEnd > length)
+		rangeEnd = length;
+
+	CFStringRef cfText = inText.MAC_RetainCFStringCopy();
+	CFAttributedStringReplaceString(fAttributedString, CFRangeMake(rangeStart, rangeEnd-rangeStart), cfText);
+	CFRelease(cfText);
+	
+	fCurLayoutIsDirty = true;
+}
+
+
+/** apply style (use style range) */
+void XMacStyledTextBox::ApplyStyle( VTextStyle* inStyle)
+{
+	DoApplyStyle(inStyle, NULL);
 }
 
 
@@ -1226,6 +1282,93 @@ bool XMacStyledTextBox::CFDictionaryFromVTextStyle(CFDictionaryRef inActualAttri
 }
 
 
+/** set min line height for the specified range */
+void XMacStyledTextBox::SetMinLineHeight( const GReal inMinHeight, sLONG inStart, sLONG inEnd)
+{
+#if CT_USE_COCOA
+	if (CTHelper::UseCocoaAttributes())
+		//it is used only with CoreFoundation attributed string to prevent line height to change dynamically with IME compositing
+		return;
+#endif
+	
+	CFIndex length = CFAttributedStringGetLength(fAttributedString);
+	if (inStart > length)
+		inStart = length;
+	if (inEnd > length)
+		inEnd = length;
+	
+	CTParagraphStyleRef vparagraph = NULL;
+	CTParagraphStyleRef paraActual = (CTParagraphStyleRef)CFAttributedStringGetAttribute( fAttributedString, inStart, kCTParagraphStyleAttributeName, NULL);
+
+	CTParagraphStyleSetting settings[5];
+	int count = 0;
+	CTParagraphStyleSetting *setting = &(settings[0]);
+	
+	//set min line height
+	CGFloat lineHeightMin = (CGFloat) inMinHeight;
+	{   
+		setting->spec = kCTParagraphStyleSpecifierMinimumLineHeight;
+		setting->value = &lineHeightMin;
+		setting->valueSize = sizeof(CGFloat);
+		count++;setting++;
+	}
+	
+	if (paraActual)
+	{
+		//merge with actual para settings
+		
+		CTTextAlignment textAlign = kCTNaturalTextAlignment;
+		CGFloat lineHeight = (CGFloat) 0.0;
+		CTLineBreakMode lineBreakMode = kCTLineBreakByWordWrapping; //by default, break line on word 
+		CTWritingDirection writingDirection = kCTWritingDirectionNatural; //by default, use bidirectional default algorithm 
+		
+		//inherit other settings 
+		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierAlignment, sizeof(CTTextAlignment), &textAlign))
+		{   
+			setting->spec = kCTParagraphStyleSpecifierAlignment;
+			setting->value = &textAlign;
+			setting->valueSize = sizeof(CTTextAlignment);
+			count++;setting++;
+		}
+		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierMaximumLineHeight, sizeof(CGFloat), &lineHeight))
+		{
+			setting->spec = kCTParagraphStyleSpecifierMaximumLineHeight;
+			setting->value = &lineHeight;
+			setting->valueSize = sizeof(CGFloat);
+			count++;setting++;
+		}
+		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierLineBreakMode, sizeof(CTLineBreakMode), &lineBreakMode))
+		{
+			setting->spec = kCTParagraphStyleSpecifierLineBreakMode;
+			setting->value = &lineBreakMode;
+			setting->valueSize = sizeof(CTLineBreakMode);
+			count++;setting++;
+		}
+		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierBaseWritingDirection, sizeof(CTWritingDirection), &writingDirection))
+		{
+			setting->spec = kCTParagraphStyleSpecifierBaseWritingDirection;
+			setting->value = &writingDirection;
+			setting->valueSize = sizeof(CTWritingDirection);
+			count++;setting++;
+		}
+		xbox_assert(count <= 5);
+		if (count)
+			vparagraph = CTParagraphStyleCreate(&(settings[0]), count);
+	}
+	else if (count)
+		//init para settings from scratch
+		vparagraph = CTParagraphStyleCreate(&(settings[0]), count);
+
+	if (vparagraph)
+	{
+		CFRange range = { inStart, inEnd-inStart };
+		CFAttributedStringSetAttribute (fAttributedString, range, kCTParagraphStyleAttributeName, vparagraph);
+		CFRelease(vparagraph);
+	
+		fCurLayoutIsDirty = true;
+	}
+}
+
 void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInherit)
 {
 	Real fontsize;
@@ -1291,7 +1434,7 @@ void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInh
 						paraStyle = [paraStyleActual mutableCopyWithZone:NULL];
 					else 
 						//init para settings from scratch
-						paraStyle = [[NSParagraphStyle alloc] init];
+						paraStyle = [[NSMutableParagraphStyle alloc] init];
 					
 					[paraStyle setAlignment:(NSTextAlignment)valign];
 					[nsAttString addAttribute:NSParagraphStyleAttributeName value:paraStyle range:nsRange];

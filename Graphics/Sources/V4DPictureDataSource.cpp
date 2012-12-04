@@ -16,7 +16,6 @@
 #include "VGraphicsPrecompiled.h"
 #include "Kernel/VKernel.h"
 
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 
 
@@ -47,13 +46,14 @@ size_t xV4DPicture_MemoryDataProvider::_GetBytesCallback_seq(void *info,void *bu
 		return 0;
 	}
 }
-void xV4DPicture_MemoryDataProvider::_SkipBytesCallback_seq(void *info,size_t count)
+off_t xV4DPicture_MemoryDataProvider::_SkipBytesCallback_seq(void *info,off_t count)
 {
 	xV4DPicture_MemoryDataProvider *mthis=reinterpret_cast<xV4DPicture_MemoryDataProvider*>(info);
 	if(mthis)
 	{
-		mthis->SkipBytesCallback_seq(count);
+		return mthis->SkipBytesCallback_seq(count);
 	}
+	return 0;
 }
 void xV4DPicture_MemoryDataProvider::_RewindCallback_seq (void *info)
 {
@@ -146,13 +146,14 @@ void xV4DPicture_MemoryDataProvider::_Init(char* inBuff,size_t inBuffSize,uBOOL 
 			
 			fDataRef = ::CGDataProviderCreateDirectAccess((void*)this,inBuffSize,&cb);
 			*/
-			CGDataProviderCallbacks cb;
+			CGDataProviderSequentialCallbacks cb;
+			cb.version=0;
 			cb.getBytes=xV4DPicture_MemoryDataProvider::_GetBytesCallback_seq;
-			cb.skipBytes=xV4DPicture_MemoryDataProvider::_SkipBytesCallback_seq;
+			cb.skipForward=xV4DPicture_MemoryDataProvider::_SkipBytesCallback_seq;
 			cb.rewind=xV4DPicture_MemoryDataProvider::_RewindCallback_seq;
-			cb.releaseProvider=XBOX::xV4DPicture_MemoryDataProvider::_ReleaseInfoCallback_seq;
+			cb.releaseInfo=XBOX::xV4DPicture_MemoryDataProvider::_ReleaseInfoCallback_seq;
 			
-			fDataRef=::CGDataProviderCreate((void*)this,&cb);
+			fDataRef=::CGDataProviderCreateSequential((void*)this,&cb);
 
 		}
 	}
@@ -163,13 +164,14 @@ void xV4DPicture_MemoryDataProvider::_Init(char* inBuff,size_t inBuffSize,uBOOL 
 		fCurDataPtr=fDataPtr;
 		fMaxDataPtr= fCurDataPtr + inBuffSize;
 		
-		CGDataProviderCallbacks cb;
+		CGDataProviderSequentialCallbacks cb;
+		cb.version=0;
 		cb.getBytes=xV4DPicture_MemoryDataProvider::_GetBytesCallback_seq;
-		cb.skipBytes=xV4DPicture_MemoryDataProvider::_SkipBytesCallback_seq;
+		cb.skipForward=xV4DPicture_MemoryDataProvider::_SkipBytesCallback_seq;
 		cb.rewind=xV4DPicture_MemoryDataProvider::_RewindCallback_seq;
-		cb.releaseProvider=XBOX::xV4DPicture_MemoryDataProvider::_ReleaseInfoCallback_seq;
+		cb.releaseInfo=XBOX::xV4DPicture_MemoryDataProvider::_ReleaseInfoCallback_seq;
 		
-		fDataRef=::CGDataProviderCreate((void*)this,&cb);
+		fDataRef=::CGDataProviderCreateSequential((void*)this,&cb);
 
 	}
 }
@@ -184,9 +186,10 @@ size_t xV4DPicture_MemoryDataProvider::GetBytesCallback_seq(void *buffer, size_t
 	return count;
 }
 	
-void xV4DPicture_MemoryDataProvider::SkipBytesCallback_seq(size_t count)
+off_t xV4DPicture_MemoryDataProvider::SkipBytesCallback_seq(off_t count)
 {
 	fCurDataPtr+=count;
+	return count;
 }
 void xV4DPicture_MemoryDataProvider::RewindCallback_seq ()
 {
@@ -1797,91 +1800,6 @@ bool	xV4DPictureBlobRef::IsNull() const
 	assert(fBlob);
 	return fBlob->IsNull();
 }
-
-#if USE_QUICKTIME
-
-xQTPointerDataRef::xQTPointerDataRef(const xQTPointerDataRef& inDataRef)
-{
-	_FromV4DPictureDataSource(inDataRef.fDataSource);
-}
-xQTPointerDataRef::xQTPointerDataRef(VPictureDataProvider* inDataSource)
-{
-	_FromV4DPictureDataSource(inDataSource);
-}
-
-void xQTPointerDataRef::_FromV4DPictureDataSource(VPictureDataProvider* inDataSource)
-{
-	fDataSource=inDataSource;
-	fQTDataRef=0;
-	if(inDataSource)
-	{
-		fQTDataRef=(QTPointerDataRef)VQuicktime::NewQTHandle(sizeof(QTPointerDataRefRecord));
-		if(fQTDataRef)
-		{
-			const VPictureCodec* decoder;
-			QTIME::OSErr err;
-			QTIME::ComponentInstance dataRefHandler = NULL;
-
-			fDataSource->Retain();
-			(**fQTDataRef).data=fDataSource->BeginDirectAccess();
-			(**fQTDataRef).dataLength =(QTIME::Size) fDataSource->GetDataSize();
-			
-			decoder=inDataSource->RetainDecoder();
-			if(decoder)
-			{
-				if(decoder->CountMimeType())
-				{
-					VString mime;
-					decoder->GetNthMimeType(0,mime);
-					if(mime.GetLength())
-					{
-						err = QTIME::OpenADataHandler((QTIME::Handle)fQTDataRef,QTIME::PointerDataHandlerSubType,NULL,(QTIME::OSType)0,NULL,QTIME::kDataHCanRead,&dataRefHandler);       
-						if(err==QTIME::noErr)
-						{
-							QTIME::Handle mimehandle;
-							#if VERSIONMAC
-							StStringConverter<char> buff(mime,VTC_MacOSAnsi);
-							#else
-							StStringConverter<char> buff(mime,VTC_Win32Ansi);
-							#endif
-							mimehandle=VQuicktime::NewQTHandle(buff.GetLength()+1);
-							**mimehandle=buff.GetLength();
-							CopyBlock(buff,(*mimehandle)+1,buff.GetLength());
-							err=QTIME::DataHSetDataRefExtension(dataRefHandler,mimehandle,QTIME::kDataRefExtensionMIMEType);
-							if(err==QTIME::noErr)
-							{
-								QTIME::DisposeHandle((QTIME::Handle)fQTDataRef);
-								DataHGetDataRef(dataRefHandler, (QTIME::Handle*)&fQTDataRef);
-								
-							}
-							QTIME::DisposeHandle(mimehandle);
-						}
-					}
-				}
-				decoder->Release();
-			}
-		}
-	}
-}
-
-xQTPointerDataRef::~xQTPointerDataRef()
-{
-	if(fDataSource)
-	{
-		if(fQTDataRef)
-		{
-			VQuicktime::DisposeQTHandle((QTHandleRef)fQTDataRef);
-		}
-		fDataSource->EndDirectAccess();
-		fDataSource->Release();
-	}
-}
-uLONG xQTPointerDataRef::GetKind()
-{
-	return fQTDataRef==0 ? QTIME::NullDataHandlerSubType : QTIME::PointerDataHandlerSubType;
-}
-
-#endif
 
 #if VERSIONWIN
 

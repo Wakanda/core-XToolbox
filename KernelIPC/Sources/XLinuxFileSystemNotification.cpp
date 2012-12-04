@@ -163,8 +163,8 @@ XFSN::~XLinuxFileSystemNotifier()
         // - We don't want to wait in select() or others
         // - It's ok if we don't release mutexes because they are about to be freed anyway.
 
-        pthread_cancel(fWatchTask->GetSystemID());
-        pthread_join(fWatchTask->GetSystemID(), NULL);
+        //pthread_cancel(fWatchTask->GetSystemID());
+        //pthread_join(fWatchTask->GetSystemID(), NULL);
 
         ReleaseRefCountable(&fWatchTask);
     }
@@ -305,7 +305,12 @@ VError XFSN::WatchAndNotify()
     timeout.tv_usec=msTimeout*1000;
 	
     for(;;)
-	{	
+	{
+        if(VTask::GetCurrent()->IsDying())
+        {
+            break;
+        }
+	
         fd_set readSet;
         FD_ZERO(&readSet);
         FD_SET(fId, &readSet);
@@ -327,6 +332,10 @@ VError XFSN::WatchAndNotify()
             while(pos+sizeof(inotify_event)<past)
             {
                 pthread_testcancel();   //jmo - Exit asap if we are canceled
+                if(VTask::GetCurrent()->IsDying())
+                {
+                    break;
+                }
 
                 inotify_event* evPtr=(inotify_event*)pos;
 				
@@ -395,6 +404,10 @@ VError XFSN::WatchAndNotify()
 				for(FolderIterator folderIt=fFolderMap.begin() ; folderIt!=fFolderMap.end() ; ++folderIt)
 				{
                     pthread_testcancel();   //jmo - Exit asap if we are canceled
+                    if(VTask::GetCurrent()->IsDying())
+                    {
+                        break;
+                    }
 
 					if(folderIt->second->fChanged)
 						folderIt->second->SignalChange(fOwner);						

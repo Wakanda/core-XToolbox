@@ -172,8 +172,7 @@ class XTOOLBOX_API VPictureDataProvider :public VObject, public IRefCountable
 		{
 			if(fLastVError)
 			{
-				fLastVError->Retain();
-				VTask::PushRetainedError( fLastVError);
+				VTask::PushError( fLastVError);
 			}
 			else
 				vThrowError(fLastError)	;
@@ -500,24 +499,6 @@ private:
 	VBlob* fBlob;
 };
 
-#if USE_QUICKTIME
-
-class xQTPointerDataRef :public VObject
-{
-	public:
-	xQTPointerDataRef(const xQTPointerDataRef& inDataRef);
-	xQTPointerDataRef(VPictureDataProvider* inDataSource);
-	virtual ~xQTPointerDataRef();
-	operator QTHandleRef(){return ( QTHandleRef)fQTDataRef;}
-	uLONG GetKind();
-	private:
-	void _FromV4DPictureDataSource(VPictureDataProvider* inDataSource);
-	VPictureDataProvider* fDataSource;
-	QTPointerDataRef fQTDataRef;
-};
-
-#endif
-
 #if VERSIONWIN
  
 class VPictureDataProvider_Stream : public IStream
@@ -562,7 +543,7 @@ class xV4DPicture_MemoryDataProvider : public VObject
 	static CGDataProviderRef CGDataProviderCreate(char* inBuff,size_t inBuffSize,uBOOL inCopyData=false);
 	
 	static size_t _GetBytesCallback_seq(void *info,void *buffer, size_t count);
-	static void _SkipBytesCallback_seq(void *info,size_t count);	
+	static off_t _SkipBytesCallback_seq(void *info,off_t count);	
 	static void _RewindCallback_seq (void *info);
 	static void _ReleaseInfoCallback_seq (void *info);
 	
@@ -581,7 +562,7 @@ class xV4DPicture_MemoryDataProvider : public VObject
 	xV4DPicture_MemoryDataProvider& operator=(const xV4DPicture_MemoryDataProvider&){assert(false);return *this;}
 	virtual ~xV4DPicture_MemoryDataProvider();
 	virtual size_t GetBytesCallback_seq(void *buffer, size_t count);
-	virtual void SkipBytesCallback_seq(size_t count);
+	virtual off_t SkipBytesCallback_seq(off_t count);
 	virtual void RewindCallback_seq ();
 	virtual void ReleaseInfoCallback_seq();
 	

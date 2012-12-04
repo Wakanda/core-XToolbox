@@ -27,7 +27,7 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
-class XTOOLBOX_API VJSEventEmitter : public XBOX::IRefCountable
+class XTOOLBOX_API VJSEventEmitter : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
 

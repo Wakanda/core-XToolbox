@@ -66,11 +66,13 @@ namespace snet_ssl_stub
 	int						SNET_STDCALL	RSA_private_encrypt			(int flen, unsigned char *from, unsigned char *to, RSA *rsa, int padding);
 	int						SNET_STDCALL	RSA_size					(const RSA* rsa);
 
+	int						SNET_STDCALL	SSL_CTX_ctrl				(SSL_CTX* ctx, int cmd, long larg, void *parg);
 	void					SNET_STDCALL	SSL_CTX_free				(SSL_CTX* ctx);
 	SSL_CTX*				SNET_STDCALL	SSL_CTX_new					(const SSL_METHOD* meth);
 	int						SNET_STDCALL	SSL_CTX_use_RSAPrivateKey	(SSL_CTX* ctx, RSA* rsa);
 	int						SNET_STDCALL	SSL_CTX_use_certificate		(SSL_CTX* ctx, X509* x);
 
+	int						SNET_STDCALL	SSL_ctrl					(SSL* ssl, int cmd, long larg, void *parg);
 	void					SNET_STDCALL	SSL_free					(SSL* ssl);
 	int						SNET_STDCALL	SSL_get_error				(const SSL* ssl, int ret);
 	int						SNET_STDCALL	SSL_get_fd					(const SSL* ssl);

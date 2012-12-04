@@ -62,6 +62,8 @@ VTCPEndPoint::VTCPEndPoint ( XTCPSock* inSock, VTCPSelectIOPool* vtcpSIOPool ) :
 
 VTCPEndPoint::~VTCPEndPoint ( )
 {
+	Close();
+	
 	if ( fSock )
 		delete fSock;
 	
@@ -103,7 +105,7 @@ void VTCPEndPoint::Init ( )
 		fIP = fSock-> GetIP ( );
 		fPort = fSock-> GetPort ( );
 		fIsSSL = fSock-> IsSSL ( );
-		fIsBlocking = false;
+		fIsBlocking = true;
 	}
 	else
 	{
@@ -112,7 +114,7 @@ void VTCPEndPoint::Init ( )
 #endif
 		fPort = -1;
 		fIsSSL = false;
-		fIsBlocking = false;
+		fIsBlocking = true;
 	}
 	fIsInAutoReconnect = false;
 	fIsInUse = false;
@@ -144,9 +146,17 @@ void VTCPEndPoint::GetIP ( XBOX::VString& outIP )
 {	
 	outIP=fIP;
 	
+#if WITH_DEPRECATED_IPV4_API
 	if(outIP.IsEmpty())
 		outIP=VString("Null IP");
+#endif	
 }
+
+VString VTCPEndPoint::GetIP() const
+{	
+	return fIP;
+}
+
 
 bool VTCPEndPoint::IsSSL ( )
 {
@@ -156,7 +166,7 @@ bool VTCPEndPoint::IsSSL ( )
 		return fIsSSL;
 }
 
-Socket VTCPEndPoint::GetRawSocket ( )
+Socket VTCPEndPoint::GetRawSocket ( ) const
 {
 	return fSock ? fSock-> GetRawSocket ( ) : kBAD_SOCKET;
 }
@@ -290,7 +300,7 @@ VError VTCPEndPoint::DisableReadCallback ()
 }
 
 
-VError VTCPEndPoint::DoRead ( void *outBuff, uLONG *ioLen )
+VError VTCPEndPoint::DoRead ( void *outBuff, uLONG *ioLen, sLONG inTimeoutMs, sLONG* outMsSpent)
 {
 	if ( !fSock )
 		return ReportError(VE_SRVR_NULL_ENDPOINT);
@@ -300,13 +310,21 @@ VError VTCPEndPoint::DoRead ( void *outBuff, uLONG *ioLen )
 	if ( fIsSelectIO && !fIsWatching)
 		return _Read_SelectIO ( ( char* ) outBuff, ioLen );
 	
-	VError verr = fSock-> Read ( ( char* ) outBuff, ioLen );
+	VError verr=VE_OK;
 	
+	if(inTimeoutMs<=0)
+		verr=fSock->Read((char*)outBuff, ioLen);
+	else
+		verr=fSock->ReadWithTimeout((char*) outBuff, ioLen, inTimeoutMs, outMsSpent);
+
 	if ( verr == VE_OK )
 		return VE_OK;
 
 	if ( verr == VE_SOCK_CONNECTION_BROKEN )
 		return ReportError(VE_SRVR_CONNECTION_BROKEN);
+	
+	if(verr==VE_SOCK_TIMED_OUT)
+		return ReportError(VE_SRVR_READ_TIMED_OUT, false, false);
 		
 	if ( verr == VE_SOCK_WOULD_BLOCK )
 		return ReportError(VE_SRVR_RESOURCE_TEMPORARILY_UNAVAILABLE, false, false);
@@ -453,12 +471,6 @@ VError VTCPEndPoint::DoReadExactly(void *outBuff, uLONG* ioLen, sLONG inMsTimeou
 	
 	sLONG timeoutMs=inMsTimeout;
 	
-	//jmo - ReadExactly with non-blocking socket should block anyway... Simulate that with max timeout
-	if(!withTimeout && !IsBlocking())
-	{
-		timeoutMs=XBOX::MaxLongInt;
-		withTimeout=true;
-	}
 	
 	for(;;)
 	{
@@ -510,7 +522,7 @@ VError VTCPEndPoint::DoReadExactly(void *outBuff, uLONG* ioLen, sLONG inMsTimeou
 		if ( fShouldStop )
 			return ReportError(VE_SRVR_READ_FAILED, false, false);
 
-		//jmo - todo : check that !						
+		//jmo - Je laisse ce Yield, mais ne suis pas sûr qu'il soit indispensable.
 		VTask::Yield();
 	}
 
@@ -564,20 +576,28 @@ VError VTCPEndPoint::_ReadExactly_SelectIO ( void *outBuff, uLONG inLen, uLONG i
 }
 
 
-VError VTCPEndPoint::DoWrite ( void *inBuff, uLONG *ioLen, bool inWithEmptyTail )
+VError VTCPEndPoint::DoWrite ( void *inBuff, uLONG *ioLen, sLONG inTimeoutMs, sLONG* outMsSpent ,bool inWithEmptyTail )
 {
 	if ( !fSock )
 		return ReportError( VE_SRVR_NULL_ENDPOINT );
 
 	xbox_assert ( !fIsInAutoReconnect || ( fIsInAutoReconnect && fIsInUse ) );
 
-	VError verr = fSock-> Write ( ( char* ) inBuff, ioLen, inWithEmptyTail );
+	VError verr=VE_OK;
+	
+	if(inTimeoutMs<=0)
+		verr=fSock->Write((char*)inBuff, ioLen, inWithEmptyTail);
+	else
+		verr=fSock->WriteWithTimeout((char*)inBuff, ioLen, inTimeoutMs, outMsSpent, inWithEmptyTail);
 	
 	if( verr == VE_OK )
 		return VE_OK; 
 
 	if ( verr == VE_SOCK_CONNECTION_BROKEN )
 		return ReportError( VE_SRVR_CONNECTION_BROKEN );
+	
+	if(verr==VE_SOCK_TIMED_OUT)
+		return ReportError(VE_SRVR_WRITE_TIMED_OUT, false, false);
 
 	if ( verr == VE_SOCK_WOULD_BLOCK )
 		return ReportError(VE_SRVR_RESOURCE_TEMPORARILY_UNAVAILABLE, false, false);
@@ -612,12 +632,6 @@ VError VTCPEndPoint::DoWriteExactly(const void *inBuff, uLONG* ioLen, sLONG inMs
 	
 	sLONG timeoutMs=inMsTimeout;
 	
-	//jmo - WriteExactly with non-blocking socket should block anyway... Simulate that with max timeout
-	if(!withTimeout && !IsBlocking())
-	{
-		timeoutMs=XBOX::MaxLongInt;
-		withTimeout=true;
-	}
 	
 	for(;;)
 	{
@@ -841,6 +855,31 @@ VError VTCPEndPoint::Use ( )
 			if ( VTCPSessionManager::Get ( )-> IsPostponed ( this ) )
 			{
 				VTCPEndPoint*				vtcpEndPointRestored = fClientSession-> Restore ( *this, vError );
+#if 1
+	if ( vError != VE_OK || vtcpEndPointRestored == 0 )
+	{
+		sLONG			nSleepTime = ( VSystem::Random ( ) % 30 ) * 1000;
+		if ( nSleepTime < 5000 )
+			nSleepTime += 5000;
+
+		while (	vError != VE_OK &&
+				VTask::GetCurrent ( )-> GetState ( ) != TS_DYING &&
+				VTask::GetCurrent ( )-> GetState ( ) != TS_DEAD &&
+				nSleepTime < 3 * 60 * 1000  ) // 3 minutes of waiting
+		{
+			VTask::GetCurrent ( )-> Sleep ( nSleepTime );
+			vtcpEndPointRestored = fClientSession-> Restore ( *this, vError );
+			if ( vError != VE_OK || vtcpEndPointRestored == 0 )
+			{
+				sLONG	nAdditionalSleep = ( VSystem::Random ( ) % 60 ) * 1000;
+				if ( nAdditionalSleep < 5000 )
+					nAdditionalSleep += 5000;
+
+				nSleepTime += nAdditionalSleep;
+			}
+		}
+	}
+#endif
 				if ( vError == VE_OK )
 				{
 					VTCPSessionManager::DebugMessage ( CVSTR ( "Restored connection" ), this );
@@ -863,7 +902,7 @@ VError VTCPEndPoint::Use ( )
 					VTCPSessionManager::DebugMessage ( CVSTR ( "Failed to restore connection" ), this, vError );
 
 					VError				verrRemove = VE_OK;
-					verrRemove = VTCPSessionManager::Get ( )-> Remove ( this );
+					//verrRemove = VTCPSessionManager::Get ( )-> Remove ( this );
 					xbox_assert ( verrRemove == VE_OK );
 				}
 			}
@@ -1009,7 +1048,7 @@ XBOX::VError VTCPEndPoint::DirectSocketRead (void *outBuff, uLONG *ioLen, sLONG 
 }
 
 
-VError VTCPEndPoint::Read(void *outBuff, uLONG *ioLen)
+VError VTCPEndPoint::ReadWithTimeout(void *outBuff, uLONG *ioLen, sLONG inTimeoutMs)
 {
 	ILogger* logger=VProcess::Get()->RetainLogger();
 	
@@ -1032,6 +1071,10 @@ VError VTCPEndPoint::Read(void *outBuff, uLONG *ioLen)
 		
 		ILoggerBagKeys::message.Set(tBag, CVSTR("VTCPEndPoint::Read"));
 		
+		ILoggerBagKeys::local_addr.Set(tBag, GetLocalIP(this));
+		
+		ILoggerBagKeys::peer_addr.Set(tBag, GetPeerIP(this));
+		
 		ILoggerBagKeys::count_bytes_asked.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
 		
 		ILoggerBagKeys::socket.Set(tBag, GetRawSocket());
@@ -1041,14 +1084,20 @@ VError VTCPEndPoint::Read(void *outBuff, uLONG *ioLen)
 		ILoggerBagKeys::is_select_io.Set(tBag, IsSelectIO());
 		
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
+		
+		ILoggerBagKeys::ms_timeout.Set(tBag, inTimeoutMs);
 	}
+
+	sLONG spentMs=-1;
 	
-	VError verr=DoRead(outBuff, ioLen);
-	
-	
+	VError verr=DoRead(outBuff, ioLen, inTimeoutMs, &spentMs);
+
 	if(shouldTrace)
 	{
 		ILoggerBagKeys::count_bytes_received.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
+		
+		if(inTimeoutMs>0)
+			ILoggerBagKeys::ms_spent.Set(tBag, spentMs);
 		
 		ILoggerBagKeys::error_code.Set(tBag, verr);
 		
@@ -1115,6 +1164,10 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 		
 		ILoggerBagKeys::message.Set(tBag, CVSTR("VTCPEndPoint::ReadExactly"));
 		
+		ILoggerBagKeys::local_addr.Set(tBag, GetLocalIP(this));
+
+		ILoggerBagKeys::peer_addr.Set(tBag, GetPeerIP(this));
+		
 		ILoggerBagKeys::count_bytes_asked.Set(tBag, inLen);
 		
 		ILoggerBagKeys::ms_timeout.Set(tBag, inTimeOutMillis);
@@ -1128,9 +1181,22 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
 	}
 	
+	//jmo - Non blocking and timeout zero really means blocking.
+	//      If not Select IO, silently tweak the socket to reflect that.
+	
+	bool wasBlocking=fSock->IsBlocking();
+	
+	if(inTimeOutMillis<=0 && !wasBlocking && !IsSelectIO())
+		fSock->SetBlocking(true);
+	
+	
 	uLONG partialReadLen=inLen;
 	
 	VError verr=DoReadExactly(outBuff, &partialReadLen, inTimeOutMillis);
+	
+	
+	if(fSock->IsBlocking()!=wasBlocking)
+		fSock->SetBlocking(wasBlocking);
 	
 	if(shouldTrace)
 	{		
@@ -1178,7 +1244,7 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 }
 
 
-VError VTCPEndPoint::Write(void *inBuff, uLONG *ioLen, bool inWithEmptyTail)
+VError VTCPEndPoint::WriteWithTimeout(void *inBuff, uLONG *ioLen, sLONG inTimeoutMs, bool inWithEmptyTail)
 {
 	ILogger* logger=VProcess::Get()->RetainLogger();
 	
@@ -1201,6 +1267,10 @@ VError VTCPEndPoint::Write(void *inBuff, uLONG *ioLen, bool inWithEmptyTail)
 		
 		ILoggerBagKeys::message.Set(tBag, CVSTR("VTCPEndPoint::Write"));
 		
+		ILoggerBagKeys::local_addr.Set(tBag, GetLocalIP(this));
+		
+		ILoggerBagKeys::peer_addr.Set(tBag, GetPeerIP(this));
+		
 		ILoggerBagKeys::count_bytes_asked.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
 		
 		ILoggerBagKeys::socket.Set(tBag, GetRawSocket());
@@ -1210,13 +1280,20 @@ VError VTCPEndPoint::Write(void *inBuff, uLONG *ioLen, bool inWithEmptyTail)
 		ILoggerBagKeys::is_select_io.Set(tBag, IsSelectIO());
 		
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
+		
+		ILoggerBagKeys::ms_timeout.Set(tBag, inTimeoutMs);
 	}
 	
-	VError verr=DoWrite(inBuff, ioLen, inWithEmptyTail);	
+	sLONG spentMs=-1;
 	
+	VError verr=DoWrite(inBuff, ioLen, inTimeoutMs, &spentMs, inWithEmptyTail);
+		
 	if(shouldTrace)
 	{
-		ILoggerBagKeys::count_bytes_received.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
+		ILoggerBagKeys::count_bytes_sent.Set(tBag, (ioLen!=NULL ? *ioLen : -1));
+		
+		if(inTimeoutMs>0)
+			ILoggerBagKeys::ms_spent.Set(tBag, spentMs);
 		
 		ILoggerBagKeys::error_code.Set(tBag, verr);
 		
@@ -1283,6 +1360,10 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 		
 		ILoggerBagKeys::message.Set(tBag, CVSTR("VTCPEndPoint::WriteExactly"));
 		
+		ILoggerBagKeys::local_addr.Set(tBag, GetLocalIP(this));
+		
+		ILoggerBagKeys::peer_addr.Set(tBag, GetPeerIP(this));
+		
 		ILoggerBagKeys::count_bytes_asked.Set(tBag, inLen);
 		
 		ILoggerBagKeys::ms_timeout.Set(tBag, inTimeOutMillis);
@@ -1296,15 +1377,28 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 		ILoggerBagKeys::is_ssl.Set(tBag, IsSSL());
 	}
 	
+	//jmo - Non blocking and timeout zero really means blocking.
+	//      Silently tweak the socket to reflect that (no SelectIO at writing).
+	
+	bool wasBlocking=fSock->IsBlocking();
+	
+	if(inTimeOutMillis<=0 && !wasBlocking)
+		fSock->SetBlocking(true);
+	
+	
 	uLONG partialWriteLen=inLen;
 	
 	VError verr=DoWriteExactly(inBuff, &partialWriteLen, inTimeOutMillis);
+	
+	
+	if(fSock->IsBlocking()!=wasBlocking)
+		fSock->SetBlocking(wasBlocking);
 	
 	if(shouldTrace)
 	{		
 		ILoggerBagKeys::error_code.Set(tBag, verr);
 		
-		ILoggerBagKeys::count_bytes_received.Set(tBag, partialWriteLen);
+		ILoggerBagKeys::count_bytes_sent.Set(tBag, partialWriteLen);
 		
 		logger->LogBag(tBag);
 	}

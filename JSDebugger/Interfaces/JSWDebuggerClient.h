@@ -171,7 +171,8 @@ class JSDEBUGGER_API VJSDebugger : public XBOX::VObject, public XBOX::IRefCounta
 		XBOX::VError Connect ( XBOX::VString const & inDNSNameOrIP, short inPort );
 		bool IsConnected ( );
 		XBOX::VError Disconnect ( );
-		XBOX::VError Authenticate ( XBOX::VString const & inUserName, XBOX::VString const & inHA1Seeded );
+		XBOX::VError Authenticate ( XBOX::VString const & inUserName, XBOX::VString const & inUserPassword );
+		bool ServerHasDebuggerUsers ( ) { return fHasDebugUsers; }
 
 		void SetFileRoot ( XBOX::VFilePath const & inRoot ) { fRootFolder. FromFilePath ( inRoot ); }
 		void GetNonce ( XBOX::VString & outNonce ) const { outNonce. FromString ( fNonce ); }
@@ -239,6 +240,7 @@ class JSDEBUGGER_API VJSDebugger : public XBOX::VObject, public XBOX::IRefCounta
 		XBOX::VString						fNonce;
 		bool								fNeedsAuthentication;
 		bool								fHasAuthenticated;
+		bool								fHasDebugUsers; // True by default. Is set to false if there are no users with JS debugger rights on the server
 
 		XBOX::VCriticalSection				fListenersLock;
 		std::vector<IJSDebuggerListener*>	fListeners;

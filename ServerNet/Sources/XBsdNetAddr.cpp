@@ -24,6 +24,8 @@
 #include <sys/socket.h>
 #include <ifaddrs.h>
 #include <netinet/tcp.h>
+#include <net/if.h>
+
 
 #include "Tools.h"
 
@@ -41,33 +43,33 @@ using namespace ServerNetTools;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-XBsdNetAddr::XBsdNetAddr()
+XBsdNetAddr::XBsdNetAddr() : fIndex(-1)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
 }
 
 
-XBsdNetAddr::XBsdNetAddr(const sockaddr_storage& inSockAddr)
+XBsdNetAddr::XBsdNetAddr(const sockaddr_storage& inSockAddr) : fIndex(-1)
 {
 	memcpy(&fSockAddr, &inSockAddr, sizeof(fSockAddr));
 }
 
 
-XBsdNetAddr::XBsdNetAddr(const sockaddr_in& inSockAddr)
+XBsdNetAddr::XBsdNetAddr(const sockaddr_in& inSockAddr) : fIndex(-1)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
-	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr)); //bug win ici ?
+	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr));
 }
 
 
-XBsdNetAddr::XBsdNetAddr(const sockaddr_in6& inSockAddr)
+XBsdNetAddr::XBsdNetAddr(const sockaddr_in6& inSockAddr) : fIndex(-1)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
-	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr)); //bug win ici ?
+	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr));
 }
 
 
-XBsdNetAddr::XBsdNetAddr(const sockaddr* inSockAddr)
+XBsdNetAddr::XBsdNetAddr(const sockaddr* inSockAddr, sLONG inIfIndex) : fIndex(inIfIndex)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
 
@@ -78,7 +80,7 @@ XBsdNetAddr::XBsdNetAddr(const sockaddr* inSockAddr)
 }
 
 
-XBsdNetAddr::XBsdNetAddr(IP4 inIp, PortNumber inPort)
+XBsdNetAddr::XBsdNetAddr(IP4 inIp, PortNumber inPort) : fIndex(-1)
 {
 	sockaddr_in v4={0};
 	v4.sin_family=AF_INET;
@@ -100,6 +102,8 @@ VError XBsdNetAddr::FromIP4AndPort(IP4 inIp, PortNumber inPort)
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
 	memcpy(&fSockAddr, &v4, sizeof(v4));
 	
+	//fSockAddr.ss_len=sizeof(sockaddr_in);
+	
 	return VE_OK;
 }
 
@@ -113,6 +117,8 @@ VError XBsdNetAddr::FromIP6AndPort(IP6 inIp, PortNumber inPort)
 	
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
 	memcpy(&fSockAddr, &v6, sizeof(v6));
+	
+	//fSockAddr.ss_len=sizeof(sockaddr_in6);
 	
 	return VE_OK;
 }
@@ -169,7 +175,7 @@ VError XBsdNetAddr::FromIpAndPort(const VString& inIP, PortNumber inPort)
 		verr=FromIpAndPort(AF_INET, inIP, inPort);
 		
 	if(verr!=VE_OK && ConvertFromV6())
-		verr=FromIpAndPort(AF_INET, inIP, inPort);
+		verr=FromIpAndPort(AF_INET6, inIP, inPort);
 		
 	if(verr==VE_OK )
 		errCtx.Flush();
@@ -209,7 +215,7 @@ VError XBsdNetAddr::FromIpAndPort(sLONG inFamily, const VString& inIP, PortNumbe
 		{
 			IP6 dst;
 			
-			res=inet_pton(AF_INET, src, &dst);
+			res=inet_pton(AF_INET6, src, &dst);
 			
 			if(res>0)
 				return FromIP6AndPort(dst, inPort);
@@ -294,9 +300,13 @@ VString XBsdNetAddr::GetIP(sLONG* outVersion) const
 	}
 	
 	if(ip==NULL)
+	{
 		vThrowNativeError(errno);
 	
-	return VString(ip, sizeof(buf), VTC_UTF_8);
+		return VString();
+	}
+
+	return VString(ip, strlen(ip), VTC_UTF_8);
 }
 
 
@@ -328,6 +338,25 @@ PortNumber XBsdNetAddr::GetPort() const
 	return port;
 }
 
+
+VString XBsdNetAddr::GetName() const
+{
+	char ifname[IFNAMSIZ];
+	ifname[0]=0;
+	
+	if(fIndex>0)
+		return VString(if_indextoname(fIndex, ifname));
+	
+	return VString();
+}
+
+		   
+sLONG XBsdNetAddr::GetIndex() const
+{
+	return fIndex;
+}
+		   		   
+
 #if WITH_DEPRECATED_IPV4_API
 IP4 XBsdNetAddr::GetIPv4HostOrder() const
 {
@@ -352,6 +381,7 @@ IP4 XBsdNetAddr::GetIPv4HostOrder() const
 }
 #endif
 
+
 void XBsdNetAddr::FillAddrStorage(sockaddr_storage* outSockAddr) const
 {
 	if(outSockAddr!=NULL)
@@ -369,6 +399,62 @@ const sockaddr* XBsdNetAddr::GetSockAddr() const
 {
 	return reinterpret_cast<const sockaddr*>(&fSockAddr);
 }
+
+
+bool XBsdNetAddr::IsV4() const
+{
+	return reinterpret_cast<const sockaddr*>(&fSockAddr)->sa_family==AF_INET;
+}
+
+
+bool XBsdNetAddr::IsV6() const
+{
+	return reinterpret_cast<const sockaddr*>(&fSockAddr)->sa_family==AF_INET6;
+}
+
+
+bool XBsdNetAddr::IsV4MappedV6() const
+{	
+	if(IsV6())
+		return IN6_IS_ADDR_V4MAPPED(&reinterpret_cast<const sockaddr_in6*>(&fSockAddr)->sin6_addr);
+	
+	return false;
+}
+
+
+bool XBsdNetAddr::IsLoopBack() const
+{
+	if(IsV4())
+		return GetV4()==htonl(INADDR_LOOPBACK);
+	else if(IsV6())
+		return IN6_IS_ADDR_LOOPBACK(GetV6());
+
+	return false;
+}
+
+
+bool XBsdNetAddr::IsAny() const
+{
+	if(IsV4())
+		return GetV4()==htonl(INADDR_ANY);
+	else if(IsV6())
+		return IN6_IS_ADDR_UNSPECIFIED(GetV6());
+	
+	return false;
+}
+
+
+IP4 XBsdNetAddr::GetV4() const
+{
+	return reinterpret_cast<const sockaddr_in*>(&fSockAddr)->sin_addr.s_addr;
+}
+
+
+const IP6* XBsdNetAddr::GetV6() const
+{
+	return &reinterpret_cast<const sockaddr_in6*>(&fSockAddr)->sin6_addr;
+}
+
 
 
 VError XBsdAddrLocalQuery::FillAddrList()
@@ -400,7 +486,7 @@ VError XBsdAddrLocalQuery::FillAddrList()
 	
 	ifaddrs* ifPtr=NULL;
 	
-	for (ifPtr=ifList ; ifPtr!=NULL ; ifPtr=ifPtr->ifa_next)
+	for(ifPtr=ifList ; ifPtr!=NULL ; ifPtr=ifPtr->ifa_next)
 	{
 		if (ifPtr->ifa_addr==NULL)
 			continue;
@@ -408,8 +494,19 @@ VError XBsdAddrLocalQuery::FillAddrList()
 		int family=ifPtr->ifa_addr->sa_family;
 		
 		if((family==AF_INET && ListV4()) || (family==AF_INET6 && ListV6()))
-		{			
-			const XBsdNetAddr xaddr(ifPtr->ifa_addr);
+		{	
+			//If the interface is not found, a value of 0 is returned and errno is set to ENXIO.
+			sLONG ifIndex=if_nametoindex(ifPtr->ifa_name);
+			
+			xbox_assert(ifIndex!=0);   
+		
+			if(ifIndex==0)
+			{
+				ifIndex=-1;			 
+				vThrowNativeError(errno);
+			}
+
+			const XBsdNetAddr xaddr(ifPtr->ifa_addr, ifIndex);
 			
 			fVAddrList->PushXNetAddr(xaddr);
 		}
@@ -421,7 +518,7 @@ VError XBsdAddrLocalQuery::FillAddrList()
 }
 
 
-VError XBsdAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPort, Protocol inProto)
+VError XBsdAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPort, EProtocol inProto)
 {
 	//Prepare the parameters for getaddrinfo.
 	
@@ -444,14 +541,21 @@ VError XBsdAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPor
 	{
 		return vThrowError(VE_INVALID_PARAMETER);
 	}
-	
+		
 	
     addrinfo hints={0};
+	
+#if WITH_SELECTIVE_GETADDRINFO
 		
 	if(ResolveToV4() && !ResolveToV6())
 	    hints.ai_family=AF_INET;
 	else if(ResolveToV6() && !ResolveToV4())
-		hints.ai_family=AF_INET6, hints.ai_flags|=AI_V4MAPPED|AI_ALL;
+	{
+		hints.ai_family=AF_INET6;
+		
+		if(WithV4mappedV6())
+			hints.ai_flags|=AI_V4MAPPED|AI_ALL;
+	}
 	else
 		hints.ai_family=AF_UNSPEC, hints.ai_flags|=AI_ADDRCONFIG;
 		
@@ -460,8 +564,8 @@ VError XBsdAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPor
 	else
 		hints.ai_socktype=SOCK_STREAM, hints.ai_protocol=IPPROTO_TCP;
 
+#endif	
     
-	
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= __MAC_10_6
 	hints.ai_flags=AI_NUMERICSERV; //Numeric service only.
 #endif
@@ -473,7 +577,10 @@ VError XBsdAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPor
 	while(err==EAI_SYSTEM && errno==EINTR);
 	
 	if (err!=0)
-	{
+	{		
+		DebugMsg("[%d] XBsdAddrDnsQuery::FillAddrList() : getaddrinfo for node %s and service %s failed with err %d, %s\n",
+				VTask::GetCurrentID(), utf8DnsName, port, err, gai_strerror(err));
+
 		if(infoHead!=NULL)
 			freeaddrinfo(infoHead);
 		
@@ -505,6 +612,44 @@ VError XBsdAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPor
 		//xbox_assert(infoPtr->ai_socktype==SOCK_STREAM);
 		//xbox_assert(infoPtr->ai_protocol==IPPROTO_TCP);
 
+#if !WITH_SELECTIVE_GETADDRINFO
+
+		if(ResolveToV4() && !ResolveToV6() && xaddr.IsV6())
+			continue;
+		
+		if(ResolveToV6() && !ResolveToV4() && xaddr.IsV4())
+			continue;
+		
+		if(!WithV4mappedV6() && xaddr.IsV4MappedV6())
+			continue;
+	
+		if(infoPtr->ai_protocol==IPPROTO_TCP && inProto==UDP)
+			continue;
+		
+		if(infoPtr->ai_protocol==IPPROTO_UDP && inProto==TCP)
+			continue;
+		
+		VNetAddressList::const_iterator cit;
+		
+		const VString newIp=xaddr.GetIP();
+		
+		bool ipAlreadyPushed=false;
+		
+		for(cit=fVAddrList->begin() ; cit!=fVAddrList->end() ; ++cit)
+		{
+			const VString ip=cit->GetIP();
+			
+			if(ip==newIp)
+			{
+				ipAlreadyPushed=true; 
+				break;
+			}
+		}
+
+		if(ipAlreadyPushed)
+			continue;
+		
+#endif		
 		
 		fVAddrList->PushXNetAddr(xaddr);
 	}

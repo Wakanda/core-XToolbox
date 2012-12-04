@@ -30,17 +30,16 @@ BEGIN_TOOLBOX_NAMESPACE
 class XTOOLBOX_API XWinNetAddr
 {
 public :
-	
-	//Erreur de link sur ce symbol
+			
 	XWinNetAddr();
-	
+		
 	XWinNetAddr(const sockaddr_storage& inSockAddr);
 	
 	XWinNetAddr(const sockaddr_in& inSockAddr);
 
 	XWinNetAddr(const sockaddr_in6& inSockAddr);
 	
-	XWinNetAddr(const sockaddr* inSockAddr);	//To help working with Posix functions
+	XWinNetAddr(const sockaddr* inSockAddr, sLONG inIfIndex=-1);	//To help working with Posix functions
 		
 	XWinNetAddr(IP4 inIp, PortNumber inPort);	//To help legacy code
 		
@@ -66,34 +65,52 @@ public :
 			
 	PortNumber GetPort() const;
 
+	sLONG GetIndex() const;
+
 	IP4 GetIPv4HostOrder() const; //helps legacy code, do not use !
 	
 	void FillAddrStorage(sockaddr_storage* outSockAddr) const;
 
 	sLONG GetPfFamily() const;
 	
-	const sockaddr* GetSockAddr() const;
+	const sockaddr* GetSockAddr() const;	
 	
+	bool IsV4() const;
+	
+	bool IsV6() const;
+	
+	bool IsV4MappedV6() const;
+	
+	bool IsLoopBack() const;
+	
+	bool IsAny() const;
 	
 private :
 	
+	friend class VNetAddress;
+	
+	IP4 GetV4() const;
+	const IP6* GetV6() const;
+	
 	sockaddr_storage fSockAddr;	//sizeof(XWinNetAddr)=136
+
+	sLONG	fIndex;
 };
 
 typedef XWinNetAddr XNetAddr;
 
 
-class VNetAddrList;
+class VNetAddressList;
 
 class XTOOLBOX_API XWinAddrLocalQuery
 {
 public :	
-	XWinAddrLocalQuery(VNetAddrList* outList) : fVAddrList(outList) {}
+	XWinAddrLocalQuery(VNetAddressList* outList) : fVAddrList(outList) {}
 
 	VError FillAddrList();
 	
 private :
-	VNetAddrList* fVAddrList;
+	VNetAddressList* fVAddrList;
 };
 
 typedef XWinAddrLocalQuery XAddrLocalQuery;
@@ -102,14 +119,14 @@ typedef XWinAddrLocalQuery XAddrLocalQuery;
 class XTOOLBOX_API XWinAddrDnsQuery
 {
 public :	
-	XWinAddrDnsQuery(VNetAddrList* outList) : fVAddrList(outList) {}
+	XWinAddrDnsQuery(VNetAddressList* outList) : fVAddrList(outList) {}
 	
-	typedef enum {TCP, UDP} Protocol;
+	enum EProtocol {TCP, UDP};
 
-	VError FillAddrList(const VString& inDnsName, PortNumber inPort, Protocol inProto=TCP);
+	VError FillAddrList(const VString& inDnsName, PortNumber inPort, EProtocol inProto=TCP);
 	
 private :
-	VNetAddrList* fVAddrList;
+	VNetAddressList* fVAddrList;
 };
 
 typedef XWinAddrDnsQuery XAddrDnsQuery;

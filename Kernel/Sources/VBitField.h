@@ -63,6 +63,15 @@ struct VBitField
 		return *this;
 	}
 	
+	VBitField	operator~() const
+	{
+		VBitField result=*this;
+		for( int i = sizeof( result)/4 - 1 ; i >= 0 ; --i)
+			result.fData[i] = ~result.fData[i];
+
+		return result;
+	}
+
 	void Fill( uLONG inValue)
 	{
 		for( int i = sizeof( fData)/4 - 1 ; i >= 0 ; --i)

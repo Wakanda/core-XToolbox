@@ -63,6 +63,18 @@ public:
 	VHandle GetRTFText();
 	Boolean	SetRTFText(VHandle inHandleRTF);
 	
+	/** insert text at the specified position */
+	void InsertText( sLONG inPos, const VString& inText);
+
+	/** delete text range */
+	void DeleteText( sLONG rangeStart, sLONG rangeEnd);
+	
+	/** replace text range */
+	void ReplaceText( sLONG rangeStart, sLONG rangeEnd, const VString& inText);
+	
+	/** apply style (use style range) */
+	void ApplyStyle( VTextStyle* inStyle);
+	
 	/** change drawing context 
 	@remarks
 		by default, drawing context is the one used to initialize instance
@@ -70,7 +82,7 @@ public:
 		you can draw to another context but it assumes new drawing context is compatible with the context used to initialize the text box
 		(it is caller responsibility to check new context compatibility: normally it is necessary only on Windows because of GDI resolution dependent DPI)
 	*/
-	virtual void SetDrawContext( ContextRef inContextRef)
+	void SetDrawContext( ContextRef inContextRef)
 	{
 		fContextRef = inContextRef;
 	}
@@ -84,6 +96,9 @@ public:
 	    (actually only Quartz graphic context metrics method might need to call this method for consistency with gc user space) 
 	*/
 	const VPoint& GetLayoutOffset() const;
+	
+	/** set min line height for the specified range */
+	void	SetMinLineHeight( const GReal inMinHeight, sLONG inStart, sLONG inEnd);
 	
 protected:
 	Boolean DoInitialize();

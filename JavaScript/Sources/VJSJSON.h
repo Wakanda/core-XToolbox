@@ -29,11 +29,11 @@ class XTOOLBOX_API VJSJSON : public XBOX::VObject
 public:
 	typedef void (*fn_callAsFunction)( VJSParms_callAsFunction&);
 	template<fn_callAsFunction fn>
-	static JSValueRef __cdecl js_callAsFunction( JSContextRef inContext, JSObjectRef inFunction, JSObjectRef inThis, size_t inArgumentCount, const JSValueRef inArguments[], JSValueRef* outException)
+	static JS4D::ValueRef __cdecl js_callAsFunction( JS4D::ContextRef inContext, JS4D::ObjectRef inFunction, JS4D::ObjectRef inThis, size_t inArgumentCount, const JS4D::ValueRef inArguments[], JS4D::ExceptionRef* outException)
 	{
 		VJSParms_callAsFunction parms( inContext, inFunction, inThis, inArgumentCount, inArguments, outException);
 		fn( parms);
-		return (parms.GetReturnValue() != NULL) ? parms.GetReturnValue() : JSValueMakeNull( inContext);
+		return (parms.GetReturnValue() != NULL) ? parms.GetReturnValue() : JS4D::MakeNull( inContext);
 	}
 
 								// create a smart pointer to the global JSON object
@@ -60,7 +60,7 @@ public:
 			void myReviver( VJSParms_callAsFunction& inParms);
 			VJSValue result = myJSON.Parse( someJSON, VJSJSON::js_callAsFunction<myReviver>);
 		*/
-			VJSValue			Parse( const XBOX::VString& inJSON, JSObjectCallAsFunctionCallback inReviverFunction, JS4D::ExceptionRef *outException = NULL);
+			VJSValue			Parse( const XBOX::VString& inJSON, JS4D::ObjectCallAsFunctionCallback inReviverFunction, JS4D::ExceptionRef *outException = NULL);
 			
 			
 
@@ -89,9 +89,9 @@ private:
 
 
 
-	static	JSObjectRef			_GetJSON( JS4D::ContextRef inContext, JS4D::ExceptionRef *outException);
-			JSObjectRef			_GetParseFunction( JS4D::ExceptionRef *outException);
-			JSObjectRef			_GetStringifyFunction( JS4D::ExceptionRef *outException);
+	static	JS4D::ObjectRef		_GetJSON( JS4D::ContextRef inContext, JS4D::ExceptionRef *outException);
+			JS4D::ObjectRef		_GetParseFunction( JS4D::ExceptionRef *outException);
+			JS4D::ObjectRef		_GetStringifyFunction( JS4D::ExceptionRef *outException);
 
 			JS4D::ValueRef		_Parse( JS4D::StringRef inJSON, JS4D::ExceptionRef *outException);
 			JS4D::ValueRef		_Parse( JS4D::StringRef inJSON, JS4D::ObjectRef inReviverFunction, JS4D::ExceptionRef *outException);

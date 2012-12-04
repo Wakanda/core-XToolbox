@@ -25,6 +25,12 @@ XWinToUnicodeConverter::XWinToUnicodeConverter(IMultiLanguage2* inMLang, CharSet
 	fMLang = inMLang;
 	fMLang->AddRef();
 	HRESULT r = fMLang->CreateConvertCharset(fCodePage, 1200 /* utf16 */, MLCONVCHARF_USEDEFCHAR/*0*/ /*MLCONVCHARF_NONE*/, &fConverter);
+	if (r != S_OK)
+	{
+		if (fConverter)
+			fConverter->Release();
+		fConverter = NULL;
+	}
 }
 
 
@@ -180,6 +186,12 @@ XWinFromUnicodeConverter::XWinFromUnicodeConverter(IMultiLanguage2* inMLang, Cha
 	fMLang = inMLang;
 	fMLang->AddRef();
 	HRESULT r = fMLang->CreateConvertCharset(1200 /* utf16 */, fCodePage, MLCONVCHARF_USEDEFCHAR /*0*/ /*MLCONVCHARF_NONE*/, &fConverter);
+	if (r != S_OK)
+	{
+		if (fConverter)
+			fConverter->Release();
+		fConverter = NULL;
+	}
 }
 
 

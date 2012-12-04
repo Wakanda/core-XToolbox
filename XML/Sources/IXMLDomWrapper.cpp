@@ -983,13 +983,13 @@ VXMLDOMElementRef IXMLDomWrapper::GetRootNodeElement( VXMLDOMNodeRef inNode)
 
 
 /** set element attribute */
-void IXMLDomWrapper::SetNodeElementAttribute( VXMLDOMElementRef inNodeElement, const VString& inName, const VString& inValue, bool inRemoveIfValueEmpty, bool *outIsDirtyMapID)
+bool IXMLDomWrapper::SetNodeElementAttribute( VXMLDOMElementRef inNodeElement, const VString& inName, const VString& inValue, bool inRemoveIfValueEmpty, bool *outIsDirtyMapID)
 {
 	xercesc::DOMElement *element =  reinterpret_cast<xercesc::DOMElement *>(inNodeElement);
 	if (outIsDirtyMapID)
 		*outIsDirtyMapID = false;
 	if (!element)
-		return;
+		return false;
 
 	try
 	{
@@ -1072,7 +1072,9 @@ void IXMLDomWrapper::SetNodeElementAttribute( VXMLDOMElementRef inNodeElement, c
 	catch(...)
 	{
 		//probably invalid attribute name
+		return false;
 	}
+	return true;
 }
 
 END_TOOLBOX_NAMESPACE

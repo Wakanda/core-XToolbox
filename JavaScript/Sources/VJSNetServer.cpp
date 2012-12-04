@@ -101,9 +101,16 @@ VJSConnectionHandler::VJSConnectionHandler (VJSWorker *inWorker, VJSNetServerObj
 {
 	xbox_assert(inWorker != NULL && inServerObject != NULL);
 
-	fWorker = inWorker;
+	fWorker = XBOX::RetainRefCountable<VJSWorker>(inWorker);
 	fServerObject = inServerObject;
 	fIsSSL = inIsSSL;
+}
+
+VJSConnectionHandler::~VJSConnectionHandler ()
+{
+	xbox_assert(fWorker != NULL && fServerObject != NULL);
+
+	XBOX::ReleaseRefCountable<VJSWorker>(&fWorker);
 }
 
 XBOX::VError VJSConnectionHandler::SetEndPoint (XBOX::VEndPoint *inEndPoint)
@@ -120,7 +127,7 @@ VJSConnectionHandlerFactory::VJSConnectionHandlerFactory (VJSWorker *inWorker, V
 	xbox_assert(inWorker != NULL && inServerObject != NULL);
 
 	fPort = -1;
-	fWorker = inWorker;
+	fWorker = XBOX::RetainRefCountable<VJSWorker>(inWorker);
 	fServerObject = inServerObject;
 	fIsSSL = inIsSSL;
 	fConnectionHandler = NULL;
@@ -130,6 +137,9 @@ VJSConnectionHandlerFactory::VJSConnectionHandlerFactory (VJSWorker *inWorker, V
 
 VJSConnectionHandlerFactory::~VJSConnectionHandlerFactory ()
 {
+	xbox_assert(fWorker != NULL && fServerObject != NULL);
+
+	XBOX::ReleaseRefCountable<VJSWorker>(&fWorker);
 	ReleaseRefCountable<VJSConnectionHandler>(&fConnectionHandler);
 }
 
@@ -310,13 +320,14 @@ void VJSNetServerClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms, VJS
 
 	VJSWorker	*worker;
 
-	worker = VJSWorker::GetWorker(ioParms.GetContext());
+	worker = VJSWorker::RetainWorker(ioParms.GetContext());
 
 	VJSConnectionHandlerFactory	*connectionHandlerFactory;
 	
 	if ((connectionHandlerFactory = new VJSConnectionHandlerFactory(worker, inServer, inServer->fIsSSL)) == NULL) {
 
 		XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 		return;
 
 	}
@@ -348,9 +359,9 @@ void VJSNetServerClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms, VJS
 
 	connectionHandlerFactory->SetIP(resolvedAddress);
 
-#elif DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE
+#else
 
-	XBOX::VNetAddrList	addrList;
+	XBOX::VNetAddressList	addrList;
 	bool				isIPv6;
 
 	if (hostname.GetLength()) {
@@ -369,7 +380,7 @@ void VJSNetServerClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms, VJS
 
 	// Always take first matching type address.
 
-	XBOX::VNetAddrList::const_iterator	it;
+	XBOX::VNetAddressList::const_iterator	it;
 
 	for (it = addrList.begin(); it != addrList.end(); it++)
 
@@ -388,30 +399,26 @@ void VJSNetServerClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms, VJS
 	XBOX::VError	error;
 
 	error = inServer->fConnectionListener->AddConnectionHandlerFactory(connectionHandlerFactory);
-
 	connectionHandlerFactory->Release();	// AddConnectionHandlerFactory() has done a retain().
-	if (error != XBOX::VE_OK) {
+
+	if (error != XBOX::VE_OK 
+	|| (error = inServer->fConnectionListener->StartListening()) != XBOX::VE_OK) 
 		
 		XBOX::vThrowError(error);
-		return;
 
-	} 
+	else {
 
-	if ((error = inServer->fConnectionListener->StartListening()) != XBOX::VE_OK) {
-
-		XBOX::vThrowError(error);
-		return;
+		inServer->fAddress = address;
+		inServer->fPort = port;
+			
+		if (hasCallback) 
+			
+			inServer->AddListener("listening", callback, false);
+		
+		worker->QueueEvent(VJSNetEvent::Create(inServer, "listening"));
 
 	}
-	
-	inServer->fAddress = address;
-	inServer->fPort = port;
-		
-	if (hasCallback) 
-		
-		inServer->AddListener("listening", callback, false);
-	
-	worker->QueueEvent(VJSNetEvent::Create(inServer, "listening"));
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 }
 
 void VJSNetServerClass::_pause (XBOX::VJSParms_callStaticFunction &ioParms, VJSNetServerObject *inServer)
@@ -499,9 +506,10 @@ void VJSNetServerSyncClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms,
 
 // Re-use code of async listen().
 
+#if WITH_DEPRECATED_IPV4_API
+	
 	uLONG	address;
 
-#if WITH_DEPRECATED_IPV4_API
 	if (ioParms.CountParams() >= 2) {
 
 		XBOX::VString	hostname;
@@ -519,8 +527,13 @@ void VJSNetServerSyncClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms,
 
 		address = 0;	// Same as "localhost".
 
-#elif DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE
-	#error NEED AN IP V6 UPDATE
+#else
+
+	//jmo - je ne comprends pas bien la logique du resolve sur le hostname...
+	//      On veut une IP 'publique' ? J'ai simplifié.
+	
+	VString address=VNetAddress::GetAnyIP();
+
 #endif
 	
 	// We are already listening, stop previous listener.
@@ -551,7 +564,6 @@ void VJSNetServerSyncClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms,
 		XBOX::vThrowError(error);
 
 	}
-#if WITH_DEPRECATED_IPV4_API
 	else if (!inServer->fSockListener->SetBlocking(true)
 	|| !inServer->fSockListener->AddListeningPort(address, port, inServer->fIsSSL)	
 	|| !inServer->fSockListener->StartListening()) {
@@ -560,9 +572,6 @@ void VJSNetServerSyncClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms,
 		XBOX::vThrowError(XBOX::VE_SRVR_FAILED_TO_CREATE_LISTENING_SOCKET);
 		
 	}
-#elif DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE
-	#error NEED AN IP V6 UPDATE
-#endif
 	else {
 
 		inServer->fAddress = address;	
@@ -636,7 +645,7 @@ void VJSNetServerSyncClass::_accept (XBOX::VJSParms_callStaticFunction &ioParms,
 			XBOX::VString	address;
 
 			socketObject->fObjectRef = newSocketSync.GetObjectRef();
-			socketObject->fWorker = VJSWorker::GetWorker(ioParms.GetContext());
+			socketObject->fWorker = VJSWorker::RetainWorker(ioParms.GetContext());
 
 			socketObject->fEndPoint->GetIP(address);
 			newSocketSync.SetProperty("remoteAddress", address);

@@ -125,12 +125,14 @@ public:
 			**/
 			bool					PushError( VErrorBase* inError, bool *outSilent);
 
-			/** @brief push errors from another context **/
+			// push errors from another context.
+			// Does nothing if inErrorContext is NULL or empty.
+			void					PushErrorsFromContext( const VErrorContext* inErrorContext);
+
+			// push errors stored in bag
 			void					PushErrorsFromBag( const VValueBag& inBag);
 
 	// Error contexts support
-			void					PushContext( VErrorContext *inContext);
-
 			VErrorContext*			GetLastContext() const	{ return fStack.empty() ? NULL : fStack.back();}
 
 			VErrorContext*			PushNewContext( bool inKeepingErrors, bool inSilentContext);

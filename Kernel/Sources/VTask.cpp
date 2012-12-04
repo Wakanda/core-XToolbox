@@ -28,7 +28,6 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
-class VTaskWithHolesVector : public VArrayWithHolesOf<VTask*> {};
 typedef	StLocker<XTaskMgrMutexImpl>	StTaskMgrLocker;
 
 
@@ -85,11 +84,10 @@ VTask::VTask( VObject * /*inCreator*/, size_t inStackSize, ETaskStyle inStyle, T
 {
 	xbox_assert(GetMain() != NULL);
 
-	fTaskId = fManager->GetNewTaskID( this);
-	
 	fIntlManager = VProcess::Get()->GetIntlManager()->Clone();
 	
-	fImpl = fManager->fImpl.Create( this, inStyle);
+	fImpl = fManager->fImpl.Create( this, inStyle);	// may throw a VError and return NULL
+	fTaskId = fManager->GetNewTaskID( this);
 	
 	SetMessagingTask( fTaskId);
 }
@@ -128,9 +126,9 @@ VTask::VTask( VTaskMgr *inTaskMgr)
 
 	fIntlManager = VProcess::Get()->GetIntlManager()->Clone();
 	
-	fTaskId = fManager->GetNewTaskID( this);
-	
 	fImpl = fManager->fImpl.CreateMain( this);
+	
+	fTaskId = fManager->GetNewTaskID( this);
 	
 	SetMessagingTask( fTaskId);
 }
@@ -270,18 +268,18 @@ TaskState VTask::GetState() const
 
 SystemTaskID VTask::GetSystemID() const
 {
-	return fImpl->GetSystemID();
+	return (fImpl != NULL) ? fImpl->GetSystemID() : 0;
 }
 
 bool VTask::GetCPUUsage(Real& outCPUUsage) const
 {
-	return fImpl->GetCPUUsage(outCPUUsage);
+	return (fImpl != NULL) ? fImpl->GetCPUUsage(outCPUUsage) : false;
 }
 
 
 bool VTask::GetCPUTimes(Real& outSystemTime, Real& outUserTime) const
 {
-	return fImpl->GetCPUTimes(outSystemTime, outUserTime);
+	return (fImpl != NULL) ? fImpl->GetCPUTimes(outSystemTime, outUserTime) : false;
 }
 
 
@@ -325,13 +323,16 @@ void VTask::Freeze()
 
 void VTask::WakeUp()
 {
-	if (CanBlockOnSyncObject())
+	if (fImpl != NULL)
 	{
-		fImpl->WakeUp();
-	}
-	else
-	{
-		fFiberSleepFlag = 1;
+		if (CanBlockOnSyncObject())
+		{
+			fImpl->WakeUp();
+		}
+		else
+		{
+			fFiberSleepFlag = 1;
+		}
 	}
 }
 
@@ -345,7 +346,7 @@ bool VTask::Run()
 	
 	// a fiber task must be run from the main task
 	VTask *task = GetCurrent();
-	if (testAssert( (task != NULL) && ((fStyle != eTaskStyleFiber) || task->IsMain()) ))
+	if ( (fImpl != NULL) && testAssert( (task != NULL) && ((fStyle != eTaskStyleFiber) || task->IsMain()) ))
 	{
 		if (VInterlocked::CompareExchange( &fState, TS_CREATING, TS_RUN_PENDING) == TS_CREATING)
 		{
@@ -522,7 +523,7 @@ void VTask::SetName( const VString& inName)
 	fManager->GetMutex()->Unlock();
 
 	if (IsCurrent())
-		fManager->GetImpl()->SetCurrentThreadName( inName);
+		fManager->GetImpl()->SetCurrentThreadName( inName, GetID());
 }
 
 
@@ -807,6 +808,21 @@ bool VTask::PushRetainedError( VErrorBase* inError)
 }
 
 
+void VTask::PushErrors( const VErrorContext* inErrorContext)
+{
+	VTask *task = GetCurrent();
+	if ( (task == NULL) || (inErrorContext == NULL) || inErrorContext->IsEmpty() )
+		return;
+
+	StAllocateInMainMem mainAllocator;
+	
+	if (task->fErrorContext == NULL)
+		task->fErrorContext = new VErrorTaskContext;
+	
+	task->fErrorContext->PushErrorsFromContext( inErrorContext);
+}
+
+
 void VTask::FlushErrors()
 {
 	VTask *task = GetCurrent();
@@ -927,6 +943,14 @@ void VTask::DisposeAllData()
 }
 
 
+/*
+	static
+*/
+bool VTask::IsCurrentMain()
+{
+	return VTaskMgr::Get()->GetMainTask()->IsCurrent();
+}
+
 //======================================================================================================
 
 #pragma mark-
@@ -943,9 +967,9 @@ VTaskMgr::VTaskMgr()
 	, fCriticalSection( NULL)
 	, fDelayedMessages( NULL)
 	, fDelayedMessagesTimes( NULL)
-	, fTasks( NULL)
 	, fFiberScheduler( NULL)
 	, fNeedsCheckSystemMessages( false)
+	, fSeedFiberTaskID( 0)
 	, fSeedForeignTaskID( 0)
 	, fTaskListStamp(0)
 {
@@ -979,9 +1003,6 @@ bool VTaskMgr::_Init( VProcess *inProcess)
 	fFiberScheduler = new VScheduler_void;
 	fDelayedMessages = new std::vector<VMessage*>;
 	fDelayedMessagesTimes = new std::vector<sLONG>;
-	fTasks = new VTaskWithHolesVector;
-
-	fTasks->AddTail(NULL); // on cree la tache 0 comme etant NULL
 	
 	bool isOK = fImpl.Init( inProcess);
 	if (isOK)
@@ -1018,9 +1039,6 @@ void VTaskMgr::_DeInit()
 
 	delete fDelayedMessagesTimes;
 	fDelayedMessagesTimes = NULL;
-
-	delete fTasks;
-	fTasks = NULL;
 
 	ReleaseRefCountable( &fFiberScheduler);
 
@@ -1153,7 +1171,7 @@ void VTaskMgr::_TaskStarted( VTask *inTask)
 	
 	VString	taskName;
 	inTask->GetName( taskName);
-	fImpl.SetCurrentThreadName( taskName);
+	fImpl.SetCurrentThreadName( taskName, inTask->GetID());
 }
 
 
@@ -1237,10 +1255,24 @@ size_t VTaskMgr::GetCurrentFreeStackSize() const
  
 VTaskID	VTaskMgr::GetNewTaskID( VTask* inTask)
 {
-	StTaskMgrLocker lock( fCriticalSection);
-	sWORD result = fTasks->AddInAHole(inTask);
-	xbox_assert(result >= 0);
-	return (VTaskID)result;
+	if ( (inTask == NULL) || (inTask->GetImpl() == NULL) )
+		return NULL_TASK_ID;
+	
+	VTaskID id = inTask->GetImpl()->GetValueForVTaskID();
+	if (id == NULL_TASK_ID)
+	{
+		StTaskMgrLocker lock( fCriticalSection);
+		if (fRecycledFiberTaskIDs.empty())
+		{
+			id = --fSeedFiberTaskID;
+		}
+		else
+		{
+			id = fRecycledFiberTaskIDs.top();
+			fRecycledFiberTaskIDs.pop();
+		}
+	}
+	return id;
 }
 
 
@@ -1406,7 +1438,12 @@ void VTaskMgr::PurgeDeadTasks()
 				// release it
 				previous->SetNextTask(oneTask->GetNextTask());
 				oneTask->SetNextTask(NULL); // safeguard
-				fTasks->FreeHole((sWORD)oneTask->GetID());
+
+				if (oneTask->GetImpl()->GetValueForVTaskID() != oneTask->GetID())
+				{
+					fRecycledFiberTaskIDs.push( oneTask->GetID());
+				}
+
 				oneTask->Release();
 
 				fTaskListStamp++;

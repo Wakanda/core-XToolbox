@@ -228,7 +228,7 @@ void VJSEndPoint::_Write(XBOX::VJSParms_callStaticFunction& ioParms, EndPointHan
 		return;
 	}
 	
-	sLONG slen=jsBuf->GetDataSize();
+	sLONG slen=(sLONG) jsBuf->GetDataSize();
 	
 	uLONG len=slen;
 	

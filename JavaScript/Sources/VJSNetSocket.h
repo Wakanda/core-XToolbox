@@ -71,6 +71,10 @@ public:
 	XBOX::JS4D::ObjectRef			fObjectRef;
 	VJSWorker						*fWorker;
 
+	// Doesn't do a retain, it is up to caller to do that.
+
+	XBOX::VTCPEndPoint				*GetEndPoint ()	{	return fEndPoint;	}
+
 	// Asynchronous sockets allow data reading to be paused. Implementation is to read and save available data, but not queue "data" events.
 	// When resume() is called, this will queue "data" events for all buffered data.
 

@@ -27,6 +27,7 @@
 #include "VResource.h"
 #include "VValueBag.h"
 #include "VTime.h"
+#include "VTextConverter.h"
 
 
 BEGIN_TOOLBOX_NAMESPACE
@@ -298,12 +299,7 @@ VFile::VFile( const VURL& inUrl )
 : fCachedVolumeInfo( NULL)
 {
 	inUrl.GetFilePath( fPath);
-
-	// It is possible to create JavaScript File objects (VJSFileIterator) of non-existing file.
-	// So do not check this fPath.IsFile() assertion. 
-	
-//	xbox_assert( fPath.IsFile());	
-
+	xbox_assert( fPath.IsFile());	
 	fImpl.Init(this);
 }
 
@@ -311,7 +307,7 @@ VFile::VFile( const VString& inFullPath, FilePathStyle inFullPathStyle)
 : fCachedVolumeInfo( NULL)
 {
 	fPath.FromFullPath( inFullPath, inFullPathStyle);
-//	xbox_assert( fPath.IsFile());
+	xbox_assert( fPath.IsFile());
 	fImpl.Init(this);
 }
 
@@ -1018,7 +1014,7 @@ bool VFile::IsSameFile( const VFile *inFile) const
 
 bool VFile::ConformsTo( const VFileKind& inKind) const
 {
-	bool ok;
+	bool ok=false;
 	VError err = fImpl.ConformsTo( inKind, &ok);
 
 	return (err == VE_OK) ? ok : false;
@@ -1027,7 +1023,7 @@ bool VFile::ConformsTo( const VFileKind& inKind) const
 
 bool VFile::ConformsTo( const VString& inKindID) const
 {
-	bool ok;
+	bool ok=false;
 
 	VFileKind *kind = VFileKind::RetainFileKind( inKindID);
 	if (kind != NULL)
@@ -1247,13 +1243,93 @@ VError VFile::GetContent( VMemoryBuffer<>& outContent) const
 			err = errThrow.GetError();
 		}
 		
-		if (err == VE_OK)
+		if ( (err == VE_OK) && (outContent.GetDataSize() > 0) )
 			err = desc->GetData( outContent.GetDataPtr(), outContent.GetDataSize(), 0, NULL);
 	}
 	delete desc;
 	
 	return err;
 }
+
+
+VError VFile::SetContent( const void *inDataPtr, size_t inDataSize) const
+{
+	VFileDesc *desc = NULL;
+	VError err = Open( FA_READ_WRITE, &desc, FO_CreateIfNotFound | FO_Overwrite);
+	if (err == VE_OK)
+	{
+		err = desc->SetSize( inDataSize);
+		if (err == VE_OK)
+			err = desc->PutData( inDataPtr, inDataSize, 0);
+	}
+	delete desc;
+	
+	return err;
+}
+
+
+VError VFile::GetContentAsString( VString& outContent, CharSet inDefaultSet, ECarriageReturnMode inCRMode) const
+{
+	StErrorContextInstaller errorContext( true);	// catch VString errors
+	VMemoryBuffer<> buffer;
+	VError err = GetContent( buffer);
+	if (err == VE_OK)
+	{
+		outContent.FromBlockWithOptionalBOM( buffer.GetDataPtr(), buffer.GetDataSize(), inDefaultSet);
+		outContent.ConvertCarriageReturns( inCRMode);
+	}
+	else
+	{
+		outContent.Clear();
+	}
+	return errorContext.GetLastError();
+}
+
+
+VError VFile::SetContentAsString( const VString& inContent, CharSet inCharSet, ECarriageReturnMode inCRMode) const
+{
+	StErrorContextInstaller errorContext( true);	// catch VString errors
+
+	VString s( inContent);
+	s.ConvertCarriageReturns( inCRMode);
+	
+	VFromUnicodeConverter *converter = VTextConverters::Get()->RetainFromUnicodeConverter( inCharSet);
+
+	if ( (converter == NULL) || !converter->IsValid())
+		vThrowError( VE_STREAM_NO_TEXT_CONVERTER);
+	else
+	{
+		void *data = NULL;
+		VSize dataSize = 0; 
+		bool ok = converter->ConvertRealloc( s.GetCPointer(), s.GetLength(), data, dataSize, 0 );
+	
+		if (ok)
+		{
+			VFileDesc *desc = NULL;
+			VError err = Open( FA_READ_WRITE, &desc, FO_CreateIfNotFound | FO_Overwrite);
+			if (err == VE_OK)
+			{
+				// Write BOM
+				size_t bomSize = 0;
+				const char *bom = VTextConverters::GetBOMForCharSet( inCharSet, &bomSize);
+				err = desc->SetSize( dataSize + bomSize);
+				if (err == VE_OK)
+					err = desc->PutDataAtPos( bom, bomSize);
+				if (err == VE_OK)
+					err = desc->PutDataAtPos( data, dataSize);
+			}
+			delete desc;
+		}
+
+		if (data != NULL)
+			vFree( data);
+	}
+
+	XBOX::ReleaseRefCountable( &converter);
+
+	return errorContext.GetLastError();
+}
+
 
 // -------------------------------------------------------
 

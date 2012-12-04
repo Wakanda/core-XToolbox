@@ -16,8 +16,8 @@
 #include "VKernelPrecompiled.h"
 #include "VTask.h"
 #include "VProcess.h"
-#include "VArrayValue.h"
 #include "VString.h"
+#include "VError.h"
 #include "XMacFiber.h"
 
 #include <pthread.h>
@@ -77,6 +77,12 @@ XMacTask::~XMacTask()
 }
 
 
+VTaskID XMacTask::GetValueForVTaskID() const
+{
+	return NULL_TASK_ID;
+}
+
+
 XMacTaskMgr *XMacTask::GetManager() const
 {
 	return VTaskMgr::Get()->GetImpl();
@@ -104,7 +110,7 @@ bool XMacTask::GetCPUTimes(Real& outSystemTime, Real& outUserTime) const
 		validValue = true;
 	}
 	else{
-		assert(false);
+		xbox_assert(false);
 	}
 	
 	return validValue;
@@ -118,7 +124,8 @@ bool XMacTask::GetCPUUsage(Real& outCPUUsage) const
 	integer_t cpuUsage = 0;
 	struct thread_basic_info t_info;
 	mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
-	if(thread_info(fMachThreadPort, THREAD_BASIC_INFO, (thread_info_t)&t_info, &count) == KERN_SUCCESS){
+	if (thread_info(fMachThreadPort, THREAD_BASIC_INFO, (thread_info_t)&t_info, &count) == KERN_SUCCESS)
+	{
 		cpuUsage = t_info.cpu_usage;
 		validValue = true;
 	}
@@ -138,7 +145,7 @@ void XMacTask::_Run()
 	
 	fPThreadID = ::pthread_self();
 	fMachThreadPort = pthread_mach_thread_np(fPThreadID);
-	assert(fMachThreadPort > 0);
+	xbox_assert(fMachThreadPort > 0);
 
 	GetManager()->SetCurrentTask( GetOwner());
 
@@ -158,9 +165,9 @@ void XMacTask::_Run()
 //================================================================================================================
 
 XMacTask_preemptive::XMacTask_preemptive( VTask *inOwner, bool /* for main task */ )
-	: XMacTask( inOwner, true)
-	, fSema( 0)
-	, fAllocatedStackAddress( 0)
+: XMacTask( inOwner, true)
+, fSema( 0)
+, fAllocatedStackAddress( 0)
 {	
 	fPThreadID = ::pthread_self();
 	fMachThreadPort = ::pthread_mach_thread_np(fPThreadID);
@@ -185,30 +192,45 @@ XMacTask_preemptive::XMacTask_preemptive( VTask *inOwner, bool /* for main task 
 
 
 XMacTask_preemptive::XMacTask_preemptive( VTask *inOwner)
-	: XMacTask( inOwner, false)
-	, fSema( 0)
-	, fAllocatedStackAddress( 0)
+: XMacTask( inOwner, false)
+, fSema( 0)
+, fAllocatedStackAddress( 0)
 {
 }
 
 
 XMacTask_preemptive::~XMacTask_preemptive()
 {
+	kern_return_t kr;
+
 	// the task must be dead so one can deallocate its stack safely
 	if (fPThreadID != 0)
 	{
+		// the thread might be still waitingfor Run() to be called.
+		if (fSema != 0)
+		{
+			kr = semaphore_signal( fSema);
+		}
+		
 		int r = pthread_join( fPThreadID, NULL);
 		xbox_assert( r == 0);
 	}
 	
-	kern_return_t kr;
-
 	if (fAllocatedStackAddress != 0)
 		kr = vm_deallocate( mach_task_self(), fAllocatedStackAddress, fAllocatedStackSize);
 
 	if (fSema != 0)
 		kr = semaphore_destroy( mach_task_self(), fSema);
 } 
+
+
+VTaskID XMacTask_preemptive::GetValueForVTaskID() const
+{
+	mach_port_t tid = pthread_mach_thread_np( fPThreadID);
+	if ( (VTaskID) tid == tid)
+		return (VTaskID) tid;
+	return NULL_TASK_ID;
+}
 
 
 void XMacTask_preemptive::Exit( VTask *inDestinationTask)
@@ -237,72 +259,105 @@ void *XMacTask_preemptive::_ThreadProc(void* inParam)
 	
 	kern_return_t kr = semaphore_wait( task->fSema);
 
-	task->_Run();	// never returns
+	// we may have been wakened up to delete self without Run() ever being called.
+	if (owner->GetState() == TS_RUN_PENDING)
+		task->_Run();	// never returns
 	
 	return NULL;
 }
 
 
-bool XMacTask_preemptive::Run()
+bool XMacTask_preemptive::_CreateThread()
 {
-	size_t stackSize = ((GetOwner()->GetStackSize() + vm_page_size - 1)/ vm_page_size) * vm_page_size;
+	xbox_assert( (fPThreadID == 0) && (fAllocatedStackAddress == 0) && (fSema == 0) );
 
+	size_t stackSize = ((GetOwner()->GetStackSize() + vm_page_size - 1)/ vm_page_size) * vm_page_size;
 	xbox_assert(stackSize >= PTHREAD_STACK_MIN); // 8192
 
 	// allocate a guard page
 	void *stackAddress = NULL;
 	fAllocatedStackSize = stackSize + vm_page_size;
 	kern_return_t kr = vm_allocate( mach_task_self(), &fAllocatedStackAddress, fAllocatedStackSize, VM_MAKE_TAG(VM_MEMORY_STACK) | TRUE);
-	if (kr != KERN_SUCCESS)
-	{
-		stackAddress = NULL;
-	}
-	else
+	if (kr == KERN_SUCCESS)
 	{
 	    /* The guard page is at the lowest address */
 	    /* The stack base is the highest address */
 		kr = vm_protect( mach_task_self(), fAllocatedStackAddress, vm_page_size, FALSE, VM_PROT_NONE);
 		stackAddress = (void *) (fAllocatedStackAddress + vm_page_size);
+
+		SetStackSize( stackSize);
 	}
 
-	pthread_attr_t att;
-	int r = pthread_attr_init( &att);
-	xbox_assert( r == 0);
-
-	r = pthread_attr_setstack( &att, stackAddress, stackSize);
-	xbox_assert( r == 0);
-
-	// on need to use pthread_join to safely dispose the thread stack.
-	r = pthread_attr_setdetachstate( &att, PTHREAD_CREATE_JOINABLE);
-	xbox_assert( r == 0);
-	
 	// the thread will wait on this semaphore to be sure fPThreadID is properly set before it runs
-	kr = semaphore_create( mach_task_self(), &fSema, SYNC_POLICY_FIFO, 0);
+	if (testAssert( kr == KERN_SUCCESS))
+		kr = semaphore_create( mach_task_self(), &fSema, SYNC_POLICY_FIFO, 0);
+
+	if (kr != KERN_SUCCESS)
+		vThrowMachError( kr);
+	else
+	{
+		pthread_attr_t att;
+		int r = pthread_attr_init( &att);
+
+		if (testAssert( r == 0))
+			r = pthread_attr_setstack( &att, stackAddress, stackSize);
+
+		// one need to use pthread_join to safely dispose the thread stack.
+		if (testAssert( r == 0))
+			r = pthread_attr_setdetachstate( &att, PTHREAD_CREATE_JOINABLE);
+
+		if (testAssert( r == 0))
+			r = pthread_create( &fPThreadID, &att, _ThreadProc, this);
+	/*
+		 [EAGAIN]           The system lacked the necessary resources to create
+							another thread, or the system-imposed limit on the
+							total number of threads in a process
+							[PTHREAD_THREADS_MAX] would be exceeded.
+
+		 [EINVAL]           The value specified by attr is invalid.
+	*/
+
+		if (r != 0)
+		{
+			vThrowPosixError( r);
+		}
+
+		r = pthread_attr_destroy( &att);
+	}
 	
-	r = pthread_create( &fPThreadID, &att, _ThreadProc, this);
+	return fPThreadID != 0;
+}
+
+
 /*
-     [EAGAIN]           The system lacked the necessary resources to create
-                        another thread, or the system-imposed limit on the
-                        total number of threads in a process
-                        [PTHREAD_THREADS_MAX] would be exceeded.
-
-     [EINVAL]           The value specified by attr is invalid.
+	static
 */
+XMacTask_preemptive *XMacTask_preemptive::Create( VTask *inOwner)
+{
+	XMacTask_preemptive *task = new XMacTask_preemptive( inOwner);
+	if (!task->_CreateThread())
+	{
+		delete task;
+		task = NULL;
+	}
+	return task;
+}
 
+
+bool XMacTask_preemptive::Run()
+{
 	bool ok;
-	if (r == 0)
+	if (fPThreadID != 0)
 	{
 		ok = true;
-		SetStackSize( stackSize);
-		kr = semaphore_signal( fSema);
+		kern_return_t kr = semaphore_signal( fSema);
+		xbox_assert( kr == KERN_SUCCESS);
 	}
 	else
 	{
 		ok = false;
 	}
 	
-	r = pthread_attr_destroy( &att);
-
 	return ok;
 }
 
@@ -461,16 +516,9 @@ XMacTask *XMacTaskMgr::Create( VTask* inOwner, ETaskStyle inStyle)
 				break;
 			}
 
-		case eTaskStyleCooperative:
-			{
-				xbox_assert( false);
-				macTask = NULL;	//new XMacTask_cooperative( inOwner);
-				break;
-			}
-
 		case eTaskStylePreemptive:
 			{
-				macTask = new XMacTask_preemptive( inOwner);
+				macTask = XMacTask_preemptive::Create( inOwner);
 				break;
 			}
 		
@@ -589,12 +637,14 @@ bool XMacTaskMgr::IsFibersThreadingModel()
 }
 
 
-void XMacTaskMgr::SetCurrentThreadName( const VString& inName) const
+void XMacTaskMgr::SetCurrentThreadName( const VString& inName, VTaskID inTaskID) const
 {
 #if defined(MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6)
 	if (VSystem::MAC_GetSystemVersionDecimal() >= 100600)
 	{
-		VStringConvertBuffer buffer( inName, VTC_UTF_8);
+		VString name( inName);
+		name.AppendPrintf( " (id = %d)", inTaskID);
+		VStringConvertBuffer buffer( name, VTC_UTF_8);
 		pthread_setname_np( buffer.GetCPointer());
 	}
 #endif

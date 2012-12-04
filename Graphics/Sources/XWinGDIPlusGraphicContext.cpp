@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "XWinGDIGraphicContext.h"
 #include "XWinGDIPlusGraphicContext.h"
@@ -2203,8 +2202,10 @@ void VWinGDIPlusGraphicContext::DrawTextBox(const VString& inString, AlignStyle 
 	if ((inOptions & TLM_DONT_WRAP) != 0)
 		format.SetFormatFlags(StringFormatFlagsNoWrap);
 
-	if ((inOptions & TLM_TRUNCATE_MIDDLE_IF_NECESSARY) != 0)
+	if ((inOptions & TLM_TRUNCATE_END_IF_NECESSARY) != 0)
 		format.SetTrimming(StringTrimmingEllipsisCharacter);
+	else if ((inOptions & TLM_TRUNCATE_MIDDLE_IF_NECESSARY) != 0)
+		format.SetTrimming(StringTrimmingEllipsisPath);
 	else
 		format.SetTrimming(StringTrimmingNone);
 
@@ -2281,8 +2282,10 @@ void VWinGDIPlusGraphicContext::GetTextBoxBounds( const VString& inString, VRect
 	if ((inOptions & TLM_DONT_WRAP) != 0)
 		format.SetFormatFlags(StringFormatFlagsNoWrap);
 	
-	if ((inOptions & TLM_TRUNCATE_MIDDLE_IF_NECESSARY) != 0)
+	if ((inOptions & TLM_TRUNCATE_END_IF_NECESSARY) != 0)
 		format.SetTrimming(StringTrimmingEllipsisCharacter);
+	else if ((inOptions & TLM_TRUNCATE_MIDDLE_IF_NECESSARY) != 0)
+		format.SetTrimming(StringTrimmingEllipsisPath);
 	else
 		format.SetTrimming(StringTrimmingNone);
 	

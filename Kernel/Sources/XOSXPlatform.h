@@ -35,11 +35,9 @@
 	
 #if defined(__MWERKS__)
 	#define COMPIL_VISUAL	0
-	#define COMPIL_CODEWARRIOR	1
 	#define COMPIL_GCC	0
 #elif defined(__GNUC__) && (defined(__APPLE_CPP__) || defined(__APPLE_CC__) || defined(__MACOS_CLASSIC__))
 	#define COMPIL_VISUAL	0
-	#define COMPIL_CODEWARRIOR	0
 	#define COMPIL_GCC	1
 #endif
 	
@@ -69,28 +67,7 @@
 #endif
 
 	// Processor & memory macros
-#if defined(__ppc64__)
-	#define VERSION_64BIT	1
-	#ifndef BIGENDIAN
-		#define BIGENDIAN		1
-	#endif
-	#ifndef SMALLENDIAN
-		#define SMALLENDIAN		0
-	#endif
-	#define ARCH_386		0
-	#define ARCH_POWER		1
-#elif defined(__ppc__)
-	#define VERSION_64BIT	0
-	#ifndef BIGENDIAN
-		#define BIGENDIAN		1
-	#endif
-	#ifndef SMALLENDIAN
-		#define SMALLENDIAN		0
-	#endif
-	#define ARCH_386		0
-	#define ARCH_POWER		1
-#elif defined(__i386__)
-	#define VERSION_64BIT	0
+#if defined(__i386__)
 	#ifndef BIGENDIAN
 		#define BIGENDIAN		0
 	#endif
@@ -100,7 +77,6 @@
 	#define ARCH_386		1
 	#define ARCH_POWER		0
 #elif __LP64__
-	#define VERSION_64BIT	1
 	#ifndef BIGENDIAN
 		#define BIGENDIAN		0
 	#endif
@@ -110,20 +86,14 @@
 	#define ARCH_386		1
 	#define ARCH_POWER		0
 #else
-	#error "Unkown architecture or no supported"
+	#error "Unkown architecture or not supported"
 #endif
 
 	#define VTC_WCHAR	VTC_UTF_32_RAW
 	#define WCHAR_IS_UNICHAR	0
 
 	// Compiler relative macros & settings
-#if defined(__MWERKS__)
-	#define EXPORT_API	__declspec (export)
-	#define IMPORT_API	__declspec (import)
-	#define EXPORT_TEMPLATE_API	__declspec (export)
-	#define IMPORT_TEMPLATE_API	__declspec (import)
-	#define EXPORT_UNMANGLED_API(_return_type_)	extern "C" __declspec (export) _return_type_
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
 	// By default, all symbols are exported using MachO but you may use 'nmedit' to remove some symbols
 	#define EXPORT_API		__attribute__((visibility("default")))
 	#define IMPORT_API		__attribute__((visibility("default")))
@@ -134,15 +104,7 @@
 #endif
 
 	// Required includes
-#if COMPIL_CODEWARRIOR
-	#include <ansi_parms.h>
-	#include <null.h>
-	#include <size_t.h>
-	#include <unistd.h>
-	#include <utime.h>
-	#include <va_list.h>
-	#include <typeinfo.h>
-#elif COMPIL_GCC
+#if COMPIL_GCC
 	#include <stdbool.h>
 	#include <stdlib.h>
 	#include <unistd.h>

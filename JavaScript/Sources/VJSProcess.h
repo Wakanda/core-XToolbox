@@ -42,27 +42,35 @@ public:
 private:
 };
 
-
 class XTOOLBOX_API VJSOS : public XBOX::VJSClass<VJSOS, void>
 {
 public:
-	typedef XBOX::VJSClass<VJSOS, void> inherited;
+	
+	static void	GetDefinition( ClassDefinition& outDefinition);
+	
+private:
+		
+	struct Address {
+		
+		XBOX::VString	fInterfaceName, fIPAddress;
+		bool			fIsIPv6, fIsInternal;	
+		
+	};
 
-	static	void			Initialize ( const XBOX::VJSParms_initialize& inParms, void* );
-	static	void			Finalize ( const XBOX::VJSParms_finalize& inParms, void* );
-	static	void			GetDefinition( ClassDefinition& outDefinition);
+	static void	_Initialize (const XBOX::VJSParms_initialize &inParms, void *);
+	static void	_Finalize (const XBOX::VJSParms_finalize &inParms, void *);
 
 	// Functions
-	static	void			_type( XBOX::VJSParms_callStaticFunction& ioParms, void* );
+
+	static void	_Type (XBOX::VJSParms_callStaticFunction &ioParms, void *);
+	static void	_NetworkInterfaces (XBOX::VJSParms_callStaticFunction &ioParms, void *);
 
 	// Properties
-	static	void			_IsMac ( XBOX::VJSParms_getProperty& ioParms, void* );
-	static	void			_IsWindows ( XBOX::VJSParms_getProperty& ioParms, void* );
-	static	void			_IsLinux ( XBOX::VJSParms_getProperty& ioParms, void* );
 
-private:
+	static void	_IsMac (XBOX::VJSParms_getProperty &ioParms, void *);
+	static void	_IsWindows (XBOX::VJSParms_getProperty &ioParms, void *);
+	static void	_IsLinux (XBOX::VJSParms_getProperty &ioParms, void *);
 };
-
 
 END_TOOLBOX_NAMESPACE
 

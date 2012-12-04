@@ -16,7 +16,11 @@
 #ifndef __JSW_DEBUGGER_FACTORY__
 #define __JSW_DEBUGGER_FACTORY__
 
+#if 0//!WKA_USE_UNIFIED_DBG
 #include "IJSWDebugger.h"
+#else
+#include "4DDebuggerServer.h"
+#endif
 
 
 #ifdef JSDEBUGGER_EXPORTS
@@ -34,26 +38,44 @@ class JSDEBUGGER_API JSWDebuggerFactory
 {
 	public:
 		JSWDebuggerFactory ( ) { ; }
-
+#if 0
 		IJSWDebugger* Get ( );
-		IJSWChrmDebugger*	GetCD();
-
-	private :
+#else
+		IWAKDebuggerServer*	Get();
+		IWAKDebuggerServer*	GetChromeDebugHandler();
+		IWAKDebuggerServer*	GetChromeDebugHandler(
+			const XBOX::VString inIP,
+			uLONG				inPort,
+			const XBOX::VString inDebuggerHTMLSkeleton,
+			const XBOX::VString inTracesHTMLSkeleton);
+#endif
+	private:
 };
 
 
+class IAuthenticationInfos;
+#if 0 //!WKA_USE_UNIFIED_DBG
 class JSDEBUGGER_API IJSWDebuggerSettings
+#else
+class JSDEBUGGER_API IWAKDebuggerSettings
+#endif
 {
 	public:
 
 		virtual bool NeedsAuthentication ( ) const = 0;
 		/* Returns 'true' if a given user can debug with this JS debugger. Returns 'false' otherwise. */
-		virtual bool UserCanDebug ( const UniChar* inUserName, const UniChar* inSeededHA1, const UniChar* inSeed ) const = 0;
+		virtual bool UserCanDebug ( const UniChar* inUserName, const UniChar* inUserPassword ) const = 0;
+		virtual bool UserCanDebug(IAuthenticationInfos* inAuthenticationInfos) const = 0;
+		virtual bool HasDebuggerUsers ( ) const = 0;
 
 	protected:
-	
+#if 0//!defined(WKA_USE_UNIFIED_DBG)	
 		IJSWDebuggerSettings ( ) { ; }
 		virtual ~IJSWDebuggerSettings ( ) { ; }
+#else
+		IWAKDebuggerSettings ( ) { ; }
+		virtual ~IWAKDebuggerSettings ( ) { ; }
+#endif
 };
 
 

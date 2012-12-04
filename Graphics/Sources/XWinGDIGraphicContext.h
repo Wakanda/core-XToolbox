@@ -16,7 +16,6 @@
 #ifndef __XWinGDIGraphicContext__
 #define __XWinGDIGraphicContext__
 
-#include "KernelIPC/VKernelIPC.h"
 #include "Graphics/Sources/VGraphicContext.h"
 
 BEGIN_TOOLBOX_NAMESPACE

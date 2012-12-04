@@ -38,7 +38,7 @@ VJSStructuredClone *VJSStructuredClone::RetainClone (XBOX::VJSValue inValue)
 
 		XBOX::VJSValue				value(inValue.GetContext(), toDoList.front().fValueRef);
 		XBOX::VJSPropertyIterator	i(value.GetObject());
-		SNode						*p, *q;
+		SNode						*p, *q, *r;
 
 		p = toDoList.front().fNode;
 		xbox_assert(p->fType == eNODE_OBJECT || p->fType == eNODE_ARRAY);
@@ -51,39 +51,47 @@ VJSStructuredClone *VJSStructuredClone::RetainClone (XBOX::VJSValue inValue)
 
 			continue;
 
-		// Set first child.
+		// Get prototype and dump its attribute names.
 
-		value = i.GetProperty();
-		if ((p->fValue.fFirstChild = _ValueToNode(value, &alreadyCreated, &toDoList)) == NULL) {
+		XBOX::VJSObject	prototypeObject	= value.GetObject().GetPrototype(inValue.GetContext());
+		bool			hasPrototype	= prototypeObject.IsObject();
 
-			_FreeNode(root);
-			root = NULL;			
-			break;
-
-		} 		
-		q = p->fValue.fFirstChild;
-		i.GetPropertyName(q->fName);		
-		++i;
-
-		// Iterate sibling(s).
+		// Iterate child(s).
 
 		for ( ; i.IsValid(); ++i) {
 
+			XBOX::VString	name;
+
+			i.GetPropertyName(name);
+	
+			// Check attribute name: If it is part of prototype, do not clone it.
+
+			if (hasPrototype && prototypeObject.HasProperty(name))
+
+				continue;
+
 			value = i.GetProperty();
-			if ((p = _ValueToNode(value, &alreadyCreated, &toDoList)) == NULL) 
+			if ((r = _ValueToNode(value, &alreadyCreated, &toDoList)) == NULL) 
 
 				break;
 
-			else {
+			else if (p->fValue.fFirstChild != NULL) 
+				
+				q->fNextSibling = r;
+						
+			else
+				
+				p->fValue.fFirstChild = r;
 
-				q = q->fNextSibling = p;
-				i.GetPropertyName(p->fName);
-
-			}
+			r->fName = name;
+			q = r;
 
 		}
 
-		q->fNextSibling = NULL;
+		if (p->fValue.fFirstChild != NULL) 
+
+			q->fNextSibling = NULL;
+
 		if (i.IsValid()) {
 
 			_FreeNode(root);
@@ -232,17 +240,17 @@ VJSStructuredClone::SNode *VJSStructuredClone::_ValueToNode (XBOX::VJSValue inVa
 
 	switch (inValue.GetType()) {
 
-		case VJSValue::eTYPE_UNDEFINED: 
+		case JS4D::eTYPE_UNDEFINED: 
 
 			p->fType = eNODE_UNDEFINED;
 			break;
 
-		case VJSValue::eTYPE_NULL:
+		case JS4D::eTYPE_NULL:
 
 			p->fType = eNODE_NULL;
 			break;
 
-		case VJSValue::eTYPE_BOOLEAN:
+		case JS4D::eTYPE_BOOLEAN:
 
 			p->fType = eNODE_BOOLEAN;
 			if (!inValue.GetBool(&p->fValue.fBoolean)) {
@@ -253,7 +261,7 @@ VJSStructuredClone::SNode *VJSStructuredClone::_ValueToNode (XBOX::VJSValue inVa
 			}
 			break;
     	
-		case VJSValue::eTYPE_NUMBER:
+		case JS4D::eTYPE_NUMBER:
 
 			p->fType = eNODE_NUMBER;
 			if (!inValue.GetReal(&p->fValue.fNumber)) {
@@ -264,7 +272,7 @@ VJSStructuredClone::SNode *VJSStructuredClone::_ValueToNode (XBOX::VJSValue inVa
 			}
 			break;
 
-		case VJSValue::eTYPE_STRING: {
+		case JS4D::eTYPE_STRING: {
 
 			XBOX::VString	string;
 
@@ -280,7 +288,7 @@ VJSStructuredClone::SNode *VJSStructuredClone::_ValueToNode (XBOX::VJSValue inVa
 
 		}
 
-		case VJSValue::eTYPE_OBJECT: {
+		case JS4D::eTYPE_OBJECT: {
 
 			std::vector<VJSValue>	emptyArgument;	
 			XBOX::VString			string;

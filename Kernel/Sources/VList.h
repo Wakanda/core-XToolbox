@@ -32,6 +32,8 @@ template<class Type> class VListItem;
 		It is a double-linked list where each node encapsulates the data.
 
 		Use VListPtrOf if you want to use pointers to objects.
+		
+		DEPRECATED: use STL instead
 */
 
 template<class Type>

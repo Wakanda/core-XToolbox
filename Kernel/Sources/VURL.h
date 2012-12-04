@@ -356,7 +356,7 @@ public:
 					The usual set of characters to escape is 'unsafe' caracters as defined in RFC 1738.
 					<, >, \, ", #, %, {, }, |, \, ^, ~, [, ], `, ", and space
 	*/
-	static	void		Encode (VString& ioString, bool convertColon = false, bool decomposeString = false);
+	static	void		Encode (VString& ioString, bool inConvertColon = false, bool inDecomposeString = false, bool inEncodeBrackets = true);
 
 	/*!
 		@function	Decode

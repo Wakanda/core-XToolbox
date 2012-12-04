@@ -53,17 +53,15 @@ bool IJSEvent::InsertEvent (std::list<IJSEvent *> *ioEventQueue, IJSEvent *inEve
 
 VJSMessageEvent *VJSMessageEvent::Create (VJSMessagePort *inMessagePort, VJSStructuredClone *inMessage)
 {
-	xbox_assert(inMessagePort != NULL);
-
-	inMessage->Retain();
+	xbox_assert(inMessagePort != NULL && inMessage != NULL);
 
 	VJSMessageEvent	*messageEvent;
 
 	messageEvent = new VJSMessageEvent();
 	messageEvent->fType = eTYPE_MESSAGE; 
 	messageEvent->fTriggerTime.FromSystemTime();	// Service as soon as possible.
-	messageEvent->fMessagePort = inMessagePort;
-	messageEvent->fData = inMessage;
+	messageEvent->fMessagePort = XBOX::RetainRefCountable<VJSMessagePort>(inMessagePort);
+	messageEvent->fData = XBOX::RetainRefCountable<VJSStructuredClone>(inMessage);
 
 	return messageEvent;
 }
@@ -96,7 +94,8 @@ void VJSMessageEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
 
 void VJSMessageEvent::Discard ()
 {
-	fData->Release();
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&fMessagePort);
+	XBOX::ReleaseRefCountable<VJSStructuredClone>(&fData);
 	Release();
 }
 
@@ -123,9 +122,9 @@ VJSConnectionEvent *VJSConnectionEvent::Create (VJSMessagePort *inConnectionPort
 	connectionEvent = new VJSConnectionEvent();
 	connectionEvent->fType = eTYPE_CONNECTION; 
 	connectionEvent->fTriggerTime.FromSystemTime();	// Service as soon as possible.
-	connectionEvent->fConnectionPort = inConnectionPort;
-	connectionEvent->fMessagePort = inMessagePort;
-	connectionEvent->fErrorPort = inErrorPort;
+	connectionEvent->fConnectionPort = XBOX::RetainRefCountable<VJSMessagePort>(inConnectionPort);	
+	connectionEvent->fMessagePort = XBOX::RetainRefCountable<VJSMessagePort>(inMessagePort);	
+	connectionEvent->fErrorPort = XBOX::RetainRefCountable<VJSMessagePort>(inErrorPort);
 	
 	return connectionEvent;
 }
@@ -180,11 +179,16 @@ void VJSConnectionEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorke
 
 void VJSConnectionEvent::Discard ()
 {
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&fConnectionPort);
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&fMessagePort);
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&fErrorPort);	
 	Release();
 }
 
 VJSErrorEvent *VJSErrorEvent::Create (VJSMessagePort *inMessagePort, 
-									  const XBOX::VString &inMessage, const XBOX::VString &inFileName, sLONG inLineNumber)
+										const XBOX::VString &inMessage, 
+										const XBOX::VString &inFileName, 
+										sLONG inLineNumber)
 {
 	xbox_assert(inMessagePort != NULL);
 
@@ -193,7 +197,7 @@ VJSErrorEvent *VJSErrorEvent::Create (VJSMessagePort *inMessagePort,
 	errorEvent = new VJSErrorEvent();
 	errorEvent->fType = eTYPE_ERROR; 
 	errorEvent->fTriggerTime.FromSystemTime();	// Service as soon as possible.
-	errorEvent->fMessagePort = inMessagePort;
+	errorEvent->fMessagePort = XBOX::RetainRefCountable<VJSMessagePort>(inMessagePort);
 	errorEvent->fMessage = inMessage;
 	errorEvent->fFileName = inFileName;
 	errorEvent->fLineNumber = inLineNumber;
@@ -239,6 +243,7 @@ void VJSErrorEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
 
 void VJSErrorEvent::Discard ()
 {
+	XBOX::ReleaseRefCountable<VJSMessagePort>(&fMessagePort);
 	Release();
 }
 	
@@ -422,13 +427,7 @@ void VJSSystemWorkerEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWor
 				argumentObject.SetProperty("hasStarted", data->fHasStarted);
 				argumentObject.SetProperty("forced", data->fForcedTermination);
 				argumentObject.SetProperty("exitStatus", (Real) data->fExitStatus);
-
-
-#if VERSIONMAC || VERSION_LINUX 
-
 				argumentObject.SetProperty("pid", data->fPID);	
-
-#endif
 
 			}
 
@@ -494,10 +493,8 @@ VJSNetEvent *VJSNetEvent::Create (VJSEventEmitter *inEventEmitter, const XBOX::V
 	netEvent->fTriggerTime.FromSystemTime();
 
 	netEvent->fSubType = eTYPE_NO_ARGUMENT;
-	netEvent->fEventEmitter = inEventEmitter;
+	netEvent->fEventEmitter = XBOX::RetainRefCountable<VJSEventEmitter>(inEventEmitter);
 	netEvent->fEventName = inEventName;
-
-	RetainRefCountable(inEventEmitter);
 	
 	return netEvent;
 }
@@ -515,11 +512,9 @@ VJSNetEvent *VJSNetEvent::CreateData (VJSNetSocketObject *inSocketObject, uBYTE 
 	netEvent->fTriggerTime.FromSystemTime();
 
 	netEvent->fSubType = eTYPE_DATA;
-	netEvent->fEventEmitter = inSocketObject;
+	netEvent->fEventEmitter = XBOX::RetainRefCountable<VJSNetSocketObject>(inSocketObject);
 	netEvent->fData = inData;
 	netEvent->fSize = inSize;
-
-	RetainRefCountable(inSocketObject);
 	
 	return netEvent;
 }
@@ -535,10 +530,8 @@ VJSNetEvent *VJSNetEvent::CreateError (VJSEventEmitter *inEventEmitter, const XB
 	netEvent->fTriggerTime.FromSystemTime();
 
 	netEvent->fSubType = eTYPE_ERROR;
-	netEvent->fEventEmitter = inEventEmitter;
+	netEvent->fEventEmitter = XBOX::RetainRefCountable<VJSEventEmitter>(inEventEmitter);
 	netEvent->fExceptionName = inExceptionName;
-
-	RetainRefCountable(inEventEmitter);
 		
 	return netEvent;
 }
@@ -554,10 +547,8 @@ VJSNetEvent *VJSNetEvent::CreateClose (VJSEventEmitter *inEventEmitter, bool inH
 	netEvent->fTriggerTime.FromSystemTime();
 
 	netEvent->fSubType = eTYPE_CLOSE;
-	netEvent->fEventEmitter = inEventEmitter;
+	netEvent->fEventEmitter = XBOX::RetainRefCountable<VJSEventEmitter>(inEventEmitter);
 	netEvent->fHadError = inHadError;
-
-	RetainRefCountable(inEventEmitter);
 		
 	return netEvent;
 }
@@ -573,10 +564,8 @@ VJSNetEvent	*VJSNetEvent::CreateConnection (VJSNetServerObject *inServerObject, 
 	netEvent->fTriggerTime.FromSystemTime();
 
 	netEvent->fSubType = inIsSSL ? eTYPE_CONNECTION_SSL : eTYPE_CONNECTION;
-	netEvent->fEventEmitter = inServerObject;
+	netEvent->fEventEmitter = XBOX::RetainRefCountable<VJSNetServerObject>(inServerObject);
 	netEvent->fEndPoint = inEndPoint;
-		
-	RetainRefCountable(inServerObject);
 	
 	return netEvent;
 }
@@ -703,7 +692,7 @@ void VJSNetEvent::Discard ()
 
 	}
 
-	ReleaseRefCountable(&fEventEmitter);
+	XBOX::ReleaseRefCountable<VJSEventEmitter>(&fEventEmitter);
 
 	Release();
 }
@@ -969,8 +958,8 @@ void VJSW3CFSEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
 		case eOPERATION_REMOVE:					code = fEntry->Remove(inContext, &resultObject); break;
 		case eOPERATION_GET_PARENT:				code = fEntry->GetParent(inContext, &resultObject); break;
 
-		case eOPERATION_GET_FILE:				code = fEntry->GetFile(inContext, fEntry, fURL, fFlags, &resultObject); break;
-		case eOPERATION_GET_DIRECTORY:			code = fEntry->GetDirectory(inContext, fEntry, fURL, fFlags, &resultObject); break;
+		case eOPERATION_GET_FILE:				code = fEntry->GetFile(inContext, fURL, fFlags, &resultObject); break;
+		case eOPERATION_GET_DIRECTORY:			code = fEntry->GetDirectory(inContext, fURL, fFlags, &resultObject); break;
 		case eOPERATION_REMOVE_RECURSIVELY:		code = fEntry->RemoveRecursively(inContext, &resultObject); break;
 		case eOPERATION_FOLDER:					code = fEntry->Folder(inContext, &resultObject); break;
 		

@@ -227,10 +227,10 @@ class XTOOLBOX_API VPictureQDBridgeBase:public VObject
 	virtual void DrawInPortRef(const VPictureData &inCaller,CGPDFDocumentRef  inPict,PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet=NULL)=0;
 	void DrawInCGContext(const VPictureData &inCaller,CGPDFDocumentRef  inPict,ContextRef inContextRef,const VRect& inBounds,VPictureDrawSettings* inSet=NULL);
 	
-	#if !VERSION_64BIT
+	#if WITH_QUICKDRAW
 	virtual void DrawInPortRef(const VPictureData &inCaller,xMacPictureHandle inPict,PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet=NULL)=0;
 	void DrawInCGContext(const VPictureData &inCaller,xMacPictureHandle inPict,ContextRef inContextRef,const VRect& inBounds,VPictureDrawSettings* inSet=NULL);
-	
+
 	virtual void DrawInPortRef(const VPictureData &inCaller,QDPictRef inPict,PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet=NULL)=0;
 	void DrawInCGContext(const VPictureData &inCaller,QDPictRef inPict,ContextRef inContextRef,const VRect& inBounds,VPictureDrawSettings* inSet=NULL);
 	#endif
@@ -359,7 +359,7 @@ public:
 
 // pp warning
 // les fonction get ci dessous retourne le pointeur sur l'intance dessinable de l'image, ATTENTION ce n'est pas une copie
-// pour obtenir une copie d'un type x, qq soit le type de la source il faut utiliser Create... c'est a lutilisateur de lobject reourné de le disposé
+// pour obtenir une copie d'un type x, qq soit le type de la source il faut utiliser Create... c'est a lutilisateur de lobject reourn de le dispos
 
 #if VERSIONWIN
 	virtual HENHMETAFILE		GetMetafile()const{return NULL;}
@@ -452,17 +452,14 @@ protected:
 	
 	void xDraw(CGPDFDocumentRef  inPict,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
 	void xDraw(CGPDFDocumentRef  inPict,CGContextRef inDC,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
-#if !VERSION_64BIT
+#if WITH_QUICKDRAW
 	void xDraw(QDPictRef inPict,CGContextRef inDC,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
 	void xDraw(QDPictRef inPict,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
 #endif
 	void xDraw(xMacPictureHandle inPict,CGContextRef inDC,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
 	void _PrepareCGContext(CGContextRef inDC,const VRect& inBounds,VPictureDrawSettings* inSet=NULL)const;
 	#endif
-	
-#if USE_QUICKTIME
-	void xDraw(QTInstanceRef inPict,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
-#endif
+
 	void xDraw(xMacPictureHandle inPict,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet=NULL)const;
 	
 	void _ReleaseDataProvider();
@@ -656,6 +653,9 @@ class XTOOLBOX_API VPictureData_Meta :public VPictureData_Vector
 	virtual VError Save(VBlob* inData,VIndex inOffset,VSize& outSize,_VPictureAccumulator* inRecorder=0)const;
 	virtual VSize GetDataSize(_VPictureAccumulator* inRecorder=0) const;
 	virtual VPictureData* Clone()const;
+	
+	bool	FindDeprecatedPictureData(bool inLookForMacPicture,bool inLookForQuicktimeCodec)const;
+
 	#if VERSIONWIN
 	virtual Gdiplus::Metafile*	CreateGDIPlus_Metafile(VPictureDrawSettings* inSet=NULL) const;
 	virtual HENHMETAFILE		CreateMetafile(VPictureDrawSettings* inSet=NULL) const;
@@ -692,7 +692,7 @@ class XTOOLBOX_API VPictureData_Meta :public VPictureData_Vector
 	mutable class VPicture* fPicture1;
 	mutable class VPicture* fPicture2;
 	mutable sLONG fOperation;
-	_VPictureAccumulator* fRecorder;
+	mutable _VPictureAccumulator* fRecorder;
 };
 
 class XTOOLBOX_API VPictureData_VPicture : public VPictureData_Vector
@@ -775,7 +775,7 @@ class XTOOLBOX_API VPictureData_NonRenderable_ITKBlobPict :public VPictureData_N
 	
 };
 
-#if ((VERSIONMAC && !VERSION_64BIT) || VERSIONWIN)
+#if VERSIONWIN || WITH_QUICKDRAW
 class XTOOLBOX_API VPictureData_MacPicture :public VPictureData_Vector
 {
 	typedef VPictureData_Vector inherited;
@@ -813,8 +813,6 @@ class XTOOLBOX_API VPictureData_MacPicture :public VPictureData_Vector
 	virtual xMacPictureHandle GetPicHandle()const; // return the pichandle in cache
 	virtual xMacPictureHandle CreatePicHandle(VPictureDrawSettings* inSet,bool& outCanAddPicEnd) const; // return a new pichandle, owner is the caller
 	virtual VSize GetDataSize(_VPictureAccumulator* inRecorder=0) const;
-	
-	Boolean HasQuicktimeData();
 
 	protected:
 	
@@ -839,25 +837,7 @@ class XTOOLBOX_API VPictureData_MacPicture :public VPictureData_Vector
 	
 };
 
-class xMacPictParser
-{
-	private:
-	xMacPictParser(const xMacPictParser& inParser)
-	:fStream(inParser.fStream){assert(false);}
-	xMacPictParser& operator=(const xMacPictParser&){assert(false);return *this;}
-	public:
-	xMacPictParser(VStream& pStream,Boolean pFromFile=false);
-	virtual ~xMacPictParser();
-	VError StartParsing();
-	void StopParsing();
-	sLONG FindOpcodeOffset(sWORD pOpcode);
-	Boolean FindOpcodes(uWORD* pOpcodes,sWORD pCount);
-	sLONG GetPictOpcodeSkipSize(VStream& pStream,uWORD opcode);
-	protected:
-	sLONG fPictSize;
-	VStream& fStream;
-	Boolean fFromFile;
-};
+
 #endif
 class XTOOLBOX_API VPictureData_Animator : public VObject
 {

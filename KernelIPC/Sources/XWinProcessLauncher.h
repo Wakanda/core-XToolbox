@@ -65,50 +65,58 @@ inline	void		CanGetExitStatus()		{ fCanGetExitStatus = true; }
 
 		sLONG		Shutdown(bool inWithKillIndependantChildProcess = false);
 
+		sLONG		GetPid ()	{	return fProcessID;	}
+
 private:
-		char		*fCurrentDirectory;
-		EnvVarNamesAndValuesMap		fEnvirVariables;
+		wchar_t					*fCurrentDirectory;
+		EnvVarNamesAndValuesMap	fEnvirVariables;
 		
-		char		*fBinaryPath;
+		wchar_t					*fBinaryPath;
 		std::vector<VString>	fArrayArg;
 		
-		bool		fIsRunning;	// if true, then pipes and fProcessID are valid
-		bool		fShutdown;
+		bool					fIsRunning;	// if true, then pipes and fProcessID are valid
+		bool					fShutdown;
 
-		bool		fWaitClosingChildProcess;
+		bool					fWaitClosingChildProcess;
 		
-		int			fProcessID;
-		PROCESS_INFORMATION fProcInfo;
+		int						fProcessID;
+		PROCESS_INFORMATION		fProcInfo;
 	
-		DWORD		fExitStatus;
+		DWORD					fExitStatus;
 
-		HANDLE		fChildStdInRead, fChildStdInWrite, fChildStdInWriteDup;
-		HANDLE		fChildStdOutRead, fChildStdOutWrite, fChildStdOutReadDup;
-		HANDLE		fChildStdErrRead, fChildStdErrWrite, fChildStdErrReadDup;
+		HANDLE					fChildStdInRead, fChildStdInWrite, fChildStdInWriteDup;
+		HANDLE					fChildStdOutRead, fChildStdOutWrite, fChildStdOutReadDup;
+		HANDLE					fChildStdErrRead, fChildStdErrWrite, fChildStdErrReadDup;
 							
 		// By default, fRedirectStandardInput = true and fRedirectStandardOutput = true. 
 		// If true	: standard input/output are redirected (only affect Windows platform at the moment) mbucatariu, 30/09/2003
 		// On MacOSX : standard input/output are always redirected.
-		bool		fRedirectStandardInput;		
-		bool		fRedirectStandardOutput;
+
+		bool					fRedirectStandardInput;		
+		bool					fRedirectStandardOutput;
 		
-		bool		fHideWindow;
-		bool		fCanGetExitStatus;
+		bool					fHideWindow;
+		bool					fCanGetExitStatus;
 
-		char *		_CreateConcatenetedArguments();
-		char *		_CreateEnvironmentVariablesBlock(const EnvVarNamesAndValuesMap &inVarToUse);
+		wchar_t *				_CreateConcatenetedArguments();
+		wchar_t *				_CreateEnvironmentVariablesBlock(const EnvVarNamesAndValuesMap &inVarToUse);
 
-	/*	Convert the VString to Ansi-win c-string
+	/*	Convert the VString to Windows UniCode (UTF-16) C-string.
+
+		Previous version of this function used to convert VString to Win-ANSI, but this may fail for international 
+		(japanese for example, ACI0065675).
+
 		The buffer must be deallocated with delete [] because it is created with new char[...]
 		If inString is "" and inEvenIfStringIsEmpty == true, the routine creates a buffer of one byte (contains a zero)
 		WARNING: the returned buffer has a size > inString.GetLength() + 1, because there is room for special conversion
 		(for example, œ may become eo). *outFullSizeOfBuffer contains the full size - in bytes - of the buffer.
 	*/
-		char *		_CreateCString(const VString &inString, bool inEvenIfStringIsEmpty = false, sLONG *outFullSizeOfBuffer = NULL) const;
+		wchar_t *				_CreateCString(const VString &inString, bool inEvenIfStringIsEmpty = false, sLONG *outFullSizeOfBuffer = NULL) const;
 
-	//	Utility. Just avoid writting 2-3 lines in the code
-		void _CloseAndInvalidateHandle(HANDLE *ioHandle);
-		void _CloseAllPipes();
+		//	Utility. Just avoid writting 2-3 lines in the code
+
+		void					_CloseAndInvalidateHandle(HANDLE *ioHandle);
+		void					_CloseAllPipes();
 };	
 
 typedef XWinProcessLauncher		XProcessLauncherImpl;

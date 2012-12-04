@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "XMacQuartzGraphicContext.h"
 #include "XMacStyledTextBox.h"
@@ -90,7 +89,7 @@ VMacQuartzGraphicContext::VMacQuartzGraphicContext(CGContextRef inContext, Boole
 	CGAffineTransform ctm = ::CGContextGetCTM( fContext);
 #endif
 
-	SetPrinterScale(inForPrinting,1.0,1.0);
+	SetPrinterScale(inForPrinting,1,1);
 
 	CGContextSetFlatness(fContext, 2);
 	CGContextSetInterpolationQuality(fContext, kCGInterpolationLow);
@@ -126,7 +125,7 @@ VMacQuartzGraphicContext::VMacQuartzGraphicContext( VMacQDPortBridge* inQDPort, 
 	CGContextSetInterpolationQuality(fContext, kCGInterpolationLow);
 	SetLineWidth((GReal)1.0);
 	
-	SetPrinterScale(inForPrinting,1.0,1.0);
+	SetPrinterScale(inForPrinting,1,1);
 }
 
 
@@ -442,7 +441,7 @@ void VMacQuartzGraphicContext::SetFillRule( FillRuleType inFillRule)
 void VMacQuartzGraphicContext::SetLineWidth(GReal inWidth, VBrushFlags* /*ioFlags*/)
 {
 	if(fHairline && fPrinterScale)
-		::CGContextSetLineWidth(fContext, 0.01); // pas trouvé d'autre moyen pour faire du hairline
+		::CGContextSetLineWidth(fContext, 0.01f); // pas trouvé d'autre moyen pour faire du hairline
 	else
 		::CGContextSetLineWidth(fContext, inWidth);
 	fLineWidth=inWidth;
@@ -998,25 +997,26 @@ void VMacQuartzGraphicContext::DrawTextBox( const VString& _inString, AlignStyle
 
 	VString inString;
 	inString = _inString;
-	if (inLayoutMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY)
+	if (inLayoutMode & (TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_TRUNCATE_END_IF_NECESSARY))
 	{
 		//workaround for buggy CTFramesetterCreateFrame (bad access exception) while in truncating mode:
 		//we must ensure to have enough space to draw at least "c...c" horizontally
 		//(if not draw manually only "c...c" and disable truncating) 
 		VRect bounds;
-		GetTextBoundsTypographic(_inString, bounds, inLayoutMode & (~TLM_TRUNCATE_MIDDLE_IF_NECESSARY));
+		GetTextBoundsTypographic(_inString, bounds, inLayoutMode & (~(TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_TRUNCATE_END_IF_NECESSARY)));
 		
 		if (_inHwndBounds.GetWidth() < bounds.GetWidth())
 		{
 			VString sTemp;
 			sTemp.AppendUniChar(_inString.GetUniChar(1));
 			sTemp.AppendCString("...");
-			sTemp.AppendUniChar(_inString.GetUniChar(_inString.GetLength()));
-			GetTextBoundsTypographic(sTemp, bounds, inLayoutMode & (~TLM_TRUNCATE_MIDDLE_IF_NECESSARY));
+			if (inLayoutMode & TLM_TRUNCATE_MIDDLE_IF_NECESSARY)
+				sTemp.AppendUniChar(_inString.GetUniChar(_inString.GetLength()));
+			GetTextBoundsTypographic(sTemp, bounds, inLayoutMode & (~(TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_TRUNCATE_END_IF_NECESSARY)));
 			if (_inHwndBounds.GetWidth() < bounds.GetWidth())
 			{
 				inString = sTemp;
-				inLayoutMode &= ~TLM_TRUNCATE_MIDDLE_IF_NECESSARY;
+				inLayoutMode &= ~(TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_TRUNCATE_END_IF_NECESSARY);
 			}
 		}
 	}
@@ -1301,7 +1301,7 @@ void	VMacQuartzGraphicContext::DrawText (const VString& inString, const VPoint& 
 	if (fFont && (fFont->GetFace() & KFS_STRIKEOUT))
 	{
 		VFontMetrics *fontMetrics = GetFontMetrics();
-		GReal ascent = fontMetrics ? fontMetrics->GetAscent() : fFont->GetSize()*0.5;
+		GReal ascent = fontMetrics ? fontMetrics->GetAscent() : fFont->GetSize()*0.5f;
 		GReal width = CTLineGetOffsetForStringIndex(line, inString.GetLength(), NULL);
 
 		CGContextSetLineCap(fContext, kCGLineCapSquare);
@@ -1314,8 +1314,8 @@ void	VMacQuartzGraphicContext::DrawText (const VString& inString, const VPoint& 
 		CGContextSetLineWidth(fContext, fFont->GetSize()/12.0f);
 				
 		CGContextBeginPath(fContext);
-		CGContextMoveToPoint(fContext, pos.GetX(), pos.GetY()+ascent*0.25);
-		CGContextAddLineToPoint(fContext, pos.GetX()+width, pos.GetY()+ascent*0.25);
+		CGContextMoveToPoint(fContext, pos.GetX(), pos.GetY()+ascent*0.25f);
+		CGContextAddLineToPoint(fContext, pos.GetX()+width, pos.GetY()+ascent*0.25f);
 		CGContextStrokePath(fContext);
 	}
 	
@@ -1382,7 +1382,7 @@ void VMacQuartzGraphicContext::GetStyledTextBoxBounds( const VString& inText, VT
 	else
 		bounds.SetHeight( ioBounds.GetHeight());
 
-	GReal outWidth = bounds.GetWidth(), outHeight;
+	GReal outWidth = bounds.GetWidth(), outHeight = bounds.GetHeight();
 	VStyledTextBox *textBox = new XMacStyledTextBox(contextRef, *text, inStyles, bounds, VColor::sBlackColor, font, fTextRenderingMode, fTextLayoutMode, fCharKerning+fCharSpacing, inRefDocDPI);
 	if (textBox)
 	{
@@ -2630,16 +2630,16 @@ void VMacQuartzGraphicContext::ClipRegion(const VRegion& inHwndRegion, Boolean i
 
 void VMacQuartzGraphicContext::GetClip(VRegion& outHwndRgn) const
 {
-	assert(false);	// Not supported
-	outHwndRgn.SetEmpty();
+	CGRect clipbounds=CGContextGetClipBoundingBox(fContext);
+	outHwndRgn.FromRect(clipbounds);
 }
 
 
 void VMacQuartzGraphicContext::_RevealUpdate(WindowRef inWindow)
 {	
-#if VERSIONDEBUG && !VERSION_64BIT
-	if (sDebugRevealUpdate)
-		::HIViewFlashDirtyArea(inWindow);
+#if VERSIONDEBUG && WITH_QUICKDRAW
+//	if (sDebugRevealUpdate)
+//		::HIViewFlashDirtyArea(inWindow);
 #endif
 }
 
@@ -3484,8 +3484,8 @@ bool VMacQuartzGraphicContext::_BeginLayer(const VRect& _inBounds, GReal inAlpha
 			{
 				//inflate bounds to take account of filter (for blur filter for instance)
 				VPoint offsetFilter;
-				offsetFilter.x = ceil(inFilterProcess->GetInflatingOffset()*ctm.GetScaleX());
-				offsetFilter.y = ceil(inFilterProcess->GetInflatingOffset()*ctm.GetScaleY());
+				offsetFilter.x = std::ceil(inFilterProcess->GetInflatingOffset()*ctm.GetScaleX());
+				offsetFilter.y = std::ceil(inFilterProcess->GetInflatingOffset()*ctm.GetScaleY());
 				bounds.SetPosBy(-offsetFilter.x,-offsetFilter.y);
 				bounds.SetSizeBy(offsetFilter.x*2.0f, offsetFilter.y*2.0f);
 
@@ -4061,7 +4061,7 @@ void VMacQuartzGraphicContext::QDFrameRoundRect (const VRect& inHwndRect,GReal i
 	}
 	else
 	{
-		r.SetPosBy(0.5,0.5);
+		r.SetPosBy(0.5f,0.5f);
 		r.SetSizeBy(-fLineWidth,-fLineWidth);
 	}
 
@@ -4081,7 +4081,7 @@ void VMacQuartzGraphicContext::QDFrameOval (const VRect& inHwndRect)
 	}
 	else
 	{
-		r.SetPosBy(0.5,0.5);
+		r.SetPosBy(0.5f,0.5f);
 		r.SetSizeBy(-fLineWidth,-fLineWidth);
 	}
 	FrameOval(r);
@@ -4132,7 +4132,7 @@ void VMacQuartzGraphicContext::QDDrawRoundRect (const VRect& inHwndRect,GReal in
 	}
 	else
 	{
-		r.SetPosBy(0.5,0.5);
+		r.SetPosBy(0.5f,0.5f);
 		r.SetSizeBy(-fLineWidth,-fLineWidth);
 	}
 
@@ -4163,7 +4163,7 @@ void VMacQuartzGraphicContext::QDDrawOval (const VRect& inHwndRect)
 	}
 	else
 	{
-		r.SetPosBy(0.5,0.5);
+		r.SetPosBy(0.5f,0.5f);
 		r.SetSizeBy(-fLineWidth,-fLineWidth);
 	}
 	if(!fUseLineDash)
@@ -4365,8 +4365,11 @@ void VMacQuartzGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *in
 		inEnd = inTextLayout->fTextLength;
 
 	if (inEnd <= inStart)
+	{
+		inTextLayout->EndUsingContext();
 		return;
-		
+	}	
+	
 //	if (inStart < inTextLayout->fTextLength && inTextLayout->GetText()[inStart] == 13)
 //		inStart++;
 
@@ -4486,9 +4489,23 @@ void VMacQuartzGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *in
 				CGFloat ascent, descent, externalLeading;
 				GReal width = (GReal)CTLineGetTypographicBounds(line, &ascent,  &descent, &externalLeading);
 
-				GReal y = frameOrigin.GetY() + lineOrigin[i].y + ascent + externalLeading;
+				GReal y = ceil(frameOrigin.GetY() + lineOrigin[i].y + ascent + externalLeading);
+				GReal height = ceil(externalLeading+ascent+descent);
+
+				if (i > 0)
+				{
+					CTLineRef linePrev = (CTLineRef) CFArrayGetValueAtIndex(lines, i-1);
+					ascent, descent, externalLeading;
+					CTLineGetTypographicBounds(linePrev, &ascent,  &descent, &externalLeading);
+					GReal extraLeading = ceil(frameOrigin.GetY() + lineOrigin[i-1].y + ascent + externalLeading)-ceil(ascent+descent+externalLeading)-y;
+					if (extraLeading != 0.0f && height+extraLeading >= 0)
+					{
+						y += extraLeading;
+						height += extraLeading;
+					}
+				}
+				
 				y = fQDBounds.size.height-y;
-				GReal height = externalLeading+ascent+descent;
 				
 				GReal x = isStartLine ? xStart : frameOrigin.GetX() + lineOrigin[i].x;
 				width = isEndLine ? xEnd-x : frameOrigin.GetX() + lineOrigin[i].x + width - x;
@@ -4604,20 +4621,32 @@ void VMacQuartzGraphicContext::_GetTextLayoutCaretMetricsFromCharIndex( VTextLay
 						leading = true;
 					}
 
-					if ((!leading) && charIndex+1 <= inTextLayout->fTextLength)
-						charIndex++;
-						
+					
 					CGFloat secondaryOffset;
-					CGFloat primaryOffset = CTLineGetOffsetForStringIndex( line, charIndex, &secondaryOffset);
+					CGFloat primaryOffset = (leading || (charIndex+1) > inTextLayout->fTextLength) ?  CTLineGetOffsetForStringIndex( line, charIndex, &secondaryOffset) : CTLineGetOffsetForStringIndex( line, charIndex+1, &secondaryOffset);
 					
 					outCaretPos.SetX( frameOrigin.GetX() + lineOrigin[i].x + primaryOffset);
 
 					CGFloat ascent, descent, externalLeading;
 					CTLineGetTypographicBounds(line, &ascent,  &descent, &externalLeading);
+					if (inCaretUseCharMetrics)
+						externalLeading = 0;
 
-					outCaretPos.SetY( frameOrigin.GetY() + lineOrigin[i].y + ascent + externalLeading);
+					outCaretPos.SetY( ceil(frameOrigin.GetY() + lineOrigin[i].y + ascent + externalLeading));
 
-					outTextHeight = externalLeading+ascent+descent;
+					outTextHeight = ceil(externalLeading+ascent+descent);
+					
+					if (!inCaretUseCharMetrics && i > 0)
+					{
+						CTLineRef linePrev = (CTLineRef) CFArrayGetValueAtIndex(lines, i-1);
+						CTLineGetTypographicBounds(linePrev, &ascent,  &descent, &externalLeading);
+						GReal extraLeading = ceil(frameOrigin.GetY() + lineOrigin[i-1].y + ascent + externalLeading)-ceil(ascent+descent+externalLeading)-outCaretPos.GetY();
+						if (extraLeading != 0.0f && outTextHeight+extraLeading >= 0)
+						{
+							outCaretPos.SetY(outCaretPos.GetY()+extraLeading);
+							outTextHeight += extraLeading;
+						}
+					}
 					break;
 				}
 			}
@@ -4686,25 +4715,46 @@ bool VMacQuartzGraphicContext::_GetTextLayoutCharIndexFromPos( VTextLayout *inTe
 			//get line origins
 			CGPoint lineOrigin[numLines];
 			CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), lineOrigin); //line origin is aligned on line baseline
-
+			CTLineRef linePrev = NULL;
+			GReal yLinePrev;
+			GReal heightLinePrev;
+			
 			for(CFIndex i = 0; i < numLines; i++) //lines or ordered from the top line to the bottom line
 			{
 				CTLineRef line = (CTLineRef) CFArrayGetValueAtIndex(lines, i);
 				CGFloat ascent, descent, leading;
 				CTLineGetTypographicBounds(line, &ascent,  &descent, &leading);
 
-				if (pos.GetY() >= frameOrigin.GetY()+lineOrigin[i].y+ascent+leading)
+				GReal y = ceil(frameOrigin.GetY() + lineOrigin[i].y + ascent + leading);
+				GReal height = ceil(leading+ascent+descent);
+				
+				if (linePrev)
+				{
+					GReal extraLeading = yLinePrev-heightLinePrev-y;
+					if (extraLeading != 0.0f && height+extraLeading >= 0)
+					{
+						y += extraLeading;
+						height += extraLeading;
+					}
+				}
+				
+				if (pos.GetY() > y)
 				{
 					if (i > 0)
 					{
 						i--;
-						line = (CTLineRef) CFArrayGetValueAtIndex(lines, i);
+						line = linePrev;
 					}
 				}
 				else
+				{
+					linePrev = line;
+					yLinePrev = y;
+					heightLinePrev = height;
+
 					if (i < numLines-1)
 						continue;
-
+				}
 
 				//get line character index from mouse position
 				CGPoint offset = { pos.GetX()-lineOrigin[i].x-frameOrigin.GetX(), pos.GetY()-lineOrigin[i].y-frameOrigin.GetY() };
@@ -4742,6 +4792,38 @@ void VMacQuartzGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 {
 	xbox_assert( inTextLayout->fGC == static_cast<VGraphicContext *>(this));
 
+	if (inTextLayout->fTextBox)
+	{
+		if (inTextLayout->fNeedUpdateBounds)
+		{
+			//only sync layout & formatted bounds
+
+			XMacStyledTextBox *textBox = dynamic_cast<XMacStyledTextBox *>(inTextLayout->fTextBox);
+			if (testAssert(textBox))
+			{
+				VRect bounds(0.0f, 0.0f, inTextLayout->fMaxWidth ? inTextLayout->fMaxWidth : 100000.0f, inTextLayout->fMaxHeight ? inTextLayout->fMaxHeight : 100000.0f);
+				GReal width = bounds.GetWidth(), height = bounds.GetHeight();
+				textBox->GetSize(width, height);
+
+				//store typo text metrics (formatted text metrics)
+				inTextLayout->fCurWidth = width;
+				inTextLayout->fCurHeight = height;
+
+				//store text layout metrics (including overhangs)
+				//here we ensure layout metrics are not lower than typo metrics
+				inTextLayout->fCurLayoutWidth = inTextLayout->fMaxWidth  && inTextLayout->fMaxWidth > width ? inTextLayout->fMaxWidth : width;
+				inTextLayout->fCurLayoutHeight = inTextLayout->fMaxHeight && inTextLayout->fMaxHeight > height ? inTextLayout->fMaxHeight : height;
+
+				//store text layout overhang metrics (with CoreText, overhangs are included in typo metrics yet so no need to deal with it here)
+				inTextLayout->fCurOverhangLeft = 0;
+				inTextLayout->fCurOverhangRight = 0;
+				inTextLayout->fCurOverhangTop = 0;
+				inTextLayout->fCurOverhangBottom = 0;
+			}
+			inTextLayout->fNeedUpdateBounds = false;
+			return;
+		}
+	}
 	ReleaseRefCountable(&(inTextLayout->fTextBox));
 
 	//apply custom alignment 
@@ -4751,14 +4833,18 @@ void VMacQuartzGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 	VRect bounds(0.0f, 0.0f, inTextLayout->fMaxWidth ? inTextLayout->fMaxWidth : 100000.0f, inTextLayout->fMaxHeight ? inTextLayout->fMaxHeight : 100000.0f);
 
 
-	VFont *font = RetainFont();
+	VFont *font = inTextLayout->RetainDefaultFont(72.0f);
+	if (!font)
+		font = RetainFont();
 	xbox_assert(font);
+	VColor textColor = VColor::sBlackColor;
+	inTextLayout->GetDefaultTextColor(textColor);
 
 	ContextRef contextRef = BeginUsingParentContext();
 	
 	XMacStyledTextBox* textBox = new XMacStyledTextBox(	contextRef, inTextLayout->GetText(), 
 													styles ? styles : inTextLayout->fStyles, 
-													bounds, VColor::sBlackColor, font, 
+													bounds, textColor, font, 
 													GetTextRenderingMode(), inTextLayout->GetLayoutMode(), fCharKerning+fCharSpacing, 
 													inTextLayout->fDPI);
 	if (styles)
@@ -5328,35 +5414,4 @@ CGImageRef VMacQuartzBitmapContext::MAC_RetainCGImage () const
 	return fImageCache;
 }
 
-#if USE_QUICKTIME && !VERSION_64BIT
-PicHandle VMacQuartzBitmapContext::MAC_CreatePicHandle () const
-{
-	if (fContext == NULL) return NULL;
-	
-	// Convert to Pict File
-	GraphicsExportComponent	component;
-    ComponentResult	result = ::OpenADefaultComponent(GraphicsExporterComponentType, kQTFileTypePicture, &component);
-	
-	Handle	pictFile = ::NewHandle(0);
-	result = ::GraphicsExportSetInputCGBitmapContext(component, fContext);
-	assert(result == noErr);
-	
-	result = ::GraphicsExportSetOutputHandle(component, pictFile);
-	assert(result == noErr);
-	
-	result = ::GraphicsExportDoExport(component, NULL);
-	assert(result == noErr);
-	
-	// Remove file's 512 bytes header
-	PicHandle	picture = NULL;
-	
-	sLONG	pictSize = ::GetHandleSize(pictFile) - 512;
-	if (pictSize > 0)
-		::PtrToHand(*pictFile + 512, (Handle*) &picture, pictSize);
-	
-	::CloseComponent(component);
-	::DisposeHandle(pictFile);
-	
-	return picture;
-}
-#endif
+

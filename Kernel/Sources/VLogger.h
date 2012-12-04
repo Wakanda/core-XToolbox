@@ -157,6 +157,14 @@ public:
 			// inherited from ILogger
 	virtual	void					LogBag( const VValueBag *inMessage);
 	virtual	bool					ShouldLog( EMessageLevel inMessageLevel) const;
+	virtual bool					WithTrace	(bool inWithTag);
+	virtual bool					WithDump	(bool inWithTag);
+	virtual bool					WithDebug	(bool inWithTag);
+	virtual bool					WithWarning	(bool inWithTag);
+	virtual bool					WithError	(bool inWithTag);
+	virtual bool					WithFatal	(bool inWithTag);
+	virtual bool					WithAssert	(bool inWithTag);
+	virtual bool					WithInfo	(bool inWithTag);
 
 			VTime					GetStartTime() const { return fStartTime; }
 			void					GetLogFolderPath( VFilePath& outPath) const;
@@ -178,6 +186,9 @@ private:
 
 			bool					_IsStarted() const;
 
+			bool					WithTag(uLONG inTag, bool inFlag);
+
+	
 	mutable	VCriticalSection		fLock;
 
 			VTime					fStartTime;

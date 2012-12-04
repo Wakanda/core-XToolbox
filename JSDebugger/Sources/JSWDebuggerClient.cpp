@@ -597,6 +597,7 @@ VJSDebugger::VJSDebugger ( )
 	fHasDoneHandShake = false;
 	fNeedsAuthentication = false;
 	fHasAuthenticated = false;
+	fHasDebugUsers = true;
 }
 
 VJSDebugger::~VJSDebugger ( )
@@ -656,6 +657,14 @@ VError VJSDebugger::ShakeHands ( )
 						vError = VE_JSW_DEBUGGER_AUTHENTICATION_REQUIRED;	//		UNCOMMENT TO ENABLE CLIENT-SIDE DEBUGGER AUTHENTICATION
 						fNeedsAuthentication = true;
 					}
+
+					if ( fServerTools. Find ( CVSTR ( ",no_debug_users" ) ) )
+					{
+						fHasDebugUsers = false;
+						vError = VE_JSW_DEBUGGER_NO_DEBUGGER_USERS;
+					}
+					else
+						fHasDebugUsers = true;
 				}
 			}
 		}
@@ -680,7 +689,7 @@ VError VJSDebugger::Connect ( VString const & inDNSNameOrIP, short inPort )
 	{
 		fEndPoint = VTCPEndPointFactory::CreateClientConnection (
 														inDNSNameOrIP, inPort,
-														false /* isSSL */, true /* isBlocking */,
+														true /* isSSL */, true /* isBlocking */,
 														30 * 1000 /* timeout */, 0 /* select IO is not needed */,
 														vError );
 		if ( fEndPoint != 0 )
@@ -716,11 +725,11 @@ VError VJSDebugger::Connect ( VString const & inDNSNameOrIP, short inPort )
 bool VJSDebugger::IsConnected ( )
 {
 	bool	bIsConnected = ( fEndPoint != 0 && fHasDoneHandShake ) && ( !fNeedsAuthentication || fHasAuthenticated );
-	if ( bIsConnected )
+/*	if ( bIsConnected )
 		XBOX::DebugMsg ( "DEBUGGER IS CONNECTED\r\n" );
 	else
 		XBOX::DebugMsg ( "DEBUGGER IS NOT CONNECTED\r\n" );
-
+*/
 	return bIsConnected;
 }
 
@@ -751,7 +760,7 @@ VError VJSDebugger::Disconnect ( )
 	return vError;
 }
 
-VError VJSDebugger::Authenticate ( VString const & inUserName, VString const & inHA1Seeded )
+VError VJSDebugger::Authenticate ( VString const & inUserName, VString const & inUserPassword )
 {
 	_DebugMsg ( CVSTR ( "Send AUTHENTICATE" ), CVSTR ( "NONE" ) );
 
@@ -773,7 +782,7 @@ VError VJSDebugger::Authenticate ( VString const & inUserName, VString const & i
 
 	VValueBag*				vbagArguments = new VValueBag ( );
 	vbagArguments-> SetString ( CrossfireKeys::user, inUserName );
-	vbagArguments-> SetString ( CrossfireKeys::ha1, inHA1Seeded );
+	vbagArguments-> SetString ( CrossfireKeys::ha1, inUserPassword );
 	vbagPacket. AddElement( CrossfireKeys::arguments, vbagArguments );
 	vbagArguments-> Release ( );
 
@@ -1444,6 +1453,7 @@ XBOX::VError VJSDebugger::SetCallFrame ( uWORD inIndex )
 	fEndPointLock. Lock ( );
 		vError = fEndPoint-> WriteExactly ( szchCommand, nBufferSize - 1 );
 	fEndPointLock. Unlock ( );
+	delete [ ] szchCommand;
 
 	return vError;
 }
@@ -1646,7 +1656,7 @@ VError VJSDebugger::ReadLine ( VString& outLine )
 				VTask::GetCurrent ( )-> Sleep ( 100 );
 		}
 
-		xbox_assert ( vError == VE_OK );
+		xbox_assert ( vError == VE_OK || fEndPoint == 0 );
 	}
 
 	return vError;
@@ -1746,6 +1756,8 @@ VError VJSDebugger::ReadCrossfireMessage ( uLONG inLength, VValueBag& outMessage
 		vError = vImporter. JSONObjectToBag ( outMessage );
 	}
 
+	delete [ ] szchMessage;
+
 	return vError;
 }
 
@@ -1760,6 +1772,10 @@ XBOX::VError VJSDebugger::HandleAuthenticateResponse ( XBOX::VValueBag & inMessa
 	bool					bHasAuthenticated = false;
 	if ( inMessage. AttributeExists ( CrossfireKeys::success ) )
 		inMessage. GetBool ( CrossfireKeys::success, bHasAuthenticated );
+
+	sLONG					nError = 0;
+	if ( inMessage. AttributeExists ( CrossfireKeys::error ) )
+		inMessage. GetLong ( CrossfireKeys::error, nError );
 
 	fHasAuthenticated = bHasAuthenticated;
 
@@ -2441,7 +2457,11 @@ VError VJSDebugger::HandleRemoteEvent ( const VString& inLine )
 	else
 	{
 		vError = VE_JSW_DEBUGGER_UNKNOWN_REMOTE_EVENT;
-		xbox_assert ( false );
+		if ( inLine. GetLength ( ) != 0 )
+		{
+			// Do not assert on emtpy commands which occur when a connection is broken.
+			xbox_assert ( false );
+		}
 	}
 
 	return vError;

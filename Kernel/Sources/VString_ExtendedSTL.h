@@ -215,7 +215,7 @@ namespace hash_VString
 		template<typename String1,typename String2>
 		bool	operator()( const String1& s1, const String2& s2) const
 		{
-			return (s1.GetLength() == s2.GetLength()) && (memcmp( s1.GetCPointer(), s2.GetCPointer(), s1.GetLength() * sizeof( UniChar)) == 0);
+			return (s1.GetLength() == s2.GetLength()) && (memcmp( s1.GetCPointer(), s2.GetCPointer(), s1.GetLength() * 2 /*sizeof( UniChar)*/ ) == 0);
 		}
 	};
 
@@ -231,7 +231,7 @@ namespace hash_VString
 	specialized template for using unordered_map on a VString key.
 	
 	typedef unordered_map_VString<int>	mymap;
-	mymap	map( false);	// not diacritical
+	mymap	map;
 	map.insert( mymap::value_type( "hello", 1));
 */
 template<class Value>

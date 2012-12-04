@@ -83,6 +83,13 @@ VError XLinuxFolder::Delete() const
 }
 
 
+VError XLinuxFolder::MoveToTrash() const
+{
+	// todo: should move to user trash folder ~/.local/share/Trash
+	return Delete();
+}
+
+
 bool XLinuxFolder::Exists(bool inAcceptFolderAlias) const
 {
 	//The folder may exist but we can't access it. Let's pretend it doesn't exist !
@@ -101,7 +108,7 @@ VError XLinuxFolder::Rename(const VString& inName, VFolder** outFolder) const
 	//jmo - todo : we should check that inName < NAME_MAX or use PathBuffer
 
 	VFilePath newPath(fOwner->GetPath());
-	newPath.SetFileName(inName);
+	newPath.SetName(inName);
 
 	return Rename(newPath, outFolder);
 }
@@ -132,7 +139,7 @@ VError XLinuxFolder::Move(const VFolder& inNewParent, VFolder** outFolder) const
 	VString name;
 	fOwner->GetName(name);
 
-	dstPath.SetFileName(name);
+	dstPath.SetName(name);
 
 	return Rename(dstPath, outFolder);
 }
@@ -365,7 +372,23 @@ VError XLinuxFolder::RetainSystemFolder(ESystemFolderKind inFolderKind, bool inC
 
 		//Unimplemented, doesn't really make sense for server
 	case eFK_UserDocuments:
+		break;
+
+
 	case eFK_UserCache:
+		{
+			PathBuffer path;
+			path.Init( L"/tmp", PathBuffer::withRealPath);
+	
+			//VFolder CTOR complains if it can't find a '/' at the end of the folder name.
+			path.Folderify();
+
+			VFilePath folderPath;
+			path.ToPath( &folderPath);
+
+			sysFolder = new VFolder( folderPath);
+		}
+		break;
 
 	default:
 		verr=VE_UNIMPLEMENTED;

@@ -63,6 +63,13 @@ public:
 	/** delete text range */
 	virtual void DeleteText( sLONG rangeStart, sLONG rangeEnd) {}
 
+	/** replace text range */
+	virtual void ReplaceText( sLONG rangeStart, sLONG rangeEnd, const VString& inText) 
+	{
+		DeleteText( rangeStart, rangeEnd);
+		InsertText( rangeStart, inText);
+	}
+	
 	/** apply style (use style range) */
 	virtual void ApplyStyle( VTextStyle* inStyle) {}
 
@@ -85,6 +92,9 @@ public:
 	virtual Boolean	SetRTFText(/*[in]*/const VString& inRTFText) { return false; }
 
 #if VERSIONMAC	
+	/** set min line height for the specified range */
+	virtual void	SetMinLineHeight( const GReal inMinHeight, sLONG inStart, sLONG inEnd) {}
+	
 	virtual Boolean	SetHTMLText(VHandle inHandleHTML) { return false; }
 	
 	virtual VHandle GetRTFText() { return NULL; }

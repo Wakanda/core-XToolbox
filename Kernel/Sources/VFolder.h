@@ -88,9 +88,12 @@ public:
 
 			// Creates all necessary subfolder if needed.
 			VError				CreateRecursive(bool inMakeWritableByAll = false);
-			VError				DeleteContents( bool inRemoveRecursive ) const;
+
+            VError				DeleteContents( bool inRemoveRecursive ) const;
 			VError				Delete( bool inRemoveContent ) const;
 
+            VError				MoveToTrash() const;
+            
 			// Tell if the folder exists.
 			bool				Exists() const;
 	
@@ -99,10 +102,12 @@ public:
 			bool				IsEmpty() const;
 			bool				Contains(const XBOX::VString& inExtension) const;
 			
-			VError				GetTimeAttributes( VTime* outLastModification, VTime* outCreationTime, VTime* outLastAccess ) const;
-			VError				SetTimeAttributes( const VTime *inLastModification, const VTime *inCreationTime, const VTime *inLastAccess ) const;
+			VError				GetTimeAttributes( VTime* outLastModification = NULL, VTime* outCreationTime = NULL, VTime* outLastAccess = NULL ) const;
+			VError				SetTimeAttributes( const VTime *inLastModification = NULL, const VTime *inCreationTime = NULL, const VTime *inLastAccess = NULL ) const;
 
+			VError				GetVolumeCapacity(sLONG8* outTotalBytes)const;
 			VError				GetVolumeFreeSpace( sLONG8 *outFreeBytes, bool inWithQuotas = true ) const;
+			
 #if !VERSION_LINUX
 			bool				RevealInFinder(bool inInside=false) const;
 #endif

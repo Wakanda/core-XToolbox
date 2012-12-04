@@ -15,6 +15,12 @@
 */
 #include "VJavaScriptPrecompiled.h"
 
+#if VERSIONMAC
+#include <4DJavaScriptCore/JavaScriptCore.h>
+#else
+#include <JavaScriptCore/JavaScript.h>
+#endif
+
 #include "VJSContext.h"
 #include "VJSValue.h"
 #include "VJSClass.h"

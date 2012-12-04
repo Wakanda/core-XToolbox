@@ -18,6 +18,7 @@
 #include "VStream.h"
 #include "VMemoryCpp.h"
 #include "VIntlMgr.h"
+#include "VJSONValue.h"
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -517,6 +518,33 @@ VError VUUID::GetJSONString(VString& outJSONString, JSONOption inModifier) const
 	return s.GetJSONString(outJSONString, inModifier);
 }
 
+
+VError VUUID::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	if (inJSONValue.IsNull())
+		SetNull( true);
+	else
+	{
+		VString s;
+		inJSONValue.GetString( s);
+		FromString( s);
+	}
+	return VE_OK;
+}
+
+
+VError VUUID::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+	{
+		VString s;
+		GetString(s);
+		outJSONValue.SetString( s);
+	}
+	return VE_OK;
+}
 
 void VUUID::BuildFromAnsiString(const VString& inString)
 {

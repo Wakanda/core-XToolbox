@@ -273,10 +273,12 @@ public:
 	
 	static	FMFontStyle		FontFaceToFMFontStyle (const VFontFace& inFace);
 	static	void			FMFontStyleToFontFace (FMFontStyle inFace, VFontFace& outFace);
-#if !VERSION_64BIT
+
+#if WITH_QUICKDRAW
 	static	sWORD			FontNameToFontNum (const VString& inFontName);
 	static	void			FontNumToFontName (sWORD inFontFamilyID, VString& outFontName);
 #endif
+
 protected:
 			VFont*					fFont;
 

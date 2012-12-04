@@ -35,16 +35,15 @@ class XTOOLBOX_API XBsdNetAddr
 {
 public :
 	
-	//Erreur de link sur ce symbol
 	XBsdNetAddr();
-	
+		
 	XBsdNetAddr(const sockaddr_storage& inSockAddr);
 	
 	XBsdNetAddr(const sockaddr_in& inSockAddr);
 
 	XBsdNetAddr(const sockaddr_in6& inSockAddr);
 	
-	XBsdNetAddr(const sockaddr* inSockAddr);	//To help working with Posix functions
+	XBsdNetAddr(const sockaddr* inSockAddr, sLONG inIfIndex=-1);	//To help working with Posix functions
 		
 	XBsdNetAddr(IP4 inIp, PortNumber inPort);	//To help legacy code
 		
@@ -69,6 +68,10 @@ public :
 	VString GetIP(sLONG* outVersion=NULL) const;
 			
 	PortNumber GetPort() const;
+	
+	VString GetName() const;
+	
+	sLONG GetIndex() const;
 
 	IP4 GetIPv4HostOrder() const; //helps legacy code, do not use !
 	
@@ -78,26 +81,45 @@ public :
 	
 	const sockaddr* GetSockAddr() const;
 	
+	bool IsV4() const;
 	
+	bool IsV6() const;
+		
+	bool IsV4MappedV6() const;
+	
+	bool IsLoopBack() const;
+	
+	bool IsAny() const;
+		
 private :
 	
+	friend class VNetAddress;
+
+	IP4 GetV4() const;
+	const IP6* GetV6() const;
+	
+	void FixLen();
+
+	
 	sockaddr_storage fSockAddr;	//sizeof(XBsdNetAddr)=136
+
+	sLONG	fIndex;
 };
 
 typedef XBsdNetAddr XNetAddr;
 
 
-class VNetAddrList;
+class VNetAddressList;
 
 class XTOOLBOX_API XBsdAddrLocalQuery
 {
 public :	
-	XBsdAddrLocalQuery(VNetAddrList* outList) : fVAddrList(outList) {}
+	XBsdAddrLocalQuery(VNetAddressList* outList) : fVAddrList(outList) {}
 
 	VError FillAddrList();
 	
 private :
-	VNetAddrList* fVAddrList;
+	VNetAddressList* fVAddrList;
 };
 
 typedef XBsdAddrLocalQuery XAddrLocalQuery;
@@ -106,20 +128,27 @@ typedef XBsdAddrLocalQuery XAddrLocalQuery;
 class XTOOLBOX_API XBsdAddrDnsQuery
 {
 public :	
-	XBsdAddrDnsQuery(VNetAddrList* outList) : fVAddrList(outList) {}
+	XBsdAddrDnsQuery(VNetAddressList* outList) : fVAddrList(outList) {}
+
+	//Bug GCC ? Cette ligne provoque une erreur si compilée depuis un .mm
+	//http://lists.apple.com/archives/xcode-users/2005/Jun/msg00616.html
+	//error: 'xbox::XBsdAddrDnsQuery::Protocol' referred to as 'struct'
+	//enum Protocol {TCP, UDP};
 	
-	typedef enum {TCP, UDP} Protocol;
+	enum EProtocol {TCP, UDP};
 	
-	VError FillAddrList(const VString& inDnsName, PortNumber inPort, Protocol inProto=TCP);
+	VError FillAddrList(const VString& inDnsName, PortNumber inPort, EProtocol inProto=TCP);
 	
 private :
-	VNetAddrList* fVAddrList;
+	VNetAddressList* fVAddrList;
 };
 
 typedef XBsdAddrDnsQuery XAddrDnsQuery;
 
 
 #define DECLARE_XNETADDR_FRIENDSHIP friend class XBsdAddrLocalQuery; friend class XBsdAddrDnsQuery;
+
+#define WITH_SELECTIVE_GETADDRINFO 0
 
 
 END_TOOLBOX_NAMESPACE

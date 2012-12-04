@@ -19,6 +19,11 @@
 #include "VFileStream.h"
 #include "ILexerInput.h"
 
+ILexerInput::~ILexerInput()
+{
+}
+
+
 VLexerStringInput::VLexerStringInput()
 {
 	Init ( NULL );

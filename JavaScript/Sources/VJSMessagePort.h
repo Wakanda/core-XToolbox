@@ -31,9 +31,11 @@ class VJSStructuredClone;
 // They are automatically added to appropriate message port list(s) when created, and removed when closed. An unidirectional port can 
 // only receive, not send. 
 
-class XTOOLBOX_API VJSMessagePort : public XBOX::IRefCountable
+class XTOOLBOX_API VJSMessagePort : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
+
+	// The VJSMessagePort will free itself (release) when both workers have closed.
 
 	// The "outside" worker is the one which created the message port, the "inside" being the invoked worker.
 	// This follow the web workers specification naming, where the "outside" is the invoker of the dedicated 
@@ -45,13 +47,10 @@ public:
 
 	static VJSMessagePort	*Create (VJSWorker *inWorker, XBOX::VJSObject &inObject, const XBOX::VString &inCallbackName);
 
-	// Close port. It is forbidden to use a closed port thereafter. Last to close will free memory.
+	// Close port. It is then forbidden to use a closed port (refcountable released).
+	// If both workers are closed, the VJSMessagePort will free itself.
 
 	void					Close (VJSWorker *inWorker);
-
-	// Close all message ports of list.
-	
-	static void				CloseAll (VJSWorker *inWorker, std::list<VJSMessagePort *> *ioMessagePorts);
 
 	// Return true if inWorker is the "inside" worker of this message port.
 	
@@ -59,6 +58,7 @@ public:
 
 	// Get a pointer to the other worker of message port or check if it has closed.
 	// For unidirectional port, the other worker is always the receiving worker.
+	// Note that it is not a retain.
 		
 	VJSWorker				*GetOther (VJSWorker *inWorker);
 	VJSWorker				*GetOther ();
@@ -87,7 +87,9 @@ public:
 	// Post an error event to a worker, works like PostMessage().
 
 	void					PostError (VJSWorker *inTargetWorker, 
-										const XBOX::VString &inMessage, const XBOX::VString &inFileName, sLONG inLineNumber);
+										const XBOX::VString &inMessage, 
+										const XBOX::VString &inFileName, 
+										sLONG inLineNumber);
 
 	// Implementation of the postMessage() method (web worker proxies, message port objects, or global for 
 	// dedicated workers).

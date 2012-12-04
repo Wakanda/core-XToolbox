@@ -29,7 +29,7 @@ XWinProcessLauncher::XWinProcessLauncher()
 	fWaitClosingChildProcess = true;
 
 	fProcessID = 0;
-	ZeroMemory(&fProcInfo, sizeof(PROCESS_INFORMATION));
+	ZeroMemory(&fProcInfo, sizeof(fProcInfo));
 
 	fChildStdInRead = INVALID_HANDLE_VALUE;
 	fChildStdInWrite = INVALID_HANDLE_VALUE; 
@@ -290,24 +290,24 @@ sLONG XWinProcessLauncher::Start()
 
 sLONG XWinProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 {
-	sLONG			err = 0;
-	sLONG			pathLen = 0;
-	STARTUPINFO				theStartupInfo;
+	sLONG					err = 0;
+	sLONG					pathLen = 0;
+	STARTUPINFOW			theStartupInfo;
 	PROCESS_INFORMATION		theProcessInformation;
 	SECURITY_ATTRIBUTES		theSecurityAttributes;
 
-	char		*envVarsBlock = NULL;
-	char		*argsAsCString= NULL;
+	wchar_t		*envVarsBlock = NULL;
+	wchar_t		*argsAsCString= NULL;
 
 	if(fBinaryPath == NULL)
 		return -50;	// Invalid parameter
 
-	pathLen = (sLONG) strlen(fBinaryPath);
+	pathLen = (sLONG) ::wcslen(fBinaryPath);
 	if(pathLen == 0)
 		return -50;	// Invalid parameter
 
 	// Sets the bInheritHandle flag so that pipes are inherited
-	theSecurityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+	theSecurityAttributes.nLength = sizeof(theSecurityAttributes);
 	theSecurityAttributes.bInheritHandle = TRUE;
 	theSecurityAttributes.lpSecurityDescriptor = NULL;
 	
@@ -386,11 +386,11 @@ sLONG XWinProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 	if(err == 0)
 	{
 	// Sets up members of the PROCESS_INFORMATION structure
-		ZeroMemory(&theProcessInformation, sizeof(PROCESS_INFORMATION));
+		ZeroMemory(&theProcessInformation, sizeof(theProcessInformation));
 		
-	// Sets up members of the STARTUPINFO structure
-		ZeroMemory(&theStartupInfo, sizeof(STARTUPINFO));
-		theStartupInfo.cb = sizeof(STARTUPINFO);
+	// Sets up members of the STARTUPINFOW structure
+		ZeroMemory(&theStartupInfo, sizeof(theStartupInfo));
+		theStartupInfo.cb = sizeof(theStartupInfo);
 		if(fRedirectStandardInput || fRedirectStandardOutput)
 			theStartupInfo.dwFlags |= STARTF_USESTDHANDLES;
 		theStartupInfo.hStdInput = NULL;
@@ -413,6 +413,7 @@ sLONG XWinProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 		
 	// Create the environment variables block
 		envVarsBlock = _CreateEnvironmentVariablesBlock(inVarToUse);
+		xbox_assert(envVarsBlock != NULL);
 		
 	// Create the CString arguments. See _CreateConcatenetedArguments().
 		argsAsCString = _CreateConcatenetedArguments();
@@ -426,56 +427,56 @@ sLONG XWinProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 	// ______________________________________________ CreateProcess()
 	if(err == 0)
 	{
-		sLONG	argsLen = (sLONG) strlen(argsAsCString);
+		sLONG	argsLen = (sLONG) ::wcslen(argsAsCString) + 1;
 		sLONG	commandFullSize = pathLen + 1; //'\0'
 		if(argsLen > 0)
 			commandFullSize += 1 + argsLen;// ' '
 		
-		char *commandLine = NULL;
+		wchar_t *commandLine = NULL;
 		
 		if(argsLen > 0)
 		{
-			commandLine = new char[commandFullSize];
+			commandLine = new wchar_t[commandFullSize];
 			if(commandLine == NULL)
 			{
 				err = -108;
 			}
 			else
 			{
-				memcpy(commandLine, fBinaryPath, pathLen);
+				::memcpy(commandLine, fBinaryPath, pathLen * sizeof(wchar_t));
 				if(argsLen > 0)
 				{
 					commandLine[pathLen] = ' ';
-					memcpy(commandLine + pathLen + 1, argsAsCString, argsLen);
+					::memcpy(commandLine + pathLen + 1, argsAsCString, argsLen * sizeof(wchar_t));
 				}
 				commandLine[commandFullSize - 1] = 0;
 			}
 		}
 		else
 		{
-			sLONG	theSize = (sLONG) strlen(fBinaryPath) + 1;
-			commandLine = new char[theSize];
-			memcpy(commandLine, fBinaryPath, theSize);
+			sLONG	theSize = (sLONG) ::wcslen(fBinaryPath) + 1;
+			commandLine = new wchar_t[theSize];
+			::memcpy(commandLine, fBinaryPath, theSize * sizeof(wchar_t));
 		}
 		
 		if(err == 0)
 		{
 			bool	bInheritHandles = fRedirectStandardInput || fRedirectStandardOutput ? TRUE : FALSE;
-			char *lpCurrentDirectory = (fCurrentDirectory != NULL && fCurrentDirectory[0] > 0) ? fCurrentDirectory : NULL;
+			wchar_t *lpCurrentDirectory = (fCurrentDirectory != NULL && fCurrentDirectory[0] > 0) ? fCurrentDirectory : NULL;
 			
 			SetLastError(0);
 
 			long	tempLastError = 0;
-			long creaProcResult = CreateProcess(NULL,					// Application name
-												commandLine,			// Command line
-												NULL,					// Process security attributes
-												NULL,					// Primary thread security attributes
-												bInheritHandles,		// Handles are inherited
-												0,						// DETACHED_PROCESS creation flag
-												envVarsBlock,			// NULL == use parent's environment
-												lpCurrentDirectory,		// NULL == use parent's directory
-												&theStartupInfo,		// STARTUPINFO pointer
-												&theProcessInformation	// Receives PROCESS_INFORMATION
+			long creaProcResult = CreateProcessW(NULL,						// Application name
+												commandLine,				// Command line
+												NULL,						// Process security attributes
+												NULL,						// Primary thread security attributes
+												bInheritHandles,			// Handles are inherited
+												CREATE_UNICODE_ENVIRONMENT,	// creation flags, environment is UNICODE
+												envVarsBlock,				// NULL == use parent's environment
+												lpCurrentDirectory,			// NULL == use parent's directory
+												&theStartupInfo,			// STARTUPINFOW pointer	
+												&theProcessInformation		// Receives PROCESS_INFORMATION
 												);
 			tempLastError = GetLastError(); // For debug
 			if(creaProcResult == 0)	// "If the function succeeds, the return value is nonzero"
@@ -484,7 +485,7 @@ sLONG XWinProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 
 				fIsRunning = false;
 				fProcessID = 0;
-				ZeroMemory(&fProcInfo, sizeof(PROCESS_INFORMATION));
+				ZeroMemory(&fProcInfo, sizeof(fProcInfo));
 			}
 			else
 			{
@@ -581,19 +582,19 @@ sLONG XWinProcessLauncher::Shutdown(bool inWithKillIndependantChildProcess)
 	_CloseAllPipes();
 	fIsRunning = false;
 	fProcessID = 0;
-	ZeroMemory(&fProcInfo, sizeof(PROCESS_INFORMATION));
+	ZeroMemory(&fProcInfo, sizeof(fProcInfo));
 
 	return 0;
 }
 
-char * XWinProcessLauncher::_CreateConcatenetedArguments()
+wchar_t * XWinProcessLauncher::_CreateConcatenetedArguments()
 {
-	sLONG nbArguments = (sLONG) fArrayArg.size();
-	char * theArgs = NULL;
+	sLONG		nbArguments	= (sLONG) fArrayArg.size();
+	wchar_t *	theArgs		= NULL;
 	
 	if(nbArguments < 1)
 	{
-		theArgs = new char[1];
+		theArgs = new wchar_t[1];
 		theArgs[0] = 0;
 	}
 	else
@@ -630,22 +631,24 @@ char * XWinProcessLauncher::_CreateConcatenetedArguments()
 }
 
 // Environment block == null-terminated block of null-terminated strings of the form: name=value\0
-char * XWinProcessLauncher::_CreateEnvironmentVariablesBlock(const EnvVarNamesAndValuesMap &inVarToUse)
+wchar_t * XWinProcessLauncher::_CreateEnvironmentVariablesBlock(const EnvVarNamesAndValuesMap &inVarToUse)
 {
-	char	*initialEnvStrings = NULL;
-	VMemoryBuffer<>		allStrings;
-	char * theEnvVarBlock = NULL;
+	wchar_t *		initialEnvStrings	= NULL;
+	VMemoryBuffer<>	allStrings;
+	wchar_t *		theEnvVarBlock		= NULL;
 
 	// Initial environment variables
-	initialEnvStrings = ::GetEnvironmentStrings();
+
+	initialEnvStrings = ::GetEnvironmentStringsW();
 	if(initialEnvStrings != NULL)
 	{
-		char *currentStr = initialEnvStrings;
+		wchar_t	*currentStr = initialEnvStrings;
 		size_t	fullStrSize;
-		while(*currentStr)
+
+		while (*currentStr)
 		{
-			fullStrSize = strlen(currentStr) + 1;
-			allStrings.PutData(allStrings.GetDataSize(), currentStr, fullStrSize);
+			fullStrSize = ::wcslen(currentStr) + 1;
+			allStrings.PutData(allStrings.GetDataSize(), currentStr, fullStrSize * sizeof(wchar_t));
 			currentStr += fullStrSize;
 		}
 	}
@@ -653,10 +656,12 @@ char * XWinProcessLauncher::_CreateEnvironmentVariablesBlock(const EnvVarNamesAn
 	// Prepare our envir. variables
 	if(!inVarToUse.empty())
 	{
-		XBOX::VString	oneEnvVarAndValue;
-	// Calculate final buffer size (concatenate name=value and add the 0 terminattion)
-		EnvVarNamesAndValuesMap::const_iterator	envVarIterator = inVarToUse.begin();
-		while(envVarIterator != inVarToUse.end())
+		XBOX::VString							oneEnvVarAndValue;
+		EnvVarNamesAndValuesMap::const_iterator	envVarIterator;
+
+		// Calculate final buffer size (concatenate name=value and add the 0 terminattion)
+		 
+		for (envVarIterator = inVarToUse.begin(); envVarIterator != inVarToUse.end(); envVarIterator++)
 		{
 			oneEnvVarAndValue = envVarIterator->first;
 			if(!oneEnvVarAndValue.IsEmpty())
@@ -664,56 +669,59 @@ char * XWinProcessLauncher::_CreateEnvironmentVariablesBlock(const EnvVarNamesAn
 				oneEnvVarAndValue += "=";
 				oneEnvVarAndValue += envVarIterator->second;
 
-				char *varValueCStr = _CreateCString(oneEnvVarAndValue);
+				const wchar_t *	varValueCStr = oneEnvVarAndValue.GetCPointer();	// Null terminated UniCode string.
+
 				if(testAssert(varValueCStr != NULL))
 				{
-					allStrings.PutData(allStrings.GetDataSize(), varValueCStr, strlen(varValueCStr) + 1);
-					delete [] varValueCStr;
+					allStrings.PutData(allStrings.GetDataSize(), varValueCStr, (oneEnvVarAndValue.GetLength() + 1) * sizeof(wchar_t));				
 				}
-			}			
-			++envVarIterator;
+			}						
 		}
 	} //if(!inVarToUse.empty())
 
 	if(allStrings.GetDataSize() > 0)
 	{
-		char	theZero = 0;
-		allStrings.PutData(allStrings.GetDataSize(), &theZero, 1);
+		wchar_t	theZero = 0;
 
-		theEnvVarBlock = new char[allStrings.GetDataSize()];
+		allStrings.PutData(allStrings.GetDataSize(), &theZero, sizeof(wchar_t));
+
+		theEnvVarBlock = new wchar_t[allStrings.GetDataSize()];
 		if(testAssert(theEnvVarBlock))
 			allStrings.GetData(0, theEnvVarBlock, allStrings.GetDataSize());
 	}
 	
 	if(initialEnvStrings != NULL)
-		::FreeEnvironmentStrings(initialEnvStrings);
-	
-	return theEnvVarBlock;
+		::FreeEnvironmentStringsW(initialEnvStrings);
 
+	return theEnvVarBlock;
 }
 
-char * XWinProcessLauncher::_CreateCString(const VString &inString, bool inEvenIfStringIsEmpty, sLONG *outFullSizeOfBuffer) const
+wchar_t * XWinProcessLauncher::_CreateCString(const VString &inString, bool inEvenIfStringIsEmpty, sLONG *outFullSizeOfBuffer) const
 {
-	char *cStr = NULL;
-	uLONG cStrFullSize = 0;
+	wchar_t	*cStr			= NULL;
+	uLONG	cStrFullSize	= 0;
 	
 	if(inString.IsEmpty())
 	{
 		if(inEvenIfStringIsEmpty)
 		{
 			cStrFullSize = 1;
-			cStr = new char[1];
+			cStr = new wchar_t[1];
 			*cStr = 0;
 		}
 	}
 	else
 	{
-		cStrFullSize = inString.GetLength() * 2;
-		cStr = new char[cStrFullSize];
+		cStrFullSize = inString.GetLength() + 1;
+		cStr = new wchar_t[cStrFullSize];
 		
-		if(cStr != NULL)
-			inString.ToCString(cStr, cStrFullSize);
-		else
+		if(cStr != NULL) {
+
+			// XBOX::VString::fString is null terminated.
+
+			::memcpy(cStr, inString.GetCPointer(), cStrFullSize * sizeof(wchar_t));			
+
+		} else
 			cStrFullSize = 0;
 	}
 	
@@ -731,4 +739,3 @@ void XWinProcessLauncher::_CloseAndInvalidateHandle(HANDLE *ioHandle)
 		*ioHandle = INVALID_HANDLE_VALUE;
 	}
 }
-

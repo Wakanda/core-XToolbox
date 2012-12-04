@@ -22,13 +22,11 @@
 
 #include "ServerNetTypes.h"
 
-#include "XBsdNetAddr.h" //todo : VNetAddr.h à la place...
-
 
 BEGIN_TOOLBOX_NAMESPACE
 
 
-class VKeyCertPair;
+class VKeyCertChain;
 class VNetAddress;
 class VSslDelegate;
 
@@ -41,6 +39,7 @@ class XTOOLBOX_API XBsdTCPSocket : public VObject
 #if WITH_DEPRECATED_IPV4_API
 	static XBsdTCPSocket* NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock=kBAD_SOCKET);	//Server specific !
 #else
+	//jmo - TODO : Mettre une VString pour l'adresse.
 	static XBsdTCPSocket* NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock=kBAD_SOCKET);	//Server specific !
 #endif
 	
@@ -75,7 +74,7 @@ class XTOOLBOX_API XBsdTCPSocket : public VObject
 
 	XBOX::VError SetNoDelay (bool inYesNo);
 	
-	VError PromoteToSSL(VKeyCertPair* inKeyCertPair=NULL);
+	VError PromoteToSSL(VKeyCertChain* inKeyCertChain=NULL);
 	bool IsSSL();
 
 	// Used by SSJS socket implementation only (for doing handshake).
@@ -131,6 +130,7 @@ class XBsdAcceptIterator : public VObject
 
 public :
 	
+	XBsdAcceptIterator();
 	VError AddServiceSocket(XBsdTCPSocket* inSock);
 	VError ClearServiceSockets();
 	VError GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG inMsTimeout);
@@ -154,7 +154,15 @@ class XTOOLBOX_API XBsdUDPSocket : public VObject
 {
 public :
 
+#if WITH_DEPRECATED_IPV4_API
+
 	static XBsdUDPSocket* NewMulticastSock(uLONG inLocalIpv4, uLONG inMulticastIPv4, PortNumber inPort);
+	
+#else
+	
+	static XBsdUDPSocket* NewMulticastSock(const VString& inMultiCastIP, PortNumber inPort);
+	
+#endif
 	
 	virtual ~XBsdUDPSocket();
 	
@@ -164,24 +172,24 @@ public :
 
 	VError Close();
 		
-	VError Read(void* outBuff, uLONG* ioLen, XBsdNetAddr* outSenderInfo=NULL);
+	VError Read(void* outBuff, uLONG* ioLen, VNetAddress* outSenderInfo=NULL);
 	
-	VError Write(const void *inBuffer, uLONG inLength, const XBsdNetAddr& inReceiverInfo);
+	VError Write(const void *inBuffer, uLONG inLength, const VNetAddress& inReceiverInfo);
 		
 		
 private :
 	
-	XBsdUDPSocket(sLONG inSockFD, const sockaddr_storage& inSockAddr);
-	XBsdUDPSocket(sLONG inSockFD, const sockaddr_in& inSockAddr);
+	XBsdUDPSocket(Socket inSock) : fSock(inSock) {}
+	
+#if WITH_DEPRECATED_IPV4_API
 	
 	VError SubscribeMulticast(uLONG inLocalIpv4, uLONG inMulticastIPv4);
-	//VError SubscribeMulticast(const XBsdNetAddr& inMulticastAddr);
+
+	VError Bind(const VNetAddress& inBindAddr);
 	
-	VError Bind();
+#endif
 
 	sLONG	fSock;
-
-	XBsdNetAddr fSockAddr;	//Addr de la socket, utilisée pour bind().
 };
 
 

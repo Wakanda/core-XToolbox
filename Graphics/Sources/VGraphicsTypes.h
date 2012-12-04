@@ -17,6 +17,7 @@
 #define __VGraphicsTypes__
 
 #include "KernelIPC/Sources/VKernelIPCTypes.h"
+#include <cmath> 
 
 #if VERSIONWIN
 #include <gdiplus.h>
@@ -80,8 +81,15 @@ END_TOOLBOX_NAMESPACE
 
 #if VERSIONMAC
 #include <ApplicationServices/ApplicationServices.h>
-#include <Carbon/carbon.h>
 #define ENABLE_D2D 0
+
+// sdk 10.7 doesn't contain QuickDraw APIs
+#if ARCH_64 || (__MAC_OS_X_VERSION_MAX_ALLOWED >= 1070)
+#define WITH_QUICKDRAW 0
+#else
+#define WITH_QUICKDRAW 1
+#endif
+
 #endif
 
 BEGIN_TOOLBOX_NAMESPACE
@@ -350,7 +358,8 @@ typedef enum StdFont {
 	STDF_CAPTION,		// Default caption/groupbox font (used for views as default)
 	STDF_TIP,			// Default tip font
 	STDF_WINDOW_SMALL_CAPTION,	// Internal use only
-	STDF_WINDOW_CAPTION
+	STDF_WINDOW_CAPTION,
+	STDF_LAST
 } StdFont;
 
 
@@ -495,10 +504,11 @@ enum {
 	TLM_ALIGN_LEFT						= 64,		// DrawTextBox only: paragraph left horizontal alignment (used to precompute paragraph style in Mac OS CoreText implementation)
 	TLM_ALIGN_RIGHT						= 128,		// DrawTextBox only: paragraph right horizontal alignment (used to precompute paragraph style in Mac OS CoreText implementation)
 	TLM_ALIGN_CENTER					= 256,		// DrawTextBox only: paragraph center horizontal alignment (used to precompute paragraph style in Mac OS CoreText implementation)
-	TLM_ALIGN_JUSTIFY					= 512		// DrawTextBox only: paragraph justify horizontal alignment (used to precompute paragraph style in Mac OS CoreText implementation)
+	TLM_ALIGN_JUSTIFY					= 512,		// DrawTextBox only: paragraph justify horizontal alignment (used to precompute paragraph style in Mac OS CoreText implementation)
+	TLM_TRUNCATE_END_IF_NECESSARY		= 1024		// DrawTextBox only: truncate text in the end (with '...') to fit specified width (needs TLM_DONT_WRAP)
 };
 #define TLM_PARAGRAPH_STYLE_ALIGN_MASK	(TLM_ALIGN_LEFT|TLM_ALIGN_RIGHT|TLM_ALIGN_CENTER|TLM_ALIGN_JUSTIFY)
-#define TLM_PARAGRAPH_STYLE_MASK		(TLM_DONT_WRAP|TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_LEFT_TO_RIGHT|TLM_RIGHT_TO_LEFT|TLM_PARAGRAPH_STYLE_ALIGN_MASK)		
+#define TLM_PARAGRAPH_STYLE_MASK		(TLM_DONT_WRAP|TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_TRUNCATE_END_IF_NECESSARY|TLM_LEFT_TO_RIGHT|TLM_RIGHT_TO_LEFT|TLM_PARAGRAPH_STYLE_ALIGN_MASK)		
 
 // Options for VFontMetrics
 typedef uLONG	TextRenderingMode;

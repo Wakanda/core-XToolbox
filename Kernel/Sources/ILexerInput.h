@@ -24,6 +24,8 @@ class VFilePath;
 
 class XTOOLBOX_API ILexerInput {
 public:
+	virtual ~ILexerInput();
+
 	virtual VIndex GetLength() = 0;
 	virtual bool HasMoreChars() = 0;
 	virtual UniChar GetCurrentChar() = 0;

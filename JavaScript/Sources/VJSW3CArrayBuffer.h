@@ -21,6 +21,10 @@
 #include "VJSValue.h"
 #include "VJSBuffer.h"
 
+// W3C Typed Array API implementation:
+//
+//	https://www.khronos.org/registry/typedarray/specs/latest/
+
 BEGIN_TOOLBOX_NAMESPACE
 
 class XTOOLBOX_API VJSArrayBufferObject : public XBOX::IRefCountable
@@ -35,15 +39,21 @@ public:
 
 					VJSArrayBufferObject (VJSBufferObject *inBufferObject);
 
+	bool			IsNeutered () const			{	return fBufferObject == NULL;	}
+
 	VJSBufferObject	*GetBufferObject () const	{	return fBufferObject;	}
 
-
 	VSize			GetDataSize () const		{	return fBufferObject != NULL ? fBufferObject->GetDataSize() : 0;	}
-	void			*GetDataPtr () const		{	return fBufferObject != NULL ? fBufferObject->GetDataPtr() : 0;	}
+	void			*GetDataPtr () const		{	return fBufferObject != NULL ? fBufferObject->GetDataPtr() : 0;		}
 
 private:
 
 friend class VJSArrayBufferClass;
+
+	// ArrayBuffer objects can be "neutered" after transfer (from one process to another, see cloning). 
+	// If so, fBufferObject is NULL then.
+
+	VJSBufferObject	*fBufferObject;		
 
 					// From ArrayBuffer's constructor.
 
@@ -53,12 +63,7 @@ friend class VJSArrayBufferClass;
 
 					VJSArrayBufferObject ();
 
-	virtual			~VJSArrayBufferObject ();
-	
-	// ArrayBuffer objects can be "neutered" after transfer (from one process to another, see cloning). 
-	// If so, fBufferObject is NULL then.
-
-	VJSBufferObject	*fBufferObject;		
+	virtual			~VJSArrayBufferObject ();	
 };
 
 class XTOOLBOX_API VJSArrayBufferClass : public XBOX::VJSClass<VJSArrayBufferClass, VJSArrayBufferObject>
@@ -84,6 +89,110 @@ private:
 
 	static void				_slice (XBOX::VJSParms_callStaticFunction &ioParms, VJSArrayBufferObject *inArrayBuffer);
 	static void				_toBuffer (XBOX::VJSParms_callStaticFunction &ioParms, VJSArrayBufferObject *inArrayBuffer);
+};
+
+class XTOOLBOX_API VJSTypedArrayObject : public VObject 
+{
+public:
+
+	static void											AddConstructors (XBOX::VJSContext inContext, XBOX::VJSObject inObject);
+
+	template <class CLASS, class TYPE> static void		Construct (XBOX::VJSParms_callAsConstructor &ioParms);
+
+	template <class TYPE> static void					Initialize (const VJSParms_initialize &inParms, VJSTypedArrayObject *inTypedArray);
+	static void											Finalize (const XBOX::VJSParms_finalize &inParms, VJSTypedArrayObject *inTypedArray);
+
+	template <class TYPE> static bool					SetProperty (XBOX::VJSParms_setProperty &ioParms, VJSTypedArrayObject *inTypedArray);
+	template <class TYPE> static void					GetProperty (XBOX::VJSParms_getProperty &ioParms, VJSTypedArrayObject *inTypedArray);
+	
+	template <class TYPE> static void					Get (XBOX::VJSParms_callStaticFunction &ioParms, VJSTypedArrayObject *inTypedArray);
+	template <class TYPE> static void					Set (XBOX::VJSParms_callStaticFunction &ioParms, VJSTypedArrayObject *inTypedArray);	
+	template <class CLASS, class TYPE> static void		SubArray (XBOX::VJSParms_callStaticFunction &ioParms, VJSTypedArrayObject *inTypedArray);
+
+private:
+
+	enum {
+
+		TYPE_INT8,
+		TYPE_UINT8,
+
+		TYPE_INT16,
+		TYPE_UINT16,
+
+		TYPE_INT32,
+		TYPE_UINT32,
+
+		TYPE_FLOAT32,
+		TYPE_FLOAT64,
+
+	};	
+
+	sLONG												fByteOffset, fByteLength;
+	VJSArrayBufferObject								*fArrayBufferObject;
+
+														VJSTypedArrayObject (sLONG inByteOffset, sLONG inByteLength, VJSArrayBufferObject *inArrayBufferObject);
+	virtual												~VJSTypedArrayObject ();
+
+	template <class TYPE> static void					_SetValue (VJSTypedArrayObject *inTypedArray, sLONG index, const XBOX::VJSValue &inValue, bool inThrowException);
+	template <class TYPE> static void					_CopyFromArray (TYPE *outDestination, const XBOX::VJSArray &inArray);
+	template <class TYPE> static void					_CopyFromTypedArray (VJSTypedArrayObject *inTypedArray, sLONG index, const XBOX::VJSObject &inObject);
+	template <class A, class B> static void				_TypedCopy (void *outDestination, sLONG inDestinationOffset, const void *inSource, sLONG inSourceOffset, sLONG inNumberElements);
+};
+
+class XTOOLBOX_API VJSInt8ArrayClass : public XBOX::VJSClass<VJSInt8ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
+};
+
+class XTOOLBOX_API VJSUInt8ArrayClass : public XBOX::VJSClass<VJSUInt8ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
+};
+
+class XTOOLBOX_API VJSInt16ArrayClass : public XBOX::VJSClass<VJSInt16ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
+};
+
+class XTOOLBOX_API VJSUInt16ArrayClass : public XBOX::VJSClass<VJSUInt16ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
+};
+
+class XTOOLBOX_API VJSInt32ArrayClass : public XBOX::VJSClass<VJSInt32ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
+};
+
+class XTOOLBOX_API VJSUInt32ArrayClass : public XBOX::VJSClass<VJSUInt32ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
+};
+
+class XTOOLBOX_API VJSFloat32ArrayClass : public XBOX::VJSClass<VJSFloat32ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
+};
+
+class XTOOLBOX_API VJSFloat64ArrayClass : public XBOX::VJSClass<VJSFloat64ArrayClass, VJSTypedArrayObject>
+{
+public:
+
+	static void		GetDefinition (ClassDefinition &outDefinition);
 };
 
 END_TOOLBOX_NAMESPACE

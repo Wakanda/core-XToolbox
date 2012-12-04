@@ -27,7 +27,8 @@ class VFile;
 class XTOOLBOX_API VFileStream : public VStream
 { 
 public:
-			VFileStream (const VFile* inFile);
+	VFileStream (const VFile* inFile,FileOpenOptions inPreferredWriteOpenMode = FO_Default);
+
 	virtual ~VFileStream ();
 	
 	void	SetBufferSize (VSize inNbBytes);
@@ -51,13 +52,14 @@ protected:
 	
 protected:
 	const VFile		*fFile;
-	VFileDesc	*fFileDesc;
-	sLONG8		fLogSize;	// logical file size
-	sLONG8		fBufPos;	// logical position of buffer
-	VSize		fBufCount;	// useful bytes in buffer
-	VSize		fBufSize;	// physical size of buffer (size of fBuffer)
-	VSize		fPreferredBufSize;	// preferred buf size, 32k by default
-	sBYTE		*fBuffer;
+	VFileDesc		*fFileDesc;
+	sLONG8			fLogSize;	// logical file size
+	sLONG8			fBufPos;	// logical position of buffer
+	VSize			fBufCount;	// useful bytes in buffer
+	VSize			fBufSize;	// physical size of buffer (size of fBuffer)
+	VSize			fPreferredBufSize;	// preferred buf size, 32k by default
+	sBYTE			*fBuffer;
+	FileOpenOptions	fPreferredWriteOpenMode;//preferred open mode when opening for write access
 	
 	void	AllocateBuffer (VSize inMax);
 	void	ReleaseBuffer ();

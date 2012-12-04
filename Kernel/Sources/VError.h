@@ -18,10 +18,15 @@
 
 #include <map>
 
+#if VERSIONMAC
+#include <mach/error.h>
+#endif
+
 #include "Kernel/Sources/IRefCountable.h"
 #include "Kernel/Sources/VKernelErrors.h"
 #include "Kernel/Sources/VStackCrawl.h"
 #include "Kernel/Sources/VString.h"
+
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -292,12 +297,20 @@ XTOOLBOX_API VError vThrowUserGeneratedError(VError inErrCode, const VString& er
 
 
 // A variation for throwing native error code. Should be used from inside XToolbox code only.
+// Native means Carbon on Mac, Win32 on Windows
 inline VError vThrowNativeError (VNativeError inNativeErrCode, const char *inDebugString = NULL)
 { 
 	if (inNativeErrCode == VNE_OK)
 		return VE_OK;
 	return _ThrowNativeError( inNativeErrCode);
 };
+
+
+inline VError vThrowPosixError( int inPosixError)			{ return (inPosixError == 0) ? VE_OK : vThrowError( MAKE_VERROR( kCOMPONENT_POSIX, inPosixError));}
+
+#if VERSIONMAC
+inline VError vThrowMachError( mach_error_t inMachError)	{ return (inMachError == 0) ? VE_OK : vThrowError( MAKE_VERROR( kCOMPONENT_MACH, inMachError));}
+#endif
 
 
 /*

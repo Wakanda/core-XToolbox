@@ -16,6 +16,10 @@
 #include "VServerNetPrecompiled.h"
 
 #include "VUDPEndPoint.h"
+#include "Tools.h"
+
+
+using namespace XBOX::ServerNetTools;
 
 
 BEGIN_TOOLBOX_NAMESPACE
@@ -42,7 +46,7 @@ void VUDPEndPoint::SetIsBlocking ( bool inIsBlocking )
 }
 
 
-VError VUDPEndPoint::Read(void *outBuffer, uLONG *ioLength, XNetAddr* outSenderInfo)
+VError VUDPEndPoint::Read(void *outBuffer, uLONG *ioLength, VNetAddress* outSenderInfo)
 {
 	VError verr=fSock->Read(outBuffer, ioLength, outSenderInfo);
 
@@ -73,13 +77,14 @@ VError VUDPEndPoint::Close ()
 }
 
 
-VError VUDPEndPoint::SetDestination(const XNetAddr& inReceiverInfo)
+VError VUDPEndPoint::SetDestination(const VNetAddress& inReceiverInfo)
 {
-	memcpy(&fDestination, &inReceiverInfo, sizeof(fDestination));
+	fDestination=inReceiverInfo;
 	
 	return VE_OK;
 }
 
+#if WITH_DEPRECATED_IPV4_API
 
 VUDPEndPoint *VUDPEndPointFactory::CreateMulticastEndPoint(uLONG inMulticastIPv4, PortNumber inPort)
 {
@@ -134,12 +139,41 @@ VUDPEndPoint *VUDPEndPointFactory::CreateMulticastEndPoint(uLONG inLocalIpv4, uL
 		vThrowError(VE_MEMORY_FULL);
 	}
 
-	XNetAddr mcast(inMulticastIPv4, inPort);
+	VNetAddress mcast(inMulticastIPv4, inPort);
 
 	ep->SetDestination(mcast);
 	
 	return ep;
 }
+
+#else
+
+VUDPEndPoint *VUDPEndPointFactory::CreateMulticastEndPoint(const VString& inMulticastIP, PortNumber inPort)
+{
+	XUDPSock* xsock=XUDPSock::NewMulticastSock(inMulticastIP, inPort);
+	
+	if(xsock==NULL)
+		return NULL;
+	
+	VUDPEndPoint  *ep=new VUDPEndPoint(xsock);
+	
+	if(ep==NULL)
+	{
+		xsock->Close();
+		
+		delete xsock;
+		
+		vThrowError(VE_MEMORY_FULL);
+	}
+	
+	VNetAddress mcast(inMulticastIP, inPort);
+	
+	ep->SetDestination(mcast);
+	
+	return ep;
+}
+
+#endif
 
 
 END_TOOLBOX_NAMESPACE

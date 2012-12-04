@@ -183,6 +183,26 @@ VError VFolder::Delete( bool inRemoveContent ) const
 }
 
 
+VError VFolder::MoveToTrash() const
+{
+	VError	err = VE_OK;
+	
+	// this is not an error if the folder already exists
+	if (fFolder.Exists( true))
+	{
+		err = fFolder.MoveToTrash();
+		xbox_assert( (err != VE_OK) || !fFolder.Exists( true));
+        
+		if (IS_NATIVE_VERROR( err))
+		{
+			StThrowFileError errThrow( this, VE_CANNOT_MOVE_TO_TRASH, err);
+			err = errThrow.GetError();
+		}
+	}
+	return err;
+}
+
+
 bool VFolder::IsEmpty() const
 {
 	if (!fFolder.Exists( true))
@@ -297,6 +317,31 @@ VError VFolder::GetTimeAttributes( VTime* outLastModification, VTime* outCreatio
 	return err;
 }
 
+VError	VFolder::GetVolumeCapacity(sLONG8* outTotalBytes)const
+{
+#if !VERSION_LINUX
+
+	VError err = fFolder.GetVolumeCapacity( outTotalBytes );
+
+	if (IS_NATIVE_VERROR( err))
+	{
+		StThrowFileError errThrow( this, VE_FOLDER_CANNOT_GET_ATTRIBUTES, err);
+		err = errThrow.GetError();
+	}
+	
+	return err;
+
+#else
+    
+    //jmo - Build fix rapide pour un truc qui n'est utilise que dans 4D.
+    if(outTotalBytes!=NULL)
+        *outTotalBytes=0;
+
+    xbox_assert(false);
+    return VE_UNIMPLEMENTED;
+
+#endif
+}
 
 VError VFolder::GetVolumeFreeSpace(sLONG8 *outFreeBytes, bool inWithQuotas ) const
 {

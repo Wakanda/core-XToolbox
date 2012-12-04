@@ -15,10 +15,8 @@
 */
 #include "ServerNetTypes.h"
 
-
 #ifndef __SNET_SERVICE_DISCOVERY__
 #define __SNET_SERVICE_DISCOVERY__
-
 
 /* Implementation note(s):
  * 
@@ -50,34 +48,32 @@
  *	- http://files.dns-sd.org/draft-cheshire-dnsext-dns-sd.txt (Specification)
  */ 
 
-
 #include <list>
 #include <map>
 #include <vector>
 
 #include "ServerNetTypes.h"
 
-
 BEGIN_TOOLBOX_NAMESPACE
 
-
 class VUDPEndPoint;
-
 
 class XTOOLBOX_API VServiceRecord : public VObject
 {
 public:
 		
-	VString	fServiceName;		// Service name (ex: "_http._tcp").
-	VString	fProviderName;		// Name of service provider (ex: "MyWakandaSolution").
-	VString	fHostName;			// Host name (ex: "PC-4DEng.local").
-	uLONG			fAddress;			// IPv4 address.
-	PortNumber	fPort;			// Port.			
+	VString		fServiceName;		// Service name (ex: "_http._tcp").
+	VString		fProviderName;		// Name of service provider (ex: "MyWakandaSolution").
+	VString		fHostName;			// Host name (ex: "PC-4DEng.local").
+	VString		fIPv4Address;		// IPv4 address.
+	VString		fIPv6Address;		// IPv6 address.
+	
+	PortNumber	fPort;				// Port.			
 	VValueBag	fValueBag;			// Used to store any additional information.
 	
 	// Retrieve hostname of machine and set it to fHostName, add ".local" suffix if needed.
 	
-	void	SetHostName ();
+	void		SetHostName ();
 };
 
 
@@ -87,24 +83,31 @@ class XTOOLBOX_API VServiceDiscoveryServer : public VTask
 {
 public:
 
+	enum {
+
+		FLAG_IPV4	= 0x01,
+		FLAG_IPV6	= 0x02,
+
+	};
+
 	static VServiceDiscoveryServer	*GetInstance ();
 		
 	// Duplicates (same service and provider names) are forbidden.
 	
-	VError					AddServiceRecord (const VServiceRecord &inRecord);	
+	VError							AddServiceRecord (const VServiceRecord &inRecord);	
 	
 	// Remove a service record.
 	
-	VError					RemoveServiceRecord (const VString &inServiceName, const VString &inProviderName);
+	VError							RemoveServiceRecord (const VString &inServiceName, const VString &inProviderName);
 	
 	// Network resources (socket) are not allocated until call to Start().
 	
-	VError					Start ();
+	VError							Start ();
 
 	// Send a "broadcast" packet on Bonjour's multicast address. Clients maybe listening without explicitely send queries.
 	// Server must be running.
 
-	VError					PublishServiceRecord (const VString &inServiceName, const VString &inProviderName);
+	VError							PublishServiceRecord (const VString &inServiceName, const VString &inProviderName);
 
 	// Kill server's VTask and wait until it actually terminates. Use VTask's Kill() method to just request termination.
 	
@@ -114,28 +117,34 @@ private:
 	
 	// In milliseconds.
 	
-	static const uLONG	kTimeOut		= 500;	
-	static const uLONG	kMaximumWait	= 5000;	
+	static const uLONG				kTimeOut		= 500;	
+	static const uLONG				kMaximumWait	= 5000;	
 			
 	static VServiceDiscoveryServer	*sSingletonInstance;
-	static VCriticalSection	sCriticalSection;
+	static VCriticalSection			sCriticalSection;
 	
-	VUDPEndPoint					*fUDPEndPoint;
+	
+	//IPv6-TODO - A-t-on besoin de deux endpoints ?
+	VUDPEndPoint					*fIPv4EndPoint;
+	VUDPEndPoint					*fIPv6EndPoint;
 	std::list<VServiceRecord>		fServiceRecords;
 		
-	VServiceDiscoveryServer ();
-	virtual ~VServiceDiscoveryServer ();
+									VServiceDiscoveryServer ();
+	virtual							~VServiceDiscoveryServer ();
 
-	virtual void	DoOnRefCountZero ();	
-	virtual Boolean	DoRun ();
+	virtual void					DoOnRefCountZero ();	
+	virtual Boolean					DoRun ();
 	
-	VError	_HandlePacket (uBYTE *inPacket, uLONG inPacketSize, uLONG inBufferSize);	
-	VError	_AnswerQuery (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VString &inQueriedService);
-	VError	_SendServiceList (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset);
-	VError	_SendPTRAnswer (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VServiceRecord &inServiceRecord);
-	VError	_SendAAnswer (uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VString &inHostName, uLONG inIPv4);	
+	VError							_HandlePacket (VUDPEndPoint *inEndPoint, uBYTE *inPacket, uLONG inPacketSize, uLONG inBufferSize);	
+	VError							_AnswerQuery (VUDPEndPoint *inEndPoint, uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, const VString &inQueriedService);
+	VError							_SendServiceList (VUDPEndPoint *inEndPoint, uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset);
+	VError							_SendPTRAnswer (VUDPEndPoint *inEndPoint, 
+													uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset, 
+													const VServiceRecord &inServiceRecord);
+	VError							_SendAddressAnswer (VUDPEndPoint *inEndPoint, 
+														uBYTE *ioPacket, uLONG inBufferSize, uLONG inOffset,
+														const VServiceRecord &inServiceRecord);														
 };
-
 
 // Several instances can be created and used, but this is not efficient.
 
@@ -143,7 +152,7 @@ class XTOOLBOX_API VServiceDiscoveryClient : public VObject
 {
 public:
 	
-	VServiceDiscoveryClient ();
+			VServiceDiscoveryClient (bool inIsIPv4);
 	virtual ~VServiceDiscoveryClient ();
 	
 	// Reset networking.
@@ -159,8 +168,8 @@ public:
 	// Set inAcceptBroadcast to true for accepting service records information not from an explicit query.
 	
 	VError	ReceiveServiceRecords (std::vector<VServiceRecord> *outServiceRecords, 
-										   const std::vector<VString> &inServiceNames, 
-										   bool inAcceptBroadcast = false);
+									   const std::vector<VString> &inServiceNames, 
+									   bool inAcceptBroadcast = false);
 	
 private:
 	
@@ -169,25 +178,23 @@ private:
 	struct PendingRecord {
 		
 		VServiceRecord	fServiceRecord;			
-		bool			fHasSRV, fHasA;	
-		VString	fTarget;
+		bool			fHasSRV, fHasA, fHasAAAA;	// fHasA and fHasAAAA for IPv4 and IPv6 respectively, can have both.
+		VString			fTarget;
 		
 	};	
 	
-	uLONG			fIPv4;
-	PortNumber		fPort;
-	uWORD			fIdentifier;
-	VUDPEndPoint	*fUDPEndPoint;
+	VString				fAddress;
+	PortNumber			fPort;
+	uWORD				fIdentifier;
+	VUDPEndPoint		*fUDPEndPoint;
 	
-	VError	_EncodePTRQuery (uBYTE *outBuffer, uLONG *ioSize, const VString &inServiceName, uWORD inIdentifier = 0);
-	VError	_ParsePacket (const uBYTE *inPacket, uLONG inPacketSize, 
-								  std::vector<VServiceRecord> *outServiceRecords, 
-								  const std::vector<VString> &inServiceNames, 
-								  sLONG inIdentifier = -1);
+	VError				_EncodePTRQuery (uBYTE *outBuffer, uLONG *ioSize, const VString &inServiceName, uWORD inIdentifier = 0);
+	VError				_ParsePacket (const uBYTE *inPacket, uLONG inPacketSize, 
+							  std::vector<VServiceRecord> *outServiceRecords, 
+							  const std::vector<VString> &inServiceNames, 
+							  sLONG inIdentifier = -1);
 };
 
-
 END_TOOLBOX_NAMESPACE
-
 
 #endif

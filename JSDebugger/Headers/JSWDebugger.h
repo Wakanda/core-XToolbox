@@ -18,101 +18,178 @@
 
 #include "JSDebugger/Interfaces/CJSWDebuggerFactory.h"
 #include "ServerNet/VServerNet.h"
-#include "VChrmDebugHandler.h"
+#include "VChromeDebugHandler.h"
 
 class VJSWConnectionHandler;
 
 USING_TOOLBOX_NAMESPACE
 
 
-class VJSWDebuggerCommand : public VObject, public IJSWDebuggerCommand
+class VJSWDebuggerCommand :
+			public VObject,
+#if 0//!defined(WKA_USE_UNIFIED_DBG)
+			public IJSWDebuggerCommand
+#else
+			public IWAKDebuggerCommand
+#endif
 {
 	public :
 
+#if 0//!defined(WKA_USE_UNIFIED_DBG)
 		VJSWDebuggerCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
+#else
+		VJSWDebuggerCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
+#endif
+
 		virtual ~VJSWDebuggerCommand ( ) { ; }
 
+#if 0//!defined(WKA_USE_UNIFIED_DBG)
 		virtual IJSWDebugger::JSWD_COMMAND GetType ( ) const { return fCommand; }
+#else
+		virtual IWAKDebuggerCommand::WAKDebuggerServerMsgType_t GetType ( ) const { return fCommand; }
+#endif
+
 		virtual const char* GetParameters ( ) const;
 		virtual const char* GetID ( ) const;
+		virtual void Dispose ( );
 		virtual bool HasSameContextID ( uintptr_t inContextID ) const;
 		//virtual const char* GetContextID ( ) const;
 
-		virtual void Dispose ( );
-
 	private :
+#if 0//!defined(WKA_USE_UNIFIED_DBG)
+		IJSWDebugger::JSWD_COMMAND								fCommand;
+#else
+		IWAKDebuggerCommand::WAKDebuggerServerMsgType_t			fCommand;
+#endif
 
-		IJSWDebugger::JSWD_COMMAND			fCommand;
 		VString								fID;
 		VString								fContextID;
 		VString								fParameters;
 };
 
 
-class VJSWDebugger : public VObject, public IJSWDebugger
+class VJSWDebugger :
+	public VObject,
+#if 0//!defined(WKA_USE_UNIFIED_DBG)
+	public IJSWDebugger
+#else
+	public IWAKDebuggerServer
+#endif
 {
 	public :
 
 		static VJSWDebugger* Get ( );
-
-		virtual int StartServer ( );
-		virtual short GetServerPort ( );
 		virtual bool HasClients ( );
-		virtual void SetInfo ( IJSWDebuggerInfo* inInfo );
-		virtual void SetSettings ( IJSWDebuggerSettings* inSettings );
-
-/* Most methods will have JS context ID as a parameter. */
-
+		virtual short GetServerPort ( );
+		virtual int StartServer ( );
+		virtual int StopServer ( );
+		VError RemoveAllHandlers ( );
 		virtual int Write ( const char * inData, long inLength, bool inToUTF8 = false );
 		virtual int WriteFileContent ( long inCommandID, uintptr_t inContext, const unsigned short* inFilePath, int inPathSize );
 		virtual int WriteSource ( long inCommandID, uintptr_t inContext, const unsigned short* inSource, int inSize );
+		virtual VError AddHandler ( VJSWConnectionHandler* inHandler );
+		virtual void SetSourcesRoot ( char* inRoot, int inLength );
+		virtual char* GetAbsolutePath (
+									const unsigned short* inAbsoluteRoot, int inRootSize,
+									const unsigned short* inRelativePath, int inPathSize,
+									int& outSize );
+		virtual char* GetRelativeSourcePath (
+										const unsigned short* inAbsoluteRoot, int inRootSize,
+										const unsigned short* inAbsolutePath, int inPathSize,
+										int& outSize );
+		virtual long long GetMilliseconds ( );
+		virtual void Reset ( );
+		virtual void WakeUpAllWaiters ( );
+#if 0 //!defined(WKA_USE_UNIFIED_DBG)
 
-		void SetSourcesRoot ( char* inRoot, int inLength );
+		virtual void SetInfo ( IJSWDebuggerInfo* inInfo );
+		virtual void SetSettings ( IJSWDebuggerSettings* inSettings );
+		virtual int SendContextCreated ( uintptr_t inContext );
+		virtual int SendContextDestroyed ( uintptr_t inContext );
+/* Most methods will have JS context ID as a parameter. */
+
+
 		virtual int SendBreakPoint (
 								uintptr_t inContext,
 								int inExceptionHandle /* -1 ? notException : ExceptionHandle */,
 								char* inURL, int inURLLength /* in bytes */,
 								char* inFunction, int inFunctionLength /* in bytes */,
-								int inLine,
+								int inLineNumber,
 								char* inMessage = 0, int inMessageLength = 0 /* in bytes */,
 								char* inName = 0, int inNameLength = 0 /* in bytes */,
 								long inBeginOffset = 0, long inEndOffset = 0 /* in bytes */ );
-		virtual int SendContextCreated ( uintptr_t inContext );
-		virtual int SendContextDestroyed ( uintptr_t inContext );
-
-		virtual void Reset ( );
+;
 		virtual IJSWDebuggerCommand* WaitForClientCommand ( uintptr_t inContext );
-		virtual void WakeUpAllWaiters ( );
 		virtual IJSWDebuggerCommand* GetNextBreakPointCommand ( );
 		virtual IJSWDebuggerCommand* GetNextSuspendCommand ( uintptr_t inContext );
 		virtual IJSWDebuggerCommand* GetNextAbortScriptCommand ( uintptr_t inContext );
 
-		virtual char* GetRelativeSourcePath (
-										const unsigned short* inAbsoluteRoot, int inRootSize,
-										const unsigned short* inAbsolutePath, int inPathSize,
-										int& outSize );
-		virtual char* GetAbsolutePath (
-									const unsigned short* inAbsoluteRoot, int inRootSize,
-									const unsigned short* inRelativePath, int inPathSize,
-									int& outSize );
+
 		virtual unsigned short* EscapeForJSON (	const unsigned short* inString, int inSize, int & outSize );
-		virtual long long GetMilliseconds ( );
 
-		VError AddHandler ( VJSWConnectionHandler* inHandler );
-		VError RemoveAllHandlers ( );
+#else
+		virtual WAKDebuggerType_t			GetType();
+		virtual void						SetInfo( IWAKDebuggerInfo* inInfo );
+		virtual void						SetSettings( IWAKDebuggerSettings* inSettings );
+		virtual bool						Lock();
+		virtual bool						Unlock();
+		virtual WAKDebuggerContext_t		AddContext( uintptr_t inContext );
+		virtual bool						RemoveContext( WAKDebuggerContext_t inContext );
+		virtual bool						SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state);
+		virtual bool						SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize );
+		virtual bool						SendEval( WAKDebuggerContext_t inContext, void* inVars );
+		virtual bool						BreakpointReached(
+												WAKDebuggerContext_t	inContext,
+												int						inLineNumber,
+												int						inExceptionHandle = -1/* -1 ? notException : ExceptionHandle */,
+												char*					inURL  = NULL,
+												int						inURLLength = 0/* in bytes */,
+												char*					inFunction = NULL,
+												int 					inFunctionLength = 0 /* in bytes */,
+												char*					inMessage = NULL,
+												int 					inMessageLength = 0 /* in bytes */,
+												char* 					inName = NULL,
+												int 					inNameLength = 0 /* in bytes */,
+												long 					inBeginOffset = 0,
+												long 					inEndOffset = 0 /* in bytes */ );
+		virtual bool						SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength );
+		virtual bool						SendSource( WAKDebuggerContext_t inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen );
+		virtual WAKDebuggerServerMessage*	WaitFrom(WAKDebuggerContext_t inContext);
+		virtual void						DisposeMessage(WAKDebuggerServerMessage* inMessage);
+		virtual WAKDebuggerServerMessage* GetNextBreakPointCommand();
+		virtual WAKDebuggerServerMessage* GetNextSuspendCommand( WAKDebuggerContext_t inContext );
+		virtual WAKDebuggerServerMessage* GetNextAbortScriptCommand ( WAKDebuggerContext_t inContext );
 
+		virtual WAKDebuggerUCharPtr_t		EscapeForJSON( const unsigned char* inString, int inSize, int& outSize );
+		virtual void						DisposeUCharPtr( WAKDebuggerUCharPtr_t inUCharPtr );
+
+		virtual void*						UStringToVString( const void* inString, int inSize );
+
+		virtual void						Trace(WAKDebuggerContext_t inContext, const void* inString, int inSize );
+
+#endif
 	private :
 
 		static VServer*						sServer;
 		static VJSWDebugger*				sDebugger;
-
 		VCriticalSection					fHandlersLock;
 		std::vector<VJSWConnectionHandler*>	fHandlers;
+#if 0//!defined(WKA_USE_UNIFIED_DBG)
 		IJSWDebuggerSettings*				fSettings;
+#else
+		IWAKDebuggerSettings*				fSettings;
+		static XBOX::VCriticalSection		sDbgLock;
+#endif
 
 		VJSWDebugger ( );
 
 		VJSWConnectionHandler* _RetainFirstHandler ( ); // To be used as a shortcut while debugger is single-connection.
+
+//#define UNIFIED_DEBUGGER_NET_DEBUG
+#if defined(UNIFIED_DEBUGGER_NET_DEBUG)
+static XBOX::XTCPSock*						sSck;
+#endif
+
 };
 
 /*

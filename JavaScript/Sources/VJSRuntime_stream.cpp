@@ -15,15 +15,20 @@
 */
 #include "VJavaScriptPrecompiled.h"
 
+#include "ServerNet/VServerNet.h"
+
 #include "VJSValue.h"
 #include "VJSContext.h"
 #include "VJSClass.h"
 #include "VJSRuntime_blob.h"
 #include "VJSRuntime_stream.h"
 #include "VJSBuffer.h"
+#include "VJSNetSocket.h"
 
 USING_TOOLBOX_NAMESPACE
 
+// If an error is reported by VStream, report it (throw it), and then do a
+// ResetLastError(). It will fail again thereafter if condition is really faulty.
 
 void VJSStream::Initialize( const VJSParms_initialize& inParms, VStream* inStream)
 {
@@ -44,16 +49,32 @@ void VJSStream::Finalize( const VJSParms_finalize& inParms, VStream* inStream)
 
 void VJSStream::_Close(VJSParms_callStaticFunction& ioParms, VStream* inStream)
 {
-	if (inStream->IsReading())
-		inStream->CloseReading();
-	if (inStream->IsWriting())
-		inStream->CloseWriting(true);
-}
+	XBOX::VError	error;
 
+	if (inStream->IsReading() && (error = inStream->CloseReading()) != XBOX::VE_OK) {
+
+		XBOX::vThrowError(error);
+		inStream->ResetLastError();
+
+	}
+	if (inStream->IsWriting() && (error = inStream->CloseWriting(true)) != XBOX::VE_OK) {
+
+		XBOX::vThrowError(error);
+		inStream->ResetLastError();
+
+	}
+}
+	
 void VJSStream::_Flush(VJSParms_callStaticFunction& ioParms, VStream* inStream)
 {
-	if (inStream->IsWriting())
-		inStream->Flush();
+	XBOX::VError	error;
+
+	if (inStream->IsWriting() && (error = inStream->Flush()) != XBOX::VE_OK) {
+
+		XBOX::vThrowError(error);
+		inStream->ResetLastError();
+
+	}
 }
 
 
@@ -61,8 +82,21 @@ void VJSStream::_GetByte(VJSParms_callStaticFunction& ioParms, VStream* inStream
 {
 	uBYTE c;
 	VError err = inStream->GetByte(c);
-	if (err == VE_OK)
+
+	if (err == XBOX::VE_STREAM_EOF) 
+
+		ioParms.ReturnNullValue();
+
+	else if (err == VE_OK)
+
 		ioParms.ReturnNumber(c);
+
+	else {
+
+		XBOX::vThrowError(err);
+		inStream->ResetLastError();
+
+	}
 }
 
 
@@ -70,8 +104,21 @@ void VJSStream::_GetWord(VJSParms_callStaticFunction& ioParms, VStream* inStream
 {
 	sWORD w;
 	VError err = inStream->GetWord(w);
-	if (err == VE_OK)
+
+	if (err == XBOX::VE_STREAM_EOF) 
+
+		ioParms.ReturnNullValue();
+
+	else if (err == VE_OK)
+
 		ioParms.ReturnNumber(w);
+
+	else {
+
+		XBOX::vThrowError(err);
+		inStream->ResetLastError();
+
+	}
 }
 
 
@@ -79,8 +126,21 @@ void VJSStream::_GetLong(VJSParms_callStaticFunction& ioParms, VStream* inStream
 {
 	sLONG l;
 	VError err = inStream->GetLong(l);
-	if (err == VE_OK)
+
+	if (err == XBOX::VE_STREAM_EOF) 
+
+		ioParms.ReturnNullValue();
+
+	else if (err == VE_OK)
+
 		ioParms.ReturnNumber(l);
+
+	else {
+
+		XBOX::vThrowError(err);
+		inStream->ResetLastError();
+
+	}
 }
 
 
@@ -88,8 +148,21 @@ void VJSStream::_GetReal(VJSParms_callStaticFunction& ioParms, VStream* inStream
 {
 	Real r;
 	VError err = inStream->GetReal(r);
-	if (err == VE_OK)
+
+	if (err == XBOX::VE_STREAM_EOF) 
+
+		ioParms.ReturnNullValue();
+
+	else if (err == VE_OK)
+
 		ioParms.ReturnNumber(r);
+
+	else {
+
+		XBOX::vThrowError(err);
+		inStream->ResetLastError();
+
+	}
 }
 
 
@@ -97,8 +170,21 @@ void VJSStream::_GetLong64(VJSParms_callStaticFunction& ioParms, VStream* inStre
 {
 	sLONG8 l8;
 	VError err = inStream->GetLong8(l8);
-	if (err == VE_OK)
+
+	if (err == XBOX::VE_STREAM_EOF) 
+
+		ioParms.ReturnNullValue();
+
+	else if (err == VE_OK)
+
 		ioParms.ReturnNumber(l8);
+
+	else {
+
+		XBOX::vThrowError(err);
+		inStream->ResetLastError();
+
+	}
 }
 
 
@@ -106,8 +192,21 @@ void VJSStream::_GetString(VJSParms_callStaticFunction& ioParms, VStream* inStre
 {
 	VString s;
 	VError err = s.ReadFromStream(inStream);
-	if (err == VE_OK)
+
+	if (err == XBOX::VE_STREAM_EOF) 
+		
+		ioParms.ReturnNullValue();
+
+	else if (err == VE_OK)
+
 		ioParms.ReturnString(s);
+
+	else {
+
+		XBOX::vThrowError(err);
+		inStream->ResetLastError();
+
+	}
 }
 
 void VJSStream::_GetBlob (VJSParms_callStaticFunction &ioParms, XBOX::VStream *inStream)
@@ -161,19 +260,22 @@ void VJSStream::_GetBinary (VJSParms_callStaticFunction &ioParms, XBOX::VStream*
 		{
 			StErrorContextInstaller	context(false, true);
 
+			bytesRead = 0;
 			error = inStream->GetData(buffer, size, &bytesRead);
 		}
 
 /*
-		// Do ::realloc()?
+		// Do ::realloc() to save memory?
 
 		if (bytesRead < size)
 
 			buffer = ::realloc(buffer, bytesRead);
 */
 				
-		if (error != XBOX::VE_OK && error != XBOX::VE_STREAM_EOF) {
-
+		if (error != XBOX::VE_OK 
+		&& error != XBOX::VE_STREAM_EOF 
+		&& error != XBOX::VE_SRVR_NOTHING_TO_READ && error != XBOX::VE_SRVR_READ_TIMED_OUT) {
+		
 			XBOX::vThrowError(error);
 			ioParms.ReturnNullValue();
 			::free(buffer);
@@ -196,6 +298,8 @@ void VJSStream::_GetBinary (VJSParms_callStaticFunction &ioParms, XBOX::VStream*
 			
 		}	
 
+		inStream->ResetLastError();
+
 	}
 }
 
@@ -206,7 +310,11 @@ void VJSStream::_PutByte(VJSParms_callStaticFunction& ioParms, VStream* inStream
 	{
 		ioParms.GetRealParam(1, &r);
 		uBYTE c = r;
-		inStream->PutByte(c);
+		VError err = inStream->PutByte(c);
+		if (err != XBOX::VE_OK) {
+			XBOX::vThrowError(err);
+			inStream->ResetLastError();
+		}
 	}
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
@@ -221,6 +329,10 @@ void VJSStream::_PutWord(VJSParms_callStaticFunction& ioParms, VStream* inStream
 		ioParms.GetRealParam(1, &r);
 		sWORD c = r;
 		VError err = inStream->PutWord(c);
+		if (err != XBOX::VE_OK) {
+			XBOX::vThrowError(err);
+			inStream->ResetLastError();
+		}
 	}
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
@@ -234,6 +346,10 @@ void VJSStream::_PutLong(VJSParms_callStaticFunction& ioParms, VStream* inStream
 		ioParms.GetRealParam(1, &r);
 		sLONG c = (sLONG) r;
 		VError err = inStream->PutLong(c);
+		if (err != XBOX::VE_OK) {
+			XBOX::vThrowError(err);
+			inStream->ResetLastError();
+		}
 	}
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
@@ -247,6 +363,10 @@ void VJSStream::_PutLong64(VJSParms_callStaticFunction& ioParms, VStream* inStre
 		ioParms.GetRealParam(1, &r);
 		sLONG8 c = r;
 		VError err = inStream->PutLong8(c);
+		if (err != XBOX::VE_OK) {
+			XBOX::vThrowError(err);
+			inStream->ResetLastError();
+		}
 	}
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
@@ -259,6 +379,10 @@ void VJSStream::_PutReal(VJSParms_callStaticFunction& ioParms, VStream* inStream
 	{
 		ioParms.GetRealParam(1, &r);
 		VError err = inStream->PutReal(r);
+		if (err != XBOX::VE_OK) {
+			XBOX::vThrowError(err);
+			inStream->ResetLastError();
+		}
 	}
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
@@ -271,6 +395,10 @@ void VJSStream::_PutString(VJSParms_callStaticFunction& ioParms, VStream* inStre
 	{
 		ioParms.GetStringParam(1, s);
 		VError err = s.WriteToStream(inStream);
+		if (err != XBOX::VE_OK) {
+			XBOX::vThrowError(err);
+			inStream->ResetLastError();
+		}
 	}
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
@@ -384,7 +512,7 @@ void VJSStream::_PutBinary (VJSParms_callStaticFunction &ioParms, XBOX::VStream 
 		if ((error = inStream->PutData((uBYTE *) data + index, length)) != XBOX::VE_OK)
 
 			XBOX::vThrowError(error);
-
+		
 	}
 
 	if (isBuffer)
@@ -417,6 +545,12 @@ void VJSStream::_SetPos(VJSParms_callStaticFunction& ioParms, VStream* inStream)
 		ioParms.GetRealParam(1, &r);
 		sLONG8 newpos = r;
 		VError err = inStream->SetPos(newpos);
+		if (err != XBOX::VE_OK && err != XBOX::VE_STREAM_EOF) {
+
+			XBOX::vThrowError(err);
+			inStream->ResetLastError();
+
+		}
 	}
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
@@ -438,6 +572,79 @@ void VJSStream::_IsByteSwapping(VJSParms_callStaticFunction& ioParms, VStream* i
 
 void VJSStream::do_BinaryStream(VJSParms_callStaticFunction& ioParms)
 {
+	XBOX::VJSObject	object(ioParms.GetContext());
+
+	// Is BinaryStream from a socket ?
+
+	if (ioParms.GetParamObject(1, object)) {
+
+		// net.Socket is asynchronous, hence not support.
+		
+		if (object.IsOfClass(VJSNetSocketClass::Class())) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_BINARY_STREAM_SOCKET);
+			return;
+
+		}
+
+		// If object is net.SocketSync, proceed.
+		
+		if (object.IsOfClass(VJSNetSocketSyncClass::Class())) {
+
+			bool	forWrite;
+			sLONG	timeOut;
+
+			forWrite = ioParms.GetBoolParam( 2, L"Write", L"Read");
+			if (ioParms.CountParams() >= 3) {
+
+				if (!ioParms.GetLongParam(3, &timeOut)) {
+				
+					XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "3");
+					return;
+
+				} 
+				
+				if (timeOut < 0) {
+
+					XBOX::vThrowError(XBOX::VE_JVSC_WRONG_NUMBER_ARGUMENT, "3");
+					return;
+
+				} 
+
+			} else
+
+				timeOut = kDefaultTimeOut;
+
+			VJSNetSocketObject		*socketObject;
+			XBOX::VEndPointStream	*stream;			
+			XBOX::VError			error;
+
+			socketObject = object.GetPrivateData<VJSNetSocketSyncClass>();
+			xbox_assert(socketObject != NULL);
+
+			if ((stream = new XBOX::VEndPointStream(socketObject->GetEndPoint(), timeOut)) == NULL) {
+
+				XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+				ioParms.ReturnNullValue();
+				
+			} else if ((error = forWrite ? stream->OpenWriting() : stream->OpenReading()) != XBOX::VE_OK) {
+
+				XBOX::vThrowError(error);
+				delete stream;
+				ioParms.ReturnNullValue();
+
+			} else 
+
+				ioParms.ReturnValue(VJSStream::CreateInstance(ioParms.GetContextRef(), stream));
+
+			return;
+
+		}
+
+	} 
+
+	//  BinaryStream is from a File.
+
 	VFile* file = ioParms.RetainFileParam( 1);
 	bool forwrite = ioParms.GetBoolParam( 2, L"Write", L"Read");
 	if (file != NULL)
@@ -830,8 +1037,10 @@ XBOX::VJSObject VJSTextStream::_Construct (VJSParms_withArguments &ioParms)
 				err = stream->OpenWriting();
 
 			if (err == XBOX::VE_OK)
-
+			{
 				stream->SetCharSet(defaultCharSet);
+				stream->SetCarriageReturnMode(eCRM_CRLF);
+			}
 
 			stream->SetPos(stream->GetSize());
 
@@ -841,7 +1050,7 @@ XBOX::VJSObject VJSTextStream::_Construct (VJSParms_withArguments &ioParms)
 			if (err == XBOX::VE_OK) {
 
 				stream->GuessCharSetFromLeadingBytes(defaultCharSet);
-				stream->SetCarriageReturnMode(eCRM_NATIVE);
+				stream->SetCarriageReturnMode(eCRM_CRLF);
 
 			}
 

@@ -13,14 +13,15 @@
 * Consequently, no title, copyright or other proprietary rights
 * other than those specified in the applicable license is granted.
 */
-#include "ServerNetTypes.h"
-
-
 #ifndef __SNET_TOOLS__
 #define __SNET_TOOLS__
 
 
+#include "ServerNetTypes.h"
+
+
 BEGIN_TOOLBOX_NAMESPACE
+
 
 class ICriticalError;
 class VLocalizationManager;
@@ -30,23 +31,33 @@ namespace ServerNetTools
 {
 	IpPolicy XTOOLBOX_API GetIpPolicy();
 
-	bool XTOOLBOX_API AcceptFromV6();
-	bool XTOOLBOX_API AcceptFromV4();
-
-	bool XTOOLBOX_API ConnectToV6();
-	bool XTOOLBOX_API ConnectToV4();
-
+	//Did we support V6 or V4 stack ?
+	bool XTOOLBOX_API HasV6Stack();
+	bool XTOOLBOX_API HasV4Stack();
+	
+	//Should we build a V6 or V4 address from a VString ?
 	bool XTOOLBOX_API ConvertFromV6();
 	bool XTOOLBOX_API ConvertFromV4();
 	
+	//Should we ask for a V6 or V4 IP on DNS query ?
 	bool XTOOLBOX_API ResolveToV6();
 	bool XTOOLBOX_API ResolveToV4();
 	
+	//Should we list local V6 or V4 interfaces ?
 	bool XTOOLBOX_API ListV6();
 	bool XTOOLBOX_API ListV4();
 	
-	void XTOOLBOX_API SetDefaultSSLPrivateKey(char* inKey, uLONG inSize);
-	void XTOOLBOX_API SetDefaultSSLCertificate(char* inCertificate, uLONG inSize);
+	//Should we try to bind V6 addr when someone asks for any ?
+	bool XTOOLBOX_API PromoteAnyToV6();
+	
+	//Should we allow/use V4 mapped V6 addresses when we ask for V6 ? 
+	bool XTOOLBOX_API WithV4mappedV6();
+	
+	//Used by 4D *only* to set DB4D and SQL servers default (bundled) certificate in OpenSSL *global* context
+	void XTOOLBOX_API Set_4D_DefaultSSLPrivateKey(char* inKey, uLONG inSize);
+	void XTOOLBOX_API Set_4D_DefaultSSLCertificate(char* inCertificate, uLONG inSize);
+
+	void XTOOLBOX_API AddIntermediateCertificateDirectory(const VFolder& inCertFolder);
 
 	sLONG XTOOLBOX_API GetSelectIODelay();
 	void XTOOLBOX_API SetSelectIODelay(sLONG inDelay);
@@ -69,6 +80,30 @@ namespace ServerNetTools
 	XTOOLBOX_API sLONG InetPtoN(sLONG inFamily, const char* inSrc, void* outDst);
 	XTOOLBOX_API const char* InetNtoP(sLONG inFamily, const void* inSrc, char* outDst, sLONG inDstLen);
 
+	VString XTOOLBOX_API GetFirstResolvedAddress(const VString& inDnsName);
+
+	VString XTOOLBOX_API GetFirstLocalAddress();
+		
+	VString XTOOLBOX_API GetAnyIP();
+		
+	VString XTOOLBOX_API GetLocalIP(const VTCPEndPoint* inEP);
+	
+	VString XTOOLBOX_API GetPeerIP(const VTCPEndPoint* inEP);
+
+	bool XTOOLBOX_API IsLocalInterface(const VString& inIP);
+
+	sLONG XTOOLBOX_API GetHostIPs(std::vector<VString>* outIPs);
+
+	sLONG XTOOLBOX_API GetHostIPs(VString* outIPs, const VString& inSep);
+
+	VString XTOOLBOX_API GetLoopbackIP(bool withBrackets=false);
+
+	VString XTOOLBOX_API GetStringFromIP4(IP4 inIP);
+
+	IP4 XTOOLBOX_API GetIP4FromString(const VString& inIP);
+
+	VString XTOOLBOX_API AddIPv6Brackets(VString inIP);
+
 
 	////////////////////////////////////////////////////////////////////////////////
 	//
@@ -83,7 +118,6 @@ namespace ServerNetTools
 	void XTOOLBOX_API GetLocalIPAdresses( std::vector< XBOX::VString >& outAddresses );	
 	long XTOOLBOX_API ResolveAddress (const XBOX::VString& inHostName, XBOX::VString *outIPv4String = NULL);
 #endif	
-
 };
 
 
@@ -122,7 +156,7 @@ public :
 	
 	static VServerNetManager* Get();
 	
-	static void Init(ICriticalError* inCriticalError=NULL, IpPolicy inIpPolicy=DefaultPolicy);
+	static void Init(ICriticalError* inCriticalError=NULL, IpPolicy inIpPolicy=IpForceV4);	
 	static void DeInit();
 
 	sLONG GetDefaultClientIdleTimeOut();
@@ -137,6 +171,8 @@ public :
 	VError SignalCriticalError(VError inError);	
 		
 	IpPolicy GetIpPolicy() const;
+	
+	sLONG GetIpStacks() const;
 	
 #if VERSIONWIN
 	//Do not call directly ; use ServerNetTools::InetPtoN and ServerNetTools::InetNtoP instead
@@ -159,6 +195,7 @@ private :
 	sLONG fEndPointCounter;
 	
 	IpPolicy fIpPolicy;
+	sLONG fIpStacks;
 
 #if VERSIONWIN
 

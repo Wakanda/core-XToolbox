@@ -20,6 +20,9 @@
 #include "ICriticalError.h"
 #include "VSslDelegate.h"
 #include "XML/VXML.h" /* For VLocalizationManager */
+#include "VNetAddr.h"
+
+#include "VTCPEndPoint.h"
 
 
 #if VERSIONMAC || VERSION_LINUX
@@ -38,7 +41,8 @@ VServerNetManager*	VServerNetManager::sInstance=NULL;
 
 VServerNetManager::VServerNetManager() :
 	fCriticalError(NULL), fDefaultClientIdleTimeOut(20000 /*20s*/),
-	fSelectIOInactivityTimeOut(300 /*ms*/), fEndPointCounter(0), fIpPolicy(DefaultPolicy)
+	fSelectIOInactivityTimeOut(300 /*ms*/), fEndPointCounter(0),
+	fIpPolicy(IpForceV4), fIpStacks(0)
 #if VERSIONWIN
 	,fInetPtoN(NULL), fInetNtoP(NULL)
 #endif
@@ -101,13 +105,102 @@ void VServerNetManager::Init(ICriticalError* inCriticalError, IpPolicy inIpPolic
 {
 	//Call Get() to force new VServerNetManager() and SslFramework::Init()
 	VServerNetManager* manager=VServerNetManager::Get();
+
 	xbox_assert(manager!=NULL);
 	
 	if(manager!=NULL && inCriticalError!=NULL && manager->fCriticalError==NULL)
 		manager->fCriticalError=inCriticalError;
+
 	
 	if(manager!=NULL)
+	{
+		//See if we suport IP v4 and v6 and translate 'auto' to some appropriate policy
+		
+		//First, pretend we support v4 only and count local interfaces
+		
+		manager->fIpStacks=4;
+		manager->fIpPolicy=IpForceV4;
+	
+		sLONG v4Count=0;
+
+		VNetAddressList v4List;
+		VError verr=v4List.FromLocalInterfaces();
+		
+		xbox_assert(verr==VE_OK);
+		
+		VNetAddressList::const_iterator v4Cit;
+		
+		for(v4Cit=v4List.begin() ; v4Cit!=v4List.end() ; ++v4Cit)
+			v4Count++;
+		
+		//Then pretend we support v6 only and count local interfaces
+		
+		manager->fIpStacks=6;
+		manager->fIpPolicy=IpForceV6;
+		
+		sLONG v6Count=0;
+		
+		VNetAddressList v6List;
+		verr=v6List.FromLocalInterfaces();
+		
+		xbox_assert(verr==VE_OK);
+		
+		VNetAddressList::const_iterator v6Cit;
+		
+		for(v6Cit=v6List.begin() ; v6Cit!=v6List.end() ; ++v6Cit)
+			v6Count++;
+
+		//Conclude if we run dual stack or not and choose policy
+
+		if(v4Count>0 && v6Count==0)
+			manager->fIpStacks=4;
+		else if(v4Count>0 && v6Count>0)
+			manager->fIpStacks=46;
+		else if(v4Count==0 && v6Count>0)
+			manager->fIpStacks=6;
+
 		manager->fIpPolicy=inIpPolicy;
+		
+		if(manager->fIpPolicy==IpAuto)
+		{
+			if(manager->fIpStacks==46)
+				manager->fIpPolicy=IpPreferV6;
+			else if(manager->fIpStacks==6)
+				manager->fIpPolicy=IpForceV6;
+			else
+				manager->fIpPolicy=IpForceV4;
+		}
+
+		const char* policyLabel="";
+		
+		switch(manager->fIpPolicy)
+		{
+			case IpForceV4 :
+				policyLabel="IpForceV4";
+				break;
+				
+			case IpAnyIsV6 :
+				policyLabel="IpAnyIsV6";
+				break;
+				
+			case IpPreferV6 :
+				policyLabel="IpPreferV6";
+				break;
+				
+			case IpForceV6 :
+				policyLabel="IpForceV6";
+				break;
+
+			default	:
+				policyLabel="<unknown policy>";
+				xbox_assert(false);
+		}
+		
+		DebugMsg ("[%d] VServerNetManager::Init() : ServerNet IP Policy is %s\n",
+				  VTask::GetCurrentID(), policyLabel);
+		
+		xbox_assert(verr==VE_OK);		
+	}
 }
 
 
@@ -166,40 +259,37 @@ IpPolicy VServerNetManager::GetIpPolicy() const
 }
 
 
+sLONG VServerNetManager::GetIpStacks() const
+{
+	return fIpStacks;
+}
+
+
 IpPolicy ServerNetTools::GetIpPolicy()
 {
 	return VServerNetManager::Get()->GetIpPolicy();
 }
 
 
-bool ServerNetTools::AcceptFromV6()
+bool ServerNetTools::HasV6Stack()
 {
-	IpPolicy policy=GetIpPolicy();
+	sLONG stacks=VServerNetManager::Get()->GetIpStacks();
 	
-	return policy==DualStack || policy==ForceV6;
-}
-
-bool ServerNetTools::AcceptFromV4()
-{
-	IpPolicy policy=GetIpPolicy();
+	if(stacks==6 || stacks==46)
+		return true;
 	
-	return policy==DualStack || policy==ForceV4;
+	return false;
 }
 
 
-bool ServerNetTools::ConnectToV6()
+bool ServerNetTools::HasV4Stack()
 {
-	IpPolicy policy=GetIpPolicy();
+	sLONG stacks=VServerNetManager::Get()->GetIpStacks();
 	
-	return policy==DualStack || policy==ForceV6;
-}
-
-
-bool ServerNetTools::ConnectToV4()
-{
-	IpPolicy policy=GetIpPolicy();
+	if(stacks==4 || stacks==46)
+		return true;
 	
-	return policy==DualStack || policy==ForceV4;
+	return false;
 }
 
 
@@ -207,7 +297,10 @@ bool ServerNetTools::ConvertFromV6()
 {
 	IpPolicy policy=GetIpPolicy();
 	
-	return policy==DualStack || policy==ForceV6;
+	if(policy==IpAnyIsV6 || policy==IpPreferV6 || policy==IpForceV6)
+		return true;
+	
+	return false;
 }
 
 
@@ -215,7 +308,10 @@ bool ServerNetTools::ConvertFromV4()
 {
 	IpPolicy policy=GetIpPolicy();
 	
-	return policy==DualStack || policy==ForceV4;
+	if(policy==IpForceV4 || policy==IpAnyIsV6 || policy==IpPreferV6)
+		return true;
+	
+	return false;
 }
 
 
@@ -223,7 +319,7 @@ bool ServerNetTools::ResolveToV6()
 {
 	IpPolicy policy=GetIpPolicy();
 	
-	return policy==DualStack || policy==ForceV6;
+	return policy==IpPreferV6 || policy==IpForceV6;
 }
 
 
@@ -231,7 +327,17 @@ bool ServerNetTools::ResolveToV4()
 {
 	IpPolicy policy=GetIpPolicy();
 	
-	return policy==DualStack || policy==ForceV4;
+#if !WITH_SELECTIVE_GETADDRINFO
+
+	return policy==IpForceV4 || policy==IpAnyIsV6;
+
+#else
+
+	//Contournement pour le pb de resolution avec getaddrinfo : puisqu'on n'arrive pas
+	//a avoir de V4-mapped v6, alors on met de l'eau dans notre vin et on accepte du V4 
+	return policy==IpForceV4  || WithV4mappedV6();
+
+#endif
 }
 
 
@@ -239,7 +345,7 @@ bool ServerNetTools::ListV6()
 {
 	IpPolicy policy=GetIpPolicy();
 	
-	return policy==DualStack || policy==ForceV6;
+	return policy==IpPreferV6 || policy==IpForceV6;
 }
 
 
@@ -247,7 +353,23 @@ bool ServerNetTools::ListV4()
 {
 	IpPolicy policy=GetIpPolicy();
 	
-	return policy==DualStack || policy==ForceV4;
+	return policy==IpForceV4 || policy==IpAnyIsV6;
+}
+
+
+bool ServerNetTools::PromoteAnyToV6()
+{
+	IpPolicy policy=GetIpPolicy();
+	
+	return HasV6Stack() && policy==IpAnyIsV6;
+}
+
+
+bool ServerNetTools::WithV4mappedV6()
+{
+	IpPolicy policy=GetIpPolicy();
+	
+	return policy==IpAnyIsV6 || policy==IpPreferV6;
 }
 
 
@@ -366,7 +488,7 @@ void ServerNetTools::SetDefaultClientIdleTimeOut(sLONG inTimeOut)
 }
 
 
-void ServerNetTools::SetDefaultSSLPrivateKey ( char* inKey, uLONG inSize )
+void ServerNetTools::Set_4D_DefaultSSLPrivateKey ( char* inKey, uLONG inSize )
 {
 	VMemoryBuffer<> keyBuffer;
 	
@@ -378,13 +500,21 @@ void ServerNetTools::SetDefaultSSLPrivateKey ( char* inKey, uLONG inSize )
 }
 
 
-void ServerNetTools::SetDefaultSSLCertificate ( char* inCertificate, uLONG inSize )
+void ServerNetTools::Set_4D_DefaultSSLCertificate ( char* inCertificate, uLONG inSize )
 {
 	VMemoryBuffer<> certBuffer;
 	
 	certBuffer.PutData(0 /*offset in mem buffer*/, inCertificate, inSize);
 	
 	VError verr=SslFramework::SetDefaultCertificate(certBuffer);
+	
+	xbox_assert(verr==VE_OK);
+}
+
+
+void ServerNetTools::AddIntermediateCertificateDirectory(const VFolder& inCertFolder)
+{
+	VError verr=SslFramework::AddCertificateDirectory(inCertFolder);
 	
 	xbox_assert(verr==VE_OK);
 }
@@ -407,7 +537,7 @@ sLONG ServerNetTools::FillDumpBag(VValueBag* ioBag, const void* inPayLoad, sLONG
 	char* bufPos=NULL;
 	
 	for(plPos=plStart, bufPos=bufStart ; bufPos<bufPast ; plPos++, bufPos++)
-		*bufPos=(isprint(*plPos) ? *plPos : '.');
+		*bufPos=(isprint((unsigned char)(*plPos)) ? *plPos : '.');
 			
 	VString dump(bufStart, len, VTC_US_ASCII);
 
@@ -443,6 +573,199 @@ XTOOLBOX_API const char* ServerNetTools::InetNtoP(sLONG inFamily, const void* in
 #endif
 
 	return res;
+}
+
+
+VString ServerNetTools::GetFirstResolvedAddress(const XBOX::VString& inDnsName)
+{
+	VNetAddressList addrs;
+	
+	//jmo - todo : Virer ce port 80, revoir FromDnsQuery
+	VError verr=addrs.FromDnsQuery(inDnsName, 80);
+	
+	VNetAddressList::const_iterator cit=addrs.begin();
+	
+	if(cit!=addrs.end())
+		return cit->GetIP();
+	
+	return VString();
+}
+
+
+VString ServerNetTools::GetFirstLocalAddress()
+{
+	VNetAddressList addrs;
+	
+	addrs.FromLocalInterfaces();
+
+	VNetAddressList::const_iterator cit;
+	
+	for(cit=addrs.begin() ; cit!=addrs.end() ; ++cit)
+		if(cit->IsLocal())
+			return cit->GetIP();
+	
+	//jmo - todo : Vérifier tout ça !
+	
+	for(cit=addrs.begin() ; cit!=addrs.end() ; ++cit)
+		if(cit->IsLocallyAssigned())
+			return cit->GetIP();
+	
+	cit=addrs.begin();
+	
+	if(cit!=addrs.end())
+			return cit->GetIP();
+
+	return VString();
+}
+
+
+VString ServerNetTools::GetAnyIP()
+{
+	return VNetAddress::GetAnyIP();
+}
+
+
+VString ServerNetTools::GetLocalIP(const VTCPEndPoint* inEP)
+{
+	if(inEP==NULL)
+		return VString();
+	
+	VNetAddress localIp;
+	
+	localIp.FromLocalAddr(inEP->GetRawSocket());
+
+	return localIp.GetIP();
+}
+
+
+VString ServerNetTools::GetPeerIP(const VTCPEndPoint* inEP)
+{
+	if(inEP==NULL)
+		return VString();
+	
+	VNetAddress peerIp;
+	
+	peerIp.FromPeerAddr(inEP->GetRawSocket());
+	
+	return peerIp.GetIP();
+}
+
+
+bool ServerNetTools::IsLocalInterface(const VString& inIP)
+{
+	VNetAddressList addrs;
+	
+	addrs.FromLocalInterfaces();
+	
+	VNetAddressList::const_iterator cit=addrs.begin();
+
+	while(cit!=addrs.end())
+		if(inIP==cit->GetIP())
+			return true;
+
+	return false;
+}
+
+
+sLONG ServerNetTools::GetHostIPs(std::vector<VString>* outIPs)
+{
+	if(outIPs==NULL)
+		return -1;
+
+	outIPs->clear();
+
+	VNetAddressList	addrs;
+	VError verr=addrs.FromLocalInterfaces();
+
+	if(verr!=VE_OK)
+		return 0;
+
+	VNetAddressList::const_iterator cit;
+	
+
+	for(cit=addrs.begin() ; cit!=addrs.end() ; ++cit)
+	{
+		if(cit->IsLoopBack())
+			continue;
+	
+		outIPs->push_back(cit->GetIP());
+	}
+	
+	if(outIPs->size()==0)
+		outIPs->push_back(GetLoopbackIP(false));
+	
+	return outIPs->size();
+}
+
+
+sLONG XTOOLBOX_API ServerNetTools::GetHostIPs(VString* outIPs, const VString& inSep)
+{
+	if(outIPs==NULL)
+		return -1;
+
+	outIPs->Clear();
+
+	std::vector<VString> IPs;
+	
+	sLONG count=GetHostIPs(&IPs);
+	
+	sLONG i;
+
+	for(i=0 ; i<count ; i++)
+	{
+		if(i>0)
+			outIPs->AppendString(inSep);
+
+		outIPs->AppendString(IPs[i]);
+	}
+		
+	return count;
+}
+
+
+VString ServerNetTools::GetLoopbackIP(bool inWithBrackets)
+{
+	if(inWithBrackets && ListV6())
+		return VString("[")+VNetAddress::GetLoopbackIP()+VString("]");
+
+	return VNetAddress::GetLoopbackIP();
+}
+
+
+VString ServerNetTools::AddIPv6Brackets(VString inIP)
+{
+	StSilentErrorContext errCtx;
+
+	VNetAddress addr;
+	VError verr=addr.FromIpAndPort(inIP, kBAD_PORT);
+
+	if(verr==VE_OK && addr.IsV6())
+		return VString("[")+addr.GetIP()+VString("]");
+
+	return inIP;
+}
+
+
+VString ServerNetTools::GetStringFromIP4(IP4 inIP)
+{
+	VNetAddress addr(inIP);
+
+	return addr.GetIP();
+}
+
+
+IP4 XTOOLBOX_API ServerNetTools::GetIP4FromString(const VString& inIP)
+{
+	VNetAddress addr(inIP);
+
+	xbox_assert(addr.IsV4());
+
+	IP4 ip=INADDR_ANY;
+
+	if(addr.IsV4())
+		addr.FillIpV4(&ip);
+
+	return ip;
 }
 
 

@@ -129,7 +129,7 @@ VJSBlobValue_Slice *VJSBlobValue_Slice::Slice( sLONG8 inStart, sLONG8 inEnd, con
 		sLONG8 start = (inStart >= 0) ? std::min<sLONG8>( inStart, GetSize()) : std::max<sLONG8>( GetSize() + inStart, 0);
 		sLONG8 end = (inEnd >= 0) ? std::min<sLONG8>( inEnd, GetSize()) : std::max<sLONG8>( GetSize() + inEnd, 0);
 		sLONG8 size = (end > start) ? (end - start) : 0;
-		return VJSBlobValue_Slice::Create( fSlice->GetBlobData(), fSlice->GetStart(), fSlice->GetSize(), start, size, inContentType);
+		return VJSBlobValue_Slice::Create( fSlice->GetBlobData(), fSlice->GetStart(), fSlice->GetSize(), (VSize) start, (VSize) size, inContentType);
 	}
 }
 
@@ -458,17 +458,11 @@ void VJSBlob::do_ToString( VJSParms_callStaticFunction& ioParms, VJSBlobValue* i
 		VJSDataSlice *data = inBlob->RetainDataSlice();
 		if (data != NULL)
 		{
-			VToUnicodeConverter *converter = VTextConverters::Get()->RetainToUnicodeConverter( charset);
-			if (converter != NULL)
-			{
-				VSize consumed;
-				bool okValue = converter->ConvertString( data->GetDataPtr(), data->GetDataSize(), &consumed, result);
-			}
-			else
-			{
-				vThrowError( VE_INTL_TEXT_CONVERSION_FAILED);
-			}
-			ReleaseRefCountable( &converter);
+			VConstPtrStream stream( data->GetDataPtr(), data->GetDataSize());
+			stream.OpenReading();
+			stream.GuessCharSetFromLeadingBytes( charset);
+			stream.GetText( result);
+			stream.CloseReading();
 		}
 		ReleaseRefCountable( &data);
 	}

@@ -41,10 +41,15 @@
 #include "VFolder.h"
 #include "VFile.h"
 #include "VFileStream.h"
+#include "VLibrary.h"
 #include "VUnicodeResources.h"
 #include "VUnicodeRanges.h"
 #include "VUnicodeTableFull.h"
 #include "VProfiler.h"
+
+#if USE_MECAB
+#include "Mecab4DInterface.h"
+#endif
 
 /*typedef struct Dialect
 	{
@@ -401,12 +406,16 @@ static int usascii_stricmp( const char *s1, const char *s2)
 //VIntlMgr*	VIntlMgr::sDefaultMgr = NULL;
 bool VIntlMgr::sICU_Available = false;
 
+#if USE_MECAB
+class IMecabModel* VIntlMgr::sMecabModel = NULL;
+#endif
 
-VIntlMgr::VIntlMgr( DialectCode inDialect, bool inConsiderOnlyDeadCharsForKeywords)
+
+VIntlMgr::VIntlMgr( DialectCode inDialect, EKeyWordOptions inKeyWordOptions)
 : fDialect( inDialect)
 , fImpl( inDialect)
 , fUseICUCollator( false)
-, fConsiderOnlyDeadCharsForKeywords( inConsiderOnlyDeadCharsForKeywords)
+, fKeyWordOptions( inKeyWordOptions)
 , fCollator( NULL)
 #if USE_ICU
 , fLocale( new xbox_icu::Locale( GetISO6391LanguageCode( inDialect), GetISO3166RegionCode( inDialect)))
@@ -415,6 +424,9 @@ VIntlMgr::VIntlMgr( DialectCode inDialect, bool inConsiderOnlyDeadCharsForKeywor
 , fBreakIterator( NULL)
 , fBreakLineIterator( NULL)
 #endif
+#if USE_MECAB
+, fMecabLattice( NULL)
+#endif
 {
 }
 
@@ -422,7 +434,7 @@ VIntlMgr::VIntlMgr( DialectCode inDialect, bool inConsiderOnlyDeadCharsForKeywor
 VIntlMgr::VIntlMgr( const VIntlMgr& inMgr)
 : fUseICUCollator( inMgr.fUseICUCollator)
 , fImpl( inMgr.fImpl)
-, fConsiderOnlyDeadCharsForKeywords( inMgr.fConsiderOnlyDeadCharsForKeywords)
+, fKeyWordOptions( inMgr.fKeyWordOptions)
 , fDialect( inMgr.fDialect)
 , fAMString( inMgr.fAMString)
 , fPMString( inMgr.fPMString)
@@ -449,6 +461,9 @@ VIntlMgr::VIntlMgr( const VIntlMgr& inMgr)
 , fBreakIterator( NULL)
 , fBreakLineIterator( NULL)
 #endif
+#if USE_MECAB
+, fMecabLattice( NULL)
+#endif
 {
 }
 
@@ -465,6 +480,11 @@ VIntlMgr::~VIntlMgr()
 		delete fBreakIterator;
 	if (fBreakLineIterator)
 		delete fBreakLineIterator;
+	#endif
+
+	#if USE_MECAB
+	if (fMecabLattice != NULL)
+		_GetMecabModel()->ReleaseLattice( fMecabLattice);
 	#endif
 }
 
@@ -502,8 +522,26 @@ VIntlMgr *VIntlMgr::Create( DialectCode inDialect, DialectCode inDialectForColla
 
 	if (manager == NULL)
 	{
-		bool considerOnlyDeadCharsForKeywords = ((inCollatorOptions & COL_ConsiderOnlyDeadCharsForKeywords) != 0) || !ICU_Available();
-		manager = new VIntlMgr( dialect, considerOnlyDeadCharsForKeywords);
+		EKeyWordOptions keyWordOptions = 0;
+		
+		if (inCollatorOptions & COL_ConsiderOnlyDeadCharsForKeywords)
+		{
+			keyWordOptions = eKW_ConsiderOnlyDeadChars;
+		}
+		else
+		{
+			#if USE_MECAB
+			if (dialectForCollator == DC_JAPANESE)
+				keyWordOptions = eKW_UseMeCab;
+			else
+			#endif
+			if (ICU_Available())
+				keyWordOptions = eKW_UseICU;
+			else
+				keyWordOptions = eKW_ConsiderOnlyDeadChars;
+		}
+
+		manager = new VIntlMgr( dialect, keyWordOptions);
 		if (manager != NULL)
 		{
 			bool ok = true;
@@ -1214,8 +1252,51 @@ void VIntlMgr::_InitICU()
 }
 
 
-void VIntlMgr::_DeInitUnicode()
+/*
+	static
+*/
+void VIntlMgr::_InitMeCab()
 {
+	static	bool sInited = false;
+	static	VLibrary*	sMecabLibrary = NULL;
+	static	VSystemCriticalSection	sMecabMutex;
+	
+	#if USE_MECAB
+	sMecabMutex.Lock();
+	if (!sInited)
+	{
+		VFolder *resourcesFolder = VProcess::Get()->RetainFolder( VProcess::eFS_Resources);
+		VFilePath path( resourcesFolder->GetPath());
+		path.ToSubFolder( CVSTR( "MeCab")).ToSubFile( CVSTR( "mecab.dll"));
+		sMecabLibrary = new VLibrary( path);
+		if (sMecabLibrary->Load())
+		{
+			CreateMecabModelProc proc = (CreateMecabModelProc) sMecabLibrary->GetProcAddress( CVSTR( "CreateMecabModel"));
+			if (testAssert( proc != NULL))
+			{
+				sMecabModel = (*proc)();
+				xbox_assert( sMecabModel != NULL);
+			}
+		}
+		ReleaseRefCountable( &resourcesFolder);
+		sInited = true;
+	}
+	sMecabMutex.Unlock();
+	#endif
+}
+
+
+/*
+	static
+*/
+IMecabModel *VIntlMgr::_GetMecabModel()
+{
+	_InitMeCab();
+#if USE_MECAB
+	return sMecabModel;
+#else
+	return NULL;
+#endif
 }
 
 
@@ -1509,6 +1590,9 @@ bool VIntlMgr::EqualString_Like(const UniChar* inText1, sLONG inSize1, const Uni
 }
 
 
+/*
+	static
+*/
 DialectCode VIntlMgr::ResolveDialectCode( DialectCode inDialect)
 {
 	DialectCode	adjustedDialect = (inDialect == DC_NONE) ? DC_USER : inDialect;
@@ -1717,32 +1801,6 @@ bool VIntlMgr::_InitCollator( DialectCode inDialectForCollator, CollatorOptions 
 
 	return (fCollator != NULL);
 }
-
-
-/*
-VHandle VIntlMgr::ConvertFromVString(const VString& inString, CharSet inCharSet)
-{
-	VHandle result = NULL;
-
-	VFromUnicodeConverter* converter = VTextConverters::Get()->RetainFromUnicodeConverter( inCharSet);
-	void* buffer = NULL;
-	VSize bytesInBuffer = 0;
-	bool isOK = converter->ConvertRealloc(inString.GetCPointer(), inString.GetLength(), buffer, bytesInBuffer, 0);
-	if (isOK) {
-		result = VMemory::NewHandle(bytesInBuffer);
-		if (result != NULL) {
-			VPtr ptr = VMemory::LockHandle(result);
-			if (ptr != NULL)
-				::memmove(ptr, buffer, bytesInBuffer);
-			VMemory::UnlockHandle(result);
-		}
-	}
-	vFree(buffer);
-	converter->Release();
-	
-	return result;
-}
-*/
 
 
 void VIntlMgr::_FillRangesArrays()
@@ -1988,13 +2046,21 @@ bool VIntlMgr::_HasApostropheSecondFollowedByVowel( const VString& inText, VInde
 }
 
 
-bool VIntlMgr::GetWordBoundaries( const VString& inText, VectorOfStringSlice& outBoundaries, bool inUseLineBreakingRule)
+#if USE_ICU
+xbox_icu::Locale* VIntlMgr::_GetICUCollatorLocale()
+{
+	return fUseICUCollator ? dynamic_cast<VICUCollator*>( fCollator)->GetLocale() : NULL;
+}
+#endif
+
+
+bool VIntlMgr::GetWordBoundariesWithOptions( const VString& inText, VectorOfStringSlice& outBoundaries, EKeyWordOptions inOptions)
 {
 	bool ok = false;
 
 	VectorOfStringSlice boundaries;
 	
-	if (fConsiderOnlyDeadCharsForKeywords)
+	if (inOptions & eKW_ConsiderOnlyDeadChars)
 	{
 		VIndex curpos = 0;
 		VIndex totlen = inText.GetLength();
@@ -2041,26 +2107,28 @@ bool VIntlMgr::GetWordBoundaries( const VString& inText, VectorOfStringSlice& ou
 		{
 		}
 	}
-	else
+	else if (inOptions & eKW_UseICU)
 	{
 		#if USE_ICU
-		bool specialApostrophe = (DC_PRIMARYLANGID( fDialect) == DC_PRIMARYLANGID( DC_FRENCH)) || (DC_PRIMARYLANGID( fDialect) == DC_PRIMARYLANGID( DC_ITALIAN));
+		
+		DialectCode dialectForCollator = GetCollator()->GetDialectCode();
+		bool specialApostrophe = (DC_PRIMARYLANGID( dialectForCollator) == DC_PRIMARYLANGID( DC_FRENCH)) || (DC_PRIMARYLANGID( dialectForCollator) == DC_PRIMARYLANGID( DC_ITALIAN));
 		
 		try
 		{
 			UErrorCode status = U_ZERO_ERROR;
 
 			xbox_icu::BreakIterator* breakIterator = NULL;
-			if (inUseLineBreakingRule)
+			if (inOptions & eKW_UseLineBreakingRule)
 			{
 				if (fBreakLineIterator == NULL)
-					fBreakLineIterator = xbox_icu::BreakIterator::createLineInstance( *fLocale, status);
+					fBreakLineIterator = xbox_icu::BreakIterator::createLineInstance( *_GetICUCollatorLocale(), status);
 				breakIterator = fBreakLineIterator;
 			}
 			else
 			{
 				if (fBreakIterator == NULL)
-					fBreakIterator = xbox_icu::BreakIterator::createWordInstance( *fLocale, status);
+					fBreakIterator = xbox_icu::BreakIterator::createWordInstance( *_GetICUCollatorLocale(), status);
 				breakIterator = fBreakIterator;
 			}
 
@@ -2076,7 +2144,7 @@ bool VIntlMgr::GetWordBoundaries( const VString& inText, VectorOfStringSlice& ou
 				int32_t start = bi->first();
 				for( int32_t end = bi->next(); end != BreakIterator::DONE ; start = end, end = bi->next())
 				{
-					if (inUseLineBreakingRule || bi->getRuleStatus() != UBRK_WORD_NONE)
+					if ((inOptions & eKW_UseLineBreakingRule != 0) || (bi->getRuleStatus() != UBRK_WORD_NONE) )
 					{
 						// if the word is a conson + apostrophe + voyel, let's get only what is after the apostrophe
 						if (specialApostrophe && _HasApostropheSecondFollowedByVowel( inText, start+1, end - start))
@@ -2096,6 +2164,62 @@ bool VIntlMgr::GetWordBoundaries( const VString& inText, VectorOfStringSlice& ou
 		xbox_assert( false);
 		#endif
 	}
+	else if (inOptions & eKW_UseMeCab)
+	{
+		#if USE_MECAB
+		IMecabModel *model = _GetMecabModel();
+		if (fMecabLattice == NULL)
+		{
+			if (testAssert( model != NULL))
+			{
+				fMecabLattice = model->CreateLattice();
+			}
+		}
+
+		if (fMecabLattice != NULL)
+		{
+			StStringConverter<uint8_t> buffer( inText, VTC_UTF_8);
+			
+			size_t *words = NULL;
+			size_t count;
+			ok = model->GetWordBoundaries( fMecabLattice, buffer.GetCPointer(), buffer.GetSize(), &words, &count);
+			
+			if (ok)
+			{
+				VToUnicodeConverter_UTF8 converter;
+				UniChar word[256];	// big enough for one single word
+				size_t *oneWord = words;
+				for( size_t i = 0 ; i < count ; ++i)
+				{
+					size_t oneWordOffset = *oneWord++;
+					size_t oneWordLength = *oneWord++;
+
+					VSize consumed;
+					VIndex produced;
+					const UniChar *textBegin = inText.GetCPointer();
+					const UniChar *textEnd = inText.GetCPointer() + inText.GetLength();
+					VIndex pos = 0;
+					if (testAssert( converter.Convert( buffer.GetCPointer() + oneWordOffset, oneWordLength, &consumed, &word[0], sizeof( word), &produced)))
+					{
+						const UniChar *found = std::search( textBegin + pos, textEnd, &word[0], &word[produced]);
+						if (testAssert( found != textEnd))
+						{
+							boundaries.push_back( VectorOfStringSlice::value_type( pos+1, produced));
+							pos += produced;
+						}
+					}
+				}
+				model->ReleaseWordBoundaries( words);
+			}
+		}
+		else
+		{
+			ok = false;
+		}
+		#else
+		xbox_assert( false);
+		#endif
+	}
 	
 	boundaries.swap( outBoundaries);
 	
@@ -2107,9 +2231,9 @@ bool VIntlMgr::FindWord( const VString& inText, const VString& inPattern, const 
 {
 	bool ok;
 	
-	// need expensive algo when asked for pattern matching or when there's no icu
+	// need expensive algo when asked for pattern matching or when there's no icu or when using MeCab
 
-	if (inOptions.IsLike() && (inPattern.FindUniChar( fCollator->GetWildChar()) > 0))
+	if ( (inOptions.IsLike() && (inPattern.FindUniChar( fCollator->GetWildChar()) > 0)) || (fKeyWordOptions & eKW_UseMeCab) )
 	{
 		VectorOfStringSlice boundaries;
 		ok = GetWordBoundaries( inText, boundaries);
@@ -2123,7 +2247,7 @@ bool VIntlMgr::FindWord( const VString& inText, const VString& inPattern, const 
 	}
 	else
 	{
-		if (fConsiderOnlyDeadCharsForKeywords)
+		if (fKeyWordOptions & eKW_ConsiderOnlyDeadChars)
 		{
 			ok = false;
 			sLONG matchedLength;
@@ -2149,13 +2273,13 @@ bool VIntlMgr::FindWord( const VString& inText, const VString& inPattern, const 
 
 			} while(pos > 0 && !ok);
 		}
-		else
+		else if (fKeyWordOptions & eKW_UseICU)
 		{
 			#if USE_ICU
 			UErrorCode status = U_ZERO_ERROR;
 
 			if (fBreakIterator == NULL)
-				fBreakIterator = xbox_icu::BreakIterator::createWordInstance( *fLocale, status);
+				fBreakIterator = xbox_icu::BreakIterator::createWordInstance( *_GetICUCollatorLocale(), status);
 
 			if (testAssert( U_SUCCESS(status)))
 			{
@@ -2189,7 +2313,8 @@ bool VIntlMgr::FindWord( const VString& inText, const VString& inPattern, const 
 				// si on a trouve qqchose on verifie que la pattern n'etait pas constituee de plusieurs mots
 				if (ok)
 				{
-					bool specialApostrophe = (DC_PRIMARYLANGID( fDialect) == DC_PRIMARYLANGID( DC_FRENCH)) || (DC_PRIMARYLANGID( fDialect) == DC_PRIMARYLANGID( DC_ITALIAN));
+					DialectCode dialectForCollator = GetCollator()->GetDialectCode();
+					bool specialApostrophe = (DC_PRIMARYLANGID( dialectForCollator) == DC_PRIMARYLANGID( DC_FRENCH)) || (DC_PRIMARYLANGID( dialectForCollator) == DC_PRIMARYLANGID( DC_ITALIAN));
 					if (specialApostrophe && _HasApostropheSecondFollowedByVowel( inPattern, 1, inPattern.GetLength()))
 						ok = false;
 					else
@@ -2341,6 +2466,18 @@ bool VIntlMgr::IsAMacCharacter(uBYTE cc, uBYTE set)
 	}
 }
 
+void VIntlMgr::GetAllDialects( VectorOfDialect& outDialects)
+{
+	size_t count = sizeof(sDialectsList) / sizeof(Dialect);
+
+	outDialects.reserve( count );
+
+	for( size_t i = 0 ; i < count ; ++i )
+	{
+		DialectCode dialect = sDialectsList[i].fDialectCode;
+		outDialects.push_back( dialect);
+	}
+}
 
 void VIntlMgr::GetDialectsHavingCollator( VectorOfNamedDialect& outDialects)
 {
@@ -2474,7 +2611,11 @@ bool VIntlMgr::GetISOLanguageName( DialectCode inDialect, VString& outLanguageNa
 	return( outLanguageName.GetLength() != 0 );
 }
 
-// Indique si le dialectCode passe en parametre fait partie de la dialectsList
+/*
+	static
+
+	Indique si le dialectCode passe en parametre fait partie de la dialectsList
+*/
 bool VIntlMgr::IsDialectCode(DialectCode inDialect)
 {
 	bool bfound = false;
@@ -2490,6 +2631,20 @@ bool VIntlMgr::IsDialectCode(DialectCode inDialect)
 		}
 	}
 	return bfound;
+}
+
+
+/*
+	static
+*/
+bool VIntlMgr::IsRightToLeftDialect( DialectCode inDialect)
+{
+	uWORD langID = DC_PRIMARYLANGID( ResolveDialectCode( inDialect));
+	return (langID == DC_PRIMARYLANGID( DC_ARABIC))
+		|| (langID == DC_PRIMARYLANGID( DC_FARSI))
+		|| (langID == DC_PRIMARYLANGID( DC_HEBREW))
+//		|| (langID == DC_PRIMARYLANGID( DC_HINDI))
+		|| (langID == DC_PRIMARYLANGID( DC_URDU));
 }
 
 
@@ -3512,15 +3667,19 @@ MultiByteCode VIntlMgr::DialectCodeToScriptCode(DialectCode inDialect)
 	case DC_UKRAINIAN:
 		result = SC_CYRILLIC;
 		break;
+
 	case DC_UZBEK_LATIN:
 		result = SC_CENTRALEUROROMAN;
 		break;
+
 	case DC_UZBEK_CYRILLIC:
 		result = SC_CYRILLIC;
 		break;	
+
 	case DC_VIETNAMESE:
 		result = SC_VIETNAMESE;
 		break;
+
 	case DC_SAMI_NORTHERN_NORWAY:
 	case DC_SAMI_NORTHERN_SWEDEN:
 	case DC_SAMI_NORTHERN_FINLAND:
@@ -3532,8 +3691,9 @@ MultiByteCode VIntlMgr::DialectCodeToScriptCode(DialectCode inDialect)
 	case DC_SAMI_INARI_FINLAND:
 		result = SC_ROMAN;
 		break;	
+
 	default:
-		assert(false);
+		xbox_assert(false);
 		result = SC_UNKNOWN;
 		break;
 	}

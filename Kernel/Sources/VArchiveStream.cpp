@@ -90,31 +90,40 @@ VArchiveStream::VArchiveStream()
 	fDestinationFile = NULL;
 	fStream = NULL;
 	fCallBack = NULL;
+	fUniqueFilesCollection = NULL;
+
+	fUniqueFilesCollection = new SetOfVFilePath();
 }
 
 VArchiveStream::~VArchiveStream()
 {
+	fFolderPathList.clear();
+	fFolderExtra.clear();
+
+	if (fUniqueFilesCollection)
+		fUniqueFilesCollection->clear();
+	delete fUniqueFilesCollection;
+	fUniqueFilesCollection = NULL;
 	if ( fDestinationFile )
 		fDestinationFile->Release();
 }
 
 VError VArchiveStream::AddFileDesc( VFileDesc* inFileDesc, const VString &inExtra )
 {
-	if ( (inFileDesc != NULL) && !ContainsFile( inFileDesc->GetParentVFile()) )
+	if ( (inFileDesc != NULL)  )
 	{
-		fFileDescList.push_back( inFileDesc );
-		fFileDescExtra.push_back( inExtra );
+		const VFile* file = inFileDesc->GetParentVFile();
+		if (!ContainsFile( file))
+		{
+			fUniqueFilesCollection->insert(file->GetPath());
+			fFileDescList.push_back( inFileDesc );
+			fFileDescExtra.push_back( inExtra );
+		}
 	}
 	return VE_OK;
 }
 
-VError VArchiveStream::AddFile( VFile* inFile )
-{
-	VError result = VE_STREAM_CANNOT_FIND_SOURCE ;
-	VString empty;
-	result = AddFile( inFile, empty );
-	return result;
-}
+
 
 VError VArchiveStream::AddFile( VFile* inFile, const VString &inExtra )
 {
@@ -129,12 +138,22 @@ VError VArchiveStream::AddFile( VFile* inFile, const VString &inExtra )
 				inFile->GetPath().GetParent( parentPath );
 				fRelativeFolder = parentPath;
 			}
+			// ACI0077162, Jul 11th 2012, O.R.: update unique file collection used in ContainsFile()
+			fUniqueFilesCollection->insert(inFile->GetPath());
 
 			fFileExtra.push_back( inExtra );
 			fFileList.push_back( inFile );
 		}
 		result = VE_OK;
 	}
+	return result;
+}
+
+VError VArchiveStream::AddFile( VFile* inFile )
+{
+	VError result = VE_STREAM_CANNOT_FIND_SOURCE ;
+	VString empty;
+	result = AddFile( inFile, empty );
 	return result;
 }
 
@@ -158,10 +177,9 @@ VError VArchiveStream::AddFolder( VFolder* inFolder )
 		VFolder *parentFolder = inFolder->RetainParentFolder();
 		VString parentFolderPath ( parentFolder->GetPath().GetPath() ); 
 		parentFolder->Release();
-		for( VFolderIterator folder(inFolder); folder.IsValid() && result == VE_OK; ++folder )
-			result = AddFolder( folder.Current(), parentFolderPath );
-		for( VFileIterator file(inFolder); file.IsValid() && result == VE_OK; ++file )
-			result = AddFile( file.Current(), parentFolderPath );
+
+		///ACI0077162, Jul 11 2012, O.R.: lazily add path of folder. Proceed() will eventually recurse thru the tree
+		result = AddFolder( inFolder, parentFolderPath );
 	}	
 	else {
 		result = VE_STREAM_CANNOT_FIND_SOURCE;
@@ -182,10 +200,10 @@ VError VArchiveStream::AddFolder( VFolder* inFolder, const VString &inExtraInfo 
 		fRelativeFolder = parentPath;
 	}
 
-	for( VFolderIterator folder(inFolder); folder.IsValid() && result == VE_OK; ++folder )
-		result = AddFolder( folder.Current(), inExtraInfo );
-	for( VFileIterator file(inFolder); file.IsValid() && result == VE_OK; ++file )
-		result = AddFile( file.Current(), inExtraInfo );
+	///ACI0077162, Jul 11 2012, O.R.: lazily add path of folder. Proceed() will eventually recurse thru the tree
+	fFolderPathList.push_back(inFolder->GetPath());
+	fFolderExtra.push_back(inExtraInfo);
+	
 	return result;
 }
 
@@ -203,15 +221,15 @@ bool VArchiveStream::ContainsFile( const VFile* inFile) const
 {
 	if (inFile == NULL)
 		return true;	// not add null files
+	if (fUniqueFilesCollection == NULL)
+		return false;
 
 	bool found = false;
-
-	for( VectorOfVFileDesc::const_iterator i = fFileDescList.begin() ; (i != fFileDescList.end()) && !found ; ++i)
-		found = inFile->IsSameFile( (*i)->GetParentVFile());
-
-	for( VectorOfVFile::const_iterator i = fFileList.begin() ; (i != fFileList.end()) && !found ; ++i)
-		found = inFile->IsSameFile( *i);
-
+	
+	//ACI0077162, Jul 11th 2012, O.R.: use a set instead of vector to check for duplicates, to decrease search time
+	 
+	SetOfVFilePath::iterator it = fUniqueFilesCollection->find(inFile->GetPath());
+	found = (it != fUniqueFilesCollection->end());
 	return found;
 }
 
@@ -270,6 +288,33 @@ VError VArchiveStream::_WriteFile( const VFileDesc* inFileDesc, char* buffToUse,
 	}
 
 	return result;
+}
+
+VError VArchiveStream::_AddOneFolder(VFolder& inFolder,const VString& inExtraInfo)
+{
+	VError error = VE_OK;
+	bool userAbort = false;
+	for( VFileIterator file(&inFolder); file.IsValid() && error == VE_OK && !userAbort; ++file )
+	{
+		error = AddFile( file.Current(), inExtraInfo );
+		if(fCallBack)
+		{
+			fCallBack(CB_UpdateProgress,0,0,userAbort);
+		}
+	}
+
+	for( VFolderIterator folder(&inFolder); folder.IsValid() && error == VE_OK && !userAbort; ++folder )
+	{
+		error = _AddOneFolder( static_cast<VFolder&>(folder)/**(folder.Current())*/, inExtraInfo );
+		if(fCallBack)
+		{
+			fCallBack(CB_UpdateProgress,0,0,userAbort);
+		}
+	}
+	if (userAbort)
+		error = VE_STREAM_USER_ABORTED;
+
+	return error;
 }
 
 VError VArchiveStream::_WriteCatalog( const VFile* inFile, const VString &inExtraInfo, uLONG8 &ioTotalByteCount )
@@ -353,10 +398,33 @@ VError VArchiveStream::_WriteCatalog( const VFile* inFile, const VString &inExtr
 
 VError VArchiveStream::Proceed()
 {
+	bool userAbort = false;
 	VError result = VE_STREAM_NOT_OPENED;
-	if ( fStream )
+
+	//Iterate over our various list and check for duplicates
+
+	/* ACI0077162, Jul 11th 2012, O.R.: add some calls to the progress callback here in order to
+	allow user feedback, in case of lengthy process (e.g. many files/folders to add)*/
+	
+	if (fCallBack)
 	{
-		bool userAbort = false;
+		fCallBack(CB_OpenProgressUndetermined,0,0,userAbort);
+	}
+	
+	VectorOfPaths::iterator folderIterator =  fFolderPathList.begin();
+	VectorOfVString::iterator folderInfoIterator =  fFolderExtra.begin();
+	xbox_assert(fFolderPathList.size() == fFolderExtra.size());
+
+	for( result = VE_OK;result == VE_OK && folderIterator != fFolderPathList.end() && !userAbort ; ++folderIterator,++folderInfoIterator)
+	{
+		const VFilePath& folderPath = (*folderIterator);
+		const VString& folderExtraInfo = (*folderInfoIterator);
+		VFolder currentFolder(folderPath);
+		result = _AddOneFolder(currentFolder,folderExtraInfo);
+	}
+
+	if ( fStream && result == VE_OK && !userAbort)
+	{
 		result = fStream->OpenWriting();
 		if ( result == VE_OK )
 		{
@@ -371,28 +439,46 @@ VError VArchiveStream::Proceed()
 			/* put the current version of the file */
 			fStream->PutByte(4);
 			/* put the number of file stored in this archive */
-			fStream->PutLong8((sLONG8)(fFileList.size()+fFileDescList.size()));
+			sLONG8 storedObjCount = (sLONG8)fFileList.size();
+			storedObjCount += (sLONG8)fFileDescList.size();
+
+			fStream->PutLong8(storedObjCount /*(sLONG8)(fFileList.size()+fFileDescList.size())*/);
 			
 			/* put the header of the file listing */
 			fStream->PutLong('LIST');
-			for ( uLONG i = 0; i < fFileDescList.size() && result == VE_OK; i++ )
+			
+			for ( uLONG i = 0; i < fFileDescList.size() && result == VE_OK && !userAbort; i++ )
 			{
 				result = _WriteCatalog(fFileDescList[i]->GetParentVFile(),fFileDescExtra[i],totalByteCount);
-			}
-			for ( uLONG i = 0; i < fFileList.size() && result == VE_OK; i++ )
-			{
-				result = _WriteCatalog(fFileList[i],fFileExtra[i],totalByteCount);
+				if ( fCallBack )
+				{
+					fCallBack(CB_UpdateProgress,0,0,userAbort);
+				}
 			}
 
+			for ( uLONG i = 0; i < fFileList.size() && result == VE_OK && !userAbort; i++ )
+			{
+				result = _WriteCatalog(fFileList[i],fFileExtra[i],totalByteCount);
+				if ( fCallBack )
+				{
+					fCallBack(CB_UpdateProgress,0,0,userAbort);
+				}
+			}
+
+			//ACI0077162, Jul 11th 2012, O.R.: Close unbound session and open a bounded one for file processing
 			if ( fCallBack )
+			{
+				fCallBack(CB_CloseProgress,0,0,userAbort);
 				fCallBack(CB_OpenProgress,partialByteCount,totalByteCount,userAbort);
+			}
 
 			VSize bufferSize = 1024*1024;
 			char *buffer = new char[bufferSize];
 
 			/* writing file descriptor that we have to the archive files */
 			/* nota : filedesc passed to the archivestream is considered as data fork */
-			for( VectorOfVFileDesc::iterator i = fFileDescList.begin() ; result == VE_OK && i != fFileDescList.end() ; ++i)
+			//ACI0077162, Jul 11th 2012, O.R.: _WriteFile() in charge of calling progress CB to give reactivity to upper layers
+			for( VectorOfVFileDesc::iterator i = fFileDescList.begin() ; result == VE_OK && i != fFileDescList.end() && !userAbort ; ++i)
 			{
 				StErrorContextInstaller errors( false);
 				result = fStream->PutLong('Fdat');
@@ -411,7 +497,7 @@ VError VArchiveStream::Proceed()
 
 			}
 
-			for( VectorOfVFile::iterator i = fFileList.begin() ; result == VE_OK && i != fFileList.end() ; ++i )
+			for( VectorOfVFile::iterator i = fFileList.begin() ; result == VE_OK && i != fFileList.end() && !userAbort ; ++i )
 			{
 				StErrorContextInstaller errors( false);
 				VFileDesc *fileDesc = NULL;
@@ -454,12 +540,19 @@ VError VArchiveStream::Proceed()
 			}
 			delete[] buffer;
 
-			if ( fCallBack )
-				fCallBack(CB_CloseProgress,partialByteCount,totalByteCount,userAbort);
+			
 
 			fStream->CloseWriting();
 		}
 	}
+	//ACI0077162, Jul 11th 2012, O.R.: close remaining session (either unbounded one for check files or bounded one for processing files)
+	if ( fCallBack )
+		fCallBack(CB_CloseProgress,0,0,userAbort);
+	if (userAbort)
+	{
+		result = XBOX::VE_STREAM_USER_ABORTED;
+	}
+
 	return result;
 }
 

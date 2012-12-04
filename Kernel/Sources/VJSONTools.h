@@ -19,20 +19,14 @@
 #include "Kernel/Sources/VString.h"
 #include "Kernel/Sources/VValueBag.h"
 
+
 BEGIN_TOOLBOX_NAMESPACE
+
+class VJSONValue;
 
 /**@brief	VJSONImporter contains two kind of routines:
 				-> Low-level, to parse a JSON string as you want
 				-> High-level, to fill an object from the JSON string
- 
-			Well. 2009-05-27 => only 2 public routines in the class ;->
- 
-			* * * * * * * * * * * WARNING - WARNING - WARNING - WARNING * * * * * * * * * * *
-			*                                                                               *
-			*   The string passed to the constructor is not duplicated (not retained),		*
-			*		   => It must not be released until the parsing is done.		        *
-			*                                                                               *
-			* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  
 			Using VJSONImporter
 				*	If you need to parse a JSON string to extract some values from it, then loop using GetNextJSONToken(), until you
@@ -63,21 +57,19 @@ public:
 			jsonString
 		} JsonToken;
 	
-						VJSONImporter(const VString& inJSONString)
-						{
-							fInputLen = inJSONString.GetLength();
-							fStartChar = inJSONString.GetCPointer();
-							fCurChar = fStartChar;
-							fRecursiveCallCount = 0;
-						}
-	
+						VJSONImporter( const VString& inJSONString);
 						~VJSONImporter()		{ }
 	
-	/**@brief	GetNextJSONToken() parses the string until it reaches a token. It fills outString with the content that is between previous token -> this token
+	/**@brief	GetNextJSONToken() parses the string until it reaches a token.
+		It fills outString with the content that is between previous token -> this token
 	*/
 	JsonToken			GetNextJSONToken(VString& outString, bool* withQuotes);
+
 	/**@brief	This GetNextJSONToken() is faster, and must be used only if you need to jump until a specific token*/
 	JsonToken			GetNextJSONToken();
+
+	// parse json string and produces a json value
+	VError				Parse( VJSONValue& outValue);
 	
 	/**@brief	JSONObjectToBag() fills outBag with the values contained in the string
 	 
@@ -92,8 +84,14 @@ public:
 	
 private:
 	UniChar				_GetNextChar(bool& outIsEOF);
+	VError				_StringToValue( const VString& inString, bool inWithQuotes, VJSONValue& outValue);
+	VError				_ParseObject( VJSONValue& outValue);
+	VError				_ParseArray( VJSONValue& outValue);
+	bool				_ParseNumber( const UniChar *inString);
+	VError				_ThrowError();
 	
-	sLONG				fInputLen;
+	VString				fString;
+	VIndex				fInputLen;
 	const UniChar*		fCurChar;
 	const UniChar*		fStartChar;
 

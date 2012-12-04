@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h" 
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #if ENABLE_D2D
 #include "XWinD2DGraphicContext.h"
@@ -5831,7 +5830,7 @@ VError VPictureCodec_WIC::_Encode(	 const VPictureCodec *inPictureCodec,
 
 			Gdiplus::Bitmap *bmpOpaque = new Gdiplus::Bitmap(	src->GetWidth(), 
 																src->GetHeight(), 
-																PixelFormat32bppARGB);
+																PixelFormat32bppRGB);
 			Gdiplus::Graphics *gc = new Gdiplus::Graphics( bmpOpaque);
 			xbox_assert(gc);
 
@@ -5843,9 +5842,12 @@ VError VPictureCodec_WIC::_Encode(	 const VPictureCodec *inPictureCodec,
 			gc->Clear(colorBackground);
 			gc->SetCompositingMode(Gdiplus::CompositingModeSourceOver);
 
-			gc->SetCompositingQuality( Gdiplus::CompositingQualityHighQuality);
-			gc->SetSmoothingMode( Gdiplus::SmoothingModeHighQuality);
-			gc->SetInterpolationMode( Gdiplus::InterpolationModeHighQualityBicubic);
+			//ensure we disable composition, smoothing mode & interpolation
+			//as we do not want image to be modified but just composed as it is
+			//(otherwise for instance antialiased text would be antialiased again)
+			gc->SetCompositingQuality( Gdiplus::CompositingQualityHighSpeed);
+			gc->SetSmoothingMode( Gdiplus::SmoothingModeNone);
+			gc->SetInterpolationMode( Gdiplus::InterpolationModeNearestNeighbor);
 
 			gc->DrawImage( src, 0, 0);
 			delete gc;

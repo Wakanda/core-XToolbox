@@ -32,6 +32,7 @@ public:
 
 			VError				Create() const;
 			VError				Delete() const;
+			VError				MoveToTrash() const;
 			bool				Exists( bool inAcceptFolderAlias) const;
 
 			VError				RevealInFinder() const;
@@ -41,7 +42,10 @@ public:
 			VError				GetTimeAttributes( VTime* outLastModification, VTime* outCreationTime, VTime* outLastAccess ) const;
 			VError				SetTimeAttributes( const VTime *inLastModification, const VTime *inCreationTime, const VTime *inLastAccess ) const;
 
+			VError				GetVolumeCapacity (sLONG8 *outTotalBytes ) const;
 			VError				GetVolumeFreeSpace (sLONG8 *outFreeBytes, bool inWithQuotas = true ) const;
+			
+
 
 			VError				GetAttributes( DWORD *outAttrb ) const;
 			VError				SetAttributes( DWORD inAttrb ) const;

@@ -21,7 +21,6 @@
 
 #include "VKernelIPCPrecompiled.h"
 #include "VComponentLibrary.h"
-#include "VLibrary.h"
  
 
 // Receipe:

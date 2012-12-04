@@ -37,10 +37,11 @@ public:
 	};
 
 	// Create a buffer object with an already existing buffer.
-	// Note that inBuffer must have been allocated using ::malloc() as it will be freed by destructor using ::free().
+	// If inFromMemoryBufer is false, inBuffer must have been allocated using ::malloc() as it will be freed by destructor 
+	// using ::free(). If it is a data pointer "stolen" from a VMemoryBuffer<>, VMemory::DisposePtr() will be used instead.
 	// It is possible to have a zero length buffer, but then inBuffer must be NULL.
 
-					VJSBufferObject (VSize inLength, void *inBuffer);
+					VJSBufferObject (VSize inLength, void *inBuffer, bool inFromMemoryBuffer = false);
 
 	// Create a buffer object. fBuffer must be checked (out of memory) after constructor called.
 
@@ -73,6 +74,7 @@ friend class VJSBufferClass;
 	VJSBufferObject	*fParent;	
 	VSize			fLength;
 	uBYTE			*fBuffer;
+	bool			fFromMemoryBuffer;
 
 	// Create a reference to a parent buffer (used by slice() method only). 
 

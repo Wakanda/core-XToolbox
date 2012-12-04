@@ -205,7 +205,6 @@ namespace CW
     }
 
 
-
     size_t Buffer::ReadFunction(void *ptr, size_t size, size_t nmemb, void *stream)
     {
         assert(stream);
@@ -225,6 +224,26 @@ namespace CW
     }
 
 
+	int Buffer::SeekFunction(void *stream, size_t offset, int origin)
+    {
+        assert(stream);
+		
+		Buffer* buf=(Buffer*)(stream);
+		
+		xbox_assert(origin==SEEK_SET);
+		
+		if(origin!=SEEK_SET)
+			return CURL_SEEKFUNC_FAIL;
+		
+		if(offset<0 || offset>=buf->fBuf.size())
+			return CURL_SEEKFUNC_FAIL;
+
+		buf->fRead=offset;
+		
+        return CURL_SEEKFUNC_OK;
+    }
+	
+
     void Buffer::Push(char c)
     {
         fBuf.push_back(c);
@@ -235,13 +254,25 @@ namespace CW
     {
         return this;
     }
+	
+	
+	void* Buffer::GetSeekData()
+    {
+        return this;
+    }
 
 
     CurlReadFunction Buffer::GetReadFunction() const
     {
-        return reinterpret_cast<CurlWriteFunction>(&Buffer::ReadFunction);
+        return reinterpret_cast<CurlReadFunction>(&Buffer::ReadFunction);
     }
-
+	
+	
+	CurlSeekFunction Buffer::GetSeekFunction() const
+    {
+        return reinterpret_cast<CurlSeekFunction>(&Buffer::SeekFunction);
+	}
+	
 
     size_t Buffer::GetReadSize() const
     {
@@ -537,6 +568,36 @@ namespace CW
             curl_easy_cleanup(fHandle);
     }
 
+	
+	bool HttpRequest::SetUserInfos(const XBOX::VString& inUser, const XBOX::VString& inPasswd, bool inAllowBasic)
+	{
+		if(!fHandle)
+            return false;
+		
+		XBOX::VString userInfos;
+		userInfos.AppendString(inUser).AppendCString(":").AppendString(inPasswd);
+	
+		int maxlen=2*userInfos.GetLength()+1;  //We convert utf16 to utf8, it should be large enough.
+        char* buf=new char[maxlen];
+		
+        if(!buf)
+            return false;
+		
+		int len=userInfos.ToBlock(buf, maxlen, XBOX::VTC_UTF_8, true, false);
+		
+		curl_easy_setopt(fHandle, CURLOPT_USERPWD, buf);
+		
+		delete buf;
+		
+		if(inAllowBasic)
+			curl_easy_setopt(fHandle, CURLOPT_HTTPAUTH, CURLAUTH_BASIC|CURLAUTH_DIGEST);
+		else	
+			curl_easy_setopt(fHandle, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST);
+		
+		return true;
+	}
+	
+	
     void HttpRequest::SetProxy(const XBOX::VString& inHost, uLONG inPort)
     {
         if(!fHandle)
@@ -714,6 +775,9 @@ namespace CW
             curl_easy_setopt(fHandle, CURLOPT_POST, 1L);
             curl_easy_setopt(fHandle, CURLOPT_READFUNCTION, fData.GetReadFunction());
             curl_easy_setopt(fHandle, CURLOPT_READDATA, fData.GetReadData());
+			curl_easy_setopt(fHandle, CURLOPT_SEEKFUNCTION, fData.GetSeekFunction());
+			curl_easy_setopt(fHandle, CURLOPT_SEEKDATA, fData.GetSeekData());
+				
             //Est-ce qu'on doit également valoriser CURLOPT_POSTFIELDSIZE ?
             break;
 
@@ -721,6 +785,8 @@ namespace CW
             curl_easy_setopt(fHandle, CURLOPT_UPLOAD, 1L);
             curl_easy_setopt(fHandle, CURLOPT_READFUNCTION, fData.GetReadFunction());
             curl_easy_setopt(fHandle, CURLOPT_READDATA, fData.GetReadData());
+			curl_easy_setopt(fHandle, CURLOPT_SEEKFUNCTION, fData.GetSeekFunction());
+			curl_easy_setopt(fHandle, CURLOPT_SEEKDATA, fData.GetSeekData());
             curl_easy_setopt(fHandle, CURLOPT_INFILESIZE, fData.GetLength());
             break;
 

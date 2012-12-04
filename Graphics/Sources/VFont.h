@@ -101,6 +101,10 @@ public:
 			GReal				GetPixelSize () const		{ return fSize; }
 #endif
 
+			bool				GetFontID(sWORD& outID)const	{outID=fFontID;return fFontIDValid;}
+			void				SetFontID(sWORD inID)			{fFontID = inID;fFontIDValid=true;}
+
+			
 			FontRef				GetFontRef () const		{ return fFont.GetFontRef(); }
 			Boolean				IsTrueTypeFont() { return fFont.IsTrueTypeFont();}
 
@@ -227,6 +231,13 @@ protected:
 			mutable GReal		fPixelSize;
 #endif
 			StdFont				fStdFont;
+			
+			// optimization pour l'ancien code qui utilsie tj des fontid quickdraw
+			// pour eviter d'appler GetFnum trop souvent, on stock l'id quickdraw dans la vfont une fois pour toute.
+			// Cet id est conservé lors de la derivation de la fonte, il n'est jamais utilisé en interne. 
+			bool				fFontIDValid; 
+			sWORD				fFontID;
+			
 			XFontImpl			fFont;
 };
 

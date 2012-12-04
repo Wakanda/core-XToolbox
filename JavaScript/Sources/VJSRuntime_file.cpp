@@ -20,6 +20,7 @@
 #include "VJSClass.h"
 #include "VJSGlobalClass.h"
 #include "VJSRuntime_file.h"
+#include "VJSW3CFileSystem.h"
 
 #if VERSIONMAC == 1
 
@@ -129,16 +130,50 @@ void VJSPath::ResolvePath (XBOX::VString *ioPath)
 {
 	xbox_assert(ioPath != NULL);
 	
-	
-	 char	path[PATH_MAX], resolvedPath[PATH_MAX];
-	 size_t	size;
+	char	path[PATH_MAX], resolvedPath[PATH_MAX];
+	size_t	size;
 	 
-	 ioPath->ToBlock(path, PATH_MAX, VTC_UTF_8, true, false);
+	ioPath->ToBlock(path, PATH_MAX, VTC_UTF_8, true, false);
 	 
-	 ::realpath(path, resolvedPath);
-	 size = ::strlen(resolvedPath);
+	::realpath(path, resolvedPath);
+	size = ::strlen(resolvedPath);
 	 
-	 ioPath->FromBlock(resolvedPath, size, VTC_UTF_8);
+	ioPath->FromBlock(resolvedPath, size, VTC_UTF_8);
+}
+
+#else 
+
+void VJSPath::ResolvePath (XBOX::VString *ioPath)
+{
+	xbox_assert(ioPath != NULL);
+
+	XBOX::VString	unresolved(*ioPath);
+	sLONG			i;
+	UniChar			c;
+
+	i = 0;
+	ioPath->Clear();
+	while (i < unresolved.GetLength()) {
+
+		c = unresolved.GetUniChar(i + 1);
+		ioPath->AppendUniChar(c);
+		i++;
+		if (c == '/') {
+
+			while (i < unresolved.GetLength())
+
+				if (unresolved.GetUniChar(i + 1) == '/')
+
+					i++;
+
+				else
+
+					break;
+
+		}
+
+	}
+
 }
 
 #endif	
@@ -384,10 +419,138 @@ XBOX::VJSObject	VJSFolderIterator::_Construct (VJSParms_withArguments &ioParms)
 				}
 				else
 					vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
-			}	
+			} 
 		}
 		else
-			vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_FOLDER, "1");
+			constructedObject = _ConstructFromW3CFS(ioParms);
+	}
+
+	return constructedObject;
+}
+
+// Implement : 
+//
+//	new Folder(fileSystem, path);
+//	new Folder(directoryEntry, path);
+//	new Folder(directoryEntry);
+
+XBOX::VJSObject VJSFolderIterator::_ConstructFromW3CFS (VJSParms_withArguments &ioParms)
+{
+	XBOX::VJSObject constructedObject(ioParms.GetContext());
+	XBOX::VJSObject	object(ioParms.GetContext());
+
+	constructedObject.SetNull();
+	if (!ioParms.GetParamObject(1, object)) 
+
+		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
+	
+	else if (object.IsOfClass(VJSDirectoryEntryClass::Class())
+	|| object.IsOfClass(VJSDirectoryEntrySyncClass::Class())) {
+
+		VJSEntry	*entry;
+
+		if (object.IsOfClass(VJSDirectoryEntryClass::Class()))
+
+			entry = object.GetPrivateData<VJSDirectoryEntryClass>();
+
+		else
+
+			entry = object.GetPrivateData<VJSDirectoryEntrySyncClass>();
+
+		xbox_assert(entry != NULL);
+		
+		if (entry->IsFile())
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
+
+		else if (entry->Folder(ioParms.GetContext(), &constructedObject) != VJSFileErrorClass::OK) {
+
+			ioParms.SetException(constructedObject);
+			constructedObject.SetNull();
+
+		}		
+
+	} else {
+
+		bool			isOk;
+		sLONG			code;
+		XBOX::VString	url;
+		XBOX::VFilePath	filePath;				
+		bool			isFile;	
+
+		if (!ioParms.GetStringParam(2, url)) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
+			isOk = false;
+
+		} else if (object.IsOfClass(VJSFileSystemClass::Class()) 
+		|| object.IsOfClass(VJSFileSystemSyncClass::Class())) {
+
+			VJSFileSystem	*fileSystem;
+
+			if (object.IsOfClass(VJSFileSystemClass::Class()))
+
+				fileSystem = object.GetPrivateData<VJSFileSystemClass>();
+
+			else
+
+				fileSystem = object.GetPrivateData<VJSFileSystemSyncClass>();
+
+			xbox_assert(fileSystem != NULL);
+
+			filePath = fileSystem->GetRoot();
+			isOk = (code = fileSystem->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
+				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
+			
+		} else if (object.IsOfClass(VJSDirectoryEntryClass::Class())
+		|| object.IsOfClass(VJSDirectoryEntrySyncClass::Class())) {
+
+			VJSEntry	*entry;
+
+			if (object.IsOfClass(VJSDirectoryEntryClass::Class()))
+
+				entry = object.GetPrivateData<VJSDirectoryEntryClass>();
+	
+			else
+
+				entry = object.GetPrivateData<VJSDirectoryEntrySyncClass>();
+
+			xbox_assert(entry != NULL);
+			
+			filePath = entry->GetPath();
+			isOk = (code = entry->GetFileSystem()->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
+				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
+
+		} else {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
+			isOk = false;
+
+		}
+
+		if (isOk) {
+
+			if (code == VJSFileErrorClass::NOT_FOUND_ERR || !isFile) {
+
+				XBOX::VFolder	*folder;
+				
+				if ((folder = new XBOX::VFolder(filePath)) == NULL) 
+
+					XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+
+				else {
+
+					constructedObject.MakeFolder(folder);
+					XBOX::ReleaseRefCountable(&folder);
+
+				}
+
+			} else
+
+				XBOX::vThrowError(XBOX::VE_JVSC_NOT_A_FOLDER);
+
+		}
+
 	}
 
 	return constructedObject;
@@ -459,9 +622,17 @@ void VJSFolderIterator::_IsFolder (XBOX::VJSParms_callStaticFunction &ioParms, X
 		}
 		ioParms.ReturnBool(isFolder);
 		
-	} else if (ioParms.IsObjectParam(1) && ioParms.GetParamObject(1, object) && object.IsInstanceOf("Folder")) {
+	} else if (ioParms.IsObjectParam(1) && ioParms.GetParamObject(1, object) && object.IsOfClass(VJSFolderIterator::Class())) {
 
-		// TODO.
+		JS4DFolderIterator	*folderIterator;
+
+		if ((folderIterator = object.GetPrivateData<VJSFolderIterator>()) == NULL || folderIterator->GetFolder() == NULL) 
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FOLDER, "1");	// Impossible?
+
+		else 
+			
+			ioParms.ReturnBool(folderIterator->GetFolder()->Exists());
 
 	} else 
 
@@ -1522,15 +1693,20 @@ void VJSFileIterator::_IsFile (XBOX::VJSParms_callStaticFunction &ioParms, XBOX:
 		}
 		ioParms.ReturnBool(isFile);
 		
-	} else if (ioParms.IsObjectParam(1) && ioParms.GetParamObject(1, object) && object.IsInstanceOf("File")) {
+	} else if (ioParms.IsObjectParam(1) && ioParms.GetParamObject(1, object) && object.IsOfClass(VJSFileIterator::Class())) {
 
-		// TODO
+		JS4DFileIterator	*fileIterator;
 
-		XBOX::vThrowError(XBOX::VE_INVALID_PARAMETER);
+		if ((fileIterator = object.GetPrivateData<VJSFileIterator>()) == NULL || fileIterator->GetFile() == NULL) 
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FILE, "1");	// Impossible?
+
+		else 
+			
+			ioParms.ReturnBool(fileIterator->GetFile()->Exists());
 
 	} else 
-		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_FILE, "1");
-		
+		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_FILE, "1");		
 }
 
 
@@ -2096,16 +2272,37 @@ XBOX::VJSObject VJSFileIterator::_Construct (VJSParms_withArguments &ioParms)
 			//VURL url(folderurl, eURL_POSIX_STYLE, L"file://");
 			VURL url;
 			JS4D::GetURLFromPath(folderurl, url);
-			VFilePath path;
-			if (url.GetFilePath(path) && path.IsFile())
-			{
-				VFile* file = new VFile( url);
-				constructedObject.MakeFile( file);
-				ReleaseRefCountable( &file);
-			}
+			
+			XBOX::VString	fullPath;
+			VFilePath		path;
+						
+			url.GetPath(fullPath, eURL_POSIX_STYLE, false);
+				
+#if VERSIONMAC == 1 || VERSION_LINUX == 1
+	
+			if (fullPath.GetUniChar(1) != '/')
+				
+				fullPath.Insert('/', 1);
+			
+#endif			
+			
+			VJSPath::ResolvePath(&fullPath);
+			path.FromFullPath(fullPath, FPS_POSIX);
+			
+			if (path.IsFile()) {
+			
+				VFile	*file	= new VFile(path);
+				
+				constructedObject.MakeFile(file);
+				ReleaseRefCountable(&file);
+			
+			} else
+
+				XBOX::vThrowError(XBOX::VE_JVSC_NOT_A_FILE);
+
 		}
 		else
-			vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_FOLDER, "1");
+			constructedObject = _ConstructFromW3CFS(ioParms);
 	}
 	else
 	{
@@ -2121,10 +2318,138 @@ XBOX::VJSObject VJSFileIterator::_Construct (VJSParms_withArguments &ioParms)
 			}
 			else 
 				vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
+		} 	
 
-		}
 	}
 	
+	return constructedObject;
+}
+
+// Implement : 
+//
+//	new File(fileSystem, path);
+//	new File(directoryEntry, path);
+//	new File(fileEntry);
+
+XBOX::VJSObject VJSFileIterator::_ConstructFromW3CFS (VJSParms_withArguments &ioParms)
+{
+	XBOX::VJSObject constructedObject(ioParms.GetContext());
+	XBOX::VJSObject	object(ioParms.GetContext());
+
+	constructedObject.SetNull();
+	if (!ioParms.GetParamObject(1, object)) 
+
+		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
+	
+	else if (object.IsOfClass(VJSFileEntryClass::Class())
+	|| object.IsOfClass(VJSFileEntrySyncClass::Class())) {
+
+		VJSEntry	*entry;
+
+		if (object.IsOfClass(VJSFileEntryClass::Class()))
+
+			entry = object.GetPrivateData<VJSFileEntryClass>();
+
+		else
+
+			entry = object.GetPrivateData<VJSFileEntrySyncClass>();
+
+		xbox_assert(entry != NULL);
+		
+		if (!entry->IsFile())
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
+
+		else if (entry->File(ioParms.GetContext(), &constructedObject) != VJSFileErrorClass::OK) {
+
+			ioParms.SetException(constructedObject);
+			constructedObject.SetNull();
+
+		}		
+
+	} else {
+
+		bool			isOk;
+		sLONG			code;
+		XBOX::VString	url;
+		XBOX::VFilePath	filePath;				
+		bool			isFile;	
+
+		if (!ioParms.GetStringParam(2, url)) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
+			isOk = false;
+
+		} else if (object.IsOfClass(VJSFileSystemClass::Class()) 
+		|| object.IsOfClass(VJSFileSystemSyncClass::Class())) {
+
+			VJSFileSystem	*fileSystem;
+
+			if (object.IsOfClass(VJSFileSystemClass::Class()))
+
+				fileSystem = object.GetPrivateData<VJSFileSystemClass>();
+
+			else
+
+				fileSystem = object.GetPrivateData<VJSFileSystemSyncClass>();
+
+			xbox_assert(fileSystem != NULL);
+
+			filePath = fileSystem->GetRoot();
+			isOk = (code = fileSystem->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
+				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
+			
+		} else if (object.IsOfClass(VJSDirectoryEntryClass::Class())
+		|| object.IsOfClass(VJSDirectoryEntrySyncClass::Class())) {
+
+			VJSEntry	*entry;
+
+			if (object.IsOfClass(VJSDirectoryEntryClass::Class()))
+
+				entry = object.GetPrivateData<VJSDirectoryEntryClass>();
+	
+			else
+
+				entry = object.GetPrivateData<VJSDirectoryEntrySyncClass>();
+
+			xbox_assert(entry != NULL);
+			
+			filePath = entry->GetPath();
+			isOk = (code = entry->GetFileSystem()->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
+				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
+
+		} else {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
+			isOk = false;
+
+		}
+
+		if (isOk) {
+
+			if (code == VJSFileErrorClass::NOT_FOUND_ERR || isFile) {
+
+				XBOX::VFile	*file;
+				
+				if ((file = new XBOX::VFile(filePath)) == NULL) 
+
+					XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+
+				else {
+
+					constructedObject.MakeFile(file);
+					XBOX::ReleaseRefCountable(&file);
+
+				}
+
+			} else
+
+				XBOX::vThrowError(XBOX::VE_JVSC_NOT_A_FILE);
+
+		}
+
+	}
+
 	return constructedObject;
 }
 

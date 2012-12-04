@@ -95,6 +95,11 @@ int	SNET_STDCALL SSLSTUB::RSA_size(const RSA* rsa)
 	return ::RSA_size(rsa);
 }
 
+int	SNET_STDCALL SSLSTUB::SSL_CTX_ctrl(SSL_CTX* ctx, int cmd, long larg, void *parg)
+{
+	return ::SSL_CTX_ctrl(ctx, cmd, larg, parg);
+}
+
 void SNET_STDCALL SSLSTUB::SSL_CTX_free(SSL_CTX* ctx)
 {
 	return ::SSL_CTX_free(ctx);
@@ -118,6 +123,11 @@ int SNET_STDCALL SSLSTUB::SSL_CTX_use_RSAPrivateKey(SSL_CTX* ctx, RSA* rsa)
 int SNET_STDCALL SSLSTUB::SSL_CTX_use_certificate(SSL_CTX* ctx, X509* x)
 {
 	return ::SSL_CTX_use_certificate(ctx, x);
+}
+
+int	SNET_STDCALL SSLSTUB::SSL_ctrl(SSL* ssl, int cmd, long larg, void *parg)
+{
+	return ::SSL_ctrl(ssl, cmd, larg, parg);
 }
 
 void SNET_STDCALL SSLSTUB::SSL_free(SSL* ssl)

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(SERVERNET)
 
 
-set(ServerNetIncludeDir ${ServerNetRoot}/Headers PARENT_SCOPE)
+set(ServerNetIncludeDir ${ServerNetRoot} ${ServerNetRoot}/Headers PARENT_SCOPE)
 
 
 file(GLOB Sources ${ServerNetRoot}/Sources/*.cpp)

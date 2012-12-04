@@ -15,6 +15,12 @@
 */
 #include "VJavaScriptPrecompiled.h"
 
+#if VERSIONMAC
+#include <4DJavaScriptCore/JavaScriptCore.h>
+#else
+#include <JavaScriptCore/JavaScript.h>
+#endif
+
 #include "VJSValue.h"
 #include "VJSRuntime_Image.h"
 #include "VJSRuntime_blob.h"
@@ -23,7 +29,8 @@
 USING_TOOLBOX_NAMESPACE
 
 
-bool JS4D::ValueToString( ContextRef inContext, ValueRef inValue, VString& outString, ValueRef *outException)
+
+bool JS4D::ValueToString( ContextRef inContext, ValueRef inValue, VString& outString, ExceptionRef *outException)
 {
 	JSStringRef jsString = JSValueToStringCopy( inContext, inValue, outException);
 	bool ok = StringToVString( jsString, outString);
@@ -177,6 +184,12 @@ JS4D::ValueRef JS4D::BoolToValue( ContextRef inContext, bool inValue)
 }
 
 
+JS4D::ValueRef JS4D::DoubleToValue( ContextRef inContext, double inValue)
+{
+	return JSValueMakeNumber( inContext, inValue);
+}
+
+
 JS4D::ObjectRef JS4D::VTimeToObject( ContextRef inContext, const VTime& inTime, ExceptionRef *outException)
 {
 	if (inTime.IsNull())
@@ -270,7 +283,7 @@ bool JS4D::DateObjectToVTime( ContextRef inContext, ObjectRef inObject, VTime& o
 }
 
 
-VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, ValueRef *outException)
+VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, ExceptionRef *outException)
 {
 	if (inValue == NULL)
 		return NULL;
@@ -422,7 +435,7 @@ VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, Value
 }
 
 
-JS4D::ValueRef JS4D::VValueToValue( ContextRef inContext, const VValueSingle& inValue, ValueRef *outException)
+JS4D::ValueRef JS4D::VValueToValue( ContextRef inContext, const VValueSingle& inValue, ExceptionRef *outException)
 {
 	ValueRef jsValue;
 	switch( inValue.GetValueKind())
@@ -496,6 +509,344 @@ JS4D::ValueRef JS4D::VValueToValue( ContextRef inContext, const VValueSingle& in
 }
 
 
+static JS4D::ValueRef _VJSONValueToValue( JS4D::ContextRef inContext, const VJSONValue& inValue, JS4D::ExceptionRef *outException, std::map<VJSONObject*,JSObjectRef>& ioConvertedObjects)
+{
+	JS4D::ValueRef jsValue;
+	JS4D::ValueRef exception = NULL;
+	switch( inValue.GetType())
+	{
+		case JSON_undefined:
+			{
+				jsValue = JSValueMakeUndefined( inContext);
+				break;
+			}
+
+		case JSON_null:
+			{
+				jsValue = JSValueMakeNull( inContext);
+				break;
+			}
+
+		case JSON_true:
+			{
+				jsValue = JSValueMakeBoolean( inContext, true);
+				break;
+			}
+
+		case JSON_false:
+			{
+				jsValue = JSValueMakeBoolean( inContext, false);
+				break;
+			}
+			
+		case JSON_string:
+			{
+				VString s;
+				inValue.GetString( s);
+				JSStringRef jsString = JSStringCreateWithCharacters( s.GetCPointer(), s.GetLength());
+				jsValue = JSValueMakeString( inContext, jsString);
+				JSStringRelease( jsString);
+				break;
+			}
+			
+		case JSON_number:
+			{
+				jsValue = JSValueMakeNumber( inContext, inValue.GetNumber());
+				break;
+			}
+
+		case JSON_array:
+			{
+				JSObjectRef array = NULL;
+				const VJSONArray *jsonArray = inValue.GetArray();
+				size_t count = jsonArray->GetCount();
+				if (count == 0)
+				{
+					array = JSObjectMakeArray( inContext, 0, NULL, &exception);
+				}
+				else
+				{
+					JS4D::ValueRef *values = new JS4D::ValueRef[count];
+					if (values != NULL)
+					{
+						JS4D::ValueRef *currentValue = values;
+						for( size_t i = 0 ; (i < count) && (exception == NULL) ; ++i)
+						{
+							JS4D::ValueRef val = _VJSONValueToValue( inContext, (*jsonArray)[i], &exception, ioConvertedObjects);
+							if (val == NULL)
+								break;
+							JSValueProtect( inContext, val);
+							*currentValue++ = val;
+						}
+						if (currentValue == values + count)
+						{
+							array = JSObjectMakeArray( inContext, count, values, &exception);
+						}
+						do
+						{
+							JSValueUnprotect( inContext, *--currentValue);
+						} while( currentValue != values);
+					}
+					delete [] values;
+				}
+				jsValue = array;
+				break;
+			}
+
+		case JSON_object:
+			{
+				std::pair<std::map<VJSONObject*,JSObjectRef>::iterator,bool> i_ConvertedObjects = ioConvertedObjects.insert( std::map<VJSONObject*,JSObjectRef>::value_type( inValue.GetObject(), NULL));
+				
+				if (!i_ConvertedObjects.second)
+				{
+					// already converted object
+					jsValue = i_ConvertedObjects.first->second;
+				}
+				else
+				{
+					JSObjectRef jsObject = JSObjectMake( inContext, NULL, NULL);
+					if (jsObject != NULL)
+					{
+						xbox_assert( i_ConvertedObjects.first->second == NULL);
+						i_ConvertedObjects.first->second = jsObject;
+						i_ConvertedObjects.first = ioConvertedObjects.end();	// calling _VJSONValueToValue recursively make this iterator invalid
+
+						for( VJSONPropertyConstIterator i( inValue.GetObject()) ; i.IsValid() && (exception == NULL) ; ++i)
+						{
+							const VString& name = i.GetName();
+							JSStringRef jsName = JSStringCreateWithCharacters( name.GetCPointer(), name.GetLength());
+
+							JS4D::ValueRef value = _VJSONValueToValue( inContext, i.GetValue(), &exception, ioConvertedObjects);
+							if ( (value != NULL) && (jsName != NULL) )
+							{
+								JSObjectSetProperty( inContext, jsObject, jsName, value, JS4D::PropertyAttributeNone, &exception);
+							}
+							else
+							{
+								jsObject = NULL;	// garbage collector will hopefully collect this partially built object
+								break;
+							}
+
+							if (jsName != NULL)
+								JSStringRelease( jsName);
+						}
+					}
+					jsValue = jsObject;
+				}
+				break;
+			}
+		
+		default:
+			xbox_assert( false);
+			jsValue = NULL;
+			break;
+	}
+
+	if (outException != NULL)
+		*outException = exception;
+
+	return jsValue;
+}
+
+
+JS4D::ValueRef JS4D::VJSONValueToValue( JS4D::ContextRef inContext, const VJSONValue& inValue, JS4D::ExceptionRef *outException)
+{
+	std::map<VJSONObject*,JSObjectRef> convertedObjects;
+	
+	return _VJSONValueToValue( inContext, inValue, outException, convertedObjects);
+}
+
+
+static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inValue, VJSONValue& outJSONValue, JS4D::ExceptionRef *outException, std::map<JSObjectRef,VJSONObject*>& ioConvertedObjects)
+{
+	if (inValue == NULL)
+	{
+		outJSONValue.SetUndefined();
+		return true;
+	}
+	
+	bool ok = true;
+	JS4D::ValueRef exception = NULL;
+	JSType type = JSValueGetType( inContext, inValue);
+	switch( type)
+	{
+		case kJSTypeUndefined:
+			outJSONValue.SetUndefined();
+			break;
+		
+		case kJSTypeNull:
+			outJSONValue.SetNull();
+			break;
+		
+		case kJSTypeBoolean:
+			outJSONValue.SetBool( JSValueToBoolean( inContext, inValue));
+			break;
+
+		case kJSTypeNumber:
+			outJSONValue.SetNumber( JSValueToNumber( inContext, inValue, &exception));
+			break;
+
+		case kJSTypeString:
+			{
+				JSStringRef jsString = JSValueToStringCopy( inContext, inValue, &exception);
+				VString s;
+				ok = JS4D::StringToVString( jsString, s);
+				if (ok)
+				{
+					outJSONValue.SetString( s);
+				}
+				else
+				{
+					outJSONValue.SetUndefined();
+				}
+				if (jsString != NULL)
+					JSStringRelease( jsString);
+				break;
+			}
+		
+		case kJSTypeObject:
+			{
+				if (JS4D::ValueIsInstanceOf( inContext, inValue, CVSTR( "Array"), &exception))
+				{
+					// get count of array elements
+					JSObjectRef arrayObject = JSValueToObject( inContext, inValue, &exception);
+					JSStringRef jsString = JSStringCreateWithUTF8CString( "length");
+					JSValueRef result = (jsString != NULL) ? JSObjectGetProperty( inContext, arrayObject, jsString, &exception) : NULL;
+					double r = (result != NULL) ? JSValueToNumber( inContext, result, NULL) : 0;
+					size_t length = (size_t) r;
+					if (jsString != NULL)
+						JSStringRelease( jsString);
+
+					VJSONArray *jsonArray = new VJSONArray;
+					if ( (jsonArray != NULL) && jsonArray->Resize( length) && (exception == NULL) )
+					{
+						for( size_t i = 0 ; (i < length) && ok && (exception == NULL) ; ++i)
+						{
+							JSValueRef elemValue = JSObjectGetPropertyAtIndex( inContext, arrayObject, i, &exception);
+							if (elemValue != NULL)
+							{
+								VJSONValue value;
+								ok = _ValueToVJSONValue( inContext, elemValue, value, &exception, ioConvertedObjects);
+								jsonArray->SetNth( i+1, value);
+							}
+						}
+					}
+					else
+					{
+						ok = false;
+					}
+
+					if (ok && (exception == NULL) )
+					{
+						outJSONValue.SetArray( jsonArray);
+					}
+					else
+					{
+						outJSONValue.SetUndefined();
+					}
+					ReleaseRefCountable( &jsonArray);
+				}
+				else
+				{
+					JSObjectRef jsObject = JSValueToObject( inContext, inValue, &exception);
+
+					std::pair<std::map<JSObjectRef,VJSONObject*>::iterator,bool> i_ConvertedObjects = ioConvertedObjects.insert( std::map<JSObjectRef,VJSONObject*>::value_type( jsObject, NULL));
+					
+					if (!i_ConvertedObjects.second)
+					{
+						// already converted object
+						outJSONValue.SetObject( i_ConvertedObjects.first->second);
+					}
+					else if (JSObjectIsFunction( inContext, jsObject))
+					{
+						// skip function objects (are also skipped by JSON.stringify and produce cyclic structures)
+						outJSONValue.SetUndefined();
+						ok = true;	// not fatal not to break conversion process
+					}
+					else
+					{
+						// get prototype object to filter out its properties
+						JSValueRef prototypeValue = JSObjectGetPrototype( inContext, jsObject);
+						JSObjectRef prototypeObject = (prototypeValue != NULL) ? JSValueToObject( inContext, prototypeValue, &exception) : NULL;
+						
+						VJSONObject *jsonObject = new VJSONObject;
+						
+						xbox_assert( i_ConvertedObjects.first->second == NULL);
+						i_ConvertedObjects.first->second = jsonObject;
+						i_ConvertedObjects.first = ioConvertedObjects.end();	// calling _ValueToVJSONValue recursively make this iterator invalid
+
+						JSPropertyNameArrayRef namesArray = JSObjectCopyPropertyNames( inContext, jsObject);
+						if ( (jsonObject != NULL) && (namesArray != NULL) )
+						{
+							size_t size = JSPropertyNameArrayGetCount( namesArray);
+							for( size_t i = 0 ; (i < size) && ok ; ++i)
+							{
+								JSStringRef jsName = JSPropertyNameArrayGetNameAtIndex( namesArray, i);
+								
+								// just like JSON.stringify or structure cloning, skip properties from the prototype chain
+								if ( (prototypeObject == NULL) || !JSObjectHasProperty( inContext, prototypeObject, jsName))
+								{
+									VString name;
+									ok = JS4D::StringToVString( jsName, name);
+
+									JSValueRef valueRef = JSObjectGetProperty( inContext, jsObject, jsName, &exception);
+									if ( (exception != NULL) || (valueRef == NULL) )
+										ok = false;
+
+									VJSONValue jsonValue;
+									if (ok)
+										ok = _ValueToVJSONValue( inContext, valueRef, jsonValue, &exception, ioConvertedObjects);
+
+									if (ok)
+										ok = jsonObject->SetProperty( name, jsonValue);
+								}
+
+								//JSStringRelease( jsName);	// owned by namesArray
+							}
+						}
+						else
+						{
+							ok = false;
+						}
+
+						if (namesArray != NULL)
+							JSPropertyNameArrayRelease( namesArray);
+
+						if (ok && (exception == NULL) )
+						{
+							outJSONValue.SetObject( jsonObject);
+						}
+						else
+						{
+							outJSONValue.SetUndefined();
+						}
+						ReleaseRefCountable( &jsonObject);
+					}
+				}
+				break;
+			}
+		
+		default:
+			outJSONValue.SetUndefined();
+			ok = false;
+			break;
+	}
+	
+	if (outException != NULL)
+		*outException = exception;
+	
+	return ok && (exception == NULL);
+}
+
+
+bool JS4D::ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inValue, VJSONValue& outJSONValue, JS4D::ExceptionRef *outException)
+{
+	std::map<JSObjectRef,VJSONObject*> convertedObjects;
+	bool ok = _ValueToVJSONValue( inContext, inValue, outJSONValue, outException, convertedObjects);
+	return ok;
+}
+
+
 bool JS4D::GetURLFromPath( const VString& inPath, XBOX::VURL& outURL)
 {
 	VIndex index = inPath.FindRawString( CVSTR( "://"));
@@ -516,7 +867,7 @@ bool JS4D::GetURLFromPath( const VString& inPath, XBOX::VURL& outURL)
 }
 
 
-JS4D::ObjectRef JS4D::VFileToObject( ContextRef inContext, XBOX::VFile *inFile, ValueRef *outException)
+JS4D::ObjectRef JS4D::VFileToObject( ContextRef inContext, XBOX::VFile *inFile, ExceptionRef *outException)
 {
 	JS4DFileIterator* file = (inFile == NULL) ? NULL : new JS4DFileIterator( inFile);
 	ObjectRef value;
@@ -529,7 +880,7 @@ JS4D::ObjectRef JS4D::VFileToObject( ContextRef inContext, XBOX::VFile *inFile, 
 }
 
 
-JS4D::ObjectRef JS4D::VFolderToObject( ContextRef inContext, XBOX::VFolder *inFolder, ValueRef *outException)
+JS4D::ObjectRef JS4D::VFolderToObject( ContextRef inContext, XBOX::VFolder *inFolder, ExceptionRef *outException)
 {
 	JS4DFolderIterator* folder = (inFolder == NULL) ? NULL : new JS4DFolderIterator( inFolder);
 	ObjectRef value;
@@ -542,7 +893,7 @@ JS4D::ObjectRef JS4D::VFolderToObject( ContextRef inContext, XBOX::VFolder *inFo
 }
 
 
-JS4D::ObjectRef JS4D::VFilePathToObjectAsFileOrFolder( ContextRef inContext, const XBOX::VFilePath& inPath, ValueRef *outException)
+JS4D::ObjectRef JS4D::VFilePathToObjectAsFileOrFolder( ContextRef inContext, const XBOX::VFilePath& inPath, ExceptionRef *outException)
 {
 	ObjectRef value;
 	if (inPath.IsFolder())
@@ -575,6 +926,96 @@ void JS4D::EvaluateScript( ContextRef inContext, const VString& inScript, VJSVal
 }
 
 
+bool JS4D::ValueIsUndefined( ContextRef inContext, ValueRef inValue)
+{
+	return (inValue == NULL) || JSValueIsUndefined( inContext, inValue);
+}
+
+
+JS4D::ValueRef JS4D::MakeUndefined( ContextRef inContext)
+{
+	return JSValueMakeUndefined( inContext);
+}
+
+
+bool JS4D::ValueIsNull( ContextRef inContext, ValueRef inValue)
+{
+	return (inValue == NULL) || JSValueIsNull( inContext, inValue);
+}
+
+
+JS4D::ValueRef JS4D::MakeNull( ContextRef inContext)
+{
+	return JSValueMakeNull( inContext);
+}
+
+
+bool JS4D::ValueIsBoolean( ContextRef inContext, ValueRef inValue)
+{
+	return (inValue != NULL) && JSValueIsBoolean( inContext, inValue);
+}
+
+
+bool JS4D::ValueIsNumber( ContextRef inContext, ValueRef inValue)
+{
+	return (inValue != NULL) && JSValueIsNumber( inContext, inValue);
+}
+
+
+bool JS4D::ValueIsString( ContextRef inContext, ValueRef inValue)
+{
+	return (inValue != NULL) && JSValueIsString( inContext, inValue);
+}
+
+
+bool JS4D::ValueIsObject( ContextRef inContext, ValueRef inValue)
+{
+	return (inValue != NULL) && JSValueIsObject( inContext, inValue);
+}
+
+
+JS4D::ObjectRef JS4D::ValueToObject( ContextRef inContext, ValueRef inValue, ExceptionRef* outException)
+{
+	return (inValue != NULL) ? JSValueToObject( inContext, inValue, outException) : NULL;
+}
+
+
+JS4D::ObjectRef JS4D::MakeObject( ContextRef inContext, ClassRef inClassRef, void* inPrivateData)
+{
+	return JSObjectMake( inContext, inClassRef, inPrivateData);
+}
+
+
+bool JS4D::ValueIsObjectOfClass( ContextRef inContext, ValueRef inValue, ClassRef inClassRef)
+{
+	return (inValue != NULL) && JSValueIsObjectOfClass( inContext, inValue, inClassRef);
+}
+
+
+void *JS4D::GetObjectPrivate( ObjectRef inObject)
+{
+	return JSObjectGetPrivate( inObject);
+}
+
+
+size_t JS4D::StringRefToUTF8CString( StringRef inStringRef, void *outBuffer, size_t inBufferSize)
+{
+	return JSStringGetUTF8CString( inStringRef, (char *) outBuffer, inBufferSize);
+}
+
+
+JS4D::EType JS4D::GetValueType( ContextRef inContext, ValueRef inValue)
+{
+	assert_compile( eTYPE_UNDEFINED == (EType) kJSTypeUndefined);
+	assert_compile( eTYPE_NULL		== (EType) kJSTypeNull);
+	assert_compile( eTYPE_BOOLEAN	== (EType) kJSTypeBoolean);
+    assert_compile( eTYPE_NUMBER	== (EType) kJSTypeNumber);
+	assert_compile( eTYPE_STRING	== (EType) kJSTypeString);
+	assert_compile( eTYPE_OBJECT	== (EType) kJSTypeObject);
+	return (inContext == NULL || inValue == NULL) ? eTYPE_UNDEFINED : (EType) JSValueGetType( inContext, inValue);
+}
+
+
 bool JS4D::ValueIsInstanceOf( ContextRef inContext, ValueRef inValue, const VString& inConstructorName, ExceptionRef *outException)
 {
 	JSStringRef jsString = JS4D::VStringToString( inConstructorName);
@@ -584,6 +1025,12 @@ bool JS4D::ValueIsInstanceOf( ContextRef inContext, ValueRef inValue, const VStr
 	JSStringRelease( jsString);
 
 	return (constructor != NULL) && (inValue != NULL) && JSValueIsInstanceOfConstructor( inContext, inValue, constructor, outException);
+}
+
+
+bool JS4D::ObjectIsFunction( ContextRef inContext, ObjectRef inObjectRef)
+{
+	return (inObjectRef != NULL) && JSObjectIsFunction( inContext, inObjectRef);
 }
 
 
@@ -649,9 +1096,23 @@ JS4D::ObjectRef JS4D::MakeFunction( ContextRef inContext, const VString& inName,
 	return functionObject;
 }
 
-JS4D::ValueRef JS4D::CallFunction (const ContextRef inContext, const ObjectRef inFunctionObject, const ObjectRef inThisObject, sLONG inNumberArguments, const ValueRef *inArguments, ValueRef *ioException)
+JS4D::ValueRef JS4D::CallFunction (const ContextRef inContext, const ObjectRef inFunctionObject, const ObjectRef inThisObject, sLONG inNumberArguments, const ValueRef *inArguments, ExceptionRef *ioException)
 {
 	return JSObjectCallAsFunction(inContext, inFunctionObject, inThisObject, inNumberArguments, inArguments, ioException);
+}
+
+
+void JS4D::ProtectValue( ContextRef inContext, ValueRef inValue)
+{
+	if (inValue != NULL)
+		JSValueProtect( inContext, inValue);
+}
+
+
+void JS4D::UnprotectValue( ContextRef inContext, ValueRef inValue)
+{
+	if (inValue != NULL)
+		JSValueUnprotect( inContext, inValue);
 }
 
 
@@ -671,13 +1132,13 @@ bool JS4D::ThrowVErrorForException( ContextRef inContext, ExceptionRef inExcepti
 			if ( description. BeginsWith ( CVSTR ( "SyntaxError" ) ) && JSValueIsObject ( inContext, inException ) ) // Just to be super safe at the moment to avoid breaking everything
 			{
 				JSObjectRef				jsExceptionObject = JSValueToObject ( inContext, inException, NULL );
-				if ( jsExceptionObject != 0 )
+				if ( jsExceptionObject != NULL)
 				{
 					JSStringRef			jsLine = JSStringCreateWithUTF8CString ( "line" );
 					if ( JSObjectHasProperty ( inContext, jsExceptionObject, jsLine ) )
 					{
 						JSValueRef		jsValLine = JSObjectGetProperty ( inContext, jsExceptionObject, jsLine, NULL );
-						if ( jsValLine != 0 )
+						if ( jsValLine != NULL)
 						{
 							double nLine = JSValueToNumber( inContext, jsValLine, NULL );
 							VString		vstrLine ( "Error on line " );
@@ -772,7 +1233,7 @@ typedef unordered_map_VString<JSObjectCallAsConstructorCallback>	MapOfConstructo
 static MapOfConstructorCallback		sMapOfConstructorCallback;
 
 
-static JSObjectRef __cdecl GenericConstructor_callAsConstructor( JSContextRef inContext, JSObjectRef inConstructor, size_t inArgumentCount, const JSValueRef inArguments[], JSValueRef* outException)
+static JSObjectRef __cdecl GenericConstructor_callAsConstructor( JSContextRef inContext, JSObjectRef inConstructor, size_t inArgumentCount, const JSValueRef inArguments[], JS4D::ExceptionRef* outException)
 {
 	JSObjectCallAsConstructorCallback constructor = (JSObjectCallAsConstructorCallback) JSObjectGetPrivate( inConstructor);
 	return (*constructor)( inContext, inConstructor, inArgumentCount, inArguments, outException);
@@ -793,7 +1254,7 @@ static JSClassRef GetGenericConstructorClassRef()
 }
 
 
-JSValueRef JS4D::GetConstructorObject( JSContextRef inContext, JSObjectRef inObject, JSStringRef inPropertyName, JSValueRef* outException)
+JSValueRef JS4D::GetConstructorObject( JSContextRef inContext, JSObjectRef inObject, JSStringRef inPropertyName, ExceptionRef* outException)
 {
 	JSValueRef result = NULL;
 	VString name;
@@ -810,7 +1271,7 @@ JSValueRef JS4D::GetConstructorObject( JSContextRef inContext, JSObjectRef inObj
 }
 
 
-bool JS4D::RegisterConstructor( const char *inClassName, JSObjectCallAsConstructorCallback inConstructorCallBack)
+bool JS4D::RegisterConstructor( const char *inClassName, ObjectCallAsConstructorCallback inConstructorCallBack)
 {
 	VString name;
 	name.FromBlock( inClassName, strlen( inClassName), VTC_UTF_8);
@@ -827,6 +1288,65 @@ bool JS4D::RegisterConstructor( const char *inClassName, JSObjectCallAsConstruct
 		return false;
 	}
 	return true;
+}
+
+
+JS4D::ClassRef JS4D::ClassCreate( const ClassDefinition* inDefinition)
+{
+	// copy our private strutcures to WK4D ones
+	
+	std::vector<JSStaticValue> staticValues;
+	if (inDefinition->staticValues != NULL)
+	{
+		for( const StaticValue *i = inDefinition->staticValues ; i->name != NULL ; ++i)
+		{
+			JSStaticValue value;
+			value.name = i->name;
+			value.getProperty = i->getProperty;
+			value.setProperty = i->setProperty;
+			value.attributes = i->attributes;
+			staticValues.push_back( value);
+		}
+		JSStaticValue value_empty = {0};
+		staticValues.push_back( value_empty);
+	}
+	
+	std::vector<JSStaticFunction> staticFunctions;
+	if (inDefinition->staticFunctions != NULL)
+	{
+		for( const StaticFunction *i = inDefinition->staticFunctions ; i->name != NULL ; ++i)
+		{
+			JSStaticFunction function;
+			function.name = i->name;
+			function.callAsFunction = i->callAsFunction;
+			function.attributes = i->attributes;
+			staticFunctions.push_back( function);
+		}
+		JSStaticFunction function_empty = {0};
+		staticFunctions.push_back( function_empty);
+	}
+	
+	
+	JSClassDefinition def = kJSClassDefinitionEmpty;
+//	def.version
+	def.attributes			= inDefinition->attributes;
+	def.className			= inDefinition->className;
+	def.parentClass			= inDefinition->parentClass;
+	def.staticValues		= staticValues.empty() ? NULL : &staticValues.at(0);
+	def.staticFunctions		= staticFunctions.empty() ? NULL : &staticFunctions.at(0);
+	def.initialize			= inDefinition->initialize;
+	def.finalize			= inDefinition->finalize;
+	def.hasProperty			= inDefinition->hasProperty;
+	def.getProperty			= inDefinition->getProperty;
+	def.setProperty			= inDefinition->setProperty;
+	def.deleteProperty		= inDefinition->deleteProperty;
+	def.getPropertyNames	= inDefinition->getPropertyNames;
+	def.callAsFunction		= inDefinition->callAsFunction;
+	def.callAsConstructor	= inDefinition->callAsConstructor;
+	def.hasInstance			= inDefinition->hasInstance;
+//	def.convertToType		= inDefinition->convertToType;
+	
+	return JSClassCreate( &def);
 }
 
 

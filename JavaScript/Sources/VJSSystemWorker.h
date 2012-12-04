@@ -72,12 +72,7 @@ friend class VJSSystemWorkerEvent;
 	bool					fTerminationEventDiscarded;
 
 	sLONG					fExitStatus;			// Exit status code, valid only after proper launch and not forced termination.
-	
-#if VERSIONMAC || VERSION_LINUX
-
 	sLONG					fPID;					// PID valid only if fStartupStatus > 0.
-
-#endif
 
 	// inFolderPath is the path to execute command into, use empty string "" to execute in Wakanda application folder.
 
@@ -120,6 +115,7 @@ private:
 	static void				_wait (XBOX::VJSParms_callStaticFunction &ioParms, VJSSystemWorker *inSystemWorker);
 
 	static void				_Exec (XBOX::VJSParms_callStaticFunction &ioParms, void *);
+	static bool				_RetrieveFolder (VJSParms_withArguments &inParms, sLONG inIndex, XBOX::VString *outFolderPath);
 };
 
 END_TOOLBOX_NAMESPACE

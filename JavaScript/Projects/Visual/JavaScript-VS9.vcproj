@@ -5,7 +5,7 @@
 	Name="Dll - XToolbox FP - JavaScript"
 	ProjectGUID="{6E9F29C6-2757-45FB-B9A4-AA30F5E852F4}"
 	RootNamespace="Dll - XToolbox FP - JavaScript"
-	SccProjectName="&quot;//depot/XToolbox/WAK2/JavaScript&quot;"
+	SccProjectName="&quot;//depot/XToolbox/Main/JavaScript&quot;"
 	SccLocalPath="..\.."
 	SccProvider="MSSCCI:Perforce SCM"
 	Keyword="Win32Proj"
@@ -24,7 +24,6 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC70.vsprops;..\..\..\XToolbox_Win32_Debug.vsprops;$(SolutionDir)\WebKit_Settings.vsprops"
 			CharacterSet="2"
@@ -529,6 +528,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\Sources\VJSModule.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VJSModule.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\Sources\VJSMysqlBuffer.cpp"
 				>
 			</File>
@@ -774,7 +781,7 @@
 			Name="Resources"
 			>
 			<File
-				RelativePath="..\..\..\..\..\CoreRuntime\WAK2\Resources\en.lproj\Errors_javascript_EN.xlf"
+				RelativePath="..\..\..\..\..\CoreRuntime\main\Resources\en.lproj\Errors_javascript_EN.xlf"
 				>
 			</File>
 		</Filter>

@@ -142,7 +142,7 @@ namespace ImageEncoding
 				return value;
 			}
 			else
-				return 0.8;
+				return 1.0;
 		}
 
 		/** get image lossless compression (0 : worst/fastest compression, 1: best/slowest compression) */
@@ -2714,7 +2714,7 @@ namespace ImageMeta
 		bool SetIPTCUrgency( const uLONG inValue = 5)
 		{
 			addMetaIPTC();
-			bool ok = inValue >= 0 && inValue <= 9;
+			bool ok = /*inValue >= 0 && */ inValue <= 9;
 			if (ok)
 				SetLong( fBagWriteIPTC, ImageMetaIPTC::Urgency, inValue);
 			return ok;

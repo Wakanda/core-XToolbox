@@ -26,7 +26,34 @@ BEGIN_TOOLBOX_NAMESPACE
 
 using namespace ServerNetTools;
 
-VNetAddress::VNetAddress() {/*vide pour l'instant*/}
+VNetAddress::VNetAddress(PortNumber inPort)
+{
+	if(ListV6())
+		fNetAddr.FromIP6AndPort(in6addr_any, inPort);
+	else
+	fNetAddr.FromIP4AndPort(INADDR_ANY, inPort);
+}
+
+/*
+ * [XSI] sockaddr_storage
+ */
+//struct sockaddr_storage {
+//	__uint8_t	ss_len;		/* address length */
+//	sa_family_t	ss_family;	/* [XSI] address family */
+//	char			__ss_pad1[_SS_PAD1SIZE];
+//	__int64_t	__ss_align;	/* force structure storage alignment */
+//	char			__ss_pad2[_SS_PAD2SIZE];
+//};
+
+
+/*
+ * [XSI] Structure used by kernel to store most addresses.
+ */
+//struct sockaddr {
+//	__uint8_t	sa_len;		/* total length */
+//	sa_family_t	sa_family;	/* [XSI] address family */
+//	char		sa_data[14];	/* [XSI] addr value (actually larger) */
+//};
 
 VNetAddress::VNetAddress(const sockaddr_storage& inSockAddr) : fNetAddr(inSockAddr) {}
 
@@ -38,11 +65,17 @@ VNetAddress::VNetAddress(const XNetAddr& inXAddr) : fNetAddr(inXAddr) {}
 	
 VNetAddress::VNetAddress(IP4 inIpV4, PortNumber inPort) { vThrowError(fNetAddr.FromIP4AndPort(inIpV4, inPort)); }
 
-VNetAddress::VNetAddress(const VString& inIp, PortNumber inPort) { vThrowError(fNetAddr.FromIpAndPort(inIp, inPort)); }
+VNetAddress::VNetAddress(IP6 inIpV6, PortNumber inPort) { vThrowError(fNetAddr.FromIP6AndPort(inIpV6, inPort)); }
 
-bool VNetAddress::IsV4() const { return true; }
+VNetAddress::VNetAddress(const VString& inIp, PortNumber inPort) 
+{
+	xbox_assert(!inIp.IsEmpty());
 
-bool VNetAddress::IsV6() const { return true; }
+	if(inIp.IsEmpty())
+		vThrowError(fNetAddr.FromIpAndPort(GetAnyIP(), inPort));
+	else
+		vThrowError(fNetAddr.FromIpAndPort(inIp, inPort));
+}
 
 VError VNetAddress::FromLocalAddr(Socket inSock)
 {
@@ -56,17 +89,37 @@ VError VNetAddress::FromPeerAddr(Socket inSock)
 
 VError VNetAddress::FromIpAndPort(const VString& inIP, PortNumber inPort)
 {
-	//return fNetAddr.FromIpAndPort(inIP, inPort);
-	return VE_OK;
+	return fNetAddr.FromIpAndPort(inIP, inPort);
 }
 
 VError VNetAddress::FromAnyIpAndPort(PortNumber inPort)
 {
-	if(ConvertFromV6())
+	if(ListV6())
 		return fNetAddr.FromIP6AndPort(in6addr_any, inPort);
 
 	return fNetAddr.FromIP4AndPort(INADDR_ANY, inPort);
 }
+
+
+//static
+VString VNetAddress::GetAnyIP()
+{
+	if(ListV6() || PromoteAnyToV6())
+		return VString("::");
+	
+	return VString("0.0.0.0");
+}
+
+
+//static
+VString VNetAddress::GetLoopbackIP()
+{
+	if(ListV6())
+		return VString("::1");
+	
+	return VString("127.0.0.1");
+}
+
 
 void VNetAddress::SetAddr(const sockaddr_storage& inSockAddr)
 {
@@ -75,6 +128,17 @@ void VNetAddress::SetAddr(const sockaddr_storage& inSockAddr)
 
 const sockaddr* VNetAddress::GetAddr() const
 {
+#if !WITH_DEPRECATED_IPV4_API
+		#if VERSIONDEBUG
+			
+	VString ip=GetIP();
+	PortNumber port=GetPort();
+	
+	//DebugMsg("VNetAddress::GetAddr() will return a sockaddr* for this IP : %S (on port %d)\n", &ip, port);
+			
+		#endif
+#endif
+
 	return fNetAddr.GetAddr();
 }
 
@@ -88,6 +152,190 @@ VString VNetAddress::GetIP(sLONG* outVersion) const
 	return fNetAddr.GetIP(outVersion);
 }
 
+#if !VERSIONWIN
+VString VNetAddress::GetName() const
+{
+	return fNetAddr.GetName();
+}
+
+sLONG VNetAddress::GetIndex() const
+{
+	return fNetAddr.GetIndex();
+}
+#endif
+
+bool VNetAddress::IsV4() const
+{
+	return fNetAddr.IsV4();
+}
+
+bool VNetAddress::IsV6() const
+{
+	return fNetAddr.IsV6();
+}
+
+bool VNetAddress::IsV4MappedV6() const
+{	
+	if(IsV6())
+		return IN6_IS_ADDR_V4MAPPED(fNetAddr.GetV6());
+	
+	return false;
+}
+
+
+bool VNetAddress::IsLoopBack() const
+{
+	if(IsV4())
+		return ntohl(fNetAddr.GetV4())==INADDR_LOOPBACK;
+	else if(IsV6())
+		return IN6_IS_ADDR_LOOPBACK(fNetAddr.GetV6());
+	
+	return false;
+}
+
+
+bool VNetAddress::IsAny() const
+{
+	if(IsV4())
+		return ntohl(fNetAddr.GetV4())==INADDR_ANY;
+	else if(IsV6())
+		return IN6_IS_ADDR_UNSPECIFIED(fNetAddr.GetV6());
+	
+	return false;
+}
+
+
+bool VNetAddress::IsAPIPA() const
+{
+	//http://fr.wikipedia.org/wiki/Automatic_Private_Internet_Protocol_Addressing
+	//169.254.0.0/16 (0xA9FE0000) APIPA (Automatic Private Internet Protocol Addressing)
+	//jmo - APIPA is interesting because it means dhcp is (likely) not working
+	if(IsV4())
+	{
+		IP4 ip=ntohl(fNetAddr.GetV4());
+		
+		if((ip&0xFFFF0000)==0xA9FE0000)
+			return true;
+	}
+	
+	return false;
+}
+
+
+bool VNetAddress::IsULA(bool* outLocallyAssigned) const
+{
+	//http://en.wikipedia.org/wiki/Unique_Local_Address
+	//fc00::/7
+	if(IsV6())
+		if((fNetAddr.GetV6()->s6_addr[0] & 0xfc) == 0xfc)
+		{
+			if(outLocallyAssigned!=NULL)
+				*outLocallyAssigned=((fNetAddr.GetV6()->s6_addr[0] & 0x01) == 0x01);
+			
+			return true;
+		}
+	
+	return false;
+}
+
+
+bool VNetAddress::IsLocal() const
+{
+	if(IsV4())
+	{	
+		//http://en.wikipedia.org/wiki/Private_Network#Private_IPv4_address_spaces
+		//Class A - 10.0.0.0/24 (0x0A000000)
+		//Class B - 172.16.0.0/20 (0xAC100000)
+		//Class C - 192.168.0.0/16 (xC0A80000)
+		
+		IP4 ip=ntohl(fNetAddr.GetV4());
+		
+		if((ip&0xFF000000)==0x0A000000) 
+			return true;
+		
+		if((ip&0xFFF00000)==0xAC100000)
+			return true;
+		
+		if((ip&0xFFFF0000)==0xC0A80000)
+			return true;
+		
+		if(IsAPIPA())
+			return true;
+	}
+	else if(IsV6())
+	{
+		if(IN6_IS_ADDR_LINKLOCAL(fNetAddr.GetV6()))
+			return true;
+		
+		if(IN6_IS_ADDR_SITELOCAL(fNetAddr.GetV6()))
+		{
+			VString ip=GetIP();
+			
+			DebugMsg("[%d] VNetAddress::IsLocal() : %S is a deprecated site local address\n",
+					 VTask::GetCurrentID(), &ip);
+		}
+		
+		if(IsULA())
+			return true;
+	}
+	
+	return false;
+}
+
+
+bool VNetAddress::IsLocallyAssigned() const
+{
+	if(IsAPIPA())
+		return true;
+	
+	bool locallyAssigned=false;
+	
+	if(IsULA(&locallyAssigned))
+		return locallyAssigned;
+	
+	return false;
+}
+
+
+VString VNetAddress::GetProperties(const VString& inSep) const
+{
+	VString props;
+
+	xbox_assert(IsV4() || IsV6());
+	xbox_assert(!(IsV4() && IsV6()));
+
+#if !VERSIONWIN
+	if(!GetName().IsEmpty())
+		props.AppendString(GetName()).AppendString(inSep);
+#endif
+	
+	props.AppendCString(IsV4() ? "v4" : "");
+	props.AppendCString(IsV6() ? "v6" : "");
+
+	if(IsV4MappedV6())
+		props.AppendString(inSep).AppendCString("v4 mapped v6");
+	
+	if(IsLoopBack())
+		props.AppendString(inSep).AppendCString("loopback");
+	
+	if(IsAny())
+		props.AppendString(inSep).AppendCString("any");
+	
+	if(IsAPIPA())
+		props.AppendString(inSep).AppendCString("APIPA");
+	
+	if(IsULA())
+		props.AppendString(inSep).AppendCString("ULA");
+	
+	if(IsLocal())
+		props.AppendString(inSep).AppendCString("Local");
+	
+	if(IsLocallyAssigned())
+		props.AppendString(inSep).AppendCString("LocallyAssigned");
+
+	return props;
+}
+
 PortNumber VNetAddress::GetPort() const
 {
 	return fNetAddr.GetPort();
@@ -98,45 +346,91 @@ void VNetAddress::FillAddrStorage(sockaddr_storage* outSockAddr) const
 	return fNetAddr.FillAddrStorage(outSockAddr);
 }
 
+void VNetAddress::FillIpV4(IP4* outIpV4) const
+{
+	if(outIpV4!=NULL)
+		*outIpV4=fNetAddr.GetV4();
+}
+
+void VNetAddress::FillIpV6(IP6* outIpV6) const
+{
+	if(outIpV6!=NULL)
+		memcpy(outIpV6, fNetAddr.GetV6(), sizeof(*outIpV6));
+}
+
 sLONG VNetAddress::GetPfFamily() const
 {
 	return fNetAddr.GetPfFamily();
 }
 
-VError VNetAddrList::FromLocalInterfaces()
+VError VNetAddressList::FromLocalInterfaces()
 {
 	XAddrLocalQuery query(this);
 	
-	return query.FillAddrList();
+	VError verr=query.FillAddrList();
+	
+#if VERSIONDEBUG
+	VNetAddressList::const_iterator cit;
+	
+	if(begin()==end())
+		DebugMsg("[%d] VNetAddressList::FromLocalInterfaces() : Fail to find a local IP\n", VTask::GetCurrentID());
+	else
+		for(cit=begin() ; cit!=end() ; ++cit)
+		{
+			VString ip=cit->GetIP();
+			VString props=cit->GetProperties();
+			
+			//DebugMsg("[%d] VNetAddressList::FromLocalInterfaces() : Found local IP %S %S\n", VTask::GetCurrentID(), &ip, &props);
+		}
+#endif
+	
+	return verr;
 }
 
-VError VNetAddrList::FromDnsQuery(const VString& inDnsName, PortNumber inPort)
+VError VNetAddressList::FromDnsQuery(const VString& inDnsName, PortNumber inPort)
 {
 	XAddrDnsQuery query(this);
 	
-	return query.FillAddrList(inDnsName, inPort);
+	VError verr=query.FillAddrList(inDnsName, inPort);
+	
+#if VERSIONDEBUG
+	VNetAddressList::const_iterator cit;
+
+	if(begin()==end())
+		DebugMsg("[%d] VNetAddressList::FromDnsQuery() : Fail to resolve %S\n", VTask::GetCurrentID(), &inDnsName);
+	else
+		for(cit=begin() ; cit!=end() ; ++cit)
+		{
+			VString ip=cit->GetIP();
+			VString props=cit->GetProperties();
+			
+			//DebugMsg("[%d] VNetAddressList::FromDnsQuery() : Resolve %S to %S %S\n", VTask::GetCurrentID(), &inDnsName, &ip, &props);
+		}
+#endif
+	
+	return verr;
 }
 
-VNetAddrList::const_iterator::const_iterator() {}		
+VNetAddressList::const_iterator::const_iterator() {}		
 
-bool VNetAddrList::const_iterator::operator==(const const_iterator& other)
+bool VNetAddressList::const_iterator::operator==(const const_iterator& other)
 {
 	return fAddrIt==other.fAddrIt;
 }
 
-bool VNetAddrList::const_iterator::operator!=(const const_iterator& other)
+bool VNetAddressList::const_iterator::operator!=(const const_iterator& other)
 {
 	return fAddrIt!=other.fAddrIt;
 }
 
-VNetAddrList::const_iterator& VNetAddrList::const_iterator::operator++()
+VNetAddressList::const_iterator& VNetAddressList::const_iterator::operator++()
 {
 	++fAddrIt;
 
 	return *this;
 }
 
-VNetAddrList::const_iterator VNetAddrList::const_iterator::operator++(int)
+VNetAddressList::const_iterator VNetAddressList::const_iterator::operator++(int)
 {
 	const_iterator tmp(*this);
 	
@@ -145,29 +439,29 @@ VNetAddrList::const_iterator VNetAddrList::const_iterator::operator++(int)
 	return tmp;
 }
 
-const VNetAddress& VNetAddrList::const_iterator::operator*()
+const VNetAddress& VNetAddressList::const_iterator::operator*()
 {
 	return *fAddrIt;
 }
 
-const VNetAddress* VNetAddrList::const_iterator::operator->()
+const VNetAddress* VNetAddressList::const_iterator::operator->()
 {
 	return &(*fAddrIt);
 }
 
-VNetAddrList::const_iterator::const_iterator(std::list<VNetAddress>::const_iterator inBeginIt) : fAddrIt(inBeginIt) {}
+VNetAddressList::const_iterator::const_iterator(std::list<VNetAddress>::const_iterator inBeginIt) : fAddrIt(inBeginIt) {}
 
-VNetAddrList::const_iterator VNetAddrList::begin()
+VNetAddressList::const_iterator VNetAddressList::begin()
 {
 	return const_iterator(fAddrList.begin());
 }
 
-const VNetAddrList::const_iterator VNetAddrList::end()
+const VNetAddressList::const_iterator VNetAddressList::end()
 {
 	return(const_iterator(fAddrList.end()));
 }
 
-void VNetAddrList::PushXNetAddr(const XNetAddr& inNetAddr)
+void VNetAddressList::PushXNetAddr(const XNetAddr& inNetAddr)
 {
 	fAddrList.push_back(VNetAddress(inNetAddr));
 }

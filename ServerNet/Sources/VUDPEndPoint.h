@@ -24,6 +24,9 @@
 #endif
 
 
+#include "VNetAddr.h"
+
+
 BEGIN_TOOLBOX_NAMESPACE
 
 
@@ -35,13 +38,13 @@ public :
 	  
 	void SetIsBlocking ( bool inIsBlocking );
 	
-	virtual VError Read(void* outBuffer, uLONG* ioLength, XNetAddr* outSenderInfo);	
+	virtual VError Read(void* outBuffer, uLONG* ioLength, VNetAddress* outSenderInfo);	
 	
-	virtual VError WriteExactly (void* inBuffer, uLONG inLength /*, const XNetAddr* inInfo*/);
+	virtual VError WriteExactly (void* inBuffer, uLONG inLength /*, const VNetAddress* inInfo*/);
 	
 	virtual VError Close();
 
-	virtual VError SetDestination(const XNetAddr& inReceiverInfo);
+	virtual VError SetDestination(const VNetAddress& inReceiverInfo);
 
 	
 private:
@@ -52,13 +55,13 @@ private:
 
 	XUDPSock* fSock;
 
-	XNetAddr fTmpPeer;
+	VNetAddress fTmpPeer;
 	bool fHaveTmpPeer;
 	
-	XNetAddr fMCastAddr;
+	VNetAddress fMCastAddr;
 	bool fIsMCast;
 	
-	XNetAddr fDestination;	
+	VNetAddress fDestination;	
 };
 
 
@@ -66,10 +69,17 @@ class XTOOLBOX_API VUDPEndPointFactory : public VObject
 {
 public:
 
+#if WITH_DEPRECATED_IPV4_API
+	
 	static VUDPEndPoint* CreateMulticastEndPoint(uLONG inMulticastIPv4, PortNumber inPort);
-
 	static VUDPEndPoint* CreateMulticastEndPoint(uLONG inLocalIpv4, uLONG inMulticastIPv4, PortNumber inPort);
-};	
+
+#else
+	
+	static VUDPEndPoint* CreateMulticastEndPoint(const VString& inMulticastIP, PortNumber inPort);
+	
+#endif	
+};
 
 
 END_TOOLBOX_NAMESPACE

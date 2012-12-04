@@ -26,6 +26,7 @@
 #include "VProgressIndicator.h"
 #include "VTextConverter.h"
 #include "ILogger.h"
+#include "VJSONValue.h"
 
 #if VERSIONMAC
 	#include "crt_externs.h"
@@ -176,6 +177,8 @@ bool VProcess::_Init( VProcess::InitOptions inOptions)
 	fSystemID = getpid();
 #elif VERSIONWIN
 	fSystemID = GetCurrentProcessId();
+#elif VERSION_LINUX
+	fSystemID = getpid();
 #endif
 
 
@@ -196,6 +199,15 @@ bool VProcess::_Init( VProcess::InitOptions inOptions)
 // Note : memory managers will be deleted later (DLLMain)
 void VProcess::_DeInit()
 {
+	#if WITH_ASSERT
+	sLONG countJSONObjects = VJSONObject::GetInstancesCount();
+	sLONG countJSONArrays = VJSONObject::GetInstancesCount();
+	if ( (countJSONObjects != 0) || (countJSONArrays != 0) )
+	{
+		DebugMsg( "Remaining %d VJSONObject and %d VJSONArray\n", countJSONObjects, countJSONArrays);
+	}
+	#endif
+
 	sInstance = NULL;
 		
 #if VERSIONDEBUG
@@ -873,7 +885,7 @@ void VProcess::_ReadProductVersion( VString& outVersion) const
 	}
 
 #elif VERSION_LINUX
-    outVersion="2.0";	//Postponed Linux Implementation
+    //jmo - We get the Linux product version with SetProductVersion() on VRIAServerApplication init
 #endif
 }
 

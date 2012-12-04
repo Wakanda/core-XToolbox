@@ -72,6 +72,7 @@ public:
 			bool						IsMainTask() const									{ return fMainTask;}
 	virtual	bool						GetCPUUsage(Real& outCPUUsage) const;
 	virtual bool						GetCPUTimes(Real& outSystemTime, Real& outUserTime) const;
+	virtual	VTaskID						GetValueForVTaskID() const;
 
 protected:
 			void						SetFiber( LPVOID inFiber, VTask *inFiberGroupOwner)	{ fFiber = inFiber; fFiberGroupOwner = inFiberGroupOwner; }
@@ -91,7 +92,8 @@ private:
 class XWinTask_preemptive : public XWinTask
 {
 public:
-										XWinTask_preemptive( VTask* inOwner);
+	static	XWinTask_preemptive*		Create( VTask* inOwner);
+
 										XWinTask_preemptive( VTask* inOwner, bool /*for main task*/);
 										~XWinTask_preemptive();
 
@@ -106,12 +108,15 @@ public:
 
 	virtual	bool						GetCPUUsage(Real& outCPUUsage) const;
 	virtual bool						GetCPUTimes(Real& outSystemTime, Real& outUserTime) const;
+	virtual	VTaskID						GetValueForVTaskID() const;
 
 private:
+										XWinTask_preemptive( VTask* inOwner);
+	static	UINT APIENTRY				_ThreadProc (void* inParam);
+			bool						_CreateThread();
+
 			HANDLE						fThread;
 			DWORD						fSystemID;
-	
-	static	UINT APIENTRY				_ThreadProc (void* inParam);
 };
 
 
@@ -178,7 +183,7 @@ public:
 
 			bool						IsFibersThreadingModel();
 
-			void						SetCurrentThreadName( const VString& inName) const;
+			void						SetCurrentThreadName( const VString& inName, VTaskID inTaskID) const;
 			
 protected:
 			DWORD						fSlot_CurrentTask;

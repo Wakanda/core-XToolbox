@@ -47,10 +47,16 @@ public:
 	bool StartListening();
 	void StopListeningAndClearPorts();
 	
-	void SetCertificatePaths ( const char * szchCert, const char * szchKey );
+	void SetCertificatePaths (const VFilePath& inCertPath, const VFilePath& inKeyPath);
 
 	VError SetKeyAndCertificate(const VMemoryBuffer<>& inKey, const VMemoryBuffer<>& inCertificate);
 	VError SetKeyAndCertificate (const XBOX::VString &inKey, const XBOX::VString &inCertificate);
+
+	VError SetCertificateFolder(const VFilePath& inCertFolderPath, 
+								const VString& inKey=VString("key.pem"), const VString& inCert=VString("cert.pem"));
+	
+	VError PushIntermediateCertificate(const VMemoryBuffer<>& inCertificate);
+	VError PushIntermediateCertificate(const XBOX::VString &inCertificate);
 	
 	void setAcceptTimeout(uLONG inMsTimeout);
 	bool SetBlocking (bool isBlocking = false);
@@ -73,7 +79,7 @@ private:
 	bool fListenStarted;
 	uLONG fId;
 	uLONG fAcceptTimeout;
-	VKeyCertPair* fKeyCertPair;
+	VKeyCertChain* fKeyCertChain;
 };
 
 

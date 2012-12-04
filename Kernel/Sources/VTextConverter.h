@@ -99,7 +99,6 @@ public:
 					VToUnicodeConverter_UTF32 (bool inSwap) { fSwap = inSwap; }
 	
 	virtual bool	Convert (const void *inSource, VSize inSourceBytes, VSize *outBytesConsumed, UniChar *inDestination, VIndex inDestinationChars, VIndex *outProducedChars);
-	virtual bool	ConvertString (const void *inSource, VSize inSourceBytes, VSize *outBytesConsumed, VString& outDestination);
 
 protected:
 	bool			fSwap;
@@ -217,6 +216,10 @@ public:
 			// analyse the first bytes and try to recognize a unicode BOM.
 			// return true if found a BOM and optionnally returns its size and its charset.
 	static	bool								ParseBOM( const void *inBytes, size_t inByteCount, size_t *outBOMSize, CharSet *outFoundCharSet);
+
+			// returns the BOM bytes for a charset. returns NULL if not relevant.
+			// returned string is a global const. Don't try to release it.
+	static	const char*							GetBOMForCharSet( CharSet inCharSet, size_t *outBOMSize);
 
 private:
 												VTextConverters( const VTextConverters&);

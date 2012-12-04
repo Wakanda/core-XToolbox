@@ -71,6 +71,7 @@ class XTOOLBOX_API VJSConnectionHandler : public VConnectionHandler
 friend class VJSConnectionHandlerFactory;
 
 						VJSConnectionHandler (VJSWorker *inWorker, VJSNetServerObject *inServerObject, bool inIsSSL);
+	virtual				~VJSConnectionHandler ();
 
 	// Connection handler doesn't do anything, except to queue an event when SetEndPoint() is called.
 

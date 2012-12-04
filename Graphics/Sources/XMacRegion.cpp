@@ -280,31 +280,6 @@ void VRegion::FromRegionRef(RgnRef inRgn, Boolean inOwnIt)
 	}
 }
 
-#if 0
-void VRegion::MAC_FromQDRgnHandle(RgnHandle inRgn, Boolean inOwnIt)
-{
-	_Release();
-	
-	if (inRgn == NULL)
-	{
-		fNode = new VRegionNode;
-		fBounds.SetEmpty();
-	}
-	else
-	{
-		// brutal mais on n'a pas le choix
-		Rect qdr;
-		::GetRegionBounds( inRgn, &qdr);
-
-		CGRect r = { {qdr.left, qdr.top}, {qdr.right-qdr.left, qdr.bottom - qdr.top}};
-		
-		fNode = new VRegionNode_rect( r);
-		fBounds.FromRectRef( r);
-		if (inOwnIt)
-			::DisposeRgn(inRgn);
-	}
-}
-#endif
 
 Boolean VRegion::operator == (const VRegion& inRgn) const
 {	
@@ -358,19 +333,6 @@ void VRegion::Union(const VRegion& inRgn)
 	fBounds.Union( inRgn.fBounds);
 }
 
-
-VError VRegion::ReadFromStream(VStream* ioStream, sLONG /*inParam*/)
-{
-	assert(false);
-	return VE_UNIMPLEMENTED;
-}
-
-
-VError VRegion::WriteToStream(VStream* ioStream, sLONG /*inParam*/) const
-{
-	assert(false);
-	return VE_UNIMPLEMENTED;
-}
 
 void VRegion::_ComputeBounds()
 {

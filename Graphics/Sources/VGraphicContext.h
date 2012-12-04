@@ -16,14 +16,12 @@
 #ifndef __VGraphicContext__
 #define __VGraphicContext__
 
-#include "Graphics/Sources/VGraphicsTypes.h"
 #include "Graphics/Sources/VGraphicSettings.h"
 #include "Graphics/Sources/VRect.h"
 #include "Graphics/Sources/VBezier.h"
 #if VERSIONWIN
 #include <gdiplus.h> 
 #else
-#include "Graphics/Sources/VQuicktimeSDK.h"
 #include "Graphics/Sources/V4DPictureIncludeBase.h"
 #include "Graphics/Sources/V4DPictureTools.h"
 #endif
@@ -435,7 +433,7 @@ class XTOOLBOX_API HDC_MapModeSaverSetter
 
 #if ENABLE_D2D
 //FIXME: Direct2D does not allow direct layout update so we fallback to GDI if text is too big
-#define VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE	512
+#define VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE	1000000
 #endif
 
 class XTOOLBOX_API VTextLayout;
@@ -984,6 +982,11 @@ public:
 		return true;
 	}
 
+#if VERSIONWIN
+	/** GDI helper method for transparent blit */
+	static void gdiTransparentBlt( HDC hdcDest, const VRect& inDestBounds, HDC hdcSrc, const VRect& inSrcBounds, const VColor& inColorTransparent);
+#endif
+
 	/** Windows & Direct2D only (but safe for any impl): if true, if GDI context is queried on a transparent surface (bitmap or layer),
 		it will ensure GDI surface is prepared for drawing with GDI 
 		(it does nothing on a opaque surface)
@@ -1521,6 +1524,9 @@ public:
 	
 	virtual void	DrawText (const VString& inString, TextLayoutMode inMode = TLM_NORMAL) = 0;
 
+	/** return true if graphic context can natively draw styled text background color */
+	virtual bool	CanDrawStyledTextBackColor() const { return true; }
+
 #if VERSIONWIN
 	virtual void	DrawStyledText( const VString& inText, VTreeTextStyle *inStyles, AlignStyle inHoriz, AlignStyle inVert, const VRect& inHwndBounds, TextLayoutMode inMode = TLM_NORMAL, const GReal inRefDocDPI = 72.0f)
 	{
@@ -1950,7 +1956,7 @@ public:
 	static bool	sDebugRevealInval;		// Set to true to flash every inval region
 
 	// Class initialization
-	static Boolean	Init ();
+	static Boolean	Init (bool inEnableD2D = true, bool inEnableHardware = true);
 	static void 	DeInit ();
 
 	// Utilities
@@ -1993,6 +1999,10 @@ public:
 class XTOOLBOX_API VTextLayout: public VObject, public IRefCountable
 {
 public:
+	typedef std::vector<VRect> VectorOfRect;
+	typedef std::pair<VectorOfRect, VColor> BoundsAndColor;
+	typedef std::vector<BoundsAndColor> VectorOfBoundsAndColor;
+
 	/** VTextLayout constructor 
 	
 	@param inShouldEnableCache
@@ -2059,7 +2069,7 @@ public:
 	}
 	bool ShouldDrawOnLayer() const { return fShouldDrawOnLayer; }
 
-	/** enable ClearType antialiasing on layer (default is false)
+	/** enable ClearType antialiasing on layer (default is true)
 	@remarks
 		this flag is only mandatory on Windows platform & if offscreen layer is enabled
 
@@ -2124,6 +2134,9 @@ public:
 	/** delete text range */
 	void DeleteText( sLONG inStart, sLONG inEnd);
 
+	/** replace text */
+	void ReplaceText( sLONG inStart, sLONG inEnd, const VString& inText);
+
 	/** apply style (use style range) */
 	bool ApplyStyle( VTextStyle* inStyle);
 
@@ -2166,6 +2179,7 @@ public:
 		fHasDefaultTextColor = inEnable;
 		if (inEnable)
 			fDefaultTextColor = inTextColor;
+		ReleaseRefCountable(&fDefaultStyle);
 	}
 	/** get default text color */
 	bool GetDefaultTextColor(VColor& outColor) const 
@@ -2469,6 +2483,12 @@ public:
 	/** end using text layout (reentrant) */
 	void EndUsingContext();
 
+	/** set min line height on the specified range 
+	@remarks
+		it is used while editing to prevent text wobble while editing with IME
+	 */
+	void SetMinLineHeight(const GReal inMinHeight, sLONG inStart, sLONG inEnd);
+	
 public:
 	bool _ApplyStyle(VTextStyle *inStyle);
 
@@ -2517,6 +2537,8 @@ public:
 
 	void _CheckStylesConsistency();
 
+	bool _CheckLayerBounds(const VPoint& inTopLeft, VRect& outLayerBounds);
+
 	bool _BeginDrawLayer(const VPoint& inTopLeft = VPoint());
 	void _EndDrawLayer();
 
@@ -2546,6 +2568,10 @@ public:
 	/** return true if layout styles uses truetype font only */
 	bool _StylesUseFontTrueTypeOnly() const;
 
+	void _UpdateBackgroundColorRenderInfo( const VPoint& inTopLeft, const VRect& inClipBounds);
+	void _UpdateBackgroundColorRenderInfoRec( const VPoint& inTopLeft, VTreeTextStyle *inStyles, const sLONG inStart, const sLONG inEnd);
+	void _DrawBackgroundColor(const VPoint& inTopLeft);
+
 	bool fLayoutIsValid;
 	
 	bool fShouldEnableCache;
@@ -2554,6 +2580,7 @@ public:
 	VImageOffScreen *fLayerOffScreen;
 	VRect fLayerViewRect;
 	VPoint fCurLayerOffsetViewRect;
+	VAffineTransform fCurLayerCTM;
 	bool fLayerIsDirty;
 	bool fLayerIsForMetricsOnly;
 
@@ -2594,7 +2621,7 @@ public:
 	sLONG fTextLength;
 	VString fText;
 	VString *fTextPtrExternal;
-	const VString *fTextPtr;
+	VString *fTextPtr;
 	VTreeTextStyle *fStyles;
 	VTreeTextStyle *fExtStyles;
 	
@@ -2624,6 +2651,19 @@ public:
 	bool fSkipDrawLayer;
 
 	bool fIsPrinting;
+
+	/** true if VTextLayout should draw background color but native impl */
+	bool fShouldDrawBackgroundColor;
+
+	/** true if background color render info needs to be computed again */
+	bool fBackgroundColorDirty;
+
+	/** background color render info 
+	@remarks
+		it is used to draw text background color if it is not supported natively by impl
+		(as for CoreText & Direct2D impl)
+	*/
+	VectorOfBoundsAndColor fBackgroundColorRenderInfo;
 
 #if VERSIONDEBUG
 	mutable sLONG sTextLayoutCurLength;
@@ -2922,6 +2962,8 @@ public:
 	StGDIUseGraphicsAdvanced(HDC hdc, bool inSaveTransform = false)
 	{
 		fHDC = hdc;
+		if (!fHDC)
+			return;
 		fOldMode = ::GetGraphicsMode( fHDC);
 		if (fOldMode != GM_ADVANCED)
 			::SetGraphicsMode( fHDC, GM_ADVANCED);
@@ -2936,6 +2978,8 @@ public:
 	}
 	virtual ~StGDIUseGraphicsAdvanced()
 	{
+		if (!fHDC)
+			return;
 		if (fRestoreCTM)
 		{
 			BOOL ok = ::SetWorldTransform(fHDC, &fCTM);

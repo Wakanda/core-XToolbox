@@ -39,33 +39,33 @@ using namespace ServerNetTools;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-XWinNetAddr::XWinNetAddr()
+XWinNetAddr::XWinNetAddr() : fIndex(-1)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
 }
 
 
-XWinNetAddr::XWinNetAddr(const sockaddr_storage& inSockAddr)
+XWinNetAddr::XWinNetAddr(const sockaddr_storage& inSockAddr) : fIndex(-1)
 {
 	memcpy(&fSockAddr, &inSockAddr, sizeof(fSockAddr));
 }
 
 
-XWinNetAddr::XWinNetAddr(const sockaddr_in& inSockAddr)
+XWinNetAddr::XWinNetAddr(const sockaddr_in& inSockAddr) : fIndex(-1)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
-	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr)); //bug win ici ?
+	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr));
 }
 
 
-XWinNetAddr::XWinNetAddr(const sockaddr_in6& inSockAddr)
+XWinNetAddr::XWinNetAddr(const sockaddr_in6& inSockAddr) : fIndex(-1)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
-	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr)); //bug win ici ?
+	memcpy(&fSockAddr, &inSockAddr, sizeof(inSockAddr));
 }
 
 
-XWinNetAddr::XWinNetAddr(const sockaddr* inSockAddr)
+XWinNetAddr::XWinNetAddr(const sockaddr* inSockAddr, sLONG inIfIndex) : fIndex(inIfIndex)
 {
 	memset(&fSockAddr, 0, sizeof(fSockAddr));
 
@@ -76,7 +76,7 @@ XWinNetAddr::XWinNetAddr(const sockaddr* inSockAddr)
 }
 
 
-XWinNetAddr::XWinNetAddr(IP4 inIp, PortNumber inPort)
+XWinNetAddr::XWinNetAddr(IP4 inIp, PortNumber inPort) : fIndex(-1)
 {
 	sockaddr_in v4={0};
 	v4.sin_family=AF_INET;
@@ -127,7 +127,7 @@ VError XWinNetAddr::FromLocalAddr(Socket inSock)
 	int err=getsockname(inSock, reinterpret_cast<sockaddr*>(&addr), &len);
 	
 	if(err==-1)
-		return vThrowNativeError(errno);
+		return vThrowNativeError(WSAGetLastError());
 	
 	SetAddr(addr);
 	
@@ -148,7 +148,7 @@ VError XWinNetAddr::FromPeerAddr(Socket inSock)
 	int err=getpeername(inSock, reinterpret_cast<sockaddr*>(&addr), &len);
 	
 	if(err==-1)
-		return vThrowNativeError(errno);
+		return vThrowNativeError(WSAGetLastError());
 	
 	SetAddr(addr);
 	
@@ -167,7 +167,7 @@ VError XWinNetAddr::FromIpAndPort(const VString& inIP, PortNumber inPort)
 		verr=FromIpAndPort(AF_INET, inIP, inPort);
 		
 	if(verr!=VE_OK && ConvertFromV6())
-		verr=FromIpAndPort(AF_INET, inIP, inPort);
+		verr=FromIpAndPort(AF_INET6, inIP, inPort);
 		
 	if(verr==VE_OK )
 		errCtx.Flush();
@@ -198,9 +198,6 @@ VError XWinNetAddr::FromIpAndPort(sLONG inFamily, const VString& inIP, PortNumbe
 			//Exists on XP and better
 			dst=inet_addr(src);
 
-			//Although it might work, it's weird to have INADDR_ANY here : That's not an address you want to build from a string.
-			xbox_assert(dst!=INADDR_ANY);
-
 			if(dst!=INADDR_NONE)
 				return FromIP4AndPort(dst, inPort);
 			
@@ -211,7 +208,7 @@ VError XWinNetAddr::FromIpAndPort(sLONG inFamily, const VString& inIP, PortNumbe
 		{
 			IP6 dst;
 			
-			res=InetPtoN(AF_INET, src, &dst);
+			res=InetPtoN(AF_INET6, src, &dst);
 			
 			if(res>0)
 				return FromIP6AndPort(dst, inPort);
@@ -224,7 +221,7 @@ VError XWinNetAddr::FromIpAndPort(sLONG inFamily, const VString& inIP, PortNumbe
 	}
 
 	if(res<0)	//an error occured
-		vThrowNativeCombo(VE_INVALID_PARAMETER, errno);
+		vThrowNativeCombo(VE_INVALID_PARAMETER, WSAGetLastError());
 	
 	//if(res==0) ... not parsable (according to family)
 	return vThrowError(VE_INVALID_PARAMETER);
@@ -281,6 +278,11 @@ VString XWinNetAddr::GetIP(sLONG* outVersion) const
 				*outVersion=4;
 
 			sockaddr_in* v4=(sockaddr_in*)&fSockAddr;
+
+			//Try NtoP which is thread safe, an if not available, use ntoa
+			ip=InetNtoP(AF_INET, &v4->sin_addr, buf, sizeof(buf));
+
+			if(ip==NULL)
 			ip=inet_ntoa(v4->sin_addr);
 
 			break;
@@ -302,9 +304,13 @@ VString XWinNetAddr::GetIP(sLONG* outVersion) const
 	}
 	
 	if(ip==NULL)
-		vThrowNativeError(errno);
+	{
+		vThrowNativeError(WSAGetLastError());
 	
-	return VString(ip, sizeof(buf), VTC_UTF_8);
+		return VString();
+}
+
+	return VString(ip, strlen(ip), VTC_UTF_8);
 }
 
 
@@ -336,6 +342,7 @@ PortNumber XWinNetAddr::GetPort() const
 	return port;
 }
 
+
 #if WITH_DEPRECATED_IPV4_API
 IP4 XWinNetAddr::GetIPv4HostOrder() const
 {
@@ -360,6 +367,7 @@ IP4 XWinNetAddr::GetIPv4HostOrder() const
 }
 #endif
 
+
 void XWinNetAddr::FillAddrStorage(sockaddr_storage* outSockAddr) const
 {
 	if(outSockAddr!=NULL)
@@ -376,6 +384,61 @@ sLONG XWinNetAddr::GetPfFamily() const
 const sockaddr* XWinNetAddr::GetSockAddr() const
 {
 	return reinterpret_cast<const sockaddr*>(&fSockAddr);
+}
+
+
+bool XWinNetAddr::IsV4() const
+{
+	return reinterpret_cast<const sockaddr*>(&fSockAddr)->sa_family==AF_INET;
+}
+
+
+bool XWinNetAddr::IsV6() const
+{
+	return reinterpret_cast<const sockaddr*>(&fSockAddr)->sa_family==AF_INET6;
+}
+
+
+bool XWinNetAddr::IsV4MappedV6() const
+{	
+	if(IsV6())
+		return IN6_IS_ADDR_V4MAPPED(&reinterpret_cast<const sockaddr_in6*>(&fSockAddr)->sin6_addr);
+	
+	return false;
+}
+
+
+bool XWinNetAddr::IsLoopBack() const
+{
+	if(IsV4())
+		return GetV4()==htonl(INADDR_LOOPBACK);
+	else if(IsV6())
+		return IN6_IS_ADDR_LOOPBACK(GetV6());
+	
+	return false;
+}
+
+
+bool XWinNetAddr::IsAny() const
+{
+	if(IsV4())
+		return GetV4()==htonl(INADDR_ANY);
+	else if(IsV6())
+		return IN6_IS_ADDR_UNSPECIFIED(GetV6());
+	
+	return false;
+}
+
+
+IP4 XWinNetAddr::GetV4() const
+{
+	return reinterpret_cast<const sockaddr_in*>(&fSockAddr)->sin_addr.s_addr;
+}
+
+
+const IP6* XWinNetAddr::GetV6() const
+{
+	return &reinterpret_cast<const sockaddr_in6*>(&fSockAddr)->sin6_addr;
 }
 
 
@@ -423,7 +486,7 @@ VError XWinAddrLocalQuery::FillAddrList()
 			//Obtain the unicast address given to the adapter using the FirstUnicastAddress member.
 			for(PIP_ADAPTER_UNICAST_ADDRESS unicastAddr=adapterAddr->FirstUnicastAddress ; unicastAddr!=NULL ; unicastAddr=unicastAddr->Next)
 			{
-				const XWinNetAddr xaddr(unicastAddr->Address.lpSockaddr);
+				const XWinNetAddr xaddr(unicastAddr->Address.lpSockaddr, adapterAddr->IfIndex);
 			
 				fVAddrList->PushXNetAddr(xaddr);
 			}
@@ -433,11 +496,11 @@ VError XWinAddrLocalQuery::FillAddrList()
 	if(addrBuf!=(PIP_ADAPTER_ADDRESSES)buf)
 		free(addrBuf);
 
-	return VE_UNIMPLEMENTED;
+	return VE_OK;
 }
 
 
-VError XWinAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPort, Protocol inProto)
+VError XWinAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPort, EProtocol inProto)
 {
 	//Prepare the parameters for getaddrinfo.
 	
@@ -462,10 +525,17 @@ VError XWinAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPor
 
     addrinfo hints={0};
 		
+#if WITH_SELECTIVE_GETADDRINFO
+
 	if(ResolveToV4() && !ResolveToV6())
 	    hints.ai_family=AF_INET;
 	else if(ResolveToV6() && !ResolveToV4())
-		hints.ai_family=AF_INET6, hints.ai_flags|=AI_V4MAPPED|AI_ALL;
+	{
+		hints.ai_family=AF_INET6;
+		
+		if(WithV4mappedV6())
+			hints.ai_flags|=AI_V4MAPPED|AI_ALL;
+	}
 	else
 		hints.ai_family=AF_UNSPEC, hints.ai_flags|=AI_ADDRCONFIG;
 		
@@ -474,26 +544,65 @@ VError XWinAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPor
 	else
 		hints.ai_socktype=SOCK_STREAM, hints.ai_protocol=IPPROTO_TCP;
 
+#endif	
+
 	hints.ai_flags=AI_NUMERICSERV; //Numeric service only.
 
 	addrinfo* infoHead=NULL;	//head of addr list
 	
-	//do
 	err=getaddrinfo(utf8DnsName, (inPort!=kBAD_PORT ? port : NULL), &hints, &infoHead);
-	//while(/*err==EAI_SYSTEM &&*/ errno==EINTR); //TODO : VERIFIER ERR SOUS WIN !!!
 	
 	if (err!=0)
 	{
 		if(infoHead!=NULL)
 			freeaddrinfo(infoHead);
 		
-		vThrowNativeError(errno);
+		vThrowNativeError(WSAGetLastError());
 		return NULL;
 	}
 	
     for(addrinfo* infoPtr=infoHead ; infoPtr!=NULL ; infoPtr=infoPtr->ai_next)
 	{		
 		const XWinNetAddr xaddr(infoPtr->ai_addr);
+
+#if !WITH_SELECTIVE_GETADDRINFO
+
+		if(ResolveToV4() && !ResolveToV6() && xaddr.IsV6())
+			continue;
+		
+		if(ResolveToV6() && !ResolveToV4() && xaddr.IsV4())
+			continue;
+		
+		if(!WithV4mappedV6() && xaddr.IsV4MappedV6())
+			continue;
+	
+		if(infoPtr->ai_protocol==IPPROTO_TCP && inProto==UDP)
+			continue;
+		
+		if(infoPtr->ai_protocol==IPPROTO_UDP && inProto==TCP)
+			continue;
+		
+		VNetAddressList::const_iterator cit;
+		
+		const VString newIp=xaddr.GetIP();
+		
+		bool ipAlreadyPushed=false;
+		
+		for(cit=fVAddrList->begin() ; cit!=fVAddrList->end() ; ++cit)
+		{
+			const VString ip=cit->GetIP();
+			
+			if(ip==newIp)
+			{
+				ipAlreadyPushed=true; 
+				break;
+			}
+		}
+
+		if(ipAlreadyPushed)
+			continue;
+		
+#endif		
 
 		fVAddrList->PushXNetAddr(xaddr);
 	}

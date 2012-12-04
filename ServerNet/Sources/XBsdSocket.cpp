@@ -23,6 +23,12 @@
 #include "VSslDelegate.h"
 
 #include <netinet/tcp.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <net/if.h>
+
+
+#define SNET_HAVE_GROUP_REQ 0
 
 
 BEGIN_TOOLBOX_NAMESPACE
@@ -54,6 +60,7 @@ XBsdTCPSocket::~XBsdTCPSocket()
 		delete fSslDelegate;
 }
 
+
 #if WITH_DEPRECATED_IPV4_API
 IP4 XBsdTCPSocket::GetIPv4HostOrder()
 {
@@ -62,11 +69,12 @@ IP4 XBsdTCPSocket::GetIPv4HostOrder()
 	if(fProfile==ClientSock)
 		addr.FromPeerAddr(fSock);
 	else
-	addr.FromLocalAddr(fSock);
+		addr.FromLocalAddr(fSock);
 	
 	return addr.GetIPv4HostOrder();
 }
 #endif
+
 
 VString XBsdTCPSocket::GetIP() const
 {
@@ -152,11 +160,6 @@ VError XBsdTCPSocket::Close(bool inWithRecvLoop)
 
 VError XBsdTCPSocket::SetBlocking(bool inBlocking)
 {
-#if VERSIONDEBUG && WITH_SNET_SOCKET_LOG
-	//DebugMsg ("[%d] XBsdTCPSocket::SetBlocking() : socket=%d block=%d\n",
-	//		  VTask::GetCurrentID(), fSock, inBlocking);
-#endif
-	
 	int flags=fcntl(fSock, F_GETFL);
 	
 	if(flags==-1)
@@ -180,11 +183,6 @@ VError XBsdTCPSocket::SetBlocking(bool inBlocking)
 
 bool XBsdTCPSocket::IsBlocking()
 {
-#if VERSIONDEBUG && WITH_SNET_SOCKET_LOG
-	//DebugMsg ("[%d] XBsdTCPSocket::IsBlocking() : socket=%d\n",
-	//		  VTask::GetCurrentID(), fSock);
-#endif
-	
 	int flags=fcntl(fSock, F_GETFL);
 	
 	if(flags==-1)
@@ -332,6 +330,16 @@ VError XBsdTCPSocket::Listen(const VNetAddress& inAddr, bool inAlreadyBound)
 
 	int err=0;
 	
+	if(!inAlreadyBound && inAddr.IsV6())
+	{
+		int opt=!WithV4mappedV6();
+
+		err=setsockopt(fSock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
+		
+		if(err!=0)
+			return vThrowNativeError(errno);
+	}
+		
 	if(!inAlreadyBound)
 	{	
 		int opt=true;
@@ -347,10 +355,6 @@ VError XBsdTCPSocket::Listen(const VNetAddress& inAddr, bool inAlreadyBound)
 	}
 	
 	err=listen(fSock, SOMAXCONN);
-
-	//DebugMsg ("[%d] XBsdTCPSocket::Listen() : socket=%d port=%d err=%d\n",
-	//			VTask::GetCurrentID(), fSock, GetServicePort(), err);
-
 	
 	if(err==0)
 	{
@@ -432,7 +436,7 @@ XBsdTCPSocket* XBsdTCPSocket::Accept(uLONG inMsTimeout)
 		err=setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
 		
 		if(err!=0)
-		{ ok=false ; vThrowNativeError(errno); }
+			{ ok=false ; vThrowNativeError(errno); }
 	}
 #endif
 
@@ -489,9 +493,6 @@ XBsdTCPSocket* XBsdTCPSocket::Accept(uLONG inMsTimeout)
 
 VError XBsdTCPSocket::Read(void* outBuff, uLONG* ioLen)
 {
-//	if(outBuff==NULL || ioLen==NULL)
-//		return vThrowError(VE_INVALID_PARAMETER);
-	
 	VError verr=DoRead(outBuff, ioLen);
 
 	return verr;
@@ -550,9 +551,6 @@ VError XBsdTCPSocket::DoRead(void* outBuff, uLONG* ioLen)
 
 VError XBsdTCPSocket::Write(const void* inBuff, uLONG* ioLen, bool /*inWithEmptyTail*/)
 {
-//	if(inBuff==NULL || ioLen==NULL)
-//		return vThrowError(VE_INVALID_PARAMETER);
-	
 	VError verr=DoWrite(inBuff, ioLen);
 		
 	return verr;
@@ -601,9 +599,6 @@ VError XBsdTCPSocket::DoWrite(const void* inBuff, uLONG* ioLen)
 
 VError XBsdTCPSocket::ReadWithTimeout(void* outBuff, uLONG* ioLen, sLONG inMsTimeout, sLONG* outMsSpent)
 {
-//	if(outBuff==NULL || ioLen==NULL)
-//		return vThrowError(VE_INVALID_PARAMETER);
-	
 	VError verr=DoReadWithTimeout(outBuff, ioLen, inMsTimeout, outMsSpent);
 	
 	return verr;
@@ -723,9 +718,6 @@ VError XBsdTCPSocket::DoReadWithTimeout(void* outBuff, uLONG* ioLen, sLONG inMsT
 
 VError XBsdTCPSocket::WriteWithTimeout(const void* inBuff, uLONG* ioLen, sLONG inMsTimeout, sLONG* outMsSpent, bool /*unusedWithEmptyTail*/)
 {
-//	if(inBuff==NULL || ioLen==NULL)
-//		return vThrowError(VE_INVALID_PARAMETER);
-	
 	VError verr=DoWriteWithTimeout(inBuff, ioLen, inMsTimeout, outMsSpent);
 		
 	return verr;
@@ -817,17 +809,16 @@ XBsdTCPSocket* XBsdTCPSocket::NewClientConnectedSock(const VString& inDnsName, P
 {
 	XBsdTCPSocket* xsock=NULL;
 	
-	VNetAddrList addrList;
+	VNetAddressList addrs;
 	
-	VError verr=addrList.FromDnsQuery(inDnsName, inPort);
+	VError verr=addrs.FromDnsQuery(inDnsName, inPort);
 	
-	VNetAddrList::const_iterator cit;
+	VNetAddressList::const_iterator cit;
 	
-	for(cit=addrList.begin() ; cit!=addrList.end() ; cit++)
+	for(cit=addrs.begin() ; cit!=addrs.end() ; cit++)
 	{
 		//We have a list of address structures ; we choose the first one that connects successfully.
 	
-		//int sock=socket(cit->GetFamily(), cit->GetSockType(), cit->GetProtocol());
 		int sock=socket(cit->GetPfFamily(), SOCK_STREAM, IPPROTO_TCP);
 		
 		if(sock==kBAD_SOCKET)
@@ -837,7 +828,7 @@ XBsdTCPSocket* XBsdTCPSocket::NewClientConnectedSock(const VString& inDnsName, P
 		else
 		{
 			int opt=true;
-			int err=setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)); //GetProtocol() ?
+			int err=setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 			
 			if(err!=0)
 			{
@@ -991,37 +982,45 @@ XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, 
 	bool alreadyBound=(inBoundSock!=kBAD_SOCKET) ? true : false;
 	
 	int sock=(alreadyBound) ? inBoundSock : socket(inAddr.GetPfFamily(), SOCK_STREAM, IPPROTO_TCP);
+
+	VError verr=VE_OK;
 	
 	if(sock==kBAD_SOCKET)
-	{
-		vThrowNativeError(errno);
-		return NULL;
-	}
+		verr=vThrowNativeError(errno);
 	
-	XBsdTCPSocket* xsock=new XBsdTCPSocket(sock);
-	
-	if(xsock==NULL)
-	{
-		vThrowError(VE_MEMORY_FULL);
-		return NULL;
-	}
-	
-	xsock->SetServicePort(inAddr.GetPort());
+	XBsdTCPSocket* xsock=NULL;
 		
-	VError verr=xsock->Listen(inAddr, alreadyBound);
-	
-	if(verr!=VE_OK)
-	{
-		delete xsock;
-		return NULL;
+	if(verr==VE_OK)
+	{	
+		xsock=new XBsdTCPSocket(sock);
+
+		if(xsock==NULL)
+			verr=vThrowError(VE_MEMORY_FULL);
 	}
 	
-	verr=xsock->SetBlocking(false);
+	if(verr==VE_OK)
+	{
+		xsock->SetServicePort(inAddr.GetPort());
+		
+		verr=xsock->Listen(inAddr, alreadyBound);
+	}
+	
+	if(verr==VE_OK)
+		verr=xsock->SetBlocking(false);
 	
 	if(verr!=VE_OK)
 	{
 		delete xsock;
-		return NULL;
+		xsock=NULL;
+		
+#if VERSIONDEBUG
+
+		VString ip=inAddr.GetIP();
+		PortNumber port=inAddr.GetPort();
+		
+		DebugMsg ("[%d] XBsdTCPSocket::NewServerListeningSock() : Fail to get listening socket for ip %S on port %d\n",
+			VTask::GetCurrentID(), &ip, port);
+#endif
 	}
 	
 	return xsock;
@@ -1039,6 +1038,8 @@ XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(PortNumber inPort, Socket i
 	VNetAddress anyAddr;
 	VError verr=anyAddr.FromAnyIpAndPort(inPort);
 	
+	xbox_assert(verr==VE_OK);
+	
 	return NewServerListeningSock(anyAddr, inBoundSock);
 #endif	
 }
@@ -1055,7 +1056,7 @@ XBOX::VError XBsdTCPSocket::SetNoDelay(bool inYesNo)
 }
 
 
-XBOX::VError XBsdTCPSocket::PromoteToSSL(VKeyCertPair* inKeyCertPair)
+XBOX::VError XBsdTCPSocket::PromoteToSSL(VKeyCertChain* inKeyCertChain)
 {
 	VSslDelegate* delegate=NULL;
 	
@@ -1063,12 +1064,12 @@ XBOX::VError XBsdTCPSocket::PromoteToSSL(VKeyCertPair* inKeyCertPair)
 	{
 	case ConnectedSock :
 			
-			delegate=VSslDelegate::NewServerDelegate(GetRawSocket(), inKeyCertPair);
+			delegate=VSslDelegate::NewServerDelegate(GetRawSocket(), inKeyCertChain);
 			break;
 			
 	case ClientSock :
 			
-			delegate=VSslDelegate::NewClientDelegate(GetRawSocket()/*, inKeyCertPair*/);
+			delegate=VSslDelegate::NewClientDelegate(GetRawSocket()/*, inKeyCertChain*/);
 			break;
 			
 	default :
@@ -1097,14 +1098,17 @@ bool XBsdTCPSocket::IsSSL()
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+XBsdAcceptIterator::XBsdAcceptIterator()
+{
+	fSockIt=fSocks.end();
+	FD_ZERO(&fReadSet);
+}
+
 
 VError XBsdAcceptIterator::AddServiceSocket(XBsdTCPSocket* inSock)
 {
 	if(inSock==NULL)
 		return VE_INVALID_PARAMETER;
-	
-	//DebugMsg ("[%d] XBsdAcceptIterator::AddServiceSocket() : socket=%d port=%d\n",
-	//		  VTask::GetCurrentID(), inSock->GetRawSocket(), inSock->GetServicePort());
 
 	fSocks.push_back(inSock);
 
@@ -1136,20 +1140,7 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 	VError verr=GetNewConnectedSocket(outSock, inMsTimeout, &shouldRetry);
 	
 	if(verr==VE_OK && *outSock==NULL && shouldRetry)
-		verr=GetNewConnectedSocket(outSock, inMsTimeout, &shouldRetry /*ignored*/);
-
-#if VERSIONDEBUG && 0
-	if(verr==VE_OK && *outSock!=NULL)
-	{
-		VString msg("New connected socket :");
-		msg.AppendString(" task=").AppendLong(VTask::GetCurrentID());
-		msg.AppendString(" sock=").AppendLong((*outSock)->GetRawSocket());
-		msg.AppendString(" client=").AppendString((*outSock)->GetClientIP()).AppendString(":").AppendLong((*outSock)->GetClientPort());
-		msg.AppendString(" server=").AppendString((*outSock)->GetServerIP()).AppendString(":").AppendLong((*outSock)->GetServerPort());
-		msg.AppendString("\n");
-		DebugMsg(msg);
-	}
-#endif		
+		verr=GetNewConnectedSocket(outSock, inMsTimeout, &shouldRetry /*ignored*/);		
 	
 	return verr;
 }
@@ -1186,10 +1177,6 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 				maxFd=fd;
 			
 			FD_SET(fd, &fReadSet);
-			
-			//DebugMsg ("[%d] XBsdAcceptIterator::GetNewConnectedSocket() : Add socket %d on port %d to read set!\n",
-			//			VTask::GetCurrentID(), (*cit)->GetRawSocket(), (*cit)->GetServicePort());
-
 		}
 		
 		sLONG now=VSystem::GetCurrentTime();
@@ -1222,39 +1209,24 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 		}
 		
 		fSockIt=fSocks.begin();
-		
-		//DebugMsg ("[%d] XBsdAcceptIterator::GetNewConnectedSocket() : Reset iterator ; next socket is %d on port %d\n",
-		//		  VTask::GetCurrentID(), (*fSockIt)->GetRawSocket(), (*fSockIt)->GetServicePort());
 	}
 	
 	//We have to handle remaining service sockets ; find next ready one
 		
 	while(fSockIt!=fSocks.end())
-	{
-		//jmo - TODO : remettre de l'ordre !
-		
+	{		
 		sLONG fd=(*fSockIt)->GetRawSocket();
 		
 		if(FD_ISSET(fd, &fReadSet))
 		{
-			//DebugMsg ("[%d] XBsdAcceptIterator::GetNewConnectedSocket() : Connection pending on socket %d on port %d\n",
-			//		  VTask::GetCurrentID(), (*fSockIt)->GetRawSocket(), (*fSockIt)->GetServicePort());
-			
 			*outSock=(*fSockIt)->Accept(0 /*No timeout*/);
-			
-			//DebugMsg ("[%d] XBsdAcceptIterator::GetNewConnectedSocket() : New socket %d accepted from socket %d\n",
-			//		  VTask::GetCurrentID(), (*outSock!=NULL) ? (*outSock)->GetRawSocket() : -1, (*fSockIt)->GetRawSocket(), (*fSockIt)->GetServicePort());
-
-			
+						
 			++fSockIt;	//move to next socket ; prefer equity over perf !
 			
 			return VE_OK;
 		}
 		else
-		{
-			//DebugMsg ("[%d] XBsdAcceptIterator::GetNewConnectedSocket() : No activity on socket %d on port %d\n",
-			//		  VTask::GetCurrentID(), (*fSockIt)->GetRawSocket(), (*fSockIt)->GetServicePort());
-			
+		{			
 			++fSockIt;	//move to next socket ; prefer equity over perf !
 		}
 	}
@@ -1270,21 +1242,6 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 // XBsdUDPSocket
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-XBsdUDPSocket::XBsdUDPSocket(sLONG inSockFD, const sockaddr_storage& inSockAddr) :
-	fSock(inSockFD), fSockAddr(inSockAddr)
-{
-	//empty
-}
-
-
-XBsdUDPSocket::XBsdUDPSocket(sLONG inSockFD, const sockaddr_in& inSockAddr) :
-	fSock(inSockFD), fSockAddr(inSockAddr)
-{	
-	//empty
-}
-
 
 XBsdUDPSocket::~XBsdUDPSocket()
 {
@@ -1322,21 +1279,19 @@ VError XBsdUDPSocket::SetBlocking(uBOOL inBlocking)
 
 VError XBsdUDPSocket::Close()
 {
-	//Pas necessaire vu qu'il n'y a pas de forceclose...
-	sLONG invalidSocket=kBAD_SOCKET;
-	sLONG realSocket=XBOX::VInterlocked::Exchange(&fSock, invalidSocket);
-	
 	int err=0;
 	 
 	do
-		err=close(realSocket);
+		err=close(fSock);
 	while(err==-1 && errno==EINTR);
-			
+	
+	fSock=kBAD_SOCKET;
+	
 	return err==0 ? VE_OK : vThrowNativeError(errno);
 }
 
 
-VError XBsdUDPSocket::Read(void* outBuff, uLONG* ioLen, XBsdNetAddr* outSenderInfo)
+VError XBsdUDPSocket::Read(void* outBuff, uLONG* ioLen, VNetAddress* outSenderInfo)
 {
 	if(outBuff==NULL || ioLen==NULL)
 		return vThrowError(VE_INVALID_PARAMETER);
@@ -1347,9 +1302,7 @@ VError XBsdUDPSocket::Read(void* outBuff, uLONG* ioLen, XBsdNetAddr* outSenderIn
 	ssize_t n=0;
 
 	do
-
 		n=recvfrom(fSock, outBuff, *ioLen, 0 /*flags*/, reinterpret_cast<sockaddr*>(&addr), &addrLen);
-		
 	while(n==-1 && errno==EINTR);
 
 	
@@ -1371,8 +1324,6 @@ VError XBsdUDPSocket::Read(void* outBuff, uLONG* ioLen, XBsdNetAddr* outSenderIn
 	if(errno==EWOULDBLOCK)
 		return VE_SOCK_WOULD_BLOCK;
 	
-	//jmo - TODO : Find a better error !
-
 	if(errno==ECONNRESET || errno==ENOTSOCK || errno==EBADF)
 		return vThrowNativeCombo(VE_SOCK_CONNECTION_BROKEN, errno);
 	
@@ -1380,7 +1331,7 @@ VError XBsdUDPSocket::Read(void* outBuff, uLONG* ioLen, XBsdNetAddr* outSenderIn
 }
 
 
-VError XBsdUDPSocket::Write(const void* inBuff, uLONG inLen, const XBsdNetAddr& inReceiverInfo)
+VError XBsdUDPSocket::Write(const void* inBuff, uLONG inLen, const VNetAddress& inReceiverInfo)
 {
 	if(inBuff==NULL)
 		return vThrowError(VE_INVALID_PARAMETER);
@@ -1395,30 +1346,65 @@ VError XBsdUDPSocket::Write(const void* inBuff, uLONG inLen, const XBsdNetAddr& 
    	
 	if(n>=0)
 		return VE_OK;
-		
+	
 	//En principe on ne gere pas le mode non bloquant avec UDP
 
 	if(errno==EWOULDBLOCK)
 		return VE_SOCK_WOULD_BLOCK;
 	
-	//jmo - TODO : Find a better error !
-
 	if(errno==ECONNRESET || errno==ENOTSOCK || errno==EBADF)
 		return vThrowNativeCombo(VE_SOCK_CONNECTION_BROKEN, errno);
 	
 	return vThrowNativeCombo(VE_SOCK_WRITE_FAILED, errno);
 }
 
+#if WITH_DEPRECATED_IPV4_API
+
+VError XBsdUDPSocket::SubscribeMulticast(uLONG inLocalIpv4, uLONG inMulticastIPv4)
+{
+	//Membership is dropped on close or process termination. The OS take care of it.
+	
+	ip_mreq	mreq;	
+	memset(&mreq, 0, sizeof(mreq));
+	
+	mreq.imr_multiaddr.s_addr=htonl(inMulticastIPv4);
+	mreq.imr_interface.s_addr=htonl(inLocalIpv4);
+	
+	int err=setsockopt(fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
+	
+	return err==0 ? VE_OK : vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, errno);
+}
+
+
+VError XBsdUDPSocket::Bind(const VNetAddress& inBindAddr)
+{
+	int opt=true;
+	
+#if VERSION_LINUX
+	
+    //SO_REUSEPORT doesn't exist on Linux ; multicast may not work properly.
+    //See this comment in /usr/include/asm-generic/socket.h :
+    /* To add :#define SO_REUSEPORT 15 */
+	
+    int err=setsockopt(fSock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	
+#else
+	
+	int err=setsockopt(fSock, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+	
+#endif	//VERSION_LINUX
+	
+	if(err!=0)
+		return vThrowNativeError(errno);
+		
+	err=bind(fSock, inBindAddr.GetAddr(), inBindAddr.GetAddrLen());
+	
+	return err==0 ? VE_OK : vThrowNativeError(errno);
+}
+
 //static
 XBsdUDPSocket* XBsdUDPSocket::NewMulticastSock(uLONG inLocalIpv4, uLONG inMulticastIPv4, PortNumber inPort)
-{
-	//jmo - TODO : Virer ca (idem socket tcp)
-	
-	sockaddr_in v4={0};
-	v4.sin_family=AF_INET;
-	v4.sin_addr.s_addr=htonl(inLocalIpv4);
-	v4.sin_port=htons(inPort);
-	
+{	
 	int sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	
 	if(sock==kBAD_SOCKET)
@@ -1427,7 +1413,7 @@ XBsdUDPSocket* XBsdUDPSocket::NewMulticastSock(uLONG inLocalIpv4, uLONG inMultic
 		return NULL;
 	}
 	
-	XBsdUDPSocket* xsock=new XBsdUDPSocket(sock, v4);
+	XBsdUDPSocket* xsock=new XBsdUDPSocket(sock);
 	
 	if(xsock==NULL)
 	{
@@ -1443,7 +1429,9 @@ XBsdUDPSocket* XBsdUDPSocket::NewMulticastSock(uLONG inLocalIpv4, uLONG inMultic
 		return NULL;
 	}
 	
-	verr=xsock->Bind();
+	VNetAddress anyIP(inPort);
+	
+	verr=xsock->Bind(anyIP);
 	
 	if(verr!=VE_OK)
 	{
@@ -1454,49 +1442,142 @@ XBsdUDPSocket* XBsdUDPSocket::NewMulticastSock(uLONG inLocalIpv4, uLONG inMultic
 	return xsock;
 }
 
+#else	//WITH_DEPRECATED_IPV4_API
 
-//jmo - TODO : get rid of local ip and add IPv6 support (group_req not supported on OS X ?)
-VError XBsdUDPSocket::SubscribeMulticast(uLONG inLocalIpv4, uLONG inMulticastIPv4)
+//static
+XBsdUDPSocket* XBsdUDPSocket::NewMulticastSock(const VString& inMultiCastIP, PortNumber inPort)
 {
-	//Membership is dropped on close or process termination. The OS take care of it.
+	VNetAddress localAddr(inPort);
+	VNetAddress mcastAddr(inMultiCastIP, inPort);
 	
-	ip_mreq	mreq;	
-	memset(&mreq, 0, sizeof(mreq));
-
-	mreq.imr_multiaddr.s_addr=htonl(inMulticastIPv4);
-	mreq.imr_interface.s_addr=htonl(inLocalIpv4);
+	int sock=socket(localAddr.GetPfFamily(), SOCK_DGRAM, IPPROTO_UDP);
+		
+	if(sock==kBAD_SOCKET)
+	{
+		vThrowNativeError(errno);
+		return NULL;
+	}
 	
-	int err=setsockopt(fSock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
-			
-	return err==0 ? VE_OK : vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, errno);
-}
+	XBsdUDPSocket* xsock=new XBsdUDPSocket(sock);
+		
+	if(xsock==NULL)
+		vThrowError(VE_MEMORY_FULL);
 
-
-VError XBsdUDPSocket::Bind()
-{
-	int opt=true;
+	int err=0;
 	
+	if(xsock!=NULL && err==0)
+	{			
+		int opt=true;
+
 #if VERSION_LINUX
-
-    //SO_REUSEPORT doesn't exist on Linux ; multicast may not work properly.
-    //See this comment in /usr/include/asm-generic/socket.h :
-    /* To add :#define SO_REUSEPORT 15 */
-
-    int err=setsockopt(fSock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
+	
+		//SO_REUSEPORT doesn't exist on Linux ; multicast may not work properly.
+		//See this comment in /usr/include/asm-generic/socket.h :
+		/* To add :#define SO_REUSEPORT 15 */
+	
+		err=setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	
 #else
-
-	int err=setsockopt(fSock, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
-
+		
+		err=setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+	
 #endif
+	}
+		
+	if(xsock!=NULL && err==0)
+	{
+		if(ListV6() && mcastAddr.IsV6())
+		{
+			//IPv6-TODO : Simplifier (débugger) tout ça !
+			std::map<VString, sLONG> interfaces;
+			
+			VNetAddressList addrs;
+			addrs.FromLocalInterfaces();
+			
+			VNetAddressList::const_iterator addr;
+			
+			for(addr=addrs.begin() ; addr!=addrs.end() ; ++addr)
+				if(addr->IsV6() && !addr->IsLocal() && !addr->IsLoopBack())
+					interfaces[addr->GetName()]=addr->GetIndex();
+			
+			std::map<VString, sLONG>::const_iterator interface;
+		
+			for(interface=interfaces.begin() ; interface!=interfaces.end() ; ++interface)
+			{			
+				int ifCount=0;
 
-	if(err!=0)
-		return vThrowNativeError(errno);
+				ipv6_mreq mreq;	
+				memset(&mreq, 0, sizeof(mreq));
+					
+				mreq.ipv6mr_interface=interface->second;
+				mcastAddr.FillIpV6(&mreq.ipv6mr_multiaddr);
+					
+				err=setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq));
+				
+				if(err==0)
+					err=setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, &mreq.ipv6mr_interface, sizeof(mreq.ipv6mr_interface));
+				
+				if(err==0)
+				{
+					ifCount++;
+					
+					DebugMsg("Subscribed multicast on interface %S\n", &interface->first);
+				}
+				else
+				{
+					DebugMsg("Fail to subscribe to multicast on interface %S\n", &interface->first);
+				}
+			}
+		}
+		else if(ListV4() && mcastAddr.IsV4())
+		{
+			ip_mreq	mreq;	
+			memset(&mreq, 0, sizeof(mreq));
 	
-	err=bind(fSock, fSockAddr.GetAddr(), fSockAddr.GetAddrLen());
+			mreq.imr_interface.s_addr=INADDR_ANY;	//Let the OS choose an interface
+			mcastAddr.FillIpV4((IP4*)&(mreq.imr_multiaddr.s_addr));
+		
+			err=setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
+		}
+		else
+		{
+			err=1;
+			vThrowError(VE_INVALID_PARAMETER);
+		}
+			
+		xbox_assert(err!=1);
+		
+		if(err==-1)
+			vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, errno);
+		else if(err==1)
+			vThrowError(VE_SRVR_CANT_SUBSCRIBE_MULTICAST);
+			
+	}
+		
+	if(xsock!=NULL && err==0)
+	{		
+		err=bind(sock, localAddr.GetAddr(), localAddr.GetAddrLen());
+		
+		if(err!=0)
+			vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, errno);
+	}
 	
-	return err==0 ? VE_OK : vThrowNativeError(errno);
+	if(xsock==NULL || err!=0)
+	{
+		do
+			err=close(sock);
+		while(err==-1 && errno==EINTR);
+		
+		delete xsock;
+		
+		return NULL;
+	}
+	
+	return xsock;
 }
+
+
+#endif	//WITH_DEPRECATED_IPV4_API
 
 
 END_TOOLBOX_NAMESPACE

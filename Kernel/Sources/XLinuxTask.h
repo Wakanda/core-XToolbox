@@ -16,6 +16,11 @@
 #ifndef __XLinuxTask__
 #define __XLinuxTask__
 
+
+#define USE_POSIX_UNNAMED_SEMAPHORE 1
+#define USE_LINUX_PTHREAD_NP 1
+
+
 #include "Kernel/Sources/VObject.h"
 #include <pthread.h>
 
@@ -58,12 +63,12 @@ public:
     XLinuxTaskMgr*  GetManager() const;
     VTask*          GetOwner() const;
 
-	virtual pthread_t GetSystemID() const = 0;
+    virtual sLONG	GetSystemID() const = 0;
+    virtual VTaskID	GetValueForVTaskID() const; //Wrapper for GetSystemID (active waiting !)
 
 protected :
 
     void    _Run();
-
 
 private:
 
@@ -76,7 +81,8 @@ private:
 class XLinuxTask_preemptive : public XLinuxTask
 {
 public:
-    XLinuxTask_preemptive(VTask* inOwner);
+    static XLinuxTask_preemptive* Create(VTask* inOwner);
+
     XLinuxTask_preemptive(VTask* inOwner, bool /*for main task*/);
     ~XLinuxTask_preemptive();
 
@@ -89,9 +95,13 @@ public:
 
     static  void GetStack(void** outStackAddr, size_t* outStackSize);
 
-	virtual pthread_t GetSystemID() const;
+    virtual sLONG GetSystemID() const;
 
 private:
+
+    XLinuxTask_preemptive(VTask* inOwner);
+    static void* readySteadyGO(void* thisPtr);
+    bool _CreateThread();
 
     class SemWrapper
     {
@@ -111,12 +121,13 @@ private:
         sem_t fSem;
 #elif USE_MACH_SEMAPHORE
         semaphore_t fSem;
+#else
+        #error You must choose a semaphore family !
 #endif
     };
 
-    static void*    readySteadyGO(void* thisPtr);
-
-    pthread_t   fPthread;
+    pthread_t	fPthread;	//opaque pthread type, 8 bytes
+    pid_t		fTid;		//Linux thread id, 4 bytes, signed
     SemWrapper  fSem;
 };
 
@@ -135,7 +146,7 @@ class XTOOLBOX_API XLinuxTaskMgr
 
     static  void YieldNow();
 
-	bool		 IsFibersThreadingModel() const;
+    bool         IsFibersThreadingModel() const;
 
     size_t       ComputeMainTaskStackSize() const;
 
@@ -147,14 +158,14 @@ class XTOOLBOX_API XLinuxTaskMgr
 
 
     VTask*       GetCurrentTask() const;
-    void		 SetCurrentTask(VTask *inTask) const;
+    void         SetCurrentTask(VTask *inTask) const;
 
 
     VTaskID      GetCurrentTaskID() const;
     void         SetCurrentTaskID(VTaskID inTaskID) const;
 
 
-    void         SetCurrentThreadName(const VString& inName) const;
+    void         SetCurrentThreadName(const VString& inName, VTaskID inTaskID) const;
 
 
  protected:

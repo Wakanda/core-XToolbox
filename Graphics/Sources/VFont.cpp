@@ -38,6 +38,9 @@ VFont::VFont(const VString& inFontFamilyName, const VFontFace& inFace, GReal inS
 	fFamilyName = inFontFamilyName;
 	fFace = inFace;
 	fSize = Abs(inSize);
+
+	fFontIDValid=false;
+	fFontID=0;
 }
 
 
@@ -330,13 +333,19 @@ VTextStyle *VFont::CreateTextStyle(const VString& inFontFamilyName, const VFontF
 
 VFont* VFont::DeriveFontSize(GReal inSize, const GReal inDPI) const
 {
-	return sManager->RetainFont(fFamilyName, fFace, inSize, inDPI, false);
+	VFont* result=sManager->RetainFont(fFamilyName, fFace, inSize, inDPI, false);
+	if(result && fFontIDValid)
+		result->SetFontID(fFontID);
+	return result;
 }
 
 
 VFont* VFont::DeriveFontFace(const VFontFace& inFace) const
 {
-	return sManager->RetainFont(fFamilyName, inFace, fSize, 0, false);
+	VFont* result = sManager->RetainFont(fFamilyName, inFace, fSize, 0, false);
+	if(result && fFontIDValid)
+		result->SetFontID(fFontID);
+	return result;
 }
 
 
@@ -545,10 +554,10 @@ void VFontMetrics::Scale( GReal inScaling)
 
 static sLONG _round(XBOX::GReal inValue)
 {
-	double v1;
-	XBOX::GReal v=modf(inValue,&v1);
+	XBOX::GReal v1;
+	XBOX::GReal v = std::modf(inValue,&v1);
 	if(v>0.5)
-		return ceil(inValue);
+		return std::ceil(inValue);
 	else 
 		return v1;
 }

@@ -16,10 +16,8 @@
 #ifndef __VPattern__
 #define __VPattern__
 
-#include "KernelIPC/VKernelIPC.h"
 #include "Graphics/Sources/VGraphicContext.h"
 #include "Graphics/Sources/VRect.h"
-
 #include "Graphics/Sources/VPolygon.h"
 #include "Graphics/Sources/VAffineTransform.h"
 

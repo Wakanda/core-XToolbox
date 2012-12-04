@@ -195,6 +195,8 @@ protected:
 	*/
 	void _ComputeOffsetX();
 
+	GReal _GetOffsetX() const;
+
 	void _EnableMultiStyle();
 
 	// IFormattedTextDraw

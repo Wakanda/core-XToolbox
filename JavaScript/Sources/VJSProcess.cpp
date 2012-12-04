@@ -15,6 +15,9 @@
 */
 #include "VJavaScriptPrecompiled.h"
 
+#include <list>
+
+#include "ServerNet/VServerNet.h"
 #include "VJSProcess.h"
 
 #include "VJSContext.h"
@@ -75,71 +78,149 @@ void VJSProcess::_getAccessor( XBOX::VJSParms_getProperty& ioParms, XBOX::VJSGlo
 	ioParms.ReturnValue( VJSProcess::CreateInstance( ioParms.GetContextRef(), NULL));
 }
 
-
-void VJSOS::Initialize ( const XBOX::VJSParms_initialize& inParms, void* )
-{
-	;
-}
-
-void VJSOS::Finalize ( const XBOX::VJSParms_finalize& inParms, void* )
-{
-	;
-}
-
 void VJSOS::GetDefinition( ClassDefinition& outDefinition)
 {
+	typedef XBOX::VJSClass<VJSOS, void>	inherited;
+
 	static inherited::StaticFunction functions[] =
 	{
-		{ "type", js_callStaticFunction<_type>, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
-		{ 0, 0, 0}
+		{	"type",					js_callStaticFunction<_Type>,				JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete	},
+		{	"networkInterfaces",	js_callStaticFunction<_NetworkInterfaces>,	JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete	},
+		{	0,						0,											0																	},
 	};
 
 	static inherited::StaticValue values[] =
 	{
-		{ "isWindows", js_getProperty<_IsWindows>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
-		{ "isMac", js_getProperty<_IsMac>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
-		{ "isLinux", js_getProperty<_IsLinux>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
-		{ 0, 0, 0, 0}
+		{	"isWindows",			js_getProperty<_IsWindows>,			NULL,	JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
+		{	"isMac",				js_getProperty<_IsMac>,				NULL,	JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
+		{	"isLinux",				js_getProperty<_IsLinux>,			NULL,	JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete	},
+		{	0,						0,									0,		0																	},
 	};
 
-	outDefinition.className = "os";
-	outDefinition.initialize = js_initialize<Initialize>;
-	outDefinition.finalize = js_finalize<Finalize>;
-	outDefinition.staticFunctions = functions;
-	outDefinition.staticValues = values;
+	outDefinition.className			= "os";
+	outDefinition.initialize		= js_initialize<_Initialize>;
+	outDefinition.finalize			= js_finalize<_Finalize>;
+	outDefinition.staticFunctions	= functions;
+	outDefinition.staticValues		= values;
 }
 
-void VJSOS::_type( XBOX::VJSParms_callStaticFunction& ioParms, void* )
+void VJSOS::_Initialize (const XBOX::VJSParms_initialize &inParms, void *)
 {
-	XBOX::VString		vstrOSVersion;
-	XBOX::VSystem::GetOSVersionString ( vstrOSVersion );
-
-	ioParms. ReturnString ( vstrOSVersion );
 }
 
-void VJSOS::_IsMac ( XBOX::VJSParms_getProperty& ioParms, void* )
+void VJSOS::_Finalize (const XBOX::VJSParms_finalize &inParms, void *)
+{
+}
+
+void VJSOS::_Type (XBOX::VJSParms_callStaticFunction &ioParms, void *)
+{
+	XBOX::VString	vstrOSVersion;
+
+	XBOX::VSystem::GetOSVersionString(vstrOSVersion);
+	ioParms.ReturnString(vstrOSVersion);
+}
+
+void VJSOS::_NetworkInterfaces (XBOX::VJSParms_callStaticFunction &ioParms, void *)
+{
+	XBOX::VNetAddressList	addressList;
+	
+	addressList.FromLocalInterfaces();
+
+
+	std::list<Address>						addresses;
+	XBOX::VNetAddressList::const_iterator	i;
+
+	// TODO: 
+	//	1) Retrieve actual interface name (currently set dummy name). 
+	//	2) Support listing of both IPv4 *and* IPv6 addresses if the interface handles both.
+
+//**
+	sLONG			counter			= 0;
+	XBOX::VString	interfaceName	= "InterfaceX";
+//**
+
+	for (i = addressList.begin(); i != addressList.end(); i++) {
+
+		Address	address;
+
+//**
+		interfaceName.SetUniChar(10, '0' + counter++);
+//**
+
+		address.fInterfaceName = interfaceName;
+		address.fIPAddress = i->GetIP();
+		address.fIsIPv6 = i->IsV6();
+		address.fIsInternal = i->IsLoopBack();
+
+		addresses.push_back(address);
+		
+	}
+
+	XBOX::VJSObject	result(ioParms.GetContext());
+
+	result.MakeEmpty();
+	if (!addresses.empty()) {
+
+		std::list<Address>::iterator	j;
+
+		for (j = addresses.begin(); j != addresses.end(); j++) {
+
+			XBOX::VJSObject	entryObject(ioParms.GetContext());
+
+			entryObject.MakeEmpty();
+			entryObject.SetProperty("address", j->fIPAddress);
+			entryObject.SetProperty("family", j->fIsIPv6 ? XBOX::VString("IPv6") : XBOX::VString("IPv4"));
+			entryObject.SetProperty("internal", j->fIsInternal);
+			
+			if (result.HasProperty(j->fInterfaceName)) {
+
+				XBOX::VJSObject	object(ioParms.GetContext());
+
+				object = result.GetPropertyAsObject(j->fInterfaceName);
+				xbox_assert(object.IsArray());
+
+				XBOX::VJSArray	arrayObject(object);
+
+				arrayObject.PushValue(entryObject);	
+
+			} else {
+
+				XBOX::VJSArray	arrayObject(ioParms.GetContext());
+
+				result.SetProperty(j->fInterfaceName, arrayObject);
+				arrayObject.PushValue(entryObject);	
+				
+			}
+
+		}
+
+	}
+	ioParms.ReturnValue(result);
+}
+
+void VJSOS::_IsMac (XBOX::VJSParms_getProperty &ioParms, void *)
 {
 #if VERSIONMAC
-	ioParms. ReturnBool ( true );
+	ioParms.ReturnBool(true);
 #else
-	ioParms. ReturnBool ( false );
+	ioParms.ReturnBool(false);
 #endif
 }
 
-void VJSOS::_IsWindows ( XBOX::VJSParms_getProperty& ioParms, void* )
+void VJSOS::_IsWindows (XBOX::VJSParms_getProperty &ioParms, void *)
 {
 #if VERSIONWIN
-	ioParms. ReturnBool ( true );
+	ioParms.ReturnBool(true);
 #else
-	ioParms. ReturnBool ( false );
+	ioParms.ReturnBool(false);
 #endif
 }
 
-void VJSOS::_IsLinux ( XBOX::VJSParms_getProperty& ioParms, void* )
+void VJSOS::_IsLinux (XBOX::VJSParms_getProperty &ioParms, void *)
 {
 #if VERSION_LINUX
-	ioParms. ReturnBool ( true );
+	ioParms.ReturnBool(true);
 #else
-	ioParms. ReturnBool ( false );
+	ioParms.ReturnBool(false);
 #endif
 }

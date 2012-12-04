@@ -25,6 +25,7 @@
 #include "VFloat.h"
 #include "VTime.h"
 #include "VUUID.h"
+#include "VJSONValue.h"
 
 
 #if COMPIL_VISUAL
@@ -32,6 +33,15 @@ inline int isnan( double a) { return _isnan( a);}
 #elif COMPIL_GCC
 inline int isnan( double a) { return std::isnan( a);}
 #endif
+
+template<class T>
+inline void CastToInteger( double inValue, T *outValue)
+{
+	double r = floor( inValue);
+	T v = (T) r;
+	*outValue = ( (double) v == r) ? v : 0;
+}
+
 
 const VEmpty::InfoType		VEmpty::sInfo;
 const VWord::InfoType		VWord::sInfo;
@@ -199,6 +209,20 @@ bool VValueSingle::FromXMLString( const VString& inString)
 {
 	FromString( inString);
 	return true;
+}
+
+
+VError VValueSingle::FromJSONString( const VString& inJSONString, JSONOption inModifier)
+{
+	FromString(inJSONString);
+	return VE_OK;
+}
+
+
+VError VValueSingle::GetJSONString( VString& outJSONString, JSONOption inModifier) const
+{
+	GetString(outJSONString);
+	return VE_OK;
 }
 
 #pragma mark-
@@ -378,6 +402,24 @@ void VByte::FromValue(const VValueSingle& inValue)
 {
 	fValue = (sBYTE) inValue.GetWord();
 	GotValue(inValue.IsNull());
+}
+
+
+VError VByte::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	CastToInteger( inJSONValue.GetNumber(), &fValue);
+	GotValue( inJSONValue.IsNull());
+	return VE_OK;
+}
+
+
+VError VByte::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+		outJSONValue.SetNumber( fValue);
+	return VE_OK;
 }
 
 
@@ -617,6 +659,24 @@ void VWord::FromValue(const VValueSingle& inValue)
 }
 
 
+VError VWord::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	CastToInteger( inJSONValue.GetNumber(), &fValue);
+	GotValue( inJSONValue.IsNull());
+	return VE_OK;
+}
+
+
+VError VWord::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+		outJSONValue.SetNumber( fValue);
+	return VE_OK;
+}
+
+
 void* VWord::LoadFromPtr(const void* inDataPtr,Boolean /*inRefOnly*/)
 {
 	fValue = *(sWORD*)inDataPtr;
@@ -851,6 +911,24 @@ void VLong::FromValue(const VValueSingle& inValue)
 }
 
 
+VError VLong::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	CastToInteger( inJSONValue.GetNumber(), &fValue);
+	GotValue( inJSONValue.IsNull());
+	return VE_OK;
+}
+
+
+VError VLong::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+		outJSONValue.SetNumber( fValue);
+	return VE_OK;
+}
+
+
 void* VLong::LoadFromPtr(const void* inDataPtr,Boolean /*inRefOnly*/)
 {
 	fValue = *(sLONG*)inDataPtr;
@@ -1067,6 +1145,24 @@ void VLong8::FromValue(const VValueSingle& inValue)
 {
 	fValue = inValue.GetLong8();
 	GotValue(inValue.IsNull());
+}
+
+
+VError VLong8::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	CastToInteger( inJSONValue.GetNumber(), &fValue);
+	GotValue( inJSONValue.IsNull());
+	return VE_OK;
+}
+
+
+VError VLong8::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+		outJSONValue.SetNumber( fValue);
+	return VE_OK;
 }
 
 
@@ -1382,15 +1478,25 @@ VError VBoolean::FromJSONString(const VString& inJSONString, JSONOption inModifi
 
 VError VBoolean::GetJSONString(VString& outJSONString, JSONOption inModifier) const
 {
+	outJSONString = fValue ? "true" : "false";
+	return VE_OK;
+}
+
+
+VError VBoolean::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	fValue = inJSONValue.GetBool() ? 1 : 0;
+	GotValue( inJSONValue.IsNull());
+	return VE_OK;
+}
+
+
+VError VBoolean::GetJSONValue( VJSONValue& outJSONValue) const
+{
 	if (IsNull())
-		outJSONString = L"null";
+		outJSONValue.SetNull();
 	else
-	{
-		if (fValue)
-			outJSONString = L"true";
-		else
-			outJSONString = L"false";
-	}
+		outJSONValue.SetBool( fValue != 0);
 	return VE_OK;
 }
 
@@ -1795,6 +1901,28 @@ VError VReal::GetJSONString(VString& outJSONString, JSONOption inModifier) const
 	return VE_OK;
 }
 
+
+VError VReal::FromJSONValue( const VJSONValue& inJSONValue)
+{
+	if (inJSONValue.IsNull())
+		SetNull( true);
+	else
+	{
+		fValue = inJSONValue.GetNumber();
+		GotValue();
+	}
+	return VE_OK;
+}
+
+
+VError VReal::GetJSONValue( VJSONValue& outJSONValue) const
+{
+	if (IsNull())
+		outJSONValue.SetNull();
+	else
+		outJSONValue.SetNumber( fValue);
+	return VE_OK;
+}
 
 
 void VReal::FromValue(const VValueSingle& inValue)

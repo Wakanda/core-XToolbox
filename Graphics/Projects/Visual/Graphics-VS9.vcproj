@@ -5,7 +5,7 @@
 	Name="Dll - XToolbox FP - Graphics"
 	ProjectGUID="{B0378F32-5D26-4221-A3B5-D6F1ADCA06D4}"
 	RootNamespace="Dll - XToolbox FP - Graphics"
-	SccProjectName="&quot;//depot/XToolbox/WAK2&quot;"
+	SccProjectName="&quot;//depot/XToolbox/Main&quot;"
 	SccLocalPath="..\..\.."
 	SccProvider="MSSCCI:Perforce SCM"
 	TargetFrameworkVersion="131072"
@@ -941,26 +941,6 @@
 					>
 				</File>
 				<File
-					RelativePath="..\..\Sources\VPictureDataQuicktime.cpp"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VPictureDataQuicktime.h"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VQuickTime.cpp"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VQuickTime.h"
-					>
-				</File>
-				<File
-					RelativePath="..\..\Sources\VQuickTimeSDK.h"
-					>
-				</File>
-				<File
 					RelativePath="..\..\Sources\VWICCodec.cpp"
 					>
 				</File>
@@ -1621,10 +1601,8 @@
 		<Filter
 			Name="Libraries"
 			>
-			<File
-				RelativePath="..\..\..\..\..\quicktime\6.0.0\QTDevWin\Libraries\qtmlClient.lib"
-				>
-			</File>
 		</Filter>
 	</Files>
+	<Globals>
+	</Globals>
 </VisualStudioProject>

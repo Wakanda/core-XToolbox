@@ -16,25 +16,21 @@
 #ifndef __VGraphicsPrecompiled__
 #define __VGraphicsPrecompiled__
 
-
 // Setup private compile macro
 #define COMPILING_XTOOLBOX_LIB
 
 // Kernel headers
 #include "KernelIPC/VKernelIPC.h"
 
-
 // Setup export macro
 #define XTOOLBOX_EXPORTS
 #include "Kernel/Sources/VKernelExport.h"
-
-
-USING_TOOLBOX_NAMESPACE
 
 // Widely used Graphics headers
 #include "VGraphicsFlags.h"
 #include "VGraphicsTypes.h"
 #include "VGraphicsErrors.h"
+
 #if VERSIONWIN
 	#if ENABLE_D2D
 		#include "d2d1.h"
@@ -44,4 +40,7 @@ USING_TOOLBOX_NAMESPACE
 		#pragma comment(lib, "dxerr.lib")
 	#endif
 #endif
+
+USING_TOOLBOX_NAMESPACE
+
 #endif

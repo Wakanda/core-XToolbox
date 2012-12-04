@@ -45,12 +45,13 @@ class XTOOLBOX_API VNetAddress : public VObject
 {
 public :
 	
-	VNetAddress();
+	explicit VNetAddress(PortNumber inPort=kBAD_PORT);
 	VNetAddress(const sockaddr_storage& inSockAddr);
 	VNetAddress(const sockaddr_in& inSockAddr);
 	VNetAddress(const sockaddr_in6& inSockAddr);
 	VNetAddress(const XNetAddr& inXAddr);
 	VNetAddress(IP4 inIpV4, PortNumber inPort=kBAD_PORT); 
+	VNetAddress(IP6 inIpV6, PortNumber inPort=kBAD_PORT); 
 	VNetAddress(const VString& inIp, PortNumber inPort=kBAD_PORT);
 
 	VError FromLocalAddr(Socket inSock);
@@ -58,24 +59,47 @@ public :
 	VError FromIpAndPort(const VString& inIP, PortNumber inPort=kBAD_PORT);
 	VError FromAnyIpAndPort(PortNumber inPort);
 
+	static VString GetAnyIP();
+	static VString GetLoopbackIP();
+
 	void SetAddr(const sockaddr_storage& inSockAddr);
 	const sockaddr* GetAddr() const;
 	sLONG GetAddrLen() const;
 
 	VString GetIP(sLONG* outVersion=NULL) const;
+
 	bool IsV4() const;
 	bool IsV6() const;
+	bool IsV4MappedV6() const;
+	bool IsLoopBack() const;
+	bool IsAny() const;
+	bool IsAPIPA() const;
+	bool IsULA(bool* outLocallyAssigned=NULL) const;
+	bool IsLocal() const;
+	bool IsLocallyAssigned() const;
+	
+	
+	VString GetProperties(const VString& inSep=CVSTR(", ")) const;
+	
 	PortNumber GetPort() const;
 
 	void FillAddrStorage(sockaddr_storage* outSockAddr) const;
-	
+	void FillIpV4(IP4* outIpV4) const;
+	void FillIpV6(IP6* outIpV6) const;
+
 	//To help socket creation - need some work :)
 	
 	sLONG GetPfFamily() const;
 	
-	//sLONG GetSockType() {return SOCK_STREAM; /*todo*/}
+#if VERSIONMAC || VERSION_LINUX
 	
-	//sLONG GetProtocol {return 0; /*IPPROTO_TCP todo*/}
+	//Extra methods needed for UDP multicast (bug workaround) 
+
+	VString GetName() const;
+	sLONG GetIndex() const;
+	
+#endif
+	
 	
 private :
 	
@@ -83,7 +107,7 @@ private :
 };
 
 
-class XTOOLBOX_API VNetAddrList
+class XTOOLBOX_API VNetAddressList
 {
 public :
 
@@ -91,7 +115,7 @@ public :
 	
 	VError FromDnsQuery(const VString& inDnsName, PortNumber inPort);
 	
-	class const_iterator : public std::iterator<std::forward_iterator_tag, VNetAddress>
+	class XTOOLBOX_API const_iterator : public std::iterator<std::forward_iterator_tag, VNetAddress>
 	{
 	public :
 		const_iterator();		
@@ -107,7 +131,7 @@ public :
 		
 	private :
 		
-		friend class VNetAddrList;
+		friend class VNetAddressList;
 		const_iterator(std::list<VNetAddress>::const_iterator inBeginIt);
 		
 		std::list<VNetAddress>::const_iterator fAddrIt;

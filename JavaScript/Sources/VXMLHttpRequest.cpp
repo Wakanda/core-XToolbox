@@ -79,16 +79,16 @@ class UrlHelper
 {
 public :
 
-    UrlHelper(const XBOX::VString inUrl) : fUrl(inUrl) {}
+    UrlHelper(const XBOX::VString inUrl) { fUrl.FromString(inUrl, false); }
 
-    XBOX::VString   DropFragment()              { return fUrl; }
+	XBOX::VString   DropFragment()              { XBOX::VString tmp; fUrl.GetAbsoluteURL(tmp, true); return tmp; }
     bool            IsSupportedScheme()         { return true; }
     bool            IsUserInfoSet()             { return false; }
     bool            DoesSchemeSupportUserInfo() { return false; }
 
 private :
 
-    XBOX::VString fUrl;
+    XBOX::VURL fUrl;
 };
 
 
@@ -127,8 +127,7 @@ XMLHttpRequest::~XMLHttpRequest()
 }
 
 
-XBOX::VError XMLHttpRequest::Open(const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync,
-                                  const XBOX::VString& inUser, const XBOX::VString& inPasswd)
+XBOX::VError XMLHttpRequest::Open(const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync)
 {
     if(fReadyState!=UNSENT)
         return VE_XHRQ_INVALID_STATE_ERROR;   //Doesn't follow the spec, but behave roughly as FireFox
@@ -160,8 +159,8 @@ XBOX::VError XMLHttpRequest::Open(const XBOX::VString& inMethod, const XBOX::VSt
     fCWImpl->fReq=new CW::HttpRequest(uh.DropFragment(), mh.GetMethod());
     if(!fCWImpl->fReq)
         return VE_XHRQ_IMPL_FAIL_ERROR;
-
-    fReadyState=OPENED;
+		
+	fReadyState=OPENED;
 
     if(fChangeHandler)
         fChangeHandler->Execute();
@@ -178,6 +177,26 @@ XBOX::VError XMLHttpRequest::SetProxy(const XBOX::VString& inHost, const uLONG i
     fProxy=inHost;
     fPort=inPort;
 
+    return XBOX::VE_OK;
+}
+
+
+XBOX::VError XMLHttpRequest::SetUserInfos(const XBOX::VString& inUser, const XBOX::VString& inPasswd, bool inAllowBasic)
+{
+    if(fReadyState!=UNSENT && fReadyState!=OPENED)
+        return VE_XHRQ_INVALID_STATE_ERROR; 
+	
+    if(!fCWImpl)
+        return VE_XHRQ_IMPL_FAIL_ERROR;
+	
+//	if(inUser.IsEmpty() || inPasswd.IsEmpty())
+//		return VE_XHRQ_SECURITY_ERROR;
+	
+	bool res=fCWImpl->fReq->SetUserInfos(inUser, inPasswd, inAllowBasic);
+
+	if(!res)
+        return VE_XHRQ_IMPL_FAIL_ERROR;
+	
     return XBOX::VE_OK;
 }
 
@@ -442,62 +461,19 @@ XBOX::VError XMLHttpRequest::GetResponseText(XBOX::VString* outValue) const
 	if(outValue==NULL)
 		return XBOX::VE_INVALID_PARAMETER;
 				
-    XBOX::CharSet cs=GuessCharSet();
-
-    outValue->FromBlock(ptr, len, cs);
+    XBOX::CharSet cs=GetCharSetFromHeaders();
+	
+	XBOX::VConstPtrStream stream(ptr, len);
+	stream.OpenReading();
+	stream.GuessCharSetFromLeadingBytes(cs!=XBOX::VTC_UNKNOWN ? cs : XBOX::VTC_UTF_8);
+	stream.GetText(*outValue);
+	stream.CloseReading();
 
     return XBOX::VE_OK;
 }
 
 
-// XBOX::CharSet XMLHttpRequest::GetRequestCharSet() const
-// {
-//     const char* c_header=fCWImpl->fReq->GetRequestHeader("Content-Type");
-
-//     XBOX::CharSet cs=GetCharSet(c_header);
-
-//     return cs/*!=XBOX::VTC_UNKNOWN ? cs : XBOX::VTC_US_ASCII*/;
-// }
-
-
-// XBOX::CharSet XMLHttpRequest::GuessResponseCharSet() const
-// {
-//     const char* c_header=fCWImpl->fReq->GetResponseHeader("Content-Type");
-
-//     XBOX::CharSet cs=GetCharSet(c_header);
-
-//     return cs!=XBOX::VTC_UNKNOWN ? cs : XBOX::VTC_UTF_8 ;
-// }
-
-
-// XBOX::CharSet XMLHttpRequest::GetCharSet(const char* inHeader) const
-// {
-//     if(c_header)
-//     {
-//         const char* pos=strstr(c_header, "charset=");
-
-//         if(pos && strlen(pos)>sizeof("charset="))
-//         {
-//             pos+=sizeof("charset=")-1;
-//             sLONG len=strlen(pos);
-
-//             XBOX::VString charSetName(pos, len, XBOX::VTC_US_ASCII);
-
-//             if(!charSetName.IsEmpty())
-//             {
-//                 XBOX::CharSet cs=XBOX::VTextConverters::Get()->GetCharSetFromName(charSetName);
-
-//                 if(cs!=XBOX::VTC_UNKNOWN)
-//                     return cs;
-//             }
-//         }
-//     }
-
-//     return XBOX::VTC_UNKNOWN;
-// }
-
-
-XBOX::CharSet XMLHttpRequest::GuessCharSet() const
+XBOX::CharSet XMLHttpRequest::GetCharSetFromHeaders() const
 {
     const char* c_header=fCWImpl->fReq->GetResponseHeader("Content-Type");
 
@@ -508,7 +484,7 @@ XBOX::CharSet XMLHttpRequest::GuessCharSet() const
         if(pos && strlen(pos)>sizeof("charset="))
         {
             pos+=sizeof("charset=")-1;
-            sLONG len=strlen(pos);
+            sLONG len=(sLONG) strlen(pos);
 
             XBOX::VString charSetName(pos, len, XBOX::VTC_US_ASCII);
 
@@ -521,8 +497,8 @@ XBOX::CharSet XMLHttpRequest::GuessCharSet() const
             }
         }
     }
-
-    return XBOX::VTC_US_ASCII;
+	
+	return XBOX::VTC_UNKNOWN;
 }
 
 
@@ -531,6 +507,16 @@ XBOX::CharSet XMLHttpRequest::GuessCharSet() const
 // VJSXMLHttpRequest
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+XBOX::VJSObject	VJSXMLHttpRequest::MakeConstructor (XBOX::VJSContext inContext)
+{
+	XBOX::VJSObject	xhrConstructor(inContext);
+	
+	xhrConstructor.MakeConstructor(Class(), XBOX::js_constructor<_Construct>);
+	
+	return xhrConstructor;
+}
 
 
 void VJSXMLHttpRequest::GetDefinition(ClassDefinition& outDefinition)
@@ -589,7 +575,48 @@ void VJSXMLHttpRequest::Finalize(const XBOX::VJSParms_finalize& inParms, XMLHttp
 }
 
 
-//void VJSXMLHttpRequest::CallAsConstructor(XBOX::VJSParms_callAsConstructor& ioParms)
+void VJSXMLHttpRequest::_Construct(XBOX::VJSParms_callAsConstructor& ioParms)
+{
+    XMLHttpRequest* xhr=new XMLHttpRequest();
+	
+    if(!xhr)
+    {
+        XBOX::vThrowError(VE_XHRQ_IMPL_FAIL_ERROR);
+        return;
+    }
+	
+	
+    XBOX::VJSObject pData(ioParms.GetContext());
+	bool resData;
+    resData=ioParms.GetParamObject(1, pData);
+	
+	if(resData)
+	{
+		XBOX::VJSValue hostValue=pData.GetProperty("host", NULL);
+		XBOX::VString hostString;
+		bool hostRes=hostValue.GetString(hostString, NULL);
+		
+		if(hostRes) //we have a proxy
+		{
+			XBOX::VJSValue portValue=pData.GetProperty("port", NULL);
+			sLONG portLong=0;
+			bool portRes=portValue.GetLong(&portLong, NULL);
+			
+			portLong=(portRes && portLong>0) ? portLong : 80;
+			
+			//todo : user and passwd
+			
+			XBOX::VError res=xhr->SetProxy(hostString, portLong);
+			
+			if(res!=XBOX::VE_OK)
+				XBOX::vThrowError(res);
+		}
+	}
+	
+    ioParms.ReturnConstructedObject(VJSXMLHttpRequest::CreateInstance(ioParms.GetContextRef(), xhr));
+	
+}
+
 void VJSXMLHttpRequest::Construct(XBOX::VJSParms_construct& ioParms)
 {
     XMLHttpRequest* xhr=new XMLHttpRequest();

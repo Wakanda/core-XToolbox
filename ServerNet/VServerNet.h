@@ -45,6 +45,18 @@
 #include "ServerNet/Sources/Tools.h"
 #include "ServerNet/Sources/Session.h"
 #include "ServerNet/Sources/VNetAddr.h"
+#include "ServerNet/Sources/VEndPointStream.h"
+
+/* MIME Message support */
+#include "ServerNet/Sources/VNameValueCollection.h"
+#include "ServerNet/Sources/VHTTPHeader.h"
+#include "ServerNet/Sources/VHTTPCookie.h"
+#include "ServerNet/Sources/VMIMEMessagePart.h"
+#include "ServerNet/Sources/VMIMEMessage.h"
+#include "ServerNet/Sources/VMIMEWriter.h"
+#include "ServerNet/Sources/VMIMEReader.h"
+#include "ServerNet/Sources/VHTTPMessage.h"
+
 
 #if _WIN32
 	#pragma pack( pop )

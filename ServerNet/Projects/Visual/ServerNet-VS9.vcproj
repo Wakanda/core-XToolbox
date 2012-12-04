@@ -852,6 +852,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\Sources\VEndPointStream.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\Sources\VNetAddr.cpp"
 				>
 			</File>
@@ -1201,6 +1205,10 @@
 			</File>
 			<File
 				RelativePath="..\..\Sources\VEndPoint.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VEndPointStream.h"
 				>
 			</File>
 			<File
@@ -1766,6 +1774,82 @@
 						Name="VCCustomBuildTool"
 					/>
 				</FileConfiguration>
+			</File>
+		</Filter>
+		<Filter
+			Name="MIMEMessages"
+			>
+			<File
+				RelativePath="..\..\Sources\HTTPTools.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\HTTPTools.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VHTTPCookie.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VHTTPCookie.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VHTTPHeader.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VHTTPHeader.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VHTTPMessage.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VHTTPMessage.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEMessage.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEMessage.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEMessagePart.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEMessagePart.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEReader.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEReader.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEWriter.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VMIMEWriter.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VNameValueCollection.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VNameValueCollection.h"
+				>
 			</File>
 		</Filter>
 	</Files>

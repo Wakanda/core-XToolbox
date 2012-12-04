@@ -36,7 +36,8 @@ class VTCPConnectionHandlerFactory;
 class VWorkerPool;
 class VTCPSelectIOPool;
 
-typedef enum {DualStack, ForceV4, ForceV6, DefaultPolicy=ForceV4} IpPolicy;
+
+typedef enum {IpAuto=0, IpForceV4, IpAnyIsV6, IpPreferV6, IpForceV6} IpPolicy;
 
 
 #define WITH_SHARED_WORKERS 0
@@ -80,8 +81,8 @@ END_TOOLBOX_NAMESPACE
 class IRequestLogger;
 
 
-//#define INET6_ADDRSTRLEN	46
-//typedef char IP[46]; //DEPRECATED !
+#define WITH_DEPRECATED_IPV4_API 0
+#define DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE 1
 
 
 #ifndef WITH_DEPRECATED_IPV4_API
@@ -91,19 +92,5 @@ class IRequestLogger;
 #ifndef DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE
 	#define DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE 0
 #endif
-
-/*
-#if WITH_DEPRECATED_IPV4_API
-	old code
-#elif DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE
-	#error NEED AN IP V6 UPDATE
-#endif
-*/
-
-//#if WITH_DEPRECATED_IPV4_API
-//typedef uLONG IpAliasType;
-//#else
-//typedef XBOX::VString IpAliasType;
-//#endif
 
 #endif

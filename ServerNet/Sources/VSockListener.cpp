@@ -32,10 +32,10 @@ class XTOOLBOX_API XSBind
 public:
 
 #if WITH_DEPRECATED_IPV4_API
-	XSBind(IP4 inAddr, PortNumber inPort, IRequestLogger* inRequestLogger=NULL, sLONG inBoundSock=kBAD_SOCKET) :
+	XSBind(IP4 inAddr, PortNumber inPort, IRequestLogger* inRequestLogger=NULL, Socket inBoundSock=kBAD_SOCKET) :
 	fAddr(inAddr), fPort(inPort), fRequestLogger(inRequestLogger), fIsSSL(false), fBoundSock(inBoundSock), fSock(NULL) { }
 #else
-	XSBind(const VNetAddress& inAddr, IRequestLogger* inRequestLogger=NULL, sLONG inBoundSock=kBAD_SOCKET) :
+	XSBind(const VNetAddress& inAddr, IRequestLogger* inRequestLogger=NULL, Socket inBoundSock=kBAD_SOCKET) :
 	fAddr(inAddr), fRequestLogger(inRequestLogger), fIsSSL(false), fBoundSock(inBoundSock), fSock(NULL) { }
 #endif	
 	
@@ -93,13 +93,13 @@ private:
 	PortNumber		fPort;
 	IRequestLogger* fRequestLogger;
 	bool			fIsSSL;
-	sLONG			fBoundSock;
+	Socket			fBoundSock;
 	XTCPSock*	fSock;
 };
 
 
 VSockListener::VSockListener(IRequestLogger* inRequestLogger) :
-fRequestLogger(inRequestLogger), fListenStarted(false), fAcceptTimeout(0), fKeyCertPair(NULL)
+fRequestLogger(inRequestLogger), fListenStarted(false), fAcceptTimeout(0), fKeyCertChain(NULL)
 {}
 
 
@@ -137,8 +137,9 @@ bool VSockListener::AddListeningPort(uLONG iAddr, PortNumber iPort, bool iSsl, S
 
 bool VSockListener::AddListeningPort(VString inAddr, PortNumber inPort, bool iSsl, Socket inBoundSock)
 {
-	return AddListeningPort(VNetAddress(inAddr, inPort));
+	return AddListeningPort(VNetAddress(inAddr, inPort), iSsl, inBoundSock);
 }
+
 
 bool VSockListener::AddListeningPort(const VNetAddress& inAddr, bool iSsl, Socket inBoundSock)
 {	
@@ -164,44 +165,167 @@ bool VSockListener::AddListeningPort(const VNetAddress& inAddr, bool iSsl, Socke
 
 #endif
 
-//Compatibility method : Reading key/cert files shouldn't be ServerNet business.
-void VSockListener::SetCertificatePaths (const char* inCertPath, const char* inKeyPath)
+
+void VSockListener::SetCertificatePaths (const VFilePath& inCertPath, const VFilePath& inKeyPath)
 {
-	VFile certFile(inCertPath);
+	VError verr=VE_OK;
+	bool done=false;
 	
-	VMemoryBuffer<> certBuffer;
+	//Try to handle intermediate certificates...	
+
+	if(inCertPath.IsFile() && inKeyPath.IsFile())
+	{	
+		VFilePath certFolderPath;
+		inCertPath.GetFolder(certFolderPath);
 	
-	VError verr=certFile.GetContent(certBuffer);
+		VFilePath keyFolderPath;
+		inKeyPath.GetFolder(keyFolderPath);
 	
-	if(verr!=VE_OK)
-		vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
+		if(certFolderPath.IsFolder() && keyFolderPath.IsFolder() && certFolderPath==keyFolderPath)
+		{
+			VString cert;
+			inCertPath.GetName(cert);
+			
+			VString key;
+			inKeyPath.GetName(key);
+			
+			verr=SetCertificateFolder(certFolderPath, key, cert);
+			xbox_assert(verr==VE_OK);
+			
+			done=true;
+		}
+	}
 	
-	VFile keyFile(inKeyPath);
+	//Do load key and cert the old way...
+	
+	if(!done)
+	{
+		VFile certFile(inCertPath);
+		
+		VMemoryBuffer<> certBuffer;
+	
+		VError verr=certFile.GetContent(certBuffer);
+	
+		if(verr!=VE_OK)
+			vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
+	
+		VFile keyFile(inKeyPath);
+	
+		VMemoryBuffer<> keyBuffer;
+	
+		verr=keyFile.GetContent(keyBuffer); 
+	
+		if(verr!=VE_OK)
+			vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
+	
+		verr=SetKeyAndCertificate(keyBuffer, certBuffer);
+		xbox_assert(verr==VE_OK);
+	}		
+}
+
+//inKey should be "key.pem" and inCert should be "cert.pem"
+VError VSockListener::SetCertificateFolder(const VFilePath& inCertFolderPath, const VString& inKey, const VString& inCert)
+{
+	VError verr=VE_OK;
+
+	
+	if(!inCertFolderPath.IsFolder())
+		verr=vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
+	
 	
 	VMemoryBuffer<> keyBuffer;
 	
-	verr=keyFile.GetContent(keyBuffer); 
+	if(verr==VE_OK)
+	{
+		VFilePath keyPath(inCertFolderPath);
+		keyPath.SetFileName(inKey);
+		
+		VFile keyFile(keyPath);
+		
+		if(keyFile.Exists())
+			verr=keyFile.GetContent(keyBuffer); 
+		else
+			verr=vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
+
+	}
 	
-	if(verr!=VE_OK)
-		vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
+	
+	VMemoryBuffer<> certBuffer;
+	
+	if(verr==VE_OK)
+	{
+		VFilePath certPath(inCertFolderPath);
+		certPath.SetFileName(inCert);
+		
+		VFile certFile(certPath);
+		
+		if(certFile.Exists())
+			verr=certFile.GetContent(certBuffer); 
+		else
+			verr=vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
+		
+	}
 	
 	
-	//Do not throw here, just try to be transparent.
-	verr=SetKeyAndCertificate(keyBuffer, certBuffer);
+	if(verr==VE_OK)
+		verr=SetKeyAndCertificate(keyBuffer, certBuffer);
+		
+
+	VFolder certFolder(inCertFolderPath);
+	
+	sLONG succeedCount=0;
+	sLONG failCount=0;
+
+	for(VFileIterator fit(&certFolder) ; fit.IsValid() ; ++fit)
+	{
+		if(fit->MatchExtension(VString("pem")))
+		{
+			VString name;
+			fit->GetName(name);
+			
+			if(name!="key.pem" && name !="cert.pem")
+			{
+				VMemoryBuffer<> intermediateCertBuffer;
+
+				VError tmpErr=fit->GetContent(intermediateCertBuffer);
+				
+				if(tmpErr==VE_OK)
+					tmpErr=PushIntermediateCertificate(intermediateCertBuffer);
+				
+				if(verr==VE_OK)
+					succeedCount++;
+				else
+				{
+					failCount++;
+					
+					DebugMsg ("[%d] VSockListener::SetCertificateFolder : Fail to load intermediate certificate %S\n",
+							  VTask::GetCurrentID(), &name);
+				}
+			}
+		}
+	}
+	
+	
+	if(verr==VE_OK && succeedCount==0 && failCount>0)
+		verr=VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE;
+	
+	
+	return verr;
 }
 
 
 VError VSockListener::SetKeyAndCertificate(const VMemoryBuffer<>& inKey, const VMemoryBuffer<>& inCertificate)
 {
-	SslFramework::ReleaseKeyCertificatePair(fKeyCertPair);
+	SslFramework::ReleaseKeyCertificateChain(fKeyCertChain);
 	
-	fKeyCertPair=SslFramework::RetainKeyCertificatePair(inKey, inCertificate);
+	fKeyCertChain=SslFramework::RetainKeyCertificateChain(inKey, inCertificate);
 	
-	if(fKeyCertPair==NULL)
+	if(fKeyCertChain==NULL)
 		return vThrowError(VE_SRVR_FAILED_TO_SET_KEY_AND_CERTIFICATE);
 	
 	return VE_OK;
 }
+
 
 VError VSockListener::SetKeyAndCertificate (const XBOX::VString &inKey, const XBOX::VString &inCertificate)
 {
@@ -239,6 +363,44 @@ VError VSockListener::SetKeyAndCertificate (const XBOX::VString &inKey, const XB
 
 	return error;
 }
+
+
+VError VSockListener::PushIntermediateCertificate(const VMemoryBuffer<>& inCertificate)
+{
+	return SslFramework::PushIntermediateCertificate(fKeyCertChain, inCertificate);
+}
+
+
+VError VSockListener::PushIntermediateCertificate(const XBOX::VString &inCertificate)
+{
+	char			*certificateData;
+	XBOX::VError	error;
+	
+	certificateData = NULL;		
+	if ((certificateData = new char[inCertificate.GetLength() + 1]) != NULL) {
+		
+		VMemoryBuffer<> certificate;
+		
+		inCertificate.ToCString(certificateData, inCertificate.GetLength() + 1);
+		
+		certificate.SetDataPtr(certificateData, inCertificate.GetLength(), inCertificate.GetLength() + 1);
+		
+		error = this->PushIntermediateCertificate(certificate);
+		
+		certificate.ForgetData();
+		
+	} else 
+		
+		error = VE_MEMORY_FULL;
+	
+	if (certificateData != NULL)
+		
+		delete[] certificateData;
+	
+	return error;
+	
+}
+
 
 bool VSockListener::StartListening()
 {
@@ -281,6 +443,7 @@ bool VSockListener::StartListening()
 	
 	return l_res;
 }
+
 
 void VSockListener::StopListeningAndClearPorts()
 {
@@ -333,7 +496,7 @@ XTCPSock* VSockListener::GetNewConnectedSocket(sLONG inMsTimeout)
 		{
 			if((*cit)->GetPort()==sock->GetServicePort())
 			{
-				verr=sock->PromoteToSSL(fKeyCertPair);
+				verr=sock->PromoteToSSL(fKeyCertChain);
 				break;
 			}
 		}

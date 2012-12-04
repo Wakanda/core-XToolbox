@@ -24,37 +24,51 @@
 #include "Kernel/Sources/VFolder.h"
 #include "Kernel/Sources/VBlob.h"
 
+class IMecabModel;
+
 BEGIN_TOOLBOX_NAMESPACE
 
-typedef enum {
+enum RFC3066CodeCompareResult
+{
 	RFC3066_CODES_NOT_VALID = -1,
 	RFC3066_CODES_ARE_NOT_EQUAL = 0, /**< examples: en <-> it, sv-fi <-> ro */
 	RFC3066_CODES_LANGUAGE_REGION_VARIANT, /**< example: en-us <-> en-gb */
 	RFC3066_CODES_GLOBAL_LANGUAGE_AND_SPECIFIC_LANGUAGE_REGION_VARIANT, /**< example: en and en-au */
 	RFC3066_CODES_SPECIFIC_LANGUAGE_REGION_AND_GLOBAL_LANGUAGE_VARIANT, /**< example: en-au and en */
 	RFC3066_CODES_ARE_EQUAL
-} RFC3066CodeCompareResult;
+};
 
-typedef enum {
+enum EOSFormats
+{
 	eOS_SHORT_FORMAT=0,
 	eOS_MEDIUM_FORMAT=1,
 	eOS_LONG_FORMAT=2
-} EOSFormats;
+};
 
-typedef enum{
+enum EMonthDayList
+{
 	eDayOfWeekList=0,
 	eMonthList,
 	eAbbreviatedDayOfWeekList,
 	eAbbreviatedMonthList
-} EMonthDayList;
+};
 
-typedef enum
+enum EFindStringMode
 {
 	eFindWholeWords = 3,	// the match must not begin nor end in the middle of a word
 	eFindContains = 4,		// the match can be anywhere
 	eFindStartsWith = 5,	// the match must not begin in the middle of a word
 	eFindEndsWith = 6		// the match must not end in the middle of a word
-} EFindStringMode;
+};
+
+enum
+{
+	eKW_ConsiderOnlyDeadChars	= 1,
+	eKW_UseICU					= 2,
+	eKW_UseMeCab				= 4,
+	eKW_UseLineBreakingRule		= 8
+};
+typedef uLONG	EKeyWordOptions;
 
 END_TOOLBOX_NAMESPACE
 
@@ -76,6 +90,14 @@ namespace xbox_icu
 }
 #endif
 
+#if USE_MECAB
+
+namespace MeCab
+{
+    class Lattice;
+};
+#endif
+
 BEGIN_TOOLBOX_NAMESPACE
 
 #define DC_MAKEDIALECT(p, s)      ((((uWORD  )(s)) << 10) | (uWORD  )(p))
@@ -90,6 +112,8 @@ class VCollator;
 
 typedef std::vector<std::pair<VString,DialectCode> >	VectorOfNamedDialect;
 typedef std::vector<std::pair<VIndex,VIndex> >	VectorOfStringSlice;
+
+typedef std::vector<DialectCode> VectorOfDialect;
 
 class XTOOLBOX_API VIntlMgr : public VObject, public IRefCountable
 {
@@ -129,7 +153,8 @@ public:
 			void				NormalizeString( VString& ioString, NormalizationMode inMode);
 	
 	// returns start (1-based) and length of each words
-			bool				GetWordBoundaries( const VString& inText, VectorOfStringSlice& outBoundaries, bool inUseLineBreakingRule = false);
+			bool				GetWordBoundariesWithOptions( const VString& inText, VectorOfStringSlice& outBoundaries, EKeyWordOptions inOptions);
+			bool				GetWordBoundaries( const VString& inText, VectorOfStringSlice& outBoundaries)	{ return GetWordBoundariesWithOptions( inText, outBoundaries, fKeyWordOptions);}
 			bool				FindWord( const VString& inText, const VString& inPattern, const VCompareOptions& inOptions);
 	
 	// Find some pattern in given text accordingly to common text editors rules.
@@ -140,6 +165,8 @@ public:
 	static	bool				DebugConvertString (void* inSrcText, sLONG inSrcBytes, CharSet inSrcCharSet, void* inDstText, sLONG& inDstMaxBytes, CharSet inDstCharSet);
 
 			void				GetDialectsHavingCollator( VectorOfNamedDialect& outCollatorDisplayNames);
+
+	static	void				GetAllDialects( VectorOfDialect& outDialects);
 
 	/** @brief DialectCode -> ISO639-1 Language Code (2 letters).*/
 	static	bool				GetISO6391LanguageCode( DialectCode inDialect, VString& outLanguageCode );
@@ -182,7 +209,10 @@ public:
 	static	VFile*				RetainLocalizationFile( const VFilePath& inResourcesFolderPath, const VString& inFileName, DialectCode inPreferredDialect, bool *outAtLeastOneFolderScaned = NULL);
 
 	/** @brief looks if the dialect is found in sDialectsList */
-	static	bool				IsDialectCode(DialectCode inDialect);
+	static	bool				IsDialectCode( DialectCode inDialect);
+	
+	// tells if primary language of given dialect is a right to left
+	static	bool				IsRightToLeftDialect( DialectCode inDialect);
 
 	/**
 	* @brief Make a comparison between two RFC3066 language codes.
@@ -259,17 +289,26 @@ public:
 		
 private:
 
-									VIntlMgr( DialectCode inDialect, bool inConsiderOnlyDeadCharsForKeywords);
+									VIntlMgr( DialectCode inDialect, EKeyWordOptions inKeyWordOptions);
 									VIntlMgr( const VIntlMgr& inMgr);
 									VIntlMgr& operator = (const VIntlMgr&);
 									
 	static	void					_InitICU();
 	static	bool					sICU_Available;
+
+	static	void					_InitMeCab();
+	static	IMecabModel*			_GetMecabModel();
+	static	bool					sMeCab_Available;
+			
+			#if USE_MECAB
+	static	IMecabModel*			sMecabModel;
+			MeCab::Lattice*			fMecabLattice;
+			#endif
 	
 			XIntlMgrImpl			fImpl;
 			
 			bool					fUseICUCollator;
-			bool					fConsiderOnlyDeadCharsForKeywords;
+			EKeyWordOptions			fKeyWordOptions;
 			VCollator*				fCollator;
 			DialectCode				fDialect;
 			VString					fAMString;
@@ -300,11 +339,12 @@ private:
 			xbox_icu::Transliterator*	fLowerStripDiacriticsTransformation;
 			xbox_icu::BreakIterator*	fBreakIterator;
 			xbox_icu::BreakIterator*	fBreakLineIterator;
+			
+			xbox_icu::Locale*			_GetICUCollatorLocale();
 			#endif
 	
 	// Private utils
 			bool					_Init ();
-			void					_DeInitUnicode ();
 			bool					_InitLocaleVariables ();
 			void					_InitSortTables ();
 			bool					_InitCollator( DialectCode inDialectForCollator, CollatorOptions inCollatorOptions);

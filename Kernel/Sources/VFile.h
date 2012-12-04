@@ -250,11 +250,25 @@ public:
 
 			// exchange 2 vfile, after the operation this wil point to inExhangeWith and inExhangeWith to this
 			// This fonction is usefull for safe replace operation
-			VError				Exchange(const VFile& inExhangeWith) const;
+			VError				Exchange(const VFile& inExchangeWith) const;
 	
 			// Put full content of file in specified buffer.
 			// May throw error and returns false if failed.
-			VError				GetContent( VMemoryBuffer<>& outContent) const; 
+			VError				GetContent( VMemoryBuffer<>& outContent) const;
+
+			// Open file in FA_READ_WRITE mode and set its contents to provided data only.
+			// On success, the file is exactly of size inDataSize.
+			VError				SetContent( const void *inDataPtr, size_t inDataSize) const;
+			
+			// Read full content and convert it as string using optional leading BOM.
+			// If no BOM is found, it uses the specified char set.
+			// The carriage return mode is adjusted optionally.
+			VError				GetContentAsString( VString& outContent, CharSet inDefaultSet, ECarriageReturnMode inCRMode = eCRM_NONE) const;
+
+			// Open file in FA_READ_WRITE mode and set its contents to provided string in specified charset.
+			// A BOM is inserted if relevant.
+			// The carriage return mode is adjusted optionally.
+			VError				SetContentAsString( const VString& inContent, CharSet inCharSet, ECarriageReturnMode inCRMode = eCRM_NONE) const;
 
 			VError				GetURL(VString& outURL, bool inEncoded);
 			VError				GetRelativeURL(VFolder* inBaseFolder, VString& outURL, bool inEncoded);

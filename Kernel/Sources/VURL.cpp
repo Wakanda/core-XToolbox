@@ -18,6 +18,7 @@
 #include "VFolder.h"
 #include "VFilePath.h"
 
+const VString UNSAFE_CHARS_WITHOUT_BRACKETS( "<>\"#%{}|\\^~` ");
 const VString UNSAFE_CHARS( "<>\"#%{}|\\^~[]` ");
 const VString FILE_SCHEME( "file");
 
@@ -627,8 +628,13 @@ void VURL::GetScheme( VString& outString) const
 void VURL::GetNetworkLocation( VString& outString, bool inEncoded) const
 {
 	_GetPart(outString, e_NetLoc);
+
+	//jmo - IPv6 : On ne veut pas que les crochets, ex [::1], soient encodes
+	//voir http://tools.ietf.org/html/rfc2732 
 	if (inEncoded)
-		Encode( outString);
+	{
+		Encode( outString, false /* inConvertColon */, false /* inDecomposeString */, false /* inEncodeBrackets */);
+	}
 }
 
 
@@ -923,34 +929,36 @@ void VURL::Convert(VString& ioString, EURLPathStyle inOrgStyle, EURLPathStyle in
 
 
 static std::vector<uBYTE>	sCharsToEscape;
+static std::vector<uBYTE>	sCharsToEscape_withoutBrackets;
 
-void VURL::Encode (XBOX::VString& ioString, bool convertColon, bool decomposeString)
+void VURL::Encode (XBOX::VString& ioString, bool inConvertColon, bool inDecomposeString, bool inEncodeBrackets)
 {
-	// sc 15/06/2007
-	if (sCharsToEscape.empty())
+	std::vector<uBYTE>& charsToEscape = inEncodeBrackets ? sCharsToEscape : sCharsToEscape_withoutBrackets;
+
+	if (charsToEscape.empty())
 	{
 		// build the array of escape characters
-		VStringConvertBuffer utf8String( UNSAFE_CHARS, VTC_UTF_8, eCRM_NATIVE);
+		VStringConvertBuffer utf8String( inEncodeBrackets ? UNSAFE_CHARS : UNSAFE_CHARS_WITHOUT_BRACKETS, VTC_UTF_8, eCRM_NATIVE);
 
 		const uBYTE *buf = (uBYTE*)utf8String.GetCPointer();
 		for( VIndex pos = 0 ; pos <  utf8String.GetLength() ; ++pos )
-			sCharsToEscape.push_back( *(buf + pos));
+			charsToEscape.push_back( *(buf + pos));
 		
 		for( uBYTE escapeChar = 0x00 ; escapeChar < 0xFF ; ++escapeChar )
 		{
 			if ((escapeChar<= 0x1F) || (escapeChar==0x7F) || (escapeChar>=0x80))
-				sCharsToEscape.push_back( escapeChar);
+				charsToEscape.push_back( escapeChar);
 		}
-		sCharsToEscape.push_back( 0xFF);
+		charsToEscape.push_back( 0xFF);
 		
-		std::sort( sCharsToEscape.begin(), sCharsToEscape.end());
+		std::sort( charsToEscape.begin(), charsToEscape.end());
 	}
 	
 	const uBYTE HEXTABLE[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 	std::vector<uBYTE> utf8CharsArray;	// the encoded string
 
 	// first, decompose the url
-	if (decomposeString)
+	if (inDecomposeString)
 		ioString.Decompose();
 
 	// convert it in utf8 string
@@ -960,7 +968,7 @@ void VURL::Encode (XBOX::VString& ioString, bool convertColon, bool decomposeStr
 	for( VIndex pos = 0 ; pos <  utf8String.GetLength() ; ++pos )
 	{
 		uBYTE utf8Char = *(buf + pos);
-		if ((convertColon && (utf8Char == ':')) || std::find (sCharsToEscape.begin(), sCharsToEscape.end(), utf8Char) == sCharsToEscape.end())
+		if ((inConvertColon && (utf8Char == ':')) || std::find (charsToEscape.begin(), charsToEscape.end(), utf8Char) == charsToEscape.end())
 		{
 			utf8CharsArray.push_back( utf8Char);
 		}

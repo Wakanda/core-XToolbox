@@ -16,9 +16,6 @@
 #ifndef __VColor__
 #define __VColor__
 
-#include "KernelIPC/VKernelIPC.h"
-#include "Graphics/Sources/VGraphicsTypes.h"
-
 BEGIN_TOOLBOX_NAMESPACE
 
 

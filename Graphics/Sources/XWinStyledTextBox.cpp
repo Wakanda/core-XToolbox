@@ -84,7 +84,7 @@ class xBSTR
 	BSTR fString;
 };
 
-GReal gOffsetX = 0.0f;
+static GReal gOffsetX = 0.0f;
 
 // HIMETRIC units per inch (used for conversion)
 #define HIMETRIC_PER_INCH 2540.0
@@ -193,12 +193,12 @@ void XWinStyledTextBox::SetDrawContext( ContextRef inContextRef)
 */
 void XWinStyledTextBox::_ComputeOffsetX()
 {
-	if (fJust == JST_Right || fJust == JST_Center)
+	if (::GetDeviceCaps(fHDC, TECHNOLOGY) != DT_RASDISPLAY || fJust == JST_Right || fJust == JST_Center)
 	{
 		if (gOffsetX)
 			fOffsetX = gOffsetX;
 		else
-			fOffsetX = -4.0f; 
+			fOffsetX = -4.0f; //it is default RTE offset (determined experimentally)
 		return;
 	}
 	if (!gOffsetX)
@@ -498,12 +498,22 @@ void XWinStyledTextBox::_SetTextEx(const VString& inText, bool inSelection)
 	fIsPlainTextDirty = false;
 }
 
+GReal XWinStyledTextBox::_GetOffsetX() const
+{
+	bool isPrinting = ::GetDeviceCaps( fHDC, TECHNOLOGY) != DT_RASDISPLAY;
+	if (isPrinting)
+		return fOffsetX * nPixelsPerInchX/VWinGDIGraphicContext::GetLogPixelsX();
+	else
+		return fOffsetX;
+}
+
 Boolean XWinStyledTextBox::DoDraw(const XBOX::VRect &inBounds)
 {
 	VRect bounds(inBounds);
+	GReal offsetX = _GetOffsetX();
+	bounds.SetPosBy( offsetX, 0.0f);
+	bounds.SetSizeBy( -offsetX, 0.0f); //inflate also width by abs(fOffsetX) because right limit should not be modified (especially for wordwrap)
 	bounds.NormalizeToInt(false); //normalize from floating point coord space to integer coord space (to ensure we do not down-crop the layout box)
-	bounds.SetPosBy( fOffsetX, 0.0f);
-	bounds.SetSizeBy( -fOffsetX, 0.0f); //inflate also width by abs(fOffsetX) because right limit should not be modified (especially for wordwrap)
 
 	RECT rt = bounds;
 	fClientRect = rt;
@@ -547,8 +557,8 @@ Boolean XWinStyledTextBox::DoDraw(const XBOX::VRect &inBounds)
 	else if (type == -1 || type == ERROR)
 		updateRect = bounds;
 
-	fExtent.cx = DXtoHimetricX(bounds.GetWidth(), nPixelsPerInchX);;
-	fExtent.cy = DYtoHimetricY(bounds.GetHeight(), nPixelsPerInchY);;
+	fExtent.cx = DXtoHimetricX(bounds.GetWidth(), nPixelsPerInchX);
+	fExtent.cy = DYtoHimetricY(bounds.GetHeight(), nPixelsPerInchY);
 	hr = fTextServices->TxDraw(
 	    DVASPECT_CONTENT,  		// Draw Aspect
 		0,						// Lindex
@@ -615,8 +625,8 @@ void XWinStyledTextBox::GetCaretMetricsFromCharIndex( const VRect& inBounds, con
 		long type = tomStart | (inCaretLeading ? TA_LEFT : TA_RIGHT) | TA_BOTTOM;
 		long yy;
 		hr = fTextRange->GetPoint( type, &x, &yy);
-		if (SUCCEEDED(hr) && hr != S_FALSE && yy >= y)
-			outTextHeight = yy-y;
+		if (SUCCEEDED(hr) && hr != S_FALSE && yy >= y+1)
+			outTextHeight = yy-y-1;
 	}
 
 	hr = fTextServices->OnTxInPlaceDeactivate();
@@ -864,10 +874,10 @@ void XWinStyledTextBox::GetRunBoundsFromRange( const VRect& inBounds, std::vecto
 
 				if (ok)
 				{
-					if (xx > x && yy > y)
+					if (xx > x && yy > y+1)
 					{
 						VRect bounds;
-						bounds.SetCoords(x, y, xx-x, yy-y);
+						bounds.SetCoords(x, y, xx-x, yy-y-1);
 						outRunBounds.push_back( bounds);
 					}
 				}
@@ -1167,9 +1177,20 @@ Boolean XWinStyledTextBox::DoInitialize()
 	hr = CreateTextServicesObject();
 	if (SUCCEEDED(hr))
 	{
-		LRESULT lr = 0;
-		fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&fParaFormat, &lr);
+		LRESULT lResult = 0;
+		fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&fParaFormat, &lResult); //apply paraformat on all text - which is empty now (wparam is always 0 for EM_SETPARAFORMAT)
 		fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE);
+
+		lResult = 0;
+		fTextServices->TxSendMessage(EM_SETCHARFORMAT , (WPARAM)SCF_DEFAULT, (LPARAM)&fCharFormat, &lResult ); //set default charformat
+
+		//JQ 14/06/2012: fixed auto font - we should disable autofont/autosize/autokeyboard
+		//				 because we do not want control to change font or fontsize or keyboard layout...
+		LRESULT langOptions = 0;
+		fTextServices->TxSendMessage(EM_GETLANGOPTIONS, 0, 0, &langOptions);
+		langOptions &= ~(IMF_AUTOFONT|IMF_DUALFONT|IMF_AUTOFONTSIZEADJUST|IMF_AUTOKEYBOARD);
+		lResult = 0;
+		fTextServices->TxSendMessage(EM_SETLANGOPTIONS, 0, langOptions, &lResult);
 	}
 	return (hr == S_OK);
 }
@@ -1200,13 +1221,7 @@ void XWinStyledTextBox::_EnableMultiStyle()
 	m_dwMaxLength = INFINITE;
 	HRESULT hr = S_OK;
 	hr = CreateTextServicesObject();
-	if (SUCCEEDED(hr))
-	{
-		LRESULT lr = 0;
-		fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&fParaFormat, &lr);
-		fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE);
-	}
-	
+
 	//set text
 	_SetText( text);
 
@@ -1216,10 +1231,25 @@ void XWinStyledTextBox::_EnableMultiStyle()
 	fTextRange->Select();
 
 	LRESULT lResult = 0;
-	fTextServices->TxSendMessage(EM_SETCHARFORMAT , (WPARAM)SCF_SELECTION, (LPARAM)&fCharFormat, &lResult );
+	fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&fParaFormat, &lResult); //apply paraformat on all text (wparam is always 0 for EM_SETPARAFORMAT)
+	fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE);
+
+	lResult = 0;
+	fTextServices->TxSendMessage(EM_SETCHARFORMAT , (WPARAM)SCF_DEFAULT, (LPARAM)&fCharFormat, &lResult ); //set default charformat
+	lResult = 0;
+	fTextServices->TxSendMessage(EM_SETCHARFORMAT , (WPARAM)SCF_SELECTION, (LPARAM)&fCharFormat, &lResult ); //apply on all text
+	fTextServices->OnTxPropertyBitsChange(TXTBIT_CHARFORMATCHANGE, TXTBIT_CHARFORMATCHANGE);
 
 	fTextRange->Release();
 	fTextRange = NULL;
+
+	//JQ 14/06/2012: fixed auto font - we should disable autofont/autosize/autokeyboard
+	//				 because we do not want control to change font or fontsize or keyboard layout...
+	LRESULT langOptions = 0;
+	fTextServices->TxSendMessage(EM_GETLANGOPTIONS, 0, 0, &langOptions);
+	langOptions &= ~(IMF_AUTOFONT|IMF_DUALFONT|IMF_AUTOFONTSIZEADJUST|IMF_AUTOKEYBOARD);
+	lResult = 0;
+	fTextServices->TxSendMessage(EM_SETLANGOPTIONS, 0, langOptions, &lResult);
 }
 
 void XWinStyledTextBox::DoRelease()
@@ -1237,8 +1267,10 @@ void XWinStyledTextBox::DoGetSize(GReal &ioWidth, GReal &outHeight)
 {
 	if (fTextServices)
 	{
+		GReal offsetX = _GetOffsetX();
+
 		SIZEL szExtent;
-		sLONG width = ioWidth+fabs(fOffsetX);//(ioWidth * HIMETRIC_PER_INCH) / (GReal)nPixelsPerInchX;
+		sLONG width = ioWidth+fabs(offsetX);//(ioWidth * HIMETRIC_PER_INCH) / (GReal)nPixelsPerInchX;
 		sLONG height = 1;
 
 		szExtent.cx = 1;
@@ -1252,7 +1284,8 @@ void XWinStyledTextBox::DoGetSize(GReal &ioWidth, GReal &outHeight)
 			&width,
 			&height);
 
-		ioWidth = width-fabs(fOffsetX);
+		ioWidth = width-fabs(offsetX);
+
 		if (ioWidth < 0.0f)
 			ioWidth = 0.0f;
 		outHeight = height;

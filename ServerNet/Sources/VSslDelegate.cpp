@@ -32,7 +32,6 @@ BEGIN_TOOLBOX_NAMESPACE
 #define WITH_SNET_SSL_LOG 0
 
 
-//TODO : Legacy code ; Need rewrite
 const int RSA_PKCS1_PADDING_LEN=11;
 
 
@@ -91,6 +90,10 @@ public :
 	
 	VError SetDefaultPrivateKey(const VMemoryBuffer<>& inKeyBuffer);
 	
+	VError AddIntermediateCertificate(const VMemoryBuffer<>& inCertBuffer);
+	
+	VError AddCertificateDirectory(const VFolder& inCertFolder);
+
 	XContext(const XContext& inUnused); 
 	
 	XContext& operator=(const XContext& inUnused);
@@ -151,7 +154,7 @@ VError SslFramework::XContext::Init()
 }
 
 
-//static
+//namespace
 void SNET_CDECL SslFramework::XContext::LockingProc(int inMode, int inIndex, const char* /*inFile*/, int /*inLine*/)
 {	
 	XContext* ctx=GetContext();
@@ -186,7 +189,7 @@ void SNET_CDECL SslFramework::XContext::LockingProc(int inMode, int inIndex, con
 }
 
 
-//static
+//namespace
 unsigned long SNET_CDECL SslFramework::XContext::ThreadIdProc()
 {	
 	VTaskID signedId=VTaskMgr::Get()->GetCurrentTaskID();
@@ -204,11 +207,9 @@ SSL_CTX* SslFramework::XContext::GetOpenSSLContext()
 }
 
 
-//static
+//namespace
 VError SslFramework::XContext::SetDefaultCertificate(const VMemoryBuffer<>& inCertBuffer)
 {
-	//jmo - TODO : manque plein de trucs (gestion d'erreur, liberations, ...)
-	
 	BIO* buf=SSLSTUB::BIO_new(SSLSTUB::BIO_s_mem());
 	
 	xbox_assert(buf!=NULL);
@@ -237,11 +238,9 @@ VError SslFramework::XContext::SetDefaultCertificate(const VMemoryBuffer<>& inCe
 }
 
 
-//static
+//namespace
 VError SslFramework::XContext::SetDefaultPrivateKey(const VMemoryBuffer<>& inKeyBuffer)
 {
-	//jmo -  TODO : manque plein de trucs (gestion d'erreur, liberations, ...)
-
 	BIO* buf=SSLSTUB::BIO_new(SSLSTUB::BIO_s_mem());
 	
 	xbox_assert(buf!=NULL);
@@ -270,6 +269,37 @@ VError SslFramework::XContext::SetDefaultPrivateKey(const VMemoryBuffer<>& inKey
 }
 
 
+//namespace
+VError SslFramework::XContext::AddIntermediateCertificate(const VMemoryBuffer<>& inCertBuffer)
+{
+	BIO* buf=SSLSTUB::BIO_new(SSLSTUB::BIO_s_mem());
+	
+	xbox_assert(buf!=NULL);
+	
+	int res=SSLSTUB::BIO_write(buf, inCertBuffer.GetDataPtr(), static_cast<int>(inCertBuffer.GetDataSize()));
+	
+	xbox_assert(res==inCertBuffer.GetDataSize());
+	
+    X509* cert=SSLSTUB::PEM_read_bio_X509(buf, NULL, NULL, NULL);
+	
+	xbox_assert(cert!=NULL);
+	
+	SSLSTUB::BIO_free(buf);
+	
+	if(cert==NULL)
+		return vThrowThreadErrorStack(VE_SSL_FAIL_TO_GET_CERTIFICATE);
+	
+	SSL_CTX* ctx=GetContext()->GetOpenSSLContext();
+
+	res=SSLSTUB::SSL_CTX_ctrl(ctx, SSL_CTRL_EXTRA_CHAIN_CERT, 0, (char*)cert);
+
+	if(res!=1)
+		return vThrowThreadErrorStack(VE_SSL_FAIL_TO_SET_CERTIFICATE);
+	
+	return VE_OK;
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -284,7 +314,7 @@ namespace SslFramework
 }
 
 
-//static
+//namespace
 VError SslFramework::Init()
 {
 	if(gContext!=NULL)
@@ -324,7 +354,7 @@ VError SslFramework::Init()
 }
 
 
-//static
+//namespace
 VError SslFramework::DeInit()
 {
 	//jmo - TODO : Terminer ! (tout liberer, y compris la pile d'erreurs, passer le context à NULL, etc.)
@@ -342,7 +372,7 @@ VError SslFramework::DeInit()
 }
 
 
-//static
+//namespace
 VError SslFramework::SetDefaultPrivateKey(const VMemoryBuffer<>& inKeyBuffer)
 {
 	if(gContext==NULL)
@@ -352,7 +382,7 @@ VError SslFramework::SetDefaultPrivateKey(const VMemoryBuffer<>& inKeyBuffer)
 }
 
 
-//static
+//namespace
 VError SslFramework::SetDefaultCertificate(const VMemoryBuffer<>& inCertBuffer)
 {
 	if(gContext==NULL)
@@ -362,118 +392,68 @@ VError SslFramework::SetDefaultCertificate(const VMemoryBuffer<>& inCertBuffer)
 }
 
 
-//static
+//namespace
+VError SslFramework::AddCertificateDirectory(const VFolder& inCertFolder)
+{
+	const VString pem("pem");
+
+	//VFileIterator fit(&inCertFolder);
+
+	VError verr=VE_OK;
+
+	//while(fit.IsValid())
+	for(VFileIterator fit(&inCertFolder) ; fit.IsValid() ; ++fit)
+	{
+		VString ext;
+		
+		fit->GetExtension(ext);
+
+		if(ext.CompareToString(pem, false /*not case sensitive*/)==CR_EQUAL)
+		{
+			const VFilePath path=fit->GetPath();
+
+			VString name;
+			fit->GetName(name);
+
+			VMemoryBuffer<> buffer;
+	
+			if(fit->GetContent(buffer)!=VE_OK)
+			{
+						DebugMsg ("[%d] AddCertificateDirectory : Fail to load buffer for %S\n",
+								  VTask::GetCurrentID(), &name);
+
+						verr=vThrowError(VE_SSL_FAIL_TO_SET_CERTIFICATE);
+
+						continue;
+			}
+
+			if(gContext->AddIntermediateCertificate(buffer)!=VE_OK)
+			{
+				DebugMsg ("[%d] AddCertificateDirectory : Fail to set certificate %S\n",
+								  VTask::GetCurrentID(), &name);
+
+				verr=VE_SSL_FAIL_TO_SET_CERTIFICATE;
+	
+				continue;
+			}
+
+			DebugMsg ("[%d] AddCertificateDirectory : Added intermediate certificate %S\n",
+					  VTask::GetCurrentID(), &name);
+		}
+	}
+
+	return verr;
+}
+
+
+//namespace
 SslFramework::XContext* SslFramework::GetContext()
 {
 	return gContext;
 }
 
 
-class VKeyCertPair : public IRefCountable
-{
-private : 
-	
-	VKeyCertPair(const VKeyCertPair&);	//No copy !
-
-	RSA*	fPrivateKey;
-	X509*	fCertificate;
-	
-public :
-	VKeyCertPair() : fPrivateKey(NULL), fCertificate(NULL) {}
-	~VKeyCertPair() {SSLSTUB::RSA_free(fPrivateKey); SSLSTUB::X509_free(fCertificate);}
-
-	VError Init(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
-	
-	RSA* GetPrivateKey()	{return fPrivateKey;}
-	X509* GetCertificate()	{return fCertificate;}
-};
-
-
-VError VKeyCertPair::Init(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer)
-{
-	VError verr=VE_OK;
-	
-	BIO* buf=SSLSTUB::BIO_new(SSLSTUB::BIO_s_mem());
-	
-	if(buf==NULL)
-		verr=VE_MEMORY_FULL;
-	
-	if(verr==VE_OK)
-	{
-		int res=SSLSTUB::BIO_write(buf, inKeyBuffer.GetDataPtr(), static_cast<int>(inKeyBuffer.GetDataSize()));
-		
-		if(res!=inKeyBuffer.GetDataSize())
-			verr=VE_SSL_FAIL_TO_GET_PRIVATE_KEY;
-	}
-	
-	if(verr==VE_OK)
-	{
-		RSA* key=SSLSTUB::PEM_read_bio_RSAPrivateKey(buf, NULL, NULL, NULL);
-		
-		if(key!=NULL)
-			fPrivateKey=key;
-		else
-			verr=VE_SSL_FAIL_TO_GET_PRIVATE_KEY;
-	}
-	
-	if(buf==NULL)
-		verr=VE_MEMORY_FULL;
-	
-	if(verr==VE_OK)
-	{		
-		int res=SSLSTUB::BIO_write(buf, inCertBuffer.GetDataPtr(), static_cast<int>(inCertBuffer.GetDataSize()));
-		
-		if(res!=inCertBuffer.GetDataSize())
-			verr=VE_SSL_FAIL_TO_GET_CERTIFICATE;
-	}
-	
-	if(verr==VE_OK)
-	{		
-		X509* cert=SSLSTUB::PEM_read_bio_X509(buf, NULL, NULL, NULL);
-		
-		if(cert!=NULL)
-			fCertificate=cert;
-		else
-			verr=VE_SSL_FAIL_TO_GET_CERTIFICATE;
-	}	
-	
-	SSLSTUB::BIO_free(buf);
-	
-	if(verr!=VE_OK)
-	{
-		SSLSTUB::RSA_free(fPrivateKey);
-		SSLSTUB::X509_free(fCertificate);
-	}
-	
-	return vThrowThreadErrorStack(verr);
-}
-
-
-//static
-VKeyCertPair* SslFramework::RetainKeyCertificatePair(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer)
-{
-	VKeyCertPair* pair=new VKeyCertPair();
-	
-	VError verr=pair->Init(inKeyBuffer, inCertBuffer);
-
-	if(verr!=VE_OK)
-		return NULL;
-	
-	pair->Retain();
-
-	return pair;
-}
-
-
-//static
-void SslFramework::ReleaseKeyCertificatePair(VKeyCertPair* inKeyCertPair)
-{
-	if(inKeyCertPair!=NULL)
-		inKeyCertPair->Release();
-}
-
-
-//static
+//namespace
 VError SslFramework::Encrypt(uCHAR* inPrivateKeyPEM, uLONG inPrivateKeyPEMSize, uCHAR* inData, uLONG inDataSize, uCHAR* ioEncryptedData, uLONG* ioEncryptedDataSize)
 {
 	if(ioEncryptedData==NULL)
@@ -540,7 +520,7 @@ VError SslFramework::Encrypt(uCHAR* inPrivateKeyPEM, uLONG inPrivateKeyPEMSize, 
 }
 
 
-//static
+//namespace
 uLONG SslFramework::GetEncryptedPKCS1DataSize(uLONG inKeySize /* 128 for 1024 RSA; X/8 for X RSA*/, uLONG inDataSize)
 {
 	//From Security::EncryptedPKCS1DataSize
@@ -617,11 +597,215 @@ SSL* VSslDelegate::XConnection::GetConnection()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
+// VKeyCertChain
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+class VKeyCertChain : public IRefCountable
+{
+	private : 
+	
+	VKeyCertChain(const VKeyCertChain&);	//No copy !
+	
+	RSA*	fPrivateKey;
+	X509*	fCertificate;
+	
+	std::vector<X509*> fChain;
+	
+	public :
+	VKeyCertChain() : fPrivateKey(NULL), fCertificate(NULL) {}
+	~VKeyCertChain();
+	
+	VError Init(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
+	
+	VError PushIntermediateCertificate(const VMemoryBuffer<>& inCertBuffer);
+	
+	VError LoadIntoConnection(SSL* inConn);
+};
+
+
+VKeyCertChain::~VKeyCertChain()
+{
+	SSLSTUB::RSA_free(fPrivateKey);
+	SSLSTUB::X509_free(fCertificate);
+	
+	std::vector<X509*>::iterator it;
+	
+	for(it=fChain.begin() ; it!=fChain.end() ; ++it)
+		SSLSTUB::X509_free(*it);
+}
+
+
+VError VKeyCertChain::Init(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer)
+{
+	VError verr=VE_OK;
+	
+	BIO* buf=SSLSTUB::BIO_new(SSLSTUB::BIO_s_mem());
+	
+	if(buf==NULL)
+		verr=VE_MEMORY_FULL;
+	
+	if(verr==VE_OK)
+	{
+		int res=SSLSTUB::BIO_write(buf, inKeyBuffer.GetDataPtr(), static_cast<int>(inKeyBuffer.GetDataSize()));
+		
+		if(res!=inKeyBuffer.GetDataSize())
+			verr=VE_SSL_FAIL_TO_GET_PRIVATE_KEY;
+	}
+	
+	if(verr==VE_OK)
+	{
+		RSA* key=SSLSTUB::PEM_read_bio_RSAPrivateKey(buf, NULL, NULL, NULL);
+		
+		if(key!=NULL)
+			fPrivateKey=key;
+		else
+			verr=VE_SSL_FAIL_TO_GET_PRIVATE_KEY;
+	}	
+	
+	if(verr==VE_OK)
+	{		
+		int res=SSLSTUB::BIO_write(buf, inCertBuffer.GetDataPtr(), static_cast<int>(inCertBuffer.GetDataSize()));
+		
+		if(res!=inCertBuffer.GetDataSize())
+			verr=VE_SSL_FAIL_TO_GET_CERTIFICATE;
+	}
+	
+	if(verr==VE_OK)
+	{		
+		X509* cert=SSLSTUB::PEM_read_bio_X509(buf, NULL, NULL, NULL);
+		
+		if(cert!=NULL)
+			fCertificate=cert;
+		else
+			verr=VE_SSL_FAIL_TO_GET_CERTIFICATE;
+	}	
+	
+	SSLSTUB::BIO_free(buf);
+	
+	if(verr!=VE_OK)
+	{
+		SSLSTUB::RSA_free(fPrivateKey);
+		SSLSTUB::X509_free(fCertificate);
+	}
+	
+	return vThrowThreadErrorStack(verr);
+}
+
+
+VError VKeyCertChain::PushIntermediateCertificate(const VMemoryBuffer<>& inCertBuffer)
+{
+	VError verr=VE_OK;
+	
+	BIO* buf=SSLSTUB::BIO_new(SSLSTUB::BIO_s_mem());
+	
+	if(buf==NULL)
+		verr=VE_MEMORY_FULL;
+	
+	if(verr==VE_OK)
+	{		
+		int res=SSLSTUB::BIO_write(buf, inCertBuffer.GetDataPtr(), static_cast<int>(inCertBuffer.GetDataSize()));
+		
+		if(res!=inCertBuffer.GetDataSize())
+			verr=VE_SSL_FAIL_TO_GET_CERTIFICATE;
+	}
+	
+	if(verr==VE_OK)
+	{		
+		X509* cert=SSLSTUB::PEM_read_bio_X509(buf, NULL, NULL, NULL);
+		
+		if(cert!=NULL)
+			fChain.push_back(cert);
+		else
+			verr=VE_SSL_FAIL_TO_GET_CERTIFICATE;
+	}	
+	
+	SSLSTUB::BIO_free(buf);
+	
+	return vThrowThreadErrorStack(verr);
+}
+
+
+VError VKeyCertChain::LoadIntoConnection(SSL* inConn)
+{
+	if(inConn==NULL)
+		return VE_INVALID_PARAMETER;
+	
+	VError verr=VE_OK;
+	
+	int res=SSLSTUB::SSL_use_certificate(inConn, fCertificate);
+	
+	if(res!=1)
+		verr=VE_SSL_FAIL_TO_SET_CERTIFICATE;
+	else
+	{
+		res=SSLSTUB::SSL_use_RSAPrivateKey(inConn, fPrivateKey);
+		
+		if(res!=1)
+			verr=VE_SSL_FAIL_TO_SET_PRIVATE_KEY;
+		else
+		{
+			std::vector<X509*>::const_iterator cit;
+			
+			for(cit=fChain.begin() ; cit!=fChain.end() && verr==VE_OK ; cit++)
+			{
+				res=SSLSTUB::SSL_ctrl(inConn, SSL_CTRL_EXTRA_CHAIN_CERT, 0, (char*)*cit);
+				
+				if(res!=1)
+					verr=VE_SSL_FAIL_TO_SET_CERTIFICATE;
+			}
+		}
+	}
+	
+	//TODO : Vérifier que le tout est apparié !
+	
+	return vThrowError(verr);
+}
+
+
+//namespace
+VKeyCertChain* SslFramework::RetainKeyCertificateChain(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer)
+{
+	VKeyCertChain* kcc=new VKeyCertChain();
+	
+	VError verr=kcc->Init(inKeyBuffer, inCertBuffer);
+	
+	if(verr!=VE_OK)
+		return NULL;
+	
+	kcc->Retain();
+	
+	return kcc;
+}
+
+
+//namespace
+void SslFramework::ReleaseKeyCertificateChain(VKeyCertChain* inKeyCertChain)
+{
+	if(inKeyCertChain!=NULL)
+		inKeyCertChain->Release();
+}
+
+
+//namespace
+VError SslFramework::PushIntermediateCertificate(VKeyCertChain* inKeyCertChain, const VMemoryBuffer<>& inCertBuffer)
+{
+	if(inKeyCertChain!=NULL)
+		return inKeyCertChain->PushIntermediateCertificate(inCertBuffer);
+	
+	return VE_SRVR_INVALID_PARAMETER;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
 // VSslDelegate
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-VSslDelegate::VSslDelegate() : fConnection(NULL), fKeyCertPair(NULL)
+VSslDelegate::VSslDelegate() : fConnection(NULL), fKeyCertChain(NULL)
 {
 	fConnection=new XConnection();
 }
@@ -630,8 +814,8 @@ VSslDelegate::VSslDelegate() : fConnection(NULL), fKeyCertPair(NULL)
 //virtual 
 VSslDelegate::~VSslDelegate()
 {
-	if(fKeyCertPair!=NULL)
-		fKeyCertPair->Release();
+	if(fKeyCertChain!=NULL)
+		fKeyCertChain->Release();
 
 	if(fConnection!=NULL)
 		delete fConnection;
@@ -691,7 +875,7 @@ VSslDelegate* VSslDelegate::NewClientDelegate(Socket inRawSocket)
 
 
 //static
-VSslDelegate* VSslDelegate::NewServerDelegate(Socket inRawSocket, VKeyCertPair* inKeyCertPair)
+VSslDelegate* VSslDelegate::NewServerDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain)
 {
 	SSLSTUB::ERR_clear_error();
 
@@ -705,24 +889,14 @@ VSslDelegate* VSslDelegate::NewServerDelegate(Socket inRawSocket, VKeyCertPair* 
 
 		SSLSTUB::SSL_set_accept_state(conn);
 		
-		if(inKeyCertPair!=NULL)
+		if(inKeyCertChain!=NULL)
 		{		
-			int res=SSLSTUB::SSL_use_certificate(conn, inKeyCertPair->GetCertificate());
-		
-			if(res!=1)
-				verr=VE_SSL_FAIL_TO_SET_CERTIFICATE;
-			else
-			{
-				res=SSLSTUB::SSL_use_RSAPrivateKey(conn, inKeyCertPair->GetPrivateKey());
-				
-				if(res!=1)
-					verr=VE_SSL_FAIL_TO_SET_PRIVATE_KEY;
-			}
+			verr=inKeyCertChain->LoadIntoConnection(conn);
 			
 			if(verr==VE_OK)
 			{
-				delegate->fKeyCertPair=inKeyCertPair;
-				delegate->fKeyCertPair->Retain();
+				delegate->fKeyCertChain=inKeyCertChain;
+				delegate->fKeyCertChain->Retain();
 			}
 		}
 	}
@@ -806,7 +980,7 @@ VError VSslDelegate::Read(void* outBuff, uLONG* ioLen)
 	
 	int errCode=SSLSTUB::SSL_get_error(conn, res);
 	
-	if(res==0 && errCode==SSL_ERROR_ZERO_RETURN)
+	if(res==0 && (errCode==SSL_ERROR_ZERO_RETURN || errCode==SSL_ERROR_SYSCALL))
 	{
 		//The TLS/SSL connection has been closed. If the protocol version is SSL 3.0 or TLS 1.0, this code is
 		//returned if the connection has been closed cleanly. Note that in this case SSL_ERROR_ZERO_RETURN does

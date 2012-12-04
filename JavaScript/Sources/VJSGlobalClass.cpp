@@ -16,6 +16,12 @@
 
 #include "VJavaScriptPrecompiled.h"
 
+#if VERSIONMAC
+#include <4DJavaScriptCore/JavaScriptCore.h>
+#else
+#include <JavaScriptCore/JavaScript.h>
+#endif
+
 #include "VJSContext.h"
 #include "VJSValue.h"
 #include "VJSClass.h"
@@ -40,6 +46,7 @@
 #include "VJSW3CFileSystem.h"
 #include "VJSBuffer.h"
 #include "VJSNet.h"
+#include "VJSModule.h"
 
 USING_TOOLBOX_NAMESPACE
 
@@ -293,13 +300,23 @@ void VJSGlobalClass::Initialize( const VJSParms_initialize& inParms, VJSGlobalOb
 
 	// Add Buffer, SystemWorker, Folder, File, and TextStream object constructors.
 
-	inParms.GetObject().SetProperty("Buffer", VJSBufferClass::MakeConstructor(inParms.GetContext()), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
-	inParms.GetObject().SetProperty("SystemWorker", VJSSystemWorkerClass::MakeConstructor(inParms.GetContext()), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
-	inParms.GetObject().SetProperty("Folder", VJSFolderIterator::MakeConstructor(inParms.GetContext()), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
-	inParms.GetObject().SetProperty("File", VJSFileIterator::MakeConstructor(inParms.GetContext()), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
-	inParms.GetObject().SetProperty("TextStream", VJSTextStream::MakeConstructor(inParms.GetContext()), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
-	inParms.GetObject().SetProperty("process", VJSProcess::CreateInstance( inParms.GetContext(), NULL), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
-	inParms.GetObject().SetProperty("os", VJSOS::CreateInstance( inParms.GetContext(), NULL), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	XBOX::VJSContext	context(inParms.GetContext());
+	XBOX::VJSObject		globalObject(inParms.GetObject());
+
+	globalObject.SetProperty("Buffer", VJSBufferClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
+	globalObject.SetProperty("SystemWorker", VJSSystemWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
+	globalObject.SetProperty("Folder", VJSFolderIterator::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
+	globalObject.SetProperty("File", VJSFileIterator::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
+	globalObject.SetProperty("TextStream", VJSTextStream::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly); 
+	globalObject.SetProperty("process", VJSProcess::CreateInstance(context, NULL), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	globalObject.SetProperty("os", VJSOS::CreateInstance(context, NULL), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+
+	globalObject.SetProperty("Worker", VJSDedicatedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	globalObject.SetProperty("SharedWorker", VJSSharedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+
+//** WIP
+	globalObject.SetProperty("studio_require", VJSRequireClass::MakeObject(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+//** WIP
 
 	// Add LocalFileSystem and LocalFileSystemSync interfaces support.
 
@@ -312,12 +329,12 @@ void VJSGlobalClass::Finalize( const VJSParms_finalize& inParms, VJSGlobalObject
 }
 	
 	
-void VJSGlobalClass::AddStaticFunction( const char *inName, JSObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes)
+void VJSGlobalClass::AddStaticFunction( const char *inName, JS4D::ObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes)
 {
 	xbox_assert( !sGetDefinitionHasBeenCalled);	// The global class has aready been created, its too late to add static values, 
 	_CheckInitStaticFunctions();
 	xbox_assert( !sStaticFunctions.empty());
-	_StaticFunction fn = { inName, inCallBack, inAttributes};
+	JS4D::StaticFunction fn = { inName, inCallBack, inAttributes};
 	#if WITH_ASSERT
 	// check the name is not already registered.
 	for( VectorOfStaticFunction::const_iterator i = sStaticFunctions.begin() ; i != sStaticFunctions.end() ; ++i)
@@ -327,12 +344,12 @@ void VJSGlobalClass::AddStaticFunction( const char *inName, JSObjectCallAsFuncti
 }
 
 
-void VJSGlobalClass::AddStaticValue( const char *inName, JSObjectGetPropertyCallback inGetCallback, JSObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes)
+void VJSGlobalClass::AddStaticValue( const char *inName, JS4D::ObjectGetPropertyCallback inGetCallback, JS4D::ObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes)
 {
 	xbox_assert( !sGetDefinitionHasBeenCalled);	// The global class has aready been created, its too late to add static values, 
 	_CheckInitStaticValues();
 	xbox_assert( !sStaticValues.empty());
-	_StaticValue value = { inName, inGetCallback, inSetCallback, inAttributes};
+	JS4D::StaticValue value = { inName, inGetCallback, inSetCallback, inAttributes};
 	#if WITH_ASSERT
 	// check the name is not already registered.
 	for( VectorOfStaticValue::const_iterator i = sStaticValues.begin() ; i != sStaticValues.end() ; ++i)
@@ -342,7 +359,7 @@ void VJSGlobalClass::AddStaticValue( const char *inName, JSObjectGetPropertyCall
 }
 
 
-void VJSGlobalClass::AddConstructorObjectStaticValue( const char *inClassName, JSObjectCallAsConstructorCallback inCallback)
+void VJSGlobalClass::AddConstructorObjectStaticValue( const char *inClassName, JS4D::ObjectCallAsConstructorCallback inCallback)
 {
 	if (JS4D::RegisterConstructor( inClassName, inCallback))
 	{
@@ -351,16 +368,16 @@ void VJSGlobalClass::AddConstructorObjectStaticValue( const char *inClassName, J
 }
 	
 	
-void VJSGlobalClass::_PushBackStaticFunction( const char *inName, JSObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes)
+void VJSGlobalClass::_PushBackStaticFunction( const char *inName, JS4D::ObjectCallAsFunctionCallback inCallBack, JS4D::PropertyAttributes inAttributes)
 {
-	_StaticFunction fn = { inName, inCallBack, inAttributes};
+	JS4D::StaticFunction fn = { inName, inCallBack, inAttributes};
 	sStaticFunctions.push_back( fn);
 }
 	
 	
-void VJSGlobalClass::_PushBackStaticValue( const char *inName, JSObjectGetPropertyCallback inGetCallback, JSObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes)
+void VJSGlobalClass::_PushBackStaticValue( const char *inName, JS4D::ObjectGetPropertyCallback inGetCallback, JS4D::ObjectSetPropertyCallback inSetCallback, JS4D::PropertyAttributes inAttributes)
 {
-	_StaticValue value = { inName, inGetCallback, inSetCallback, inAttributes};
+	JS4D::StaticValue value = { inName, inGetCallback, inSetCallback, inAttributes};
 	sStaticValues.push_back( value);
 }
 
@@ -372,8 +389,8 @@ void VJSGlobalClass::GetDefinition( ClassDefinition& outDefinition)
 	outDefinition.className = "Component";
 	outDefinition.initialize = js_initialize<Initialize>;
 	outDefinition.finalize = js_finalize<Finalize>;
-	outDefinition.staticFunctions = (JSStaticFunction*) &sStaticFunctions.at(0);
-	outDefinition.staticValues = (JSStaticValue*) &sStaticValues.at(0);
+	outDefinition.staticFunctions = &sStaticFunctions.at(0);
+	outDefinition.staticValues = &sStaticValues.at(0);
 	outDefinition.attributes = JS4D::ClassAttributeNoAutomaticPrototype;	// important because that's the global object class. Else JS will screw up in JSObjectHasProperty in infinite loop.
 	sGetDefinitionHasBeenCalled = true;
 }
@@ -383,8 +400,6 @@ void VJSGlobalClass::_CheckInitStaticFunctions()
 {
 	if (sStaticFunctions.empty())
 	{
-		assert_compile( sizeof( _StaticFunction) == sizeof( JSStaticFunction));
-
 		//** TODO: Garder ? Mozilla propose dump() avec même comportement.
 		_PushBackStaticFunction( "trace", js_callStaticFunction<do_trace>, JS4D::PropertyAttributeNone);
 
@@ -411,8 +426,7 @@ void VJSGlobalClass::_CheckInitStaticFunctions()
 		_PushBackStaticFunction( "getURLQuery", js_callStaticFunction<do_GetURLQuery>, JS4D::PropertyAttributeNone); // object : getURLQuery(string:url)
 		
 		_PushBackStaticFunction( "generateUUID", js_callStaticFunction<do_GenerateUUID>, JS4D::PropertyAttributeNone); // string : generateUUID();
-		_PushBackStaticFunction( "requireNative", js_callStaticFunction<do_Require>, JS4D::PropertyAttributeNone);			// object : require(string:className);
-
+		
 		_PushBackStaticFunction("setTimeout", js_callStaticFunction<VJSTimer::SetTimeout>, JS4D::PropertyAttributeNone);
 		_PushBackStaticFunction("clearTimeout", js_callStaticFunction<VJSTimer::ClearTimeout>, JS4D::PropertyAttributeNone);
 		_PushBackStaticFunction("setInterval", js_callStaticFunction<VJSTimer::SetInterval>, JS4D::PropertyAttributeNone);
@@ -422,6 +436,11 @@ void VJSGlobalClass::_CheckInitStaticFunctions()
 		_PushBackStaticFunction("wait", js_callStaticFunction<VJSWorker::Wait>, JS4D::PropertyAttributeNone);
 		_PushBackStaticFunction("exitWait", js_callStaticFunction<VJSWorker::ExitWait>, JS4D::PropertyAttributeNone);
 
+		_PushBackStaticFunction("importScripts", js_callStaticFunction<VJSGlobalClass::_importScripts>, JS4D::PropertyAttributeNone);
+
+		_PushBackStaticFunction("requireNative", js_callStaticFunction<VJSGlobalClass::requireNative>, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontEnum | JS4D::PropertyAttributeDontDelete);			// object : require(string:className);
+		_PushBackStaticFunction("requireFile", js_callStaticFunction<VJSGlobalClass::_requireFile>, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontEnum | JS4D::PropertyAttributeDontDelete);
+		
 		//_PushBackStaticFunction("SetCurrentUser", js_callStaticFunction<do_SetCurrentUser>, JS4D::PropertyAttributeNone);
 
 		_PushBackStaticFunction( 0, 0, 0);
@@ -433,7 +452,6 @@ void VJSGlobalClass::_CheckInitStaticValues()
 {
 	if (sStaticValues.empty())
 	{
-		assert_compile( sizeof( _StaticValue) == sizeof( JSStaticValue));
 		_PushBackStaticValue( 0, 0, 0, 0);
 	}
 }
@@ -456,10 +474,7 @@ void VJSGlobalClass::CreateGlobalClasses()
 	AddConstructorObjectStaticValue("EndPoint", VJSParms_construct::Callback<VJSEndPoint::Construct>);
 
 	VJSDedicatedWorkerClass::Class();
-	AddConstructorObjectStaticValue("Worker", VJSParms_construct::Callback<VJSDedicatedWorkerClass::Construct>);
-
 	VJSSharedWorkerClass::Class();
-	AddConstructorObjectStaticValue("SharedWorker", VJSParms_construct::Callback<VJSSharedWorkerClass::Construct>);	
 
 	VJSMysqlBufferClass::Class();
 	AddConstructorObjectStaticValue("MysqlBuffer", VJSParms_construct::Callback<VJSMysqlBufferClass::Construct>);
@@ -532,7 +547,23 @@ void VJSGlobalClass::do_include( VJSParms_callStaticFunction& inParms, VJSGlobal
 		VString pathname;
 		if (inParms.IsStringParam(1) && inParms.GetStringParam( 1, pathname))
 		{
-			VFolder* folder = inGlobalObject->GetRuntimeDelegate()->RetainScriptsFolder();
+			VFolder* folder = NULL;
+			if (inParms.GetBoolParam( 2, L"system", "user"))
+			{
+				VFolder* rootfolder = VProcess::Get()->RetainFolder('walb');
+				if (rootfolder != NULL)
+				{
+					VFilePath path;
+					rootfolder->GetPath(path);
+					path.ToSubFolder("WAF");
+					path.ToSubFolder("Core");
+					path.ToSubFolder("Runtime");
+					folder = new VFolder(path);
+					QuickReleaseRefCountable(rootfolder);
+				}
+			}
+			else
+				folder = inGlobalObject->GetRuntimeDelegate()->RetainScriptsFolder();
 			if (folder != NULL)
 			{
 				file = new VFile( *folder, pathname, FPS_POSIX);
@@ -703,6 +734,7 @@ void VJSGlobalClass::do_JSONToXml(VJSParms_callStaticFunction& ioParms, VJSGloba
 	VString xml;
 	VString json, root;
 	bool simpleJSON = false;
+	bool isxhtml = false;
 
 	ioParms.GetStringParam( 1, json);
 	if ( ioParms.CountParams() >= 2)
@@ -723,6 +755,10 @@ void VJSGlobalClass::do_JSONToXml(VJSParms_callStaticFunction& ioParms, VJSGloba
 						vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "3");
 				}
 			}
+			else if(s== "xhtml")
+			{
+				isxhtml = true;
+			}
 		}
 		else
 			vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
@@ -739,7 +775,10 @@ void VJSGlobalClass::do_JSONToXml(VJSParms_callStaticFunction& ioParms, VJSGloba
 	}
 	else
 	{
-		VError err = VXMLJsonUtility::JsonToXML(json, xml);
+		if(isxhtml)
+			VError err = VXMLJsonUtility::JsonToXHTML(json, xml);
+		else
+			VError err = VXMLJsonUtility::JsonToXML(json, xml);
 	}
 
 	ioParms.ReturnString(xml);
@@ -1005,8 +1044,148 @@ void VJSGlobalClass::do_GenerateUUID(VJSParms_callStaticFunction& ioParms, VJSGl
 	ioParms.ReturnString(uuidStr);
 }
 
+// See web workers specification (http://www.w3.org/TR/workers/), section 5.1.
 
-void VJSGlobalClass::do_Require(VJSParms_callStaticFunction& ioParms, VJSGlobalObject *inGlobalObject)
+void VJSGlobalClass::_importScripts (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *inGlobalObject)
+{	
+	if (!ioParms.CountParams())
+
+		return;
+
+	XBOX::VJSContext	context(ioParms.GetContext());
+	XBOX::VFolder		*folder;
+	XBOX::VString		rootPath;
+
+	folder = context.GetGlobalObjectPrivateInstance()->GetRuntimeDelegate()->RetainScriptsFolder();
+	xbox_assert(folder != NULL);
+	folder->GetPath(rootPath, XBOX::FPS_POSIX);
+	XBOX::ReleaseRefCountable<XBOX::VFolder>(&folder);
+
+	std::list<XBOX::VString>	urls;
+
+	for (sLONG i = 1; i <= ioParms.CountParams(); i++) {
+
+		XBOX::VString	url;
+
+		if (!ioParms.GetStringParam(i, url)) {
+			
+			XBOX::VString	indexString;
+
+			indexString.FromLong(i);
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, indexString);
+			return;
+
+		}
+
+#if VERSIONWIN
+
+		if (url.GetLength() >= 2
+		&& VIntlMgr::GetDefaultMgr()->IsAlpha(url.GetUniChar(1)) 
+		&& url.GetUniChar(2) == ':' 
+		&& url.GetUniChar(3) == '/') {
+
+#else
+
+		if (url.GetUniChar(1) == '/') {
+
+#endif
+
+			urls.push_back(url);
+
+		} else {
+
+			urls.push_back(rootPath + url);
+
+		}
+
+	}
+
+	XBOX::VJSValue	result(context);
+	bool			isOk;
+
+	result.SetNull();
+	isOk = true;
+	do {
+
+		XBOX::VURL		url(urls.front(), eURL_POSIX_STYLE, CVSTR ("file://"));
+		XBOX::VFilePath	path;
+		XBOX::VString	script;
+				
+		if (url.GetFilePath(path)) {
+
+			XBOX::VFile			file(path);			
+			XBOX::VFileStream	stream(&file);
+			XBOX::VError		error;
+		
+			if ((error = stream.OpenReading()) == XBOX::VE_OK
+			&& (error = stream.GuessCharSetFromLeadingBytes(XBOX::VTC_DefaultTextExport)) == XBOX::VE_OK) {
+
+				stream.SetCarriageReturnMode(XBOX::eCRM_NATIVE);
+				error = stream.GetText(script);
+
+			}
+			stream.CloseReading();
+
+			isOk = error == XBOX::VE_OK;
+
+		} 
+
+		if (!isOk) {
+
+			// Failed to read script.
+
+			XBOX::vThrowError(XBOX::VE_JVSC_SCRIPT_NOT_FOUND, urls.front());
+		
+		} else if (!context.CheckScriptSyntax(script, &url, NULL)) {
+
+			// Syntax error.
+
+			XBOX::vThrowError(XBOX::VE_JVSC_SYNTAX_ERROR, urls.front());
+			
+		} else {
+
+			XBOX::VFile	*file;
+			
+			if ((file = new XBOX::VFile(path)) == NULL) {
+
+				XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+				break;
+
+			} else {
+
+				XBOX::VJSObject				thisObject	= ioParms.GetThis();
+				XBOX::JS4D::ExceptionRef	exception	= NULL;
+			
+				context.GetGlobalObjectPrivateInstance()->RegisterIncludedFile(file);
+			
+				// ImportScripts() will return evaluation result of last argument (script).
+
+				if (!context.EvaluateScript(script, &url, &result, &exception, &thisObject)) {
+						
+					ioParms.SetException(exception);
+
+/*
+					XBOX::VString	exceptionExplanation;
+
+					JS4D::ValueToString(context, exception, exceptionExplanation);
+					XBOX::DebugMsg(exceptionExplanation);
+*/
+
+				}
+
+				XBOX::ReleaseRefCountable<XBOX::VFile>(&file);
+
+			}
+
+		}
+		urls.pop_front();
+
+	} while (isOk && !urls.empty());
+
+	ioParms.ReturnValue(result);
+}
+
+void VJSGlobalClass::requireNative (VJSParms_callStaticFunction& ioParms, VJSGlobalObject *inGlobalObject)
 {
 	xbox_assert(inGlobalObject != NULL);
 
@@ -1019,4 +1198,145 @@ void VJSGlobalClass::do_Require(VJSParms_callStaticFunction& ioParms, VJSGlobalO
 	else
 
 		ioParms.ReturnValue(inGlobalObject->Require(ioParms.GetContext(), className));
+}
+
+void VJSGlobalClass::_requireFile (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *)
+{	
+	if (ioParms.CountParams() != 2)
+
+		return;
+
+	XBOX::VJSContext	context(ioParms.GetContext());
+	XBOX::VFolder		*folder;
+	XBOX::VString		rootPath;
+
+	folder = context.GetGlobalObjectPrivateInstance()->GetRuntimeDelegate()->RetainScriptsFolder();
+	xbox_assert(folder != NULL);
+	folder->GetPath(rootPath, XBOX::FPS_POSIX);
+	XBOX::ReleaseRefCountable<XBOX::VFolder>(&folder);
+
+	XBOX::VString	urlString;
+
+	if (!ioParms.GetStringParam(1,  urlString)) {
+			
+		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
+		return;
+
+	}
+
+	XBOX::VString	moduleInitString;
+
+	if (!ioParms.GetStringParam(2, moduleInitString)) {
+			
+		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
+		return;
+
+	}
+
+#if VERSIONWIN
+
+	if (urlString.GetLength() >= 2
+	&& VIntlMgr::GetDefaultMgr()->IsAlpha(urlString.GetUniChar(1)) 
+	&& urlString.GetUniChar(2) == ':' 
+	&& urlString.GetUniChar(3) == '/') {
+
+#else
+
+	if (urlString.GetUniChar(1) == '/') {
+
+#endif
+
+	} else {
+
+		urlString = rootPath + urlString;
+
+	}
+
+	XBOX::VJSValue	result(context);
+	bool			isOk;
+
+	result.SetNull();
+	isOk = true;
+
+	XBOX::VURL		url(urlString, eURL_POSIX_STYLE, CVSTR ("file://"));
+	XBOX::VFilePath	path;
+	XBOX::VString	script;
+				
+	if (url.GetFilePath(path)) {
+
+		XBOX::VFile			file(path);			
+		XBOX::VFileStream	stream(&file);
+		XBOX::VError		error;
+		
+		if ((error = stream.OpenReading()) == XBOX::VE_OK
+		&& (error = stream.GuessCharSetFromLeadingBytes(XBOX::VTC_DefaultTextExport)) == XBOX::VE_OK) {
+
+			stream.SetCarriageReturnMode(XBOX::eCRM_NATIVE);
+			error = stream.GetText(script);
+
+		}
+		stream.CloseReading();
+
+		isOk = error == XBOX::VE_OK;
+
+	} 
+
+	XBOX::VURL					emptyURL;
+	XBOX::VJSObject				thisObject	= ioParms.GetThis();
+	XBOX::JS4D::ExceptionRef	exception	= NULL;
+
+	if (!isOk) {
+
+		// Failed to read script.
+
+		XBOX::vThrowError(XBOX::VE_JVSC_SCRIPT_NOT_FOUND, urlString);
+				
+	} else if (!context.CheckScriptSyntax(script, &url, NULL)) {
+
+		// Syntax error.
+
+		XBOX::vThrowError(XBOX::VE_JVSC_SYNTAX_ERROR, urlString);
+			
+	} else {
+
+		XBOX::VFile	*file;
+			
+		if ((file = new XBOX::VFile(path)) == NULL) {
+
+			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+			
+		} else {
+
+			context.GetGlobalObjectPrivateInstance()->RegisterIncludedFile(file);
+
+			XBOX::VString	closuredScript;
+			
+			// Doesn't check that moduleInitString has a correct syntax.
+
+			closuredScript.AppendString("(function (){var exports = {}; var module = {}; ");
+			closuredScript.AppendString(moduleInitString);
+			closuredScript.AppendString("; ");
+			closuredScript.AppendString(script);
+			closuredScript.AppendString("; return exports; }).call();");
+			
+			// Will return exports object.
+
+			if (!context.EvaluateScript(closuredScript, &url, &result, &exception, &thisObject)) {
+						
+				ioParms.SetException(exception);
+/*
+				XBOX::VString	exceptionExplanation;
+
+				JS4D::ValueToString(context, exception, exceptionExplanation);
+				XBOX::DebugMsg(exceptionExplanation);
+*/
+			}
+
+			XBOX::ReleaseRefCountable<XBOX::VFile>(&file);
+
+		}
+	
+	}
+
+	ioParms.ReturnValue(result);
 }

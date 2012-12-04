@@ -15,16 +15,31 @@
 */
 #include "VKernelPrecompiled.h"
 #include "VTime.h"
+#include "VJSONValue.h"
 #include "VJSONTools.h"
 #include "VError.h"
 #include "VValueBag.h"
+#include "VUnicodeTableFull.h"
 
 BEGIN_TOOLBOX_NAMESPACE
+
 
 // ===========================================================
 #pragma mark -
 #pragma mark VJSONImporter
 // ===========================================================
+
+
+VJSONImporter::VJSONImporter(const VString& inJSONString)
+: fString( inJSONString)
+{
+	fInputLen = fString.GetLength();
+	fStartChar = fString.GetCPointer();
+	fCurChar = fStartChar;
+	fRecursiveCallCount = 0;
+}
+
+
 /* WARNING: this GetNextJSONToken(VString&, bool*) is the same as the GetNextJSONToken() with no parameters,
 			except it fills outString and withQuotes.
 
@@ -313,7 +328,7 @@ VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken()
 					} while(!eof);
 					return jsonString;
 				}
-					break;
+				break;
 			}
 		}
 	} while(!eof);
@@ -338,7 +353,244 @@ UniChar VJSONImporter::_GetNextChar(bool& outIsEOF)
 }
 
 
-VError VJSONImporter::JSONObjectToBag(VValueBag& outBag)
+bool VJSONImporter::_ParseNumber( const UniChar *inString)
+{
+	const UniChar *p = inString;
+	
+	bool failed = false;
+
+	if ( (*p == CHAR_HYPHEN_MINUS) || (*p == CHAR_MINUS_SIGN) )
+		++p;
+
+	if (*p == CHAR_DIGIT_ZERO)
+		++p;
+	else
+	{
+		while( *p >= CHAR_DIGIT_ZERO && *p <= CHAR_DIGIT_NINE)
+			++p;
+	}
+
+	// consume '.'
+	
+	bool withDot = (*p == CHAR_FULL_STOP);
+	if (withDot)
+	{
+		++p;
+		if ( *p >= CHAR_DIGIT_ZERO && *p <= CHAR_DIGIT_NINE)
+		{
+			do
+			{
+				++p;
+			} while( *p >= CHAR_DIGIT_ZERO && *p <= CHAR_DIGIT_NINE);
+		}
+		else
+		{
+			failed = true;	// the dot must be followed by an integer
+		}
+	}
+	
+	// consume 'e' or 'E'
+	bool withExponent = (*p == CHAR_LATIN_SMALL_LETTER_E || *p == CHAR_LATIN_CAPITAL_LETTER_E);
+	if (withExponent)
+	{
+		++p;
+
+		// comsume '+' or '-'
+		if ( (*p == CHAR_PLUS_SIGN) || (*p == CHAR_HYPHEN_MINUS) || (*p == CHAR_MINUS_SIGN) )
+			++p;
+	
+		// consume exponent
+		if (*p >= CHAR_DIGIT_ZERO && *p <= CHAR_DIGIT_NINE)
+		{
+			do {
+				++p;
+			} while( *p >= CHAR_DIGIT_ZERO && *p <= CHAR_DIGIT_NINE);
+		}
+		else
+		{
+			failed = true;	// 'e' or 'E' must be followed by an integer
+		}
+	}
+	
+	return !failed && (*p == 0);
+}
+
+
+
+VError VJSONImporter::_StringToValue( const VString& inString, bool inWithQuotes, VJSONValue& outValue)
+{
+	if (inWithQuotes)
+		outValue.SetString( inString);
+	else if (inString.EqualToUSASCIICString( "true"))
+		outValue = VJSONValue::sTrue;
+	else if (inString.EqualToUSASCIICString( "false"))
+		outValue = VJSONValue::sFalse;
+	else if (inString.EqualToUSASCIICString( "null"))
+		outValue = VJSONValue::sNull;
+	else if (!inString.IsEmpty())
+	{
+		// check if it's a number
+		if (_ParseNumber( inString.GetCPointer()))
+			outValue.SetNumber( inString.GetReal());
+		else
+			outValue.SetString( inString);
+	}
+	else
+		outValue.SetString( inString);
+	
+	return VE_OK;
+}
+
+
+VError VJSONImporter::_ThrowError()
+{
+	return vThrowError( VE_MALFORMED_JSON_DESCRIPTION);
+}
+
+
+VError VJSONImporter::_ParseObject( VJSONValue& outValue)
+{
+	VError err = VE_OK;
+	VJSONObject *object = new VJSONObject;
+	do
+	{
+		VString name;
+		JsonToken token = GetNextJSONToken( name, NULL);
+		if (token == jsonString)
+		{
+			token = GetNextJSONToken();
+			if (token == jsonAssigne)
+			{
+				VJSONValue value;
+				err = Parse( value);
+				if (err == VE_OK)
+				{
+					object->SetProperty( name, value);
+
+					token = GetNextJSONToken();
+					if (token == jsonEndObject)
+						break;
+
+					if (token != jsonSeparator)
+						err = _ThrowError();
+				}
+			}
+			else
+			{
+				err = _ThrowError();
+			}
+		}
+		else if (token == jsonEndObject)
+		{
+			break;
+		}
+		else
+		{
+			err = _ThrowError();
+		}
+	} while( err == VE_OK);
+	outValue.SetObject( object);
+	ReleaseRefCountable( &object);
+	return err;
+}
+
+
+VError VJSONImporter::_ParseArray( VJSONValue& outValue)
+{
+	VError err = VE_OK;
+	VJSONArray *array = new VJSONArray;
+	bool expectSeparator = false;
+	do
+	{
+		VJSONValue value;
+		VString s;
+		bool withQuotes;
+
+		JsonToken token = GetNextJSONToken( s, &withQuotes);
+		if (token == jsonString)
+		{
+			err = _StringToValue( s, withQuotes, value);
+		}
+		else if (token == jsonBeginObject)
+		{
+			err = _ParseObject( value);
+		}
+		else if (token == jsonBeginArray)
+		{
+			err = _ParseArray( value);
+		}
+		else if (token == jsonEndArray)
+		{
+			break;
+		}
+		else
+		{
+			err = _ThrowError();
+		}
+
+		if (err == VE_OK)
+		{
+			xbox_assert( !value.IsUndefined());
+			array->Push( value);
+
+			token = GetNextJSONToken();
+			if (token == jsonEndArray)
+				break;
+			
+			if (token != jsonSeparator)
+				err = _ThrowError();
+		}
+
+	} while( err == VE_OK);
+	outValue.SetArray( array);
+	ReleaseRefCountable( &array);
+	return err;
+}
+
+
+VError VJSONImporter::Parse( VJSONValue& outValue)
+{
+	VError err = VE_OK;
+
+	VJSONValue value;
+	
+	bool withQuotes;
+	VString name;
+	JsonToken token = GetNextJSONToken( name, &withQuotes);
+	switch( token)
+	{
+		case jsonString:
+			{
+				err = _StringToValue( name, withQuotes, value);
+				break;
+			}
+		
+		case jsonBeginObject:
+			{
+				err = _ParseObject( value);
+				break;
+			}
+		
+		case jsonBeginArray:
+			{
+				err = _ParseArray( value);
+				break;
+			}
+		
+		default:
+			{
+				err = _ThrowError();
+				break;
+			}
+	}
+	
+	outValue = value;
+
+	return err;
+}
+
+
+VError VJSONImporter::JSONObjectToBag( VValueBag& outBag)
 {
 	VError			err = VE_OK;
 	VString			aStr;

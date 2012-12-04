@@ -183,13 +183,9 @@ static	sLONG		ExecuteCommandLine(const VString& inCommandLine,
 		void		SetRedirectStandardInput(bool isStandardInputRedirected);
 		void		SetRedirectStandardOutput(bool isStandardOutputRedirected);
 	
-		/** @brief	Mac and Linux only: Get process's PID, valid only if IsRunning() returns true. */		
-	
-#if VERSIONMAC || VERSION_LINUX
-	
+		/** @brief	Get process's PID, platform specific numbering, valid only if IsRunning() returns true. */		
+		
 		sLONG		GetPid ();
-	
-#endif
 	
 	//@}
 

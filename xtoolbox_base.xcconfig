@@ -8,8 +8,11 @@ FRAMEWORK_SEARCH_PATHS_ICU="$(SRCROOT)/../../../../../icu/$(VERSION_ICU)/Framewo
 FRAMEWORK_SEARCH_PATHS_ICU_BSD="$(SRCROOT)/../../../../../icu/$(VERSION_ICU)/Frameworks BSD/"
 GCC_PREPROCESSOR_DEFINITIONS_ICU = "xbox_icu=icu_48";
 
+//MECAB
+VERSION_MECAB = 0.994
+
 //WebKit Version
-VERSION_WEBKIT = 742
+VERSION_WEBKIT = 534.53
 
 //JavascriptCore
 CONFIG_WEBKIT_Debug=$(CONFIGURATION)
@@ -61,10 +64,11 @@ FRAMEWORK_SEARCH_PATHS_BSD = $(FRAMEWORK_SEARCH_PATHS_BASE) $(FRAMEWORK_SEARCH_P
 
 HEADER_SEARCH_PATHS = ${SRCROOT}/../../.. ${SRCROOT}/../../Sources  ${SRCROOT}/../../Headers
 HEADER_SEARCH_PATHS_XERCES = "${SRCROOT}/../../../../../xerces/$(VERSION_XERCES)/xerces/src"
-HEADER_SEARCH_PATHS_JSC = "$(SRCROOT)/../../../../../webkit/${VERSION_WEBKIT}/JavaScriptCore/ForwardingHeaders" "$(SRCROOT)/../../../../../webkit/${VERSION_WEBKIT}" "$(SRCROOT)/../../../../../webkit/${VERSION_WEBKIT}/WebCore/inspector"
+HEADER_SEARCH_PATHS_JSC = "$(SRCROOT)/../../../../../webkit/${VERSION_WEBKIT}/JavaScriptCore/ForwardingHeaders" "$(SRCROOT)/../../../../../webkit/${VERSION_WEBKIT}" "$(SRCROOT)/../../../../../webkit/${VERSION_WEBKIT}/WebCore/inspector" "$(SRCROOT)/../../../../../webkit/${VERSION_WEBKIT}/JavaScriptCore/4D"
 HEADER_SEARCH_PATHS_ICU = "$(SRCROOT)/../../../../../icu/$(VERSION_ICU)/xcode/include" "$(SRCROOT)/../../../../../icu/$(VERSION_ICU)/icu/source/common" "$(SRCROOT)/../../../../../icu/$(VERSION_ICU)/icu/source/i18n"
-HEADER_SEARCH_PATHS_COMPONENTS = "$(SRCROOT)/../../../../../Components/WAK2"
-HEADER_SEARCH_PATHS_CORERUNTIME = "$(SRCROOT)/../../../../../CoreRuntime/WAK2/Sources"
+HEADER_SEARCH_PATHS_COMPONENTS = "$(SRCROOT)/../../../../../Components/Main"
+HEADER_SEARCH_PATHS_CORERUNTIME = "$(SRCROOT)/../../../../../CoreRuntime/main/Sources"
+HEADER_SEARCH_PATHS_MECAB = "$(SRCROOT)/../../../../../mecab/$(VERSION_MECAB)/mecab_for_4d"
 
 //GCC 4.2 Code Generation
 GCC_MODEL_TUNING = G5

@@ -37,12 +37,7 @@ typedef unsigned char	uBYTE;
 typedef signed short	sWORD;
 typedef unsigned short	uWORD;
 
-#if COMPIL_CODEWARRIOR
-	typedef signed long long	sLONG8;
-	typedef unsigned long long	uLONG8;
-	typedef signed long		sLONG;
-	typedef unsigned long	uLONG;
-#elif COMPIL_VISUAL
+#if COMPIL_VISUAL
 	typedef __int64		sLONG8;
 	typedef unsigned __int64	uLONG8;
 	typedef signed long		sLONG;

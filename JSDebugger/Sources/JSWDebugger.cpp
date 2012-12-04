@@ -23,13 +23,22 @@
 #include "JSWDebugger.h"
 #include "JSWServer.h"
 
-
-//#include "JSWServer.h"
-
+#define WKA_USE_UNIFIED_DBG
 
 VServer*								VJSWDebugger::sServer = 0;
 VJSWDebugger*							VJSWDebugger::sDebugger = 0;
 
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+#else
+XBOX::VCriticalSection					VJSWDebugger::sDbgLock;
+#if defined(UNIFIED_DEBUGGER_NET_DEBUG)
+XBOX::XTCPSock*							VJSWDebugger::sSck=NULL;
+#endif
+
+#endif
+
+#if 0
 // This is an example of an exported variable
 JSDEBUGGER_API int nJSDebugger=0;
 
@@ -38,15 +47,13 @@ JSDEBUGGER_API int fnJSDebugger(void)
 {
 	return 42;
 }
+#endif
 
-
-/*VJSWDebuggerCommand::VJSWDebuggerCommand ( IJSWDebugger::JSWD_COMMAND inCommand ) :
-														fParameters ( )
-{
-	fCommand = inCommand;
-}*/
-
+#if !defined(WKA_USE_UNIFIED_DBG)
 VJSWDebuggerCommand::VJSWDebuggerCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID, const VString & inParameters )
+#else
+VJSWDebuggerCommand::VJSWDebuggerCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID, const VString & inParameters )
+#endif
 {
 	fCommand = inCommand;
 
@@ -79,6 +86,12 @@ const char* VJSWDebuggerCommand::GetID ( ) const
 	return szchResult;
 }
 
+void VJSWDebuggerCommand::Dispose ( )
+{
+	delete this;
+}
+
+
 bool VJSWDebuggerCommand::HasSameContextID ( uintptr_t inContextID ) const
 {
 	if ( fContextID. EqualToString ( CVSTR ( "UNDEFINED" ) ) )
@@ -90,31 +103,69 @@ bool VJSWDebuggerCommand::HasSameContextID ( uintptr_t inContextID ) const
 	return fContextID. EqualToString ( vstrTestID );
 }
 
-void VJSWDebuggerCommand::Dispose ( )
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+void VJSWDebugger::SetSettings ( IJSWDebuggerSettings* inSettings )
+#else
+void VJSWDebugger::SetSettings( IWAKDebuggerSettings* inSettings )
+#endif
 {
-	delete this;
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+	{
+		fSettings = inSettings;
+
+		return;
+	}
+
+	if ( inSettings == 0 )
+		fSettings = inSettings;
+
+	cHandler-> SetSettings ( inSettings );
+	cHandler-> Release ( );
 }
 
-IJSWDebugger* JSWDebuggerFactory::Get ( )
+#if !defined(WKA_USE_UNIFIED_DBG)
+void VJSWDebugger::SetInfo ( IJSWDebuggerInfo* inInfo )
+#else
+void VJSWDebugger::SetInfo( IWAKDebuggerInfo* inInfo )
+#endif
 {
-	return VJSWDebugger::Get ( );
-}
-IJSWChrmDebugger* JSWDebuggerFactory::GetCD()
-{
-	return VChrmDebugHandler::Get();
-}
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return;
 
-VJSWDebugger::VJSWDebugger ( )
-{
-	fSettings = 0;
+	cHandler-> SetInfo ( inInfo );
+	cHandler-> Release ( );
 }
 
 VJSWDebugger* VJSWDebugger::Get ( )
 {
 	if ( sDebugger == 0 )
+	{
 		sDebugger = new VJSWDebugger ( );
-
+#if defined(UNIFIED_DEBUGGER_NET_DEBUG)
+		if (!sSck)
+		{
+			sSck = XTCPSock::NewClientConnectedSock(K_NETWORK_DEBUG_HOST,K_NETWORK_DEBUG_BASE,100);
+		}
+#endif
+	}
 	return sDebugger;
+}
+
+int VJSWDebugger::StopServer ( )
+{
+
+	if ( sServer == 0 )
+	{
+		xbox_assert(false);
+		return 0;
+	}
+	//sServer-> Stop ( );
+
+	//jswchFactory-> RemoveAllPorts ( );
+	return 0;
 }
 
 int VJSWDebugger::StartServer ( )
@@ -135,11 +186,30 @@ int VJSWDebugger::StartServer ( )
 
 #if WITH_DEPRECATED_IPV4_API
 	jswchFactory-> SetIP ( 0 /* ALL */ );
-#elif DEPRECATED_IPV4_API_SHOULD_NOT_COMPILE
-	#error NEED AN IP V6 UPDATE
+#else
+	VString									vstrIPAll = VNetAddress::GetAnyIP ( );
+	jswchFactory-> SetIP ( vstrIPAll );
 #endif
 
-	jswchFactory-> SetIsSSL ( false );
+	VFolder*								vResourcesFolder =  VProcess::Get ( )-> RetainFolder ( VProcess::eFS_Resources );
+	xbox_assert ( vResourcesFolder != 0 );
+
+	VFilePath								vfPathKey;
+	VFilePath								vfPathCertificate;
+	
+	if ( vResourcesFolder != 0 )
+	{
+		VFilePath							vfPathResources;
+		vResourcesFolder-> GetPath ( vfPathResources );
+		VFilePath&							vfPathSSL = vfPathResources. ToSubFolder ( CVSTR ( "Default Solution" ) ). ToSubFolder ( CVSTR ( "Admin" ) );
+		vfPathCertificate=vfPathSSL. ToSubFile ( CVSTR ( "cert.pem" ) );
+		vfPathSSL. ToFolder ( );
+		vfPathKey=vfPathSSL. ToSubFile ( CVSTR ( "key.pem" ) );
+		vResourcesFolder-> Release ( );
+	}
+
+	jswchFactory-> SetIsSSL ( true );
+	vtcpcListener-> SetSSLCertificatePaths ( vfPathCertificate, vfPathKey );
 	jswchFactory-> SetDebugger ( this );
 
 	/*
@@ -174,6 +244,11 @@ int VJSWDebugger::StartServer ( )
 	return 0;
 }
 
+VJSWDebugger::VJSWDebugger ( )
+{
+	fSettings = 0;
+}
+
 short VJSWDebugger::GetServerPort ( )
 {
 	if ( sServer == 0 )
@@ -197,33 +272,6 @@ bool VJSWDebugger::HasClients ( )
 	cHandler-> Release ( );
 
 	return bResult;
-}
-
-void VJSWDebugger::SetInfo ( IJSWDebuggerInfo* inInfo )
-{
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return;
-
-	cHandler-> SetInfo ( inInfo );
-	cHandler-> Release ( );
-}
-
-void VJSWDebugger::SetSettings ( IJSWDebuggerSettings* inSettings )
-{
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-	{
-		fSettings = inSettings;
-
-		return;
-	}
-
-	if ( inSettings == 0 )
-		fSettings = inSettings;
-
-	cHandler-> SetSettings ( inSettings );
-	cHandler-> Release ( );
 }
 
 int VJSWDebugger::Write ( const char * inData, long inLength, bool inToUTF8 )
@@ -262,6 +310,50 @@ int VJSWDebugger::WriteSource ( long inCommandID, uintptr_t inContext, const uns
 	return nResult;
 }
 
+#if !defined(WKA_USE_UNIFIED_DBG)
+int VJSWDebugger::SendBreakPoint (
+						uintptr_t inContext,
+						int inExceptionHandle /* -1 ? notException : ExceptionHandle */,
+						char* inURL, int inURLLength,
+						char* inFunction, int inFunctionLength,
+						int inLineNumber,
+						char* inMessage, int inMessageLength /* in bytes */,
+						char* inName, int inNameLength /* in bytes */,
+						long inBeginOffset, long inEndOffset /* in bytes */ )
+#else
+bool VJSWDebugger::BreakpointReached(	WAKDebuggerContext_t	inContext,
+										int						inLineNumber,
+										int						inExceptionHandle,
+										char*					inURL,
+										int						inURLLength,
+										char*					inFunction,
+										int 					inFunctionLength,
+										char*					inMessage,
+										int 					inMessageLength,
+										char* 					inName,
+										int 					inNameLength,
+										long 					inBeginOffset,
+										long 					inEndOffset )
+#endif
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return 0;
+
+	int		nResult = cHandler-> SendBreakPoint (
+											(uintptr_t)inContext,
+											inExceptionHandle,
+											inURL, inURLLength,
+											inFunction, inFunctionLength,
+											inLineNumber,
+											inMessage, inMessageLength,
+											inName, inNameLength,
+											inBeginOffset, inEndOffset );
+	cHandler-> Release ( );
+
+	return nResult;
+}
+
 void VJSWDebugger::SetSourcesRoot ( char* inRoot, int inLength )
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
@@ -272,33 +364,335 @@ void VJSWDebugger::SetSourcesRoot ( char* inRoot, int inLength )
 	cHandler-> Release ( );
 }
 
-int VJSWDebugger::SendBreakPoint (
-						uintptr_t inContext,
-						int inExceptionHandle /* -1 ? notException : ExceptionHandle */,
-						char* inURL, int inURLLength,
-						char* inFunction, int inFunctionLength,
-						int inLine,
-						char* inMessage, int inMessageLength /* in bytes */,
-						char* inName, int inNameLength /* in bytes */,
-						long inBeginOffset, long inEndOffset /* in bytes */ )
+
+void VJSWDebugger::Reset ( )
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return;
+
+	cHandler-> Reset ( );
+	cHandler-> Release ( );
+}
+
+
+void VJSWDebugger::WakeUpAllWaiters ( )
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return;
+
+	cHandler-> WakeUpAllWaiters ( );
+	cHandler-> Release ( );
+}
+
+
+long long VJSWDebugger::GetMilliseconds ( )
+{
+	return VSystem::GetCurrentTime ( );
+}
+
+
+char* VJSWDebugger::GetRelativeSourcePath (
+										const unsigned short* inAbsoluteRoot, int inRootSize,
+										const unsigned short* inAbsolutePath, int inPathSize,
+										int& outSize )
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
 	if ( cHandler == 0 )
 		return 0;
 
-	int		nResult = cHandler-> SendBreakPoint (
-											inContext,
-											inExceptionHandle,
-											inURL, inURLLength,
-											inFunction, inFunctionLength,
-											inLine,
-											inMessage, inMessageLength,
-											inName, inNameLength,
-											inBeginOffset, inEndOffset );
+	char*		szchResult = cHandler-> GetRelativeSourcePath ( inAbsoluteRoot, inRootSize, inAbsolutePath, inPathSize, outSize );
 	cHandler-> Release ( );
 
-	return nResult;
+	return szchResult;
 }
+
+
+char* VJSWDebugger::GetAbsolutePath (
+									const unsigned short* inAbsoluteRoot, int inRootSize,
+									const unsigned short* inRelativePath, int inPathSize,
+									int& outSize )
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return 0;
+
+	char*		szchResult = cHandler-> GetAbsolutePath ( inAbsoluteRoot, inRootSize, inRelativePath, inPathSize, outSize );
+	cHandler-> Release ( );
+
+	return szchResult;
+}
+
+VJSWConnectionHandler* VJSWDebugger::_RetainFirstHandler ( )
+{
+	VJSWConnectionHandler*		cHandler = 0;
+
+	fHandlersLock. Lock ( );
+
+		std::vector<VJSWConnectionHandler*>::iterator	iter = fHandlers. begin ( );
+		while ( iter != fHandlers. end ( ) )
+		{
+			if ( ( *iter )-> IsHandling ( ) )
+			{
+				cHandler = *iter;
+				cHandler-> Retain ( );
+
+				break;
+			}
+			else if ( ( *iter )-> IsDone ( ) )
+			{
+				( *iter )-> Release ( );
+				iter = fHandlers. erase ( iter );
+			}
+			else
+			{
+				++iter;
+			}
+		}
+
+	fHandlersLock. Unlock ( );
+
+	return cHandler;
+}
+
+VError VJSWDebugger::RemoveAllHandlers ( )
+{
+	fHandlersLock. Lock ( );
+
+		std::vector<VJSWConnectionHandler*>::iterator	iter = fHandlers. begin ( );
+		while ( iter != fHandlers. end ( ) )
+		{
+			( *iter )-> Release ( );
+
+			iter++;
+		}
+		fHandlers. clear ( );
+
+	fHandlersLock. Unlock ( );
+
+	return VE_OK;
+}
+
+/*VJSWDebuggerCommand::VJSWDebuggerCommand ( IJSWDebugger::JSWD_COMMAND inCommand ) :
+														fParameters ( )
+{
+	fCommand = inCommand;
+}*/
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+IJSWDebuggerCommand* VJSWDebugger::WaitForClientCommand ( uintptr_t inContext )
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return 0;
+
+	IJSWDebuggerCommand*		dcResult = cHandler-> WaitForClientCommand ( inContext );
+	cHandler-> Release ( );
+
+	return dcResult;
+}
+#else
+WAKDebuggerServerMessage* VJSWDebugger::WaitFrom(WAKDebuggerContext_t inContext)
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler();
+	if ( cHandler == 0 )
+		return 0;
+
+	WAKDebuggerServerMessage*	dcResult = cHandler->WaitForClientCommand( (uintptr_t)inContext );
+	cHandler->Release();
+
+	return dcResult;
+}
+void VJSWDebugger::DisposeMessage(WAKDebuggerServerMessage* inMessage)
+{
+	xbox_assert(false);// appeler le free correspondant a cHandler->WaitForClientCommand 
+}
+
+bool VJSWDebugger::SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state)
+{
+	xbox_assert(false);//TBC
+	return true;
+}
+bool VJSWDebugger::SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize )
+{
+	xbox_assert(false);//TBC
+	return true;
+}
+bool VJSWDebugger::SendEval( WAKDebuggerContext_t inContext, void* inVars )
+{
+	xbox_assert(false);//TBC
+	return true;
+}
+
+bool VJSWDebugger::SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength )
+{
+	xbox_assert(false);//TBC
+	return true;
+}
+bool VJSWDebugger::SendSource( WAKDebuggerContext_t inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen )
+{
+	xbox_assert(false);//TBC
+	return true;
+}
+
+void VJSWDebugger::Trace(WAKDebuggerContext_t inContext, const void* inString, int inSize )
+{
+	VString		l_trace(inString,(VSize)inSize,VTC_UTF_16);
+	VString l_tmp = CVSTR("DEBUG >>>> ");
+	l_tmp += l_trace;
+	l_tmp += CVSTR(" '\n");
+#if defined(UNIFIED_DEBUGGER_NET_DEBUG)
+	if (!sSck)
+	{
+#endif
+		DebugMsg(l_tmp);
+#if defined(UNIFIED_DEBUGGER_NET_DEBUG)
+	}
+	else
+	{
+		StErrorContextInstaller errCtx(false, true);
+
+		char	l_data[1024];
+		l_tmp.ToCString(l_data,1024);
+		uLONG	l_len=strlen(l_data);
+		if (sSck->Write(l_data, &l_len, false))
+		{
+			sSck->Close();
+			delete sSck;
+			sSck = NULL;
+		}
+	}
+#endif
+}
+#endif
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+IJSWDebuggerCommand* VJSWDebugger::GetNextBreakPointCommand ( )
+#else
+WAKDebuggerServerMessage* VJSWDebugger::GetNextBreakPointCommand()
+#endif
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return 0;
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextBreakPointCommand ( );
+#else
+	WAKDebuggerServerMessage*	dcResult = cHandler-> GetNextBreakPointCommand ( );
+#endif
+	cHandler-> Release ( );
+
+	return dcResult;
+}
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+IJSWDebuggerCommand* VJSWDebugger::GetNextSuspendCommand ( uintptr_t inContext )
+#else
+WAKDebuggerServerMessage* VJSWDebugger::GetNextSuspendCommand( WAKDebuggerContext_t inContext )
+#endif
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return 0;
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextSuspendCommand ( inContext );
+#else
+	WAKDebuggerServerMessage*	dcResult = cHandler-> GetNextSuspendCommand ( (uintptr_t)inContext );
+#endif
+	cHandler-> Release ( );
+
+	return dcResult;
+}
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+IJSWDebuggerCommand* VJSWDebugger::GetNextAbortScriptCommand ( uintptr_t inContext )
+#else
+WAKDebuggerServerMessage* VJSWDebugger::GetNextAbortScriptCommand ( WAKDebuggerContext_t inContext )
+#endif
+{
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	if ( cHandler == 0 )
+		return 0;
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextAbortScriptCommand ( inContext );
+#else
+	WAKDebuggerServerMessage*	dcResult = cHandler-> GetNextAbortScriptCommand ( (uintptr_t)inContext );
+#endif
+	cHandler-> Release ( );
+
+	return dcResult;
+}
+
+#if !defined(WKA_USE_UNIFIED_DBG)
+unsigned short* VJSWDebugger::EscapeForJSON ( const unsigned short* inString, int inSize, int & outSize )
+{
+	VString				vstrInput;
+	vstrInput. AppendBlock ( inString, inSize * sizeof ( unsigned short ), VTC_UTF_16 );
+
+	VString				vstrOutput;
+	vstrInput. GetJSONString ( vstrOutput );
+
+	outSize = vstrOutput. GetLength ( );
+	unsigned short*		szusResult = new unsigned short [ outSize + 1 ];
+	vstrOutput. ToBlock ( szusResult, ( outSize + 1 ) * sizeof ( unsigned short ), VTC_UTF_16, true, false );
+
+	return szusResult;
+}
+#else
+
+WAKDebuggerUCharPtr_t VJSWDebugger::EscapeForJSON( const unsigned char* inString, int inSize, int& outSize )
+{
+	VString				vstrInput;
+	vstrInput.AppendBlock( inString, 2*inSize, VTC_UTF_16 );
+
+	VString				vstrOutput;
+	vstrInput.GetJSONString( vstrOutput );
+
+	outSize = vstrOutput.GetLength();
+	WAKDebuggerUCharPtr_t	l_res = new unsigned char[2*(outSize + 1)];
+	vstrOutput.ToBlock( l_res, 2*(outSize + 1), VTC_UTF_16, true, false );
+
+	return l_res;
+}
+
+void VJSWDebugger::DisposeUCharPtr( WAKDebuggerUCharPtr_t inUCharPtr )
+{
+	if (inUCharPtr)
+	{
+		delete [] inUCharPtr;
+	}
+}
+
+void* VJSWDebugger::UStringToVString( const void* inString, int inSize )
+{
+	xbox_assert(false);//should not be used in this dbg srv
+	return NULL;
+}
+
+#endif
+
+
+VError VJSWDebugger::AddHandler ( VJSWConnectionHandler* inHandler )
+{
+	xbox_assert ( inHandler != 0 );
+	if ( inHandler == 0 )
+		return VE_INVALID_PARAMETER;
+
+	fHandlersLock. Lock ( );
+		inHandler-> Retain ( );
+		fHandlers. push_back ( inHandler );
+		if ( fSettings != 0 )
+			inHandler-> SetSettings ( fSettings );
+	fHandlersLock. Unlock ( );
+
+	return VE_OK;
+}
+
+#if !defined(WKA_USE_UNIFIED_DBG)
 
 int VJSWDebugger::SendContextCreated ( uintptr_t inContext )
 {
@@ -324,185 +718,92 @@ int VJSWDebugger::SendContextDestroyed ( uintptr_t inContext )
 	return nResult;
 }
 
-void VJSWDebugger::Reset ( )
+#else
+WAKDebuggerContext_t VJSWDebugger::AddContext( uintptr_t inContext  )
 {
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler();
 	if ( cHandler == 0 )
-		return;
+		return NULL;
 
-	cHandler-> Reset ( );
-	cHandler-> Release ( );
+	int		nResult = cHandler->SendContextCreated( inContext );
+	cHandler->Release();
+
+	if (!nResult)
+	{
+		return (WAKDebuggerContext_t)inContext;
+	}
+	return NULL;
 }
 
-IJSWDebuggerCommand* VJSWDebugger::WaitForClientCommand ( uintptr_t inContext )
+bool VJSWDebugger::RemoveContext( WAKDebuggerContext_t inContext )
 {
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
-
-	IJSWDebuggerCommand*		dcResult = cHandler-> WaitForClientCommand ( inContext );
-	cHandler-> Release ( );
-
-	return dcResult;
-}
-
-void VJSWDebugger::WakeUpAllWaiters ( )
-{
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return;
-
-	cHandler-> WakeUpAllWaiters ( );
-	cHandler-> Release ( );
-}
-
-IJSWDebuggerCommand* VJSWDebugger::GetNextBreakPointCommand ( )
-{
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
+	VJSWConnectionHandler*		cHandler = _RetainFirstHandler();
 	if ( cHandler == 0 )
 		return 0;
 
-	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextBreakPointCommand ( );
-	cHandler-> Release ( );
+	int		nResult = cHandler->SendContextDestroyed( (uintptr_t)inContext );
+	cHandler->Release();
 
-	return dcResult;
+	return (nResult == 0);
 }
 
-IJSWDebuggerCommand* VJSWDebugger::GetNextSuspendCommand ( uintptr_t inContext )
+WAKDebuggerType_t VJSWDebugger::GetType()
 {
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
-
-	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextSuspendCommand ( inContext );
-	cHandler-> Release ( );
-
-	return dcResult;
+	return REGULAR_DBG_TYPE;
 }
-
-IJSWDebuggerCommand* VJSWDebugger::GetNextAbortScriptCommand ( uintptr_t inContext )
+bool VJSWDebugger::Lock()
 {
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
+	bool	l_res;
 
-	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextAbortScriptCommand ( inContext );
-	cHandler-> Release ( );
+	l_res = sDbgLock.Lock();
 
-	return dcResult;
+	xbox_assert(l_res);
+	return l_res;
 }
-
-char* VJSWDebugger::GetRelativeSourcePath (
-										const unsigned short* inAbsoluteRoot, int inRootSize,
-										const unsigned short* inAbsolutePath, int inPathSize,
-										int& outSize )
+bool VJSWDebugger::Unlock()
 {
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
+	bool	l_res;
 
-	char*		szchResult = cHandler-> GetRelativeSourcePath ( inAbsoluteRoot, inRootSize, inAbsolutePath, inPathSize, outSize );
-	cHandler-> Release ( );
+	l_res = sDbgLock.Unlock();
 
-	return szchResult;
+	xbox_assert(l_res);
+	return l_res;
 }
 
-char* VJSWDebugger::GetAbsolutePath (
-									const unsigned short* inAbsoluteRoot, int inRootSize,
-									const unsigned short* inRelativePath, int inPathSize,
-									int& outSize )
+#endif
+
+
+#if 0
+IJSWDebugger* JSWDebuggerFactory::Get ( )
 {
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
-
-	char*		szchResult = cHandler-> GetAbsolutePath ( inAbsoluteRoot, inRootSize, inRelativePath, inPathSize, outSize );
-	cHandler-> Release ( );
-
-	return szchResult;
+	return VJSWDebugger::Get ( );
 }
 
-unsigned short* VJSWDebugger::EscapeForJSON ( const unsigned short* inString, int inSize, int & outSize )
+#else
+IWAKDebuggerServer* JSWDebuggerFactory::Get()
 {
-	VString				vstrInput;
-	vstrInput. AppendBlock ( inString, inSize * sizeof ( unsigned short ), VTC_UTF_16 );
-
-	VString				vstrOutput;
-	vstrInput. GetJSONString ( vstrOutput );
-
-	outSize = vstrOutput. GetLength ( );
-	unsigned short*		szusResult = new unsigned short [ outSize + 1 ];
-	vstrOutput. ToBlock ( szusResult, ( outSize + 1 ) * sizeof ( unsigned short ), VTC_UTF_16, true, false );
-
-	return szusResult;
+	return VJSWDebugger::Get();
 }
 
-long long VJSWDebugger::GetMilliseconds ( )
+IWAKDebuggerServer* JSWDebuggerFactory::GetChromeDebugHandler()
 {
-	return VSystem::GetCurrentTime ( );
+	return VChromeDebugHandler::Get();
 }
 
-VJSWConnectionHandler* VJSWDebugger::_RetainFirstHandler ( )
+IWAKDebuggerServer* JSWDebuggerFactory::GetChromeDebugHandler(
+		const XBOX::VString inIP,
+		uLONG				inPort,
+		const XBOX::VString inDebuggerHTMLSkeleton,
+		const XBOX::VString inTracesHTMLSkeleton)
 {
-	VJSWConnectionHandler*		cHandler = 0;
-
-	fHandlersLock. Lock ( );
-
-		std::vector<VJSWConnectionHandler*>::iterator	iter = fHandlers. begin ( );
-		while ( iter != fHandlers. end ( ) )
-		{
-			if ( ( *iter )-> IsHandling ( ) )
-			{
-				cHandler = *iter;
-				cHandler-> Retain ( );
-
-				break;
-			}
-			else if ( ( *iter )-> IsDone ( ) )
-			{
-				( *iter )-> Release ( );
-				iter = fHandlers. erase ( iter );
-			}
-		}
-
-	fHandlersLock. Unlock ( );
-
-	return cHandler;
+#if defined(WKA_USE_UNIFIED_DBG)
+	return VChromeDebugHandler::Get(inIP,inPort,inDebuggerHTMLSkeleton,inTracesHTMLSkeleton);
+#else
+	return NULL;
+#endif
 }
 
-VError VJSWDebugger::AddHandler ( VJSWConnectionHandler* inHandler )
-{
-	xbox_assert ( inHandler != 0 );
-	if ( inHandler == 0 )
-		return VE_INVALID_PARAMETER;
-
-	fHandlersLock. Lock ( );
-		inHandler-> Retain ( );
-		fHandlers. push_back ( inHandler );
-		if ( fSettings != 0 )
-			inHandler-> SetSettings ( fSettings );
-	fHandlersLock. Unlock ( );
-
-	return VE_OK;
-}
-
-VError VJSWDebugger::RemoveAllHandlers ( )
-{
-	fHandlersLock. Lock ( );
-
-		std::vector<VJSWConnectionHandler*>::iterator	iter = fHandlers. begin ( );
-		while ( iter != fHandlers. end ( ) )
-		{
-			( *iter )-> Release ( );
-
-			iter++;
-		}
-		fHandlers. clear ( );
-
-	fHandlersLock. Unlock ( );
-
-	return VE_OK;
-}
+#endif
 
 
 /*VJSWContextRunTimeInfo::VJSWContextRunTimeInfo ( uintptr_t inContext ) :

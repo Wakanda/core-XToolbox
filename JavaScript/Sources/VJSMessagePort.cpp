@@ -32,14 +32,14 @@ VJSMessagePort *VJSMessagePort::Create (VJSWorker *inOutsideWorker, VJSWorker *i
 
 	VJSMessagePort	*messagePort	= new VJSMessagePort();
 
-	messagePort->Retain();
-
-	messagePort->fOutsideWorker = inOutsideWorker;	
-	messagePort->fInsideWorker = inInsideWorker;
+	messagePort->fOutsideWorker = XBOX::RetainRefCountable<VJSWorker>(inOutsideWorker);
+	messagePort->fInsideWorker = XBOX::RetainRefCountable<VJSWorker>(inInsideWorker);
 
 	inOutsideWorker->AddMessagePort(messagePort);
 	inInsideWorker->AddMessagePort(messagePort);
 		
+	messagePort->Retain();
+
 	return messagePort;
 }
 
@@ -52,55 +52,42 @@ VJSMessagePort *VJSMessagePort::Create (VJSWorker *inWorker, XBOX::VJSObject &in
 	messagePort->fOutsideWorker = NULL;
 	messagePort->fOutsideClosingFlag = true;
 
-	messagePort->fInsideWorker = inWorker;
+	messagePort->fInsideWorker = XBOX::RetainRefCountable<VJSWorker>(inWorker);
 	messagePort->fInsideObject = inObject.GetObjectRef();
 	messagePort->fInsideCallbackName = inCallbackName;
 
 	inWorker->AddMessagePort(messagePort);
+
+	messagePort->Retain();
 
 	return messagePort;
 }
 
 void VJSMessagePort::Close (VJSWorker *inWorker)
 {
-	xbox_assert(inWorker != NULL && (inWorker == fOutsideWorker || inWorker == fInsideWorker));
+	xbox_assert(inWorker != NULL);
+	xbox_assert(inWorker == fOutsideWorker || inWorker == fInsideWorker);
 	xbox_assert((inWorker == fOutsideWorker && !fOutsideClosingFlag) || (inWorker == fInsideWorker && !fInsideClosingFlag));
 
-	if (inWorker == fOutsideWorker)
+	if (fOutsideWorker == NULL && fInsideWorker == NULL)
 
+		return;
+
+	if (inWorker == fOutsideWorker) {	 
+
+		XBOX::ReleaseRefCountable<VJSWorker>(&fOutsideWorker);
 		fOutsideClosingFlag = true;
 
-	else
+	} else {
 		
+		XBOX::ReleaseRefCountable<VJSWorker>(&fInsideWorker);
 		fInsideClosingFlag = true;
 
-	inWorker->RemoveMessagePort(this);
-
-	Release();
-}
-
-void VJSMessagePort::CloseAll (VJSWorker *inWorker, std::list<VJSMessagePort *> *ioMessagePorts)
-{
-	xbox_assert(inWorker != NULL && ioMessagePorts != NULL);
-
-	std::list<VJSMessagePort *>::iterator	i;
-
-	for (i = ioMessagePorts->begin(); i != ioMessagePorts->end(); i++) {
-
-		xbox_assert((inWorker == (*i)->fOutsideWorker && !(*i)->fOutsideClosingFlag) || (inWorker == (*i)->fInsideWorker && !(*i)->fInsideClosingFlag));
-
-		if (inWorker == (*i)->fOutsideWorker)
-
-			(*i)->fOutsideClosingFlag = true;
-
-		else
-		
-			(*i)->fInsideClosingFlag = true;
-
-		(*i)->Release();
-
 	}
-	ioMessagePorts->clear();
+
+	if (fOutsideWorker == NULL && fInsideWorker == NULL)
+
+		Release();
 }
 
 bool VJSMessagePort::IsInside (VJSWorker *inWorker)
@@ -182,7 +169,13 @@ XBOX::VJSObject VJSMessagePort::GetCallback (VJSWorker *inWorker, XBOX::VJSConte
 
 void VJSMessagePort::PostMessage (VJSWorker *inTargetWorker, VJSStructuredClone *inMessage)
 {
-	xbox_assert(inTargetWorker != NULL && (inTargetWorker == fOutsideWorker || inTargetWorker == fInsideWorker));
+	// The peer can have closed the message port already. So it is allowed to have a NULL inTargetWorker (returned by GetOther()).
+
+	if (inTargetWorker == NULL)
+
+		return;
+
+	xbox_assert(inTargetWorker == fOutsideWorker || inTargetWorker == fInsideWorker);
 		
 	if ((inTargetWorker == fOutsideWorker && !fOutsideClosingFlag)
 	|| (inTargetWorker == fInsideWorker && !fInsideClosingFlag))
@@ -192,7 +185,13 @@ void VJSMessagePort::PostMessage (VJSWorker *inTargetWorker, VJSStructuredClone 
 
 void VJSMessagePort::PostError (VJSWorker *inTargetWorker, const XBOX::VString &inMessage, const XBOX::VString &inFileName, sLONG inLineNumber)
 {
-	xbox_assert(inTargetWorker != NULL && (inTargetWorker == fOutsideWorker || inTargetWorker == fInsideWorker));
+	// See comment for PostMessage().
+
+	if (inTargetWorker == NULL)
+
+		return;
+		
+	xbox_assert(inTargetWorker == fOutsideWorker || inTargetWorker == fInsideWorker);
 		
 	if ((inTargetWorker == fOutsideWorker && !fOutsideClosingFlag)
 	|| (inTargetWorker == fInsideWorker && !fInsideClosingFlag))
@@ -211,13 +210,13 @@ void VJSMessagePort::PostMessageMethod (XBOX::VJSParms_callStaticFunction &ioPar
 
 	}
 
-	VJSWorker			*worker	= VJSWorker::GetWorker(ioParms.GetContext());
-	XBOX::VJSValue		value = ioParms.GetParamValue(1);
-	VJSStructuredClone	*message;
+	VJSWorker			*worker		= VJSWorker::RetainWorker(ioParms.GetContext());
+	XBOX::VJSValue		value		= ioParms.GetParamValue(1);
+	VJSStructuredClone	*message	= VJSStructuredClone::RetainClone(value);
 			
-	message = VJSStructuredClone::RetainClone(value);
 	inMessagePort->PostMessage(inMessagePort->GetOther(worker), message);
-	message->Release();
+	XBOX::ReleaseRefCountable<VJSStructuredClone>(&message);
+	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
 }
 
 VJSMessagePort::VJSMessagePort () 

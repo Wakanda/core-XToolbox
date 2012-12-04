@@ -14,7 +14,6 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
-#include "VQuickTimeSDK.h"
 
 using namespace std;
 
@@ -32,7 +31,7 @@ void VPictureQDBridgeBase::DrawInCGContext(const VPictureData &inCaller,CGPDFDoc
 {
 	inCaller.xDraw(inPict,inContextRef,inBounds,inSet);
 }
-#if !VERSION_64BIT
+#if WITH_QUICKDRAW
 void VPictureQDBridgeBase::DrawInCGContext(const VPictureData &inCaller,xMacPictureHandle inPict,ContextRef inContextRef,const VRect& inBounds,VPictureDrawSettings* inSet)
 {
 	inCaller.xDraw(inPict,inContextRef,inBounds,inSet);
@@ -1540,7 +1539,7 @@ VPictureData* VPictureData::CreatePictureDataFromPortRef(PortRef inPortRef,const
 {
 	VPictureData *data=NULL;
 	#if VERSIONMAC 
-		#if !VERSION_64BIT
+		#if WITH_QUICKDRAW
 		data=new VPictureData_MacPicture(inPortRef,inBounds);
 		#endif
 	#else
@@ -3081,7 +3080,7 @@ VPictureData_Bitmap::VPictureData_Bitmap(VPictureDataProvider* inDataProvider,_V
 
 /*******************************************************************************/
 
-#if !VERSION_64BIT
+#if VERSIONWIN || WITH_QUICKDRAW
 VPictureData_MacPicture::VPictureData_MacPicture()
 :inherited()
 {
@@ -3920,612 +3919,6 @@ xMacPictureHandle VPictureData_MacPicture::GetPicHandle()const
 	return (xMacPictureHandle)fPicHandle;
 }
 
-Boolean VPictureData_MacPicture::HasQuicktimeData()
-{
-	Boolean result = false;
-	VPtr data=0;
-	VSize size=0;
-	
-	uWORD opcodes[2];
-	if(fDataProvider)
-	{
-		data=fDataProvider->BeginDirectAccess();
-		size=fDataProvider->GetDataSize();
-	}
-	else if(fPicHandle && GetMacAllocator())
-	{
-		GetMacAllocator()->Lock(fPicHandle);
-		data=*(char**)fPicHandle;
-		size=GetMacAllocator()->GetSize(fPicHandle);
-	}
-	if(data && size>0)
-	{
-
-		VConstPtrStream stream(data,size);
-		xMacPictParser parser(stream,false);
-		opcodes[0] = 0x8200; // quicktime opcodes
-		opcodes[1] = 0x8201;
-		if(parser.StartParsing()==VE_OK)
-		{
-			result = parser.FindOpcodes(opcodes,2);
-			parser.StopParsing();
-		}
-	}
-	if(fDataProvider)
-	{
-		fDataProvider->EndDirectAccess();
-	}
-	else if(fPicHandle && GetMacAllocator())
-	{
-		GetMacAllocator()->Unlock(fPicHandle);
-	}
-	return result;
-}
-
-
-
-xMacPictParser::xMacPictParser(VStream& pStream,Boolean pFromFile)
-:fStream(pStream)
-{
-	fFromFile=pFromFile;
-	fPictSize = -1;
-}
-
-
-xMacPictParser::~xMacPictParser()
-{
-}
-
-VError xMacPictParser::StartParsing()
-{
-	VError	result;
-
-	if(fPictSize!=-1)
-		return VE_STREAM_ALREADY_OPENED;
-	result = fStream.OpenReading();
-	if(result==VE_OK)
-	{
-		fPictSize = fStream.GetSize();
-		fStream.SetBigEndian();
-	}
-	return result;	
-}
-
-
-void xMacPictParser::StopParsing()
-{
-	if(fPictSize!=-1)
-	{
-		fStream.CloseReading();
-		fPictSize = -1;
-	}
-}
-sLONG xMacPictParser::FindOpcodeOffset(sWORD pOpcode)
-{
-	sLONG	skipsize,result;
-	uWORD opcode;
-	VError verror;
-
-	if(fPictSize==-1)
-		return -1;
-	if(fStream.GetPos()==0)
-	{
-		if(fFromFile)
-			fStream.SetPos(512 + 10); // pict file header + sizeof(Picture)
-		else
-			fStream.SetPos(10); // sizeof(Picture)
-	}
-	verror = VE_OK;
-	skipsize = 0;
-	result = -1;
-	while(verror==VE_OK && skipsize!=0xFFFFFFFF)
-	{
-		while(verror==VE_OK)
-		{
-			verror = fStream.GetWord(opcode);
-			if(verror==VE_OK)
-			{
-				if(opcode==pOpcode) 
-				{
-					result = (sLONG) (fStream.GetPos()-sizeof(sWORD));
-					break;
-				}
-				else if(opcode==0x00FF) // end of picture
-					break;
-				else
-				{
-					skipsize = GetPictOpcodeSkipSize(fStream,opcode);
-					if(skipsize==0xFFFFFFFF) // opcode nothandled
-						break;
-					verror = fStream.SetPosByOffset(skipsize);
-				}
-			}
-		}
-	}
-	return result;
-}
-
-
-Boolean xMacPictParser::FindOpcodes(uWORD* pOpcodes,sWORD pCount)
-{
-	sLONG	pictsize,skipsize;
-	sWORD i;
-	uWORD opcode;
-	VError verror;
-	Boolean result;
-
-	if(!pOpcodes || !pCount || fPictSize==-1)
-		return false;
-	if(fStream.GetPos()==0)
-	{
-		if(fFromFile)
-			fStream.SetPos(512 + 10); // pict file header + sizeof(Picture)
-		else
-			fStream.SetPos(10); // sizeof(Picture)
-	}
-	result = false;
-	pictsize = fStream.GetSize();
-	fStream.SetBigEndian();
-	if(fFromFile)
-		fStream.SetPos(512 + 10); // pict file header + sizeof(Picture)
-	else
-		fStream.SetPos(10); // sizeof(Picture)
-	verror = VE_OK;
-	skipsize = 0;
-	while(verror==VE_OK && skipsize!=0xFFFFFFFF)
-	{
-		while(verror==VE_OK)
-		{
-			verror = fStream.GetWord(opcode);
-			if(verror==VE_OK)
-			{
-				for(i=0;i<pCount;i++)
-				{
-					if(opcode==pOpcodes[i]) 
-					{
-						result = true;
-						break;
-					}
-				}
-				if(result)
-					break;
-				else if(opcode==0x00FF) // end of picture
-					break;
-				else
-				{
-					skipsize = GetPictOpcodeSkipSize(fStream,opcode);
-					if(skipsize==0xFFFFFFFF) // opcode nothandled
-						break;
-					verror = fStream.SetPosByOffset(skipsize);
-				}
-			}
-		}
-	}
-	return result;
-}
-sLONG xMacPictParser::GetPictOpcodeSkipSize(VStream& pStream,uWORD opcode)
-{
-#if !USE_QUICKTIME
-	return 0xFFFFFFFF;
-#else
-	VError	verror;
-	sLONG	charcount;
-	sBYTE	abyte;
-	sWORD	aword;
-	sLONG	along;
-	QTIME::PixMap	pixmap;
-
-	switch(opcode)
-	{
-	case 0x0017: // all this section undocumented (reserved for apple use)
-	case 0x0018:
-	case 0x0019:
-	case 0x003D:
-	case 0x003E:
-	case 0x003F:
-	case 0x004D:
-	case 0x004E:
-	case 0x004F:
-	case 0x005D:
-	case 0x005E:
-	case 0x005F:
-	case 0x00CF:
-		return 0;
-	case 0x0000: // nop
-	case 0x001C:
-	case 0x001E:
-	case 0x0038:
-	case 0x0039:
-	case 0x003A:
-	case 0x003B:
-	case 0x003C:
-	case 0x0048:
-	case 0x0049:
-	case 0x004A:
-	case 0x004B:
-	case 0x004C:
-	case 0x0058:
-	case 0x0059:
-	case 0x005A:
-	case 0x005B:
-	case 0x005C:
-	case 0x0078:
-	case 0x0079:
-	case 0x007A:
-	case 0x007B:
-	case 0x007C:
-	case 0x007D:
-	case 0x007E:
-	case 0x007F:
-	case 0x0088:
-	case 0x0089:
-	case 0x008A:
-	case 0x008B:
-	case 0x008C:
-	case 0x008D:
-	case 0x008E:
-	case 0x008F:
-		return 0;
-	case 0x0001:
-	case 0x0070:
-	case 0x0071:
-	case 0x0072:
-	case 0x0073:
-	case 0x0074:
-	case 0x0075:
-	case 0x0076:
-	case 0x0077:
-	case 0x0080:
-	case 0x0081:
-	case 0x0082:
-	case 0x0083:
-	case 0x0084:
-	case 0x0085:
-	case 0x0086:
-	case 0x0087:
-		verror = pStream.GetWord(aword);
-		if(verror!=VE_OK)
-			return 0xFFFFFFFF;
-		return aword-sizeof(sWORD);
-	case 0x0024:
-	case 0x0025:
-	case 0x0026:
-	case 0x0027:
-	case 0x002F:
-	case 0x0092:
-	case 0x0093:
-	case 0x0094:
-	case 0x0095:
-	case 0x0096:
-	case 0x0097:
-	case 0x009C:
-	case 0x009D:
-	case 0x009E:
-	case 0x009F:
-		verror = pStream.GetWord(aword);
-		if(verror!=VE_OK)
-			return 0xFFFFFFFF;
-		return aword;
-	case 0x00FF: // pict end
-		return 0xFFFFFFFF;
-	case 0x0003:
-	case 0x0004:
-	case 0x0005:
-	case 0x0008:
-	case 0x000D:
-	case 0x0015:
-	case 0x0016:
-	case 0x0023:
-	case 0x00A0:
-	case 0x0100:
-	case 0x01FF:
-		return 2;
-	
-	case 0x1100:
-	case 0x02FF:
-	case 0x0011: // version, pas de data
-		return 0; // header version, 
-	
-	case 0x0006:
-	case 0x0007:
-	case 0x000B:
-	case 0x000C:
-	case 0x000E:
-	case 0x000F:
-	case 0x0021:
-	case 0x0068:
-	case 0x0069:
-	case 0x006A:
-	case 0x006B:
-	case 0x006C:
-	case 0x006D:
-	case 0x006E:
-	case 0x006F:
-	case 0x0200:
-		return 4;
-	case 0x001A:
-	case 0x001B:
-	case 0x001D:
-	case 0x001F:
-	case 0x0022:
-		return 6;
-	case 0x0002:
-	case 0x0009:
-	case 0x000A:
-	case 0x0010:
-	case 0x0020:
-	case 0x002E:
-	case 0x0030:
-	case 0x0031:
-	case 0x0032:
-	case 0x0033:
-	case 0x0034:
-	case 0x0035:
-	case 0x0036:
-	case 0x0037:
-	case 0x0040:
-	case 0x0041:
-	case 0x0042:
-	case 0x0043:
-	case 0x0044:
-	case 0x0045:
-	case 0x0046:
-	case 0x0047:
-	case 0x0050:
-	case 0x0051:
-	case 0x0052:
-	case 0x0053:
-	case 0x0054:
-	case 0x0055:
-	case 0x0056:
-	case 0x0057:
-		return 8;
-	case 0x002D:
-		return 10;
-	case 0x0060:
-	case 0x0061:
-	case 0x0062:
-	case 0x0063:
-	case 0x0064:
-	case 0x0067:
-		return 12;
-	case 0x0BFF:
-		return 22;
-	case 0x0C01:
-		return 24;
-	case 0x7F00:
-	case 0x7FFF:
-		return 254;
-	case 0x0012: // Pixmap
-	case 0x0013:
-	case 0x0014:
-		verror = pStream.GetWord(aword);
-		if(verror!=VE_OK)
-			return 0xFFFFFFFF;
-		if(aword==2)
-			return sizeof(QTIME::Pattern)+sizeof(QTIME::RGBColor);
-		else
-		{
-			verror = pStream.SetPosByOffset(8); // skip Pattern
-			if(verror!=VE_OK)
-				return 0xFFFFFFFF;
-			// read PixMap
-			verror = pStream.GetLong((sLONG&)pixmap.baseAddr);
-			charcount = 7;
-			verror = pStream.GetWords(&pixmap.rowBytes,&charcount); // rowbytes + rect + pmversion + packtype
-			charcount = 3;
-			verror = pStream.GetLongs(&pixmap.packSize,&charcount); // packsize + hres + vres
-			charcount = 4;
-			verror = pStream.GetWords(&pixmap.pixelType,&charcount); // pixeltype +pixelsize + cmpcount + cmpsize
-			charcount = 3;
-
-			verror = pStream.GetLongs(&pixmap.pixelFormat, &charcount); 	// pixelFormat + pmTable + pmExt
-
-			if(verror!=VE_OK)
-				return 0xFFFFFFFF;
-			verror = pStream.SetPosByOffset(sizeof(sLONG)+sizeof(sWORD)); // run to ctab size
-			if(verror!=VE_OK)
-				return 0xFFFFFFFF;
-			verror = pStream.GetWord(aword);
-			if(verror!=VE_OK)
-				return 0xFFFFFFFF;
-			verror = pStream.SetPosByOffset((aword+1)*sizeof(QTIME::ColorSpec)); // skip cspec array
-			if(verror!=VE_OK)
-				return 0xFFFFFFFF;
-			pixmap.rowBytes &= 0x7FFF;
-			if(pixmap.rowBytes<8)
-				return pixmap.rowBytes*(pixmap.bounds.bottom-pixmap.bounds.top);
-			else if(pixmap.rowBytes<=250)
-			{
-				charcount = 1;
-				while(verror==VE_OK && pixmap.bounds.bottom>pixmap.bounds.top++)
-				{
-					verror = pStream.GetByte(abyte);
-					verror = pStream.SetPosByOffset(abyte); // skip scan line
-				}
-			}
-			else
-			{
-				charcount = 2;
-				while(pixmap.bounds.bottom>pixmap.bounds.top++)
-				{
-					verror = pStream.GetWord(aword);
-					verror = pStream.SetPosByOffset(aword); // skip scan line
-				}
-			}
-			if(verror!=VE_OK)
-				return 0xFFFFFFFF;
-			else
-				return 0;
-		}
-		break;
-	case 0x0028:
-	case 0x002B:
-	case 0x0029:
-	case 0x002A:
-	case 0x002C:
-		switch(opcode)
-		{
-		case 0x0028:
-			verror = pStream.SetPosByOffset(4);
-			break;
-		case 0x0029:
-		case 0x002A:
-			verror = pStream.SetPosByOffset(1);// dh or dv
-			break;
-		case 0x002B:
-			verror = pStream.SetPosByOffset(2);// dh + dv
-			break;
-		case 0x002C:
-			verror = pStream.SetPosByOffset(4);
-			break;
-		}
-		verror = pStream.GetByte(abyte);
-		aword = abyte+1;
-		return aword & 0x01FE; // to be even
-	case 0x0090:
-	case 0x0091:
-		return 0xFFFFFFFF; // TBD
-	case 0x0098:
-		{
-			sLONG offset, i;
-			sWORD rowbyte, height, width, bitperpixel, colcount, packsize;
-
-			rowbyte = (pStream.GetWord() & 0x7FFF); // get row byte
-			offset = sizeof(sWORD)*2;
-			pStream.SetPosByOffset(offset);
-			height = pStream.GetWord(); // get picture height
-			width = pStream.GetWord(); // get picture width
-			offset = sizeof(sWORD)*2 + sizeof(sLONG)*2 + sizeof(sWORD)*3;
-			pStream.SetPosByOffset(offset);
-			bitperpixel = pStream.GetWord(); // get bits number per pixels
-			offset = sizeof(sLONG)*5 + sizeof(sWORD);
-			pStream.SetPosByOffset(offset);
-			colcount = pStream.GetWord() + 1; // get color count
-			offset = sizeof(sWORD)*4*colcount; // skip color table
-			offset += sizeof(sWORD)*4; // skip source rect
-			offset += sizeof(sWORD)*4; // skip dest rect
-			offset += sizeof(sWORD); // skip transfert mode
-			pStream.SetPosByOffset(offset);
-			if(rowbyte < 8)
-			{
-				pStream.SetPosByOffset(height*rowbyte);
-			}
-			else
-			{
-				for( i = 0 ; i < height ; i++ )
-				{
-					if(rowbyte <= 250)
-						packsize = (uBYTE)pStream.GetByte();
-					else
-						packsize = pStream.GetWord();
-
-					pStream.SetPosByOffset(packsize);
-				}
-			}
-			if(pStream.GetLastError() == VE_OK)
-			{
-				uLONG8 pos = pStream.GetPos();
-				offset = (pos & 1) ? 1 : 0;
-			}
-			else
-				offset = 0xFFFFFFFF;
-
-			return (offset);
-		}
-	case 0x0099:
-		return 0xFFFFFFFF; // TBD
-	case 0x009A:
-		{
-			sLONG i, offset;
-			sWORD rowbyte, height, width, packtype, packsize;
-
-			offset = sizeof(sLONG);
-			pStream.SetPosByOffset(offset); // skip base adr
-			rowbyte = (pStream.GetWord() & 0x7FFF); // get rowbyte
-			offset = sizeof(sWORD)*2;
-			pStream.SetPosByOffset(offset);
-			height = pStream.GetWord(); // get picture height
-			width = pStream.GetWord(); // get picture width
-			offset = sizeof(sWORD);
-			pStream.SetPosByOffset(offset);
-			packtype = pStream.GetWord();	// get packtype
-			// packtype = 1 -> 16 bits per pixels (no packing)
-			// packtype = 4 -> 24 or 32 bits per pixels
-			offset = sizeof(sLONG)*3 + sizeof(sWORD)*4 + sizeof(sLONG)*3 + sizeof(sWORD)*9;
-			pStream.SetPosByOffset(offset);
-			if(packtype == 1) // no packing
-			{
-				offset = sizeof(sWORD)*width*height;
-				pStream.SetPosByOffset(offset);
-				if(pStream.GetLastError() == VE_OK)
-				{
-					uLONG8 pos = pStream.GetPos();
-					offset = (pos & 1) ? 1 : 0;
-				}
-				else
-					offset = 0xFFFFFFFF;
-			}
-			else if(packtype == 4)
-			{
-				for( i = 0 ; i < height ; i++ )
-				{
-					if(rowbyte > 250)
-						packsize = pStream.GetWord();
-					else
-						packsize = (uBYTE)pStream.GetByte();
-
-					pStream.SetPosByOffset(packsize);
-				}
-				if(pStream.GetLastError() == VE_OK)
-				{
-					uLONG8 pos = pStream.GetPos();
-					offset = (pos & 1) ? 1 : 0;
-				}
-				else
-					offset = 0xFFFFFFFF;
-			}
-			else
-			{
-				offset = 0xFFFFFFFF;
-			}
-			return (offset);
-		}
-	case 0x009B:
-		return 0xFFFFFFFF; // TBD
-	case 0x00A1:
-		verror = pStream.SetPosByOffset(2); // skip kind
-		verror = pStream.GetWord(aword);
-		if(verror!=VE_OK)
-			return 0xFFFFFFFF;
-		return aword;
-	case 0x00A2:
-	case 0x00AF:
-		verror = pStream.GetWord(aword);
-		if(verror!=VE_OK)
-			return 0xFFFFFFFF;
-		return aword;
-	case 0x0B00:
-	case 0x8000:
-	case 0x80FF:
-		return 0;
-	case 0x00D0:
-	case 0x00FE:
-	case 0x8100:
-	case 0x8201:
-	case 0xFFFF:
-		verror = pStream.GetLong(along);
-		if(verror!=VE_OK)
-			return 0xFFFFFFFF;
-		return along;
-	case 0x0C00: // header
-		return 24;
-	default:
-		return 0xFFFFFFFF;
-	}
-#endif
-}
-
 #endif // end version 64 bit
 
 bool VPictureData::MapPoint(XBOX::VPoint& ioPoint, const XBOX::VRect& inDisplayRect,VPictureDrawSettings* inSet) const
@@ -5264,7 +4657,7 @@ void VPictureData::xDraw(HENHMETAFILE inPict,PortRef inPortRef,const VRect& inBo
 
 #if VERSIONMAC
 
-#if !VERSION_64BIT
+#if WITH_QUICKDRAW
 
 void VPictureData::xDraw(QDPictRef inPict,CGContextRef inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
 {
@@ -5556,6 +4949,10 @@ void VPictureData::xDraw(CGPDFDocumentRef  inPict,CGContextRef inDC,const VRect&
 			}
 		}
 		
+		page=CGPDFDocumentGetPage (inPict,1);
+		CGRect docre={{0,0},{GetWidth(),GetHeight()}};
+		CGAffineTransform doctransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox,docre,0,false);
+		
 		if(set.GetScaleMode()!=PM_TILE)
 		{
 			page=CGPDFDocumentGetPage (inPict,1);
@@ -5564,7 +4961,11 @@ void VPictureData::xDraw(CGPDFDocumentRef  inPict,CGContextRef inDC,const VRect&
 		
 			finalmat.ToNativeMatrix(affine);
 			CGContextConcatCTM(inDC,affine);
+			
+			CGContextConcatCTM(inDC,doctransform);
+			
 			CGContextDrawPDFPage(inDC,page);
+
 		}
 		else
 		{
@@ -5581,16 +4982,23 @@ void VPictureData::xDraw(CGPDFDocumentRef  inPict,CGContextRef inDC,const VRect&
 					nbx = (inBounds.GetWidth()/w) + (1 * ( (long)inBounds.GetWidth() % w !=0));
 					nby = (inBounds.GetHeight()/h) + (1 * ((long)inBounds.GetHeight()% h !=0));
 					
-									
+					CGAffineTransform inverse_doctransform=CGAffineTransformInvert(doctransform);
+													
 					for(curx = 0;curx < nbx; curx++)
 					{
 						for(cury = 0;cury < nby; cury++)
 						{
 							finalmat.ToNativeMatrix(affine);
 							CGContextConcatCTM(inDC,affine);
-							CGContextDrawPDFDocument(inDC,vr,inPict,1);
+							CGContextConcatCTM(inDC,doctransform);
+							
+							CGContextDrawPDFPage(inDC,page);
+							
+							CGContextConcatCTM(inDC,inverse_doctransform);
+							
 							inverse=CGAffineTransformInvert(affine);
 							CGContextConcatCTM(inDC,inverse);
+							
 							finalmat.Translate(0,-h,VAffineTransform::MatrixOrderAppend);
 						}
 						finalmat.Translate(w,(h*nby),VAffineTransform::MatrixOrderAppend);
@@ -5705,7 +5113,7 @@ void VPictureData::xDraw(CGPDFDocumentRef inPict,PortRef inPortRef,const VRect& 
 	}
 }
 
-#if !VERSION_64BIT
+#if WITH_QUICKDRAW
 
 void VPictureData::xDraw(xMacPictureHandle inPict,CGContextRef inDC,const VRect& r,VPictureDrawSettings* inSet)const
 {
@@ -5732,7 +5140,7 @@ void VPictureData::xDraw(xMacPictureHandle inPict,CGContextRef inDC,const VRect&
 #endif
 
 
-#if ((VERSIONMAC && !VERSION_64BIT))
+#if WITH_QUICKDRAW
 void VPictureData::xDraw(xMacPicture** inPict,PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet)const
 {
 	
@@ -5743,27 +5151,6 @@ void VPictureData::xDraw(xMacPicture** inPict,PortRef inPortRef,const VRect& inB
 }
 #else
 
-#endif
-
-#if USE_QUICKTIME
-#if VERSIONMAC
-void VPictureData::xDraw(QTInstanceRef inPict,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet)const
-{
-	if(inPict)
-	{
-		Rect bounds;
-		r.MAC_ToQDRect(bounds);
-		::GraphicsImportSetBoundsRect(inPict,&bounds);
-		::GraphicsImportSetGWorld(inPict,inPortRef,NULL);
-		::GraphicsImportSetGraphicsMode( inPict,graphicsModeStraightAlpha,	NULL );
-		::GraphicsImportDraw(inPict);
-	}
-}
-#else
-void VPictureData::xDraw(QTInstanceRef ,PortRef inPortRef ,const VRect& ,VPictureDrawSettings* )const
-{
-}
-#endif
 #endif
 
 VPictureData_NonRenderable::VPictureData_NonRenderable()
@@ -5807,12 +5194,8 @@ VPictureData_Meta::VPictureData_Meta(VPictureDataProvider* inDataProvider,_VPict
 	fRecorder=inRecorder;
 	if(fRecorder)
 		fRecorder->Retain();
-	_Load();
-	if(fRecorder)
-	{
-		fRecorder->Release();
-		fRecorder=0;
-	}
+	else
+		fRecorder=new _VPictureAccumulator();
 }
 
 VPictureData_Meta::VPictureData_Meta(class VPicture* inPict1,class VPicture* inPict2,sLONG op)
@@ -5836,6 +5219,7 @@ VPictureData_Meta::~VPictureData_Meta()
 		delete fPicture1;
 	if(fPicture2)
 		delete fPicture2;
+	ReleaseRefCountable(&fRecorder);
 }
 VPictureData* VPictureData_Meta::Clone()const
 {
@@ -5960,6 +5344,87 @@ bool VPictureData_Meta::_PrepareDraw(const VRect& inRect,VPictureDrawSettings* i
 	return false;
 }
 
+bool VPictureData_Meta::FindDeprecatedPictureData(bool inLookForMacPicture,bool inLookForQuicktimeCodec)const
+{
+	const VPictureData_Meta* meta=NULL;
+	const VPictureData* pdata=NULL;
+	bool result=false;
+	
+	_Load();
+
+	if(fPicture1)
+	{
+		meta=(const VPictureData_Meta*)fPicture1->RetainPictDataByIdentifier(sCodec_4dmeta);
+		if(meta)
+		{
+			result=meta->FindDeprecatedPictureData(inLookForMacPicture,inLookForQuicktimeCodec);
+			ReleaseRefCountable(&meta);
+		}
+		else
+		{
+			if(inLookForMacPicture)
+			{
+				pdata = fPicture1->RetainPictDataByIdentifier(sCodec_pict);
+				result= pdata!=NULL;
+				ReleaseRefCountable(&pdata);
+			}
+			if(!result && inLookForQuicktimeCodec)
+			{
+				pdata = fPicture1->RetainPictDataForDisplay();
+				if(pdata)
+				{
+					const XBOX::VPictureCodec* codec = pdata->RetainDecoder();
+					if(codec)
+					{
+						VPictureCodecFactoryRef fact;
+
+						result = fact->IsQuicktimeCodec(codec);
+		
+						XBOX::ReleaseRefCountable(&codec);
+					}
+					pdata->Release();
+				}
+			}
+		}
+	}
+	if(fPicture2 && !result)
+	{
+		meta=(const VPictureData_Meta*)fPicture2->RetainPictDataByIdentifier(sCodec_4dmeta);
+		if(meta)
+		{
+			result=meta->FindDeprecatedPictureData(inLookForMacPicture,inLookForQuicktimeCodec);
+			ReleaseRefCountable(&meta);
+		}
+		else
+		{
+			if(inLookForMacPicture)
+			{
+				pdata = fPicture2->RetainPictDataByIdentifier(sCodec_pict);
+				result= pdata!=NULL;
+				ReleaseRefCountable(&pdata);
+			}
+			if(!result && inLookForQuicktimeCodec)
+			{
+				pdata = fPicture2->RetainPictDataForDisplay();
+				if(pdata)
+				{
+					const XBOX::VPictureCodec* codec = pdata->RetainDecoder();
+					if(codec)
+					{
+						VPictureCodecFactoryRef fact;
+
+						result = fact->IsQuicktimeCodec(codec);
+		
+						XBOX::ReleaseRefCountable(&codec);
+					}
+					pdata->Release();
+				}
+			}
+		}
+	}
+	return result;
+}
+
 void VPictureData_Meta::DrawInPortRef(PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet)const
 {
 	//_HDC_RightToLeft_SaverSetter rtlsetter(inDC,*inSet);
@@ -5970,6 +5435,8 @@ void VPictureData_Meta::DrawInPortRef(PortRef inPortRef,const VRect& inBounds,VP
 	VPictureDrawSettings set1;
 	VPictureDrawSettings set2;
 	
+	_Load();
+
 	if(_PrepareDraw(inBounds,inSet,dst1,dst2,set1,set2))
 	{
 		VPictureDrawSettings set(inSet);
@@ -6040,6 +5507,9 @@ void VPictureData_Meta::DrawInD2DGraphicContext(VWinD2DGraphicContext* inDC,cons
 	VRect dst2(0,0,0,0);
 	VPictureDrawSettings set1;
 	VPictureDrawSettings set2;
+	
+	_Load();
+	
 	if(_PrepareDraw(inBounds,inSet,dst1,dst2,set1,set2))
 	{
 		VPictureDrawSettings set(*inSet);
@@ -6115,6 +5585,9 @@ void VPictureData_Meta::DrawInCGContext(CGContextRef inDC,const VRect& inBounds,
 	VRect dst2(0,0,0,0);
 	VPictureDrawSettings set1;
 	VPictureDrawSettings set2;
+
+	_Load();
+
 	if(_PrepareDraw(inBounds,inSet,dst1,dst2,set1,set2))
 	{
 		VPictureDrawSettings set(*inSet);
@@ -6252,6 +5725,7 @@ void VPictureData_Meta::_DoLoad()const
 						VPictureDataStream st1(ds1);
 						fPicture1=new VPicture(&st1,fRecorder);
 						ds1->Release();
+						fPicture1->GetWidth(); // pour forcer le chargement
 					}
 					else
 						fPicture1=new VPicture();
@@ -6261,6 +5735,7 @@ void VPictureData_Meta::_DoLoad()const
 						VPictureDataStream st2(ds2);
 						fPicture2=new VPicture(&st2,fRecorder);
 						ds2->Release();
+						fPicture2->GetWidth(); // pour forcer le chargement
 					}
 					else
 						fPicture2=new VPicture();
@@ -6276,6 +5751,7 @@ void VPictureData_Meta::_DoLoad()const
 			fDataProvider->EndDirectAccess();
 		}
 	}
+	ReleaseRefCountable(&fRecorder);
 }
 void VPictureData_Meta::_DoReset()const
 {

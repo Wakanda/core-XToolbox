@@ -31,15 +31,15 @@
 #include "KernelIPC/Sources/VKernelIPCErrors.h"
 
 // Components Headers
+#include "KernelIPC/Sources/CComponent.h"
 #include "KernelIPC/Sources/VComponentManager.h"
 #include "KernelIPC/Sources/VComponentLibrary.h"
 #include "KernelIPC/Sources/VComponentImp.h"
 #include "KernelIPC/Sources/CPlugin.h"
 #include "KernelIPC/Sources/VPluginImp.h"
 
-// Processes & Libraries Headers
+// Processes Headers
 #include "KernelIPC/Sources/VDaemon.h"
-#include "KernelIPC/Sources/VLibrary.h"
 #include "KernelIPC/Sources/VEnvironmentVariables.h"
 #include "KernelIPC/Sources/VProcessLauncher.h"
 

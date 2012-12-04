@@ -18,6 +18,10 @@
 
 #include "JS4D.h"
 
+#define WKA_PROVIDES_UNIFIED_DBG
+
+class IWAKDebuggerServer;
+
 BEGIN_TOOLBOX_NAMESPACE
 
 class VJSGlobalObject;
@@ -56,6 +60,11 @@ class XTOOLBOX_API VJSContext : public XBOX::VObject
 {
 friend class VJSParms_withContext;
 public:
+
+			// Key to retrieve URL of the currently executing script file, a VFilePath.
+
+			static const uLONG				kURLSpecificKey	= ('J' << 24) | ('U' << 16) | ('R' << 8) | 'L'; 
+
 											VJSContext( JS4D::ContextRef inContext):fContext( inContext),fGlobalContext(NULL),fDebuggerAllowed(true)		{}
 											VJSContext( const VJSContext& inOther):fContext( inOther.fContext),fGlobalContext(NULL),fDebuggerAllowed(true)	{}
 											VJSContext( const VJSGlobalContext *inGlobalContext);
@@ -63,6 +72,10 @@ public:
 
 			// evaluates some script an optionnally returns the result (outResult may be NULL) and the exception (outException may be NULL).
 			// return true if no exception occured.
+	
+			// At each EvaluateScript(), the path of the currently executing script is stored as a "specific" in the global object. After evaluation is over, 
+			// previous path (if any) is restored, hence recursive calling of EvaluateScript() is supported.
+	
 			bool							EvaluateScript( VFile *inFile, VJSValue *outResult, JS4D::ExceptionRef *outException, VJSObject* inThisObject = NULL) const;
 			bool							EvaluateScript( const VString& inScript, const VURL *inSource, VJSValue *outResult, JS4D::ExceptionRef *outException, VJSObject* inThisObject = NULL) const;
 			
@@ -105,6 +118,7 @@ class XTOOLBOX_API VJSGlobalContext : public XBOX::VObject, public XBOX::IRefCou
 {
 public:
 	static	VJSGlobalContext*				Create( IJSRuntimeDelegate *inRuntimeDelegate);
+	static	VJSGlobalContext*				Create( IJSRuntimeDelegate *inRuntimeDelegate, JS4D::ClassRef inGlobalClassRef);
 
 			// evaluates some script in global context and throw an xbox VError if a javascript exception occured.
 			// you should not uses these if being called from inside some javascript code (prefer VJSContext variants instead)
@@ -117,13 +131,14 @@ public:
 			// root of the current solution. Source root is used by the debugger to sync file paths between the debug server and
 			// debug client - they both use JS file paths relative to a given source root.
 	static	void							SetSourcesRoot ( const VFolder & inRootFolder );
-#if defined(WKA_USE_CHR_REM_DBG)
-//#error "GH!!!"
-	static	void							SetChrmDebuggerServer( IJSWChrmDebugger* inDebuggerServer );
-#else
+
+#if 0//!defined(WKA_USE_UNIFIED_DBG)
 	static	void							SetDebuggerServer ( IJSWDebugger* inDebuggerServer );
-//#error GH
+#else
+	static	void							SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer );
+	static	IWAKDebuggerServer*				GetDebuggerServer( );
 #endif
+
 			// Returns true if debugger is currently paused on either breakpoint or an exception, false otherwise.
 	static	bool							IsDebuggerPaused ( );
 
@@ -146,13 +161,14 @@ public:
 
 private:
 
-											VJSGlobalContext( JS4D::GlobalContextRef inGlobalContext):fContext( inGlobalContext)	{;}
+											VJSGlobalContext( JS4D::GlobalContextRef inGlobalContext):fContext( inGlobalContext) {;}
 											~VJSGlobalContext();
 
 											VJSGlobalContext( const VJSGlobalContext&);	// forbidden
 											VJSGlobalContext& operator=( const VJSGlobalContext&);	// forbidden
 
-			JS4D::GlobalContextRef			fContext;
+	JS4D::GlobalContextRef					fContext;
+	static IWAKDebuggerServer*				sWAKDebuggerServer;//also stored here, not to modify JSC API
 };
 
 

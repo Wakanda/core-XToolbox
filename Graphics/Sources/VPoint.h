@@ -16,9 +16,6 @@
 #ifndef __VPoint__
 #define __VPoint__
 
-#include "KernelIPC/VKernelIPC.h"
-#include "Graphics/Sources/VGraphicsTypes.h"
-
 BEGIN_TOOLBOX_NAMESPACE
 
 // Class types
@@ -133,7 +130,24 @@ public:
 	}
 	
 	GReal	GetLength () const { return (GReal) sqrt(x * x + y * y); };
+
 	void	Normalize() {GReal l = GetLength();if (l!=0){x/=l;y/=l;}}
+
+	void	NormalizeToInt( bool inStickOriginToNearestInteger = false)
+	{
+		// sc 04/04/2012, from VRect::NormalizeToInt()
+		if (inStickOriginToNearestInteger)
+		{
+			x =  floor(x+0.5f);
+			y = floor(y+0.5f);
+		}
+		else
+		{
+			x = floor(x);
+			y = floor(y);
+		}
+	}
+
 	// Operators
 	VPointOf<T>	operator + (const VPointOf<T>& inValue) const { return VPointOf(x + inValue.x, y + inValue.y); }; 
 	VPointOf<T>	operator + (T inValue) const { return VPointOf<T>(x+inValue,y+inValue); };

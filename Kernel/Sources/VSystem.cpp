@@ -1960,7 +1960,7 @@ void *VSystem::VirtualAllocPhysicalMemory( VSize inNbBytes, const void *inHintAd
 	int flags = (inHintAddress == NULL) ? VM_FLAGS_ANYWHERE : VM_FLAGS_FIXED;
 	
 	kern_return_t machErr=0;
-#if !VERSION_64BIT
+#if ARCH_32
 	machErr = ::task_wire( ::mach_task_self(), true);
 #endif
 	if (machErr == 0)
@@ -1969,7 +1969,7 @@ void *VSystem::VirtualAllocPhysicalMemory( VSize inNbBytes, const void *inHintAd
 		if (machErr == 0)
 			locked = true;
 
-#if !VERSION_64BIT
+#if ARCH_32
 		int machErr2 = ::task_wire( ::mach_task_self(), false);
 		xbox_assert( machErr2 == 0);
 #endif

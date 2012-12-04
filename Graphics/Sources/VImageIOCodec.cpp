@@ -15,7 +15,6 @@
 */
 #include "VGraphicsPrecompiled.h"
 #include "VFont.h"
-#include "VQuickTimeSDK.h"
 #include "V4DPictureIncludeBase.h"
 #include "ImageMeta.h"
 

@@ -496,80 +496,6 @@ void VRegion::Union(const VRegion& inRgn)
 }
 
 
-VError VRegion::ReadFromStream(VStream* ioStream, sLONG /*inParam*/)
-{
-	assert(ioStream != NULL);
-	
-	sLONG	signature = 'Wrgn';
-	
-	sLONG	firstLong = ioStream->GetLong();
-	assert(firstLong == signature);
-	
-	if (firstLong == signature) {
-		sLONG	size = ioStream->GetLong();
-		
-		if (size == 0) {
-			SetEmpty();
-		} else {
-			_Release();
-				
-			VHandle	data = VMemory::NewHandle(size);
-			VPtr	dataPtr = VMemory::LockHandle(data);
-			
-			ioStream->GetBytes(dataPtr, &size);
-			HRGN	region = ::ExtCreateRegion(0, size, (RGNDATA*)dataPtr);
-			
-			VMemory::UnlockHandle(data);
-			VMemory::DisposeHandle(data);
-			
-			fOffset.SetX(ioStream->GetLong());
-			fOffset.SetY(ioStream->GetLong());
-			
-			_ComputeBounds();
-		}
-	}
-	
-	return ioStream->GetLastError();
-}
-
-
-VError VRegion::WriteToStream(VStream* ioStream, sLONG /*inParam*/) const
-{
-	assert(ioStream != NULL);
-	
-	if (fRegion != NULL) 
-	{
-	#if !USE_GDIPLUS
-		sLONG	rgnSize = ::GetRegionData(fRegion, sizeof(RGNDATA), 0);
-		VHandle	vHandle = VMemory::NewHandle(rgnSize);
-		VPtr	vPtr = VMemory::LockHandle(vHandle);
-		
-		rgnSize = ::GetRegionData(fRegion, rgnSize, (RGNDATA*)vPtr);
-	#else
-		sLONG	rgnSize =fRegion->GetDataSize();
-		VHandle	vHandle = VMemory::NewHandle(rgnSize);
-		VPtr	vPtr = VMemory::LockHandle(vHandle);
-		fRegion->GetData((unsigned char*)vPtr,rgnSize);
-	#endif
-		ioStream->PutLong('Wrgn');
-		ioStream->PutLong(rgnSize);
-		ioStream->PutBytes(vPtr, rgnSize);
-		ioStream->PutLong(fOffset.GetX());
-		ioStream->PutLong(fOffset.GetY());
-		
-		VMemory::UnlockHandle(vHandle);
-		VMemory::DisposeHandle(vHandle);
-	}
-	else 
-	{
-		ioStream->PutLong('Wrgn');
-		ioStream->PutLong(0);
-	}
-	
-	return ioStream->GetLastError();
-}
-
-
 VRegion::operator const RgnRef () const
 {
 #if !USE_GDIPLUS
@@ -678,6 +604,16 @@ void VRegion::_Release()
 	fRegion = NULL;
 }
 
+/** return true if region is more than a single rectangle */
+bool VRegion::IsComplex() const
+{
+	HRGN hrgn = (RgnRef)(*this);
+	RECT rect;
+	int type = ::GetRgnBox( hrgn, &rect);
+	return (type == COMPLEXREGION);
+}
+
+
 #if ENABLE_D2D
 /** get the complex path made from the internal complex region 
 @remarks
@@ -710,8 +646,11 @@ VGraphicPath *VRegion::GetComplexPath() const
 			Gdiplus::Rect *curRect = pRect;
 			for (int i = 0; i < numRect; i++, curRect++)
 			{
+				/*
 				if (i == 0)
+				*/
 					path->AddRect( VRect( curRect->GetLeft(), curRect->GetTop(), curRect->GetRight()-curRect->GetLeft(), curRect->GetBottom()-curRect->GetTop()));
+				/*
 				else
 				{
 					VGraphicPath pathRect;
@@ -721,6 +660,7 @@ VGraphicPath *VRegion::GetComplexPath() const
 
 					path->Union( pathRect);
 				}
+				*/
 			}
 			path->End();
 		}
