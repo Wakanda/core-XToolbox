@@ -139,9 +139,9 @@ void VPattern::ApplyToContext(VGraphicContext* inContext) const
 	if (inContext == NULL) return;
 	
 	//JQ 04/11/2011: oups release parent context - very important for Direct2D especially... (!!!)
-	ContextRef contextNative = inContext->_GetParentContext();
+	ContextRef contextNative = inContext->GetParentContext();
 	DoApplyPattern( contextNative, inContext->GetFillRule());
-	inContext->_ReleaseParentContext( contextNative); //do something only for GDIPlus & Direct2D impls
+	inContext->ReleaseParentContext( contextNative); //do something only for GDIPlus & Direct2D impls
 }
 
 
@@ -158,7 +158,7 @@ void VPattern::ReleaseFromContext(VGraphicContext* inContext) const
 #if VERSIONWIN	
 	xbox_assert(inContext->IsGDIImpl());
 #endif
-	DoReleasePattern(inContext->_GetParentContext());
+	DoReleasePattern(inContext->GetParentContext());
 }
 
 

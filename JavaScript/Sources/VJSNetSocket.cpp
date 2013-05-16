@@ -27,6 +27,8 @@
 
 USING_TOOLBOX_NAMESPACE
 
+#define WRITE_SLICE_SIZE	(1 << 15)
+
 XBOX::VCriticalSection	VJSNetSocketObject::sMutex;
 XBOX::VTCPSelectIOPool	*VJSNetSocketObject::sSelectIOPool	= NULL;
 
@@ -370,7 +372,7 @@ void VJSNetSocketClass::Connect (XBOX::VJSParms_withArguments &ioParms, XBOX::VJ
 
 	if (callbackObject.IsFunction())
 	
-		socketObject->AddListener(inIsSSL ? "secureConnect" : "connect", callbackObject, false);
+		socketObject->AddListener(socketObject->fWorker, inIsSSL ? "secureConnect" : "connect", callbackObject, false);
 
 	// Connect socket.
 
@@ -696,16 +698,43 @@ void VJSNetSocketClass::_write (XBOX::VJSParms_callStaticFunction &ioParms, VJSN
 
 	XBOX::VError	error;
 	
-	{
+	if (length) {
+
 		// If SSL is used, mutex will prevent SSL_write() during SSL_read() in callback.
 
 ///		XBOX::StLocker<XBOX::VCriticalSection>	lock(&inSocket->fMutex);	// FIX THAT
 		StErrorContextInstaller					context(false, true);
-	
-		error = inSocket->fEndPoint->Write(buffer, (uLONG *) &length);
-		xbox_assert(context.GetLastError() == error);
 
-	}
+		sLONG	bytesLeft	= length;
+		uBYTE	*p			= buffer;
+
+		xbox_assert(bytesLeft);
+		while (bytesLeft) {
+
+			uLONG	size;
+
+			size = bytesLeft >= WRITE_SLICE_SIZE ? WRITE_SLICE_SIZE : bytesLeft;
+		
+			error = inSocket->fEndPoint->Write(p, &size);
+			xbox_assert(context.GetLastError() == error);
+
+			if (error != XBOX::VE_OK)
+
+				break;
+
+			else {
+
+				p += size;
+				inSocket->fBytesWritten += size;
+				bytesLeft -= size;
+
+			}
+
+		}
+
+	} else
+
+		error = XBOX::VE_OK;
 
 	if (error != XBOX::VE_OK) {
 
@@ -720,9 +749,7 @@ void VJSNetSocketClass::_write (XBOX::VJSParms_callStaticFunction &ioParms, VJSN
 
 			XBOX::vThrowError(error);
 
-	} else 
-
-		inSocket->fBytesWritten += length;
+	} 
 
 	if (isAllocatedBuffer)
 
@@ -1302,10 +1329,34 @@ void VJSNetSocketSyncClass::_write (XBOX::VJSParms_callStaticFunction &ioParms, 
 		isAllocatedBuffer = false;
 
 	}
-
-	inSocket->fEndPoint->Write(buffer, (uLONG *) &length);
-	inSocket->fBytesWritten += length;
 	
+	if (length) {
+
+		sLONG	bytesLeft	= length;
+		uBYTE	*p			= buffer;
+
+		xbox_assert(bytesLeft);
+		while (bytesLeft) {
+
+			uLONG	size;
+
+			size = bytesLeft >= WRITE_SLICE_SIZE ? WRITE_SLICE_SIZE : bytesLeft;		
+			if (inSocket->fEndPoint->Write(p, &size) != XBOX::VE_OK)
+
+				break;
+
+			else {
+
+				p += size;
+				inSocket->fBytesWritten += size;
+				bytesLeft -= size;
+
+			}
+
+		}
+
+	}
+
 	if (isAllocatedBuffer)
 
 		::free(buffer);

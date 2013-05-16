@@ -389,7 +389,8 @@ void VSystem::GetOSVersionString (VString &outStr)
 	if(sOSVersionString.IsEmpty())
 	{
 #if VERSIONMAC
-		testAssert(XMacSystem::GetMacOSXFormattedVersionString(sOSVersionString) == VE_OK);
+		VError err = XMacSystem::GetMacOSXFormattedVersionString(sOSVersionString);
+		xbox_assert(err == VE_OK);
 
 #elif VERSION_LINUX
 		return XLinuxSystem::GetOSVersionString(outStr);
@@ -702,7 +703,10 @@ sLONG VSystem::Random( bool inComputeFast )
 		if ( inComputeFast || ( !phProv && !CryptAcquireContext( &phProv, NULL, NULL, PROV_RSA_FULL, 0 ) ) )
 		{
 			// seed init done in thread startup routine
-			longRandom = rand()*rand();
+
+			// On Windows we don't have random() to generate 4-bytes numbers so we use rand() twice to generate
+			// two 2-bytes numbers and concatenate them (and we drop the sign bit to return positive numbers)
+			longRandom = ((rand() & 0x7fff) << 16) | rand(); // DH 21-Feb-2013 - ACI0066723 - rand()*rand() is biased towards even numbers
 		}
 		else
 		{

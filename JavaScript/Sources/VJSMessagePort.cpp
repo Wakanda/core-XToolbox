@@ -210,13 +210,21 @@ void VJSMessagePort::PostMessageMethod (XBOX::VJSParms_callStaticFunction &ioPar
 
 	}
 
-	VJSWorker			*worker		= VJSWorker::RetainWorker(ioParms.GetContext());
 	XBOX::VJSValue		value		= ioParms.GetParamValue(1);
 	VJSStructuredClone	*message	= VJSStructuredClone::RetainClone(value);
-			
-	inMessagePort->PostMessage(inMessagePort->GetOther(worker), message);
-	XBOX::ReleaseRefCountable<VJSStructuredClone>(&message);
-	XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+	if (message != NULL) {
+
+		VJSWorker	*worker	= VJSWorker::RetainWorker(ioParms.GetContext());
+				
+		inMessagePort->PostMessage(inMessagePort->GetOther(worker), message);		
+		XBOX::ReleaseRefCountable<VJSStructuredClone>(&message);
+
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+	} else 
+
+		XBOX::vThrowError(XBOX::VE_JVSC_DATA_CLONE_ERROR);
 }
 
 VJSMessagePort::VJSMessagePort () 

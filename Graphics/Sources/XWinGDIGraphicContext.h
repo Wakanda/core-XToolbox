@@ -37,8 +37,6 @@ public:
 	
 	virtual		bool IsGDIImpl() const { return true; }
 
-	static		VGraphicContext* CreateBitmapContext(VRect inBounds);
-	
 	virtual		GReal GetDpiX() const;
 	virtual		GReal GetDpiY() const;
 	
@@ -103,8 +101,6 @@ public:
 	virtual uBYTE	SetAlphaBlend (uBYTE inAlphaBlend);
 	virtual void	SetPixelBackColor (const VColor& inColor);
 	virtual void	SetPixelForeColor (const VColor& inColor);
-	
-	virtual TransferMode	SetPixelTransferMode (TransferMode inMode);
 	
 	// Graphic context storage
 	virtual void	NormalizeContext ();
@@ -214,8 +210,8 @@ public:
 	virtual	void	BeginUsingContext (bool inNoDraw = false);
 	virtual	void	EndUsingContext ();
 
-	virtual	PortRef		_GetParentPort () const { return fContext; };
-	virtual	ContextRef	_GetParentContext () const { return fContext; };
+	virtual	PortRef		GetParentPort () const { return fContext; };
+	virtual	ContextRef	GetParentContext () const { return fContext; };
 	
 	// Utilities
 	virtual	Boolean	UseEuclideanAxis () { return false; };
@@ -248,10 +244,10 @@ public:
 	static GReal	GetLogPixelsY () { return sLogPixelsY; };
 
 	// Debug Utils
-	static void	_RevealUpdate (HWND inWindow);
-	static void	_RevealClipping (ContextRef inContext);
-	static void	_RevealBlitting (ContextRef inContext, const RgnRef inHwndRegion);
-	static void	_RevealInval (ContextRef inContext, const RgnRef inHwndRegion);
+	static void	RevealUpdate (HWND inWindow);
+	static void	RevealClipping (ContextRef inContext);
+	static void	RevealBlitting (ContextRef inContext, const RgnRef inHwndRegion);
+	static void	RevealInval (ContextRef inContext, const RgnRef inHwndRegion);
 	
 	// Class initialization
 	static Boolean	Init ();

@@ -30,6 +30,13 @@ class VValueBag;
 class XTOOLBOX_API ILocalizer
 {
 public:
+	/**
+	* @brief Returns the localization language used by the localization manager.
+	* You can get the localization language but not set it. If you want to set it, destroy the localization manager and create another one.
+	* @return the current used language
+	*/
+	virtual DialectCode			GetLocalizationLanguage() = 0;
+
 	virtual	bool				LocalizeErrorMessage( VError inErrorCode, VString& outLocalizedMessage) = 0;
 
 	virtual	bool				LocalizeStringWithKey( const VString& inKeyToLookUp, VString& outLocalizedString) = 0;

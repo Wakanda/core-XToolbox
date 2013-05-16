@@ -75,8 +75,8 @@ protected:
 		XWinChangeData& operator=( const XWinChangeData&);	// forbidden
 	};
 
-	DWORD MakeFilter( VFileSystemNotifier::EventKind inFilters );
-	void AddResultToProperList( XWinChangeData *inData, const VString& inFilePath, int inAction );
+	DWORD	MakeFilter( VFileSystemNotifier::EventKind inFilters );
+	void	AddResultToProperList( XWinChangeData *inData, const VString& inFileName, int inAction );
 
 	void	WatchForChanges( XWinChangeData *inData );
 	void	PrepareDeleteChangeData(XWinChangeData *inData );
@@ -85,7 +85,6 @@ protected:
 private:
 	static sLONG TaskRunner( VTask *inTask );
 	static void CALLBACK CompletionRoutine( DWORD inErrorCode, DWORD inBytesTransferred, LPOVERLAPPED inOverlapped );
-	static void CALLBACK WatchForChangesCompletionRoutine( ULONG_PTR inCookie );
 	static void CALLBACK TimerProc( LPVOID inArg, DWORD, DWORD );
 
 			void						RunTask();
@@ -93,6 +92,7 @@ private:
 			VTask*										fTask;
 			VFileSystemNotifier*						fOwner;
 			std::vector<VRefPtr<XWinChangeData> >		fCanceledChanges;
+			std::vector<VRefPtr<XWinChangeData> >		fPendingChanges;
 
 	typedef BOOL (*CancelIoExProcPtr)(HANDLE hFile, LPOVERLAPPED lpOverlapped);
 	CancelIoExProcPtr fCancelIoExProcPtr;	

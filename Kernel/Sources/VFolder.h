@@ -29,6 +29,7 @@ typedef enum
 	eFK_Executable,
 	eFK_UserDocuments,
 	eFK_Temporary,
+	eFK_StartupItemsFolder,		// startup items folders at boot time
 
 	// preferences are non-valuable settings
 	eFK_CommonPreferences,		// preferences common to all users
@@ -63,14 +64,24 @@ BEGIN_TOOLBOX_NAMESPACE
 // Needed declarations
 class VArrayLong;
 class VArrayString;
+class VFileSystem;
 
 class XTOOLBOX_API VFolder : public VObject, public IRefCountable
 { 
 public:
 								VFolder( const VFolder& inSource);
-	explicit					VFolder( const VFolder& inParentFolder, const VString& inFolderName);
-	explicit					VFolder( const VString& inFullPath);
-	explicit					VFolder( const VFilePath& inPath);
+								
+								// inRelativePath may be just a folder name or some relative path to a sub folder.
+								// if inRelativePath doesn't end with a folder separator, one is added.
+	explicit					VFolder( const VFolder& inParentFolder, const VString& inRelativePath, FilePathStyle inRelativePathStyle = FPS_DEFAULT);
+
+								// full path must end with a folder separator
+	explicit					VFolder( const VString& inFullPath, FilePathStyle inPathStyle = FPS_DEFAULT);
+
+	// It's is your responsibility to ensure that you pass a syntaxically correct folder path.
+	// else you'll get an assert.
+	// VFileSystem is optionnal and retained. It's there for conveniency for sandboxing support.
+	explicit					VFolder( const VFilePath& inPath, VFileSystem *inFileSystem = NULL);
 
 	#if VERSIONMAC
 	explicit					VFolder( const FSRef& inRef);
@@ -125,7 +136,23 @@ public:
 			// if files in source folder already exist in destination folder, they are replaced if FCP_Overwrite is passed else an error is returned.
 			VError				CopyContentsTo( const VFolder& inDestinationFolder, FileCopyOptions inOptions = FCP_Default ) const;
 			
-			VFolder*			RetainParentFolder() const;
+			// Retain parent folder.
+			// If root has been reached returns NULL.
+			// In sandboxed mode, the root is the file system root (if any).
+			VFolder*			RetainParentFolder( bool inSandBoxed = false) const;
+			
+			// Retain relative folder using a relative path.
+			// inRelativePath may be just a folder name or some relative path to a sub folder.
+			// if inRelativePath doesn't end with a folder separator, one is added.
+			// If resulting full path is invalid, NULL is returned (no error is thrown)
+			// If there's a fileSystem, and the relative path gets out of the fileSystem root, NULL is returned.
+			VFolder*			RetainRelativeFolder( const VString& inRelativePath, FilePathStyle inRelativePathStyle = FPS_DEFAULT) const;
+
+			// Retain relative fiel using a relative path.
+			// inRelativePath may be just a file name or some relative path to a sub file.
+			// If resulting full path is invalid, NULL is returned (no error is thrown)
+			// If there's a fileSystem, and the relative path gets out of the fileSystem root, NULL is returned.
+			VFile*				RetainRelativeFile( const VString& inRelativePath, FilePathStyle inRelativePathStyle = FPS_DEFAULT) const;
 
 			void				GetName( VString& outName) const;
 			void				GetNameWithoutExtension( VString& outName) const;
@@ -153,6 +180,8 @@ public:
 			// it returns the resolved alias folder and the input folder is released.
 			// If inDeleteInvalidAlias is true and the file appears to be an invalid alias, it is being deleted, else an error is thrown.
 	static	VError				ResolveAliasFolder( VFolder **ioFolder, bool inDeleteInvalidAlias);
+
+			VFileSystem*		GetFileSystem() const	{ return fFileSystem;}
 
 #if !VERSION_LINUX
 			VError				MakeWritableByAll();
@@ -197,6 +226,7 @@ private:
 			
 			XFolderImpl			fFolder;
 			VFilePath			fPath;
+			VFileSystem*		fFileSystem;
 };
 
 

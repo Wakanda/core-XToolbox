@@ -15,6 +15,14 @@
 */
 #include "VJavaScriptPrecompiled.h"
 
+#if VERSIONMAC
+#include <4DJavaScriptCore/JavaScriptCore.h>
+#include <4DJavaScriptCore/JS4D_Tools.h>
+#else
+#include <JavaScriptCore/JavaScript.h>
+#include <JavaScriptCore/4D/JS4D_Tools.h>
+#endif
+
 #include "VJSModule.h"
 
 #include "VJSContext.h"
@@ -24,106 +32,121 @@ USING_TOOLBOX_NAMESPACE
 
 XBOX::VCriticalSection	VJSModuleState::sMutex;
 bool					VJSModuleState::sIsCodeLoaded;
-XBOX::VURL				VJSModuleState::sRequireFunctionURL;
-XBOX::VString			VJSModuleState::sRequireFunctionScript;
+XBOX::VString			VJSModuleState::sRequireFunctionPath	= CVSTR("");
+XBOX::VString			VJSModuleState::sRequireFunctionScript	= CVSTR("");
 
-VJSModuleState *VJSModuleState::GetModuleState (XBOX::VJSContext &inContext)
+void VJSModuleState::SetRequireFunctionPath (const XBOX::VString &inFullPath)
+{
+	sRequireFunctionPath = inFullPath;
+}
+
+VJSModuleState *VJSModuleState::CreateModuleState (const XBOX::VJSContext &inContext)
 {
 	VJSModuleState	*moduleState;
 
-	if ((moduleState = (VJSModuleState *) inContext.GetGlobalObjectPrivateInstance()->GetSpecific((VJSSpecifics::key_type) kSpecificKey)) == NULL) {
+	if ((moduleState = new VJSModuleState()) == NULL) {
 
-		XBOX::VError	error;
-		XBOX::VString	urlString;
-		
-		error = XBOX::VE_OK;
-		_GetRequireFunctionURL(&urlString);
+		XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+		return NULL;
 
-		// If needed, load the JavaScript code of the require() function.
+	}
 
+	XBOX::VError	error;
+	XBOX::VString	fullPath;
+	XBOX::VURL		url;
+	
+	error = XBOX::VE_OK;
+	if (!sRequireFunctionPath.IsEmpty())
+	
+		fullPath = sRequireFunctionPath;
+	
+	else
+	
+		_GetRequireFunctionPath(&fullPath);
+	
+	// 4D doesn't have require.js
+	if (fullPath.IsEmpty())
+		return NULL;
+	
+	// If needed, load the JavaScript code of the require() function.
+
+	if (!sIsCodeLoaded) {
+
+		// Avoid race condition.
+
+		XBOX::StLocker<XBOX::VCriticalSection>	lock(&sMutex);
+	
 		if (!sIsCodeLoaded) {
 
-			// Avoid race condition.
+			error = LoadScript(fullPath, &url, &sRequireFunctionScript);
 
-			XBOX::StLocker<XBOX::VCriticalSection>	lock(&sMutex);
-		
-			if (!sIsCodeLoaded) {
+			// If loaded successfully, then check for syntax.
 
-				error = LoadScript(urlString, &sRequireFunctionURL, &sRequireFunctionScript);
+			if (error == XBOX::VE_OK && !inContext.CheckScriptSyntax(sRequireFunctionScript, &url, NULL))
 
-				// Even if loading fails, set boolean as true, so as not to try again.
+				error = XBOX::VE_JVSC_SYNTAX_ERROR;
 
-				sIsCodeLoaded = true;
+			// Even if loading or syntax check fails, set boolean as true, so as not to try again.
 
-			}
-		
+			sIsCodeLoaded = true;
+
 		}
+	
+	}
 
-		// Make require() function.
+	// Make require() function.
 
-		XBOX::JS4D::ObjectRef	requireFunctionRef	= NULL;
+	if (error != XBOX::VE_OK) {
 
-		if (error != XBOX::VE_OK) {
+		if (error == XBOX::VE_JVSC_SCRIPT_NOT_FOUND || error == XBOX::VE_JVSC_SYNTAX_ERROR)
 
-			if (error == XBOX::VE_JVSC_SCRIPT_NOT_FOUND)
+			XBOX::vThrowError(error, fullPath);
 
-				XBOX::vThrowError(XBOX::VE_JVSC_SCRIPT_NOT_FOUND, urlString);
+		else
 
-			else
+			XBOX::vThrowError(error);
+		
+	} else {
+		
+		XBOX::VJSValue				result(inContext);
+		XBOX::JS4D::ExceptionRef	exception;
 
-				XBOX::vThrowError(error);
-			
-		} else if (!inContext.CheckScriptSyntax(sRequireFunctionScript, &sRequireFunctionURL, NULL)) {
+		if (!inContext.EvaluateScript(sRequireFunctionScript, &url, &result, &exception))
+		
+			error = XBOX::vThrowError(XBOX::VE_JVSC_REQUIRE_FUNCTION_EVALUATION, fullPath);
 
-			// Syntax error.
-
-			XBOX::vThrowError(XBOX::VE_JVSC_SYNTAX_ERROR, urlString);
-			
-		} else {
-			
-			XBOX::VJSValue				result(inContext);
-			XBOX::JS4D::ExceptionRef	exception;
-
-			if (!inContext.EvaluateScript(sRequireFunctionScript, &sRequireFunctionURL, &result, &exception)) {
-
-				// Should be more specific instead.
-						
-				XBOX::vThrowError(XBOX::VE_JVSC_SYNTAX_ERROR, urlString);
-
-			}
+		else {
 
 			// Must return a function object for require().
 
 			xbox_assert(result.IsFunction());
 
-			requireFunctionRef = (XBOX::JS4D::ObjectRef) result.GetValueRef();
-			JS4D::ProtectValue(inContext, requireFunctionRef);
+			moduleState->fRequireFunctionRef = (XBOX::JS4D::ObjectRef) result.GetValueRef();
+
+			// ~VJSGlobalContext() will call JS4D::UnprotectValue().
+
+			JS4D::ProtectValue(inContext, moduleState->fRequireFunctionRef);
 
 		}
 
-		// Set module state.
+	}
 
-		if ((moduleState = new VJSModuleState(requireFunctionRef)) == NULL)
+	if (error != XBOX::VE_OK) {
 
-			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
-
-		else 
-
-			inContext.GetGlobalObjectPrivateInstance()->SetSpecific(
-				(VJSSpecifics::key_type) kSpecificKey, 
-				moduleState, 
-				VJSSpecifics::DestructorVObject);
+		delete moduleState;
+		moduleState = NULL;
 
 	}
 
 	return moduleState;
 }
 
-XBOX::VError VJSModuleState::LoadScript (const XBOX::VString &inURLString, XBOX::VURL *outURL, XBOX::VString *outScript)
+XBOX::VError VJSModuleState::LoadScript (const XBOX::VString &inFullPath, XBOX::VURL *outURL, XBOX::VString *outScript)
 {
 	xbox_assert(outURL != NULL && outScript != NULL);
 
-	outURL->FromFilePath(inURLString, eURL_POSIX_STYLE, CVSTR("file://"));
+	outURL->FromFilePath(inFullPath, eURL_POSIX_STYLE, CVSTR("file://"));
+	outScript->Clear();
 
 	XBOX::VError	error;
 	XBOX::VFilePath	path;
@@ -132,7 +155,7 @@ XBOX::VError VJSModuleState::LoadScript (const XBOX::VString &inURLString, XBOX:
 
 		XBOX::VFile			file(path);			
 		XBOX::VFileStream	stream(&file);
-				
+						
 		if ((error = stream.OpenReading()) == XBOX::VE_OK
 		&& (error = stream.GuessCharSetFromLeadingBytes(XBOX::VTC_DefaultTextExport)) == XBOX::VE_OK) {
 
@@ -142,6 +165,10 @@ XBOX::VError VJSModuleState::LoadScript (const XBOX::VString &inURLString, XBOX:
 		}
 		stream.CloseReading();	// Ignore closing error, if any.
 
+		if (error == XBOX::VE_STREAM_EOF)
+
+			error = XBOX::VE_OK;	// WAK0079581: An empty module file is ok (require() will return an empty object).
+
 	} else
 
 		error = XBOX::VE_JVSC_SCRIPT_NOT_FOUND;
@@ -149,52 +176,32 @@ XBOX::VError VJSModuleState::LoadScript (const XBOX::VString &inURLString, XBOX:
 	return error;
 }
 
-VJSModuleState::VJSModuleState (XBOX::JS4D::ObjectRef inRequireFunctionRef)
+VJSModuleState::VJSModuleState ()
 {
-	// inRequireFunctionRef can be NULL if the require() JavaScript file didn't load properly.
-
-	fRequireFunctionRef = inRequireFunctionRef;	
+	fRequireFunctionRef = NULL;
 }
 
-VJSModuleState::~VJSModuleState ()
+void VJSModuleState::_GetRequireFunctionPath (XBOX::VString *outFullPath)
 {
-}
+	xbox_assert(outFullPath != NULL);
 
-void VJSModuleState::_GetRequireFunctionURL (XBOX::VString *outURLString)
-{
-	XBOX::VFolder	*folder = XBOX::VFolder::RetainSystemFolder(eFK_Executable, false);
-
-	xbox_assert(folder != NULL);	
+	XBOX::VFolder	*walibFolder;
 	
-#if VERSIONMAC
-	
-	XBOX::VFolder	*parentFolder = folder->RetainParentFolder();
-	
-	XBOX::VFilePath	path(parentFolder->GetPath(), "Resources/Web Components/walib/WAF/Core/Native/requireFunction.js", FPS_POSIX);
-	XBOX::VFile		file(path);
+	if ((walibFolder = XBOX::VProcess::Get()->RetainFolder('walb')) != NULL) {
 
-	if (!file.Exists()) {
+		XBOX::VFilePath	path(walibFolder->GetPath(), "WAF/Core/Native/requireFunction.js", FPS_POSIX);
+			
+		path.GetPosixPath(*outFullPath);
 
-		path.FromRelativePath(parentFolder->GetPath(), "walib/WAF/Core/Native/requireFunction.js", FPS_POSIX);
+		XBOX::ReleaseRefCountable<XBOX::VFolder>(&walibFolder);
+
+	} else {
+
+		// Fail safe, should never happen.
+
+		outFullPath->Clear();
 
 	}
-	
-	XBOX::ReleaseRefCountable<XBOX::VFolder>(&parentFolder);
-	
-#else
-	
-	XBOX::VFilePath	path(folder->GetPath(), "Resources/Web Components/walib/WAF/Core/Native/requireFunction.js", FPS_POSIX);
-	XBOX::VFile		file(path);
-
-	if (!file.Exists()) 
-
-		path.FromRelativePath(folder->GetPath(), "walib/WAF/Core/Native/requireFunction.js", FPS_POSIX);
-	
-#endif	
-	
-	path.GetPosixPath(*outURLString);
-
-	XBOX::ReleaseRefCountable<XBOX::VFolder>(&folder);
 }
 
 void VJSRequireClass::GetDefinition (ClassDefinition &outDefinition)
@@ -212,17 +219,39 @@ void VJSRequireClass::GetDefinition (ClassDefinition &outDefinition)
 	outDefinition.callAsFunction	= js_callAsFunction<_CallAsFunction>;
 }
 
-XBOX::VJSObject	VJSRequireClass::MakeObject (XBOX::VJSContext &inContext)
+XBOX::VJSObject	VJSRequireClass::MakeObject (const XBOX::VJSContext &inContext)
 {
-	return VJSRequireClass::CreateInstance(inContext, NULL);
+	XBOX::VJSObject	constructedObject(inContext);
+	VJSModuleState	*moduleState;
+
+	if ((moduleState = VJSModuleState::CreateModuleState(inContext)) == NULL) {
+
+		// Creation of the VJSModuleState object failed, error has already been thrown.
+				
+		constructedObject.SetNull();
+
+	} else if (moduleState->GetRequireFunctionRef() == NULL) {
+
+		// Loading of the require() function JavaScript implementation has failed.
+		// Error has already be thrown by constructor, just delete created object.
+
+		delete moduleState;
+		constructedObject.SetNull();
+
+	} else
+
+		constructedObject = VJSRequireClass::CreateInstance(inContext, moduleState);
+
+	return constructedObject;
 }
 
-void VJSRequireClass::_Initialize (const VJSParms_initialize &inParms, void *)
+void VJSRequireClass::_Initialize (const VJSParms_initialize &inParms, VJSModuleState *inModuleState)
 {
 	XBOX::VJSObject	thisObject(inParms.GetObject());
 	XBOX::VJSArray	arrayObject(inParms.GetContext());
-	XBOX::VFolder	*folder = XBOX::VFolder::RetainSystemFolder(eFK_Executable, false);
+	XBOX::VFolder	*folder;
 
+	folder  = XBOX::VFolder::RetainSystemFolder(eFK_Executable, false);
 	xbox_assert(folder != NULL);	
 	
 #if VERSIONMAC
@@ -251,6 +280,7 @@ void VJSRequireClass::_Initialize (const VJSParms_initialize &inParms, void *)
 
 void VJSRequireClass::_CallAsFunction (VJSParms_callAsFunction &ioParms)
 {
+	JSContextRef	contextRef	= ioParms.GetContextRef();
 	XBOX::VString	idString;
 
 	if (!ioParms.GetStringParam(1, idString)) {
@@ -264,10 +294,86 @@ void VJSRequireClass::_CallAsFunction (VJSParms_callAsFunction &ioParms)
 	VJSModuleState			*moduleState;
 	XBOX::JS4D::ObjectRef	objectRef;
 
-	if ((moduleState = VJSModuleState::GetModuleState(context)) == NULL
-	|| (objectRef = moduleState->GetRequireFunctionRef()) == NULL)
+	xbox_assert(ioParms.GetFunction().IsOfClass(VJSRequireClass::Class()));
+
+	moduleState = ioParms.GetFunction().GetPrivateData<VJSRequireClass>();
+	xbox_assert(moduleState != NULL);
+
+	if ((objectRef = moduleState->GetRequireFunctionRef()) == NULL)
 
 		return;
+
+	// Read the execution path
+
+	JS4D::StringRef	sourceURL;
+	XBOX::VFilePath	path;
+	
+	if ((sourceURL = JS4DGetExecutionURL(contextRef)) != NULL) {
+
+		XBOX::VString	urlString;
+
+		if (JS4D::StringToVString(sourceURL, urlString)) {
+
+			XBOX::VURL	url(urlString, true);
+	
+			if (!url.GetFilePath(path))
+
+				path.Clear();	// Failed to parse URL, make path empty.
+
+		}
+
+		JSStringRelease(sourceURL);
+
+	} 
+
+	// Push an empty path if no URL or if the URL is incorrect.
+	// If a relative path is used and the URL is an empty path, this is correctly detected as an error later.
+
+	moduleState->fCurrentPaths.push_back(path);	
+
+	// If not already there, add the current project module folder to paths array.
+
+	XBOX::VJSGlobalObject	*globalObject;
+
+	if ((globalObject = ioParms.GetContext().GetGlobalObjectPrivateInstance()) != NULL) {
+
+		XBOX::VFolder	*folder;
+
+		if ((folder = globalObject->GetRuntimeDelegate()->RetainScriptsFolder()) != NULL) {
+
+			XBOX::VString	modulePath;
+
+			folder->GetPath(modulePath, FPS_POSIX);
+			folder->Release();
+
+			modulePath.AppendString("Modules/");
+
+			XBOX::VJSObject	arrayObject	= ioParms.GetFunction().GetPropertyAsObject("paths");
+
+			if (arrayObject.IsArray()) {
+
+				XBOX::VJSArray	pathsArray(arrayObject, false);
+				sLONG			i;
+			
+				for (i = 0; i < pathsArray.GetLength(); i++) {
+
+					XBOX::VJSValue	value		= pathsArray.GetValueAt(i);
+					XBOX::VString	pathString;
+
+					if (value.IsString() && value.GetString(pathString) && pathString.EqualToString(modulePath))
+
+						break;
+
+				}
+				if (i == pathsArray.GetLength())
+
+					pathsArray.PushString(modulePath);
+
+			}
+		
+		}
+
+	}
 
 	XBOX::VJSObject				requireFunction(ioParms.GetContext(), objectRef);
 	std::vector<XBOX::VJSValue>	arguments;
@@ -285,9 +391,11 @@ void VJSRequireClass::_CallAsFunction (VJSParms_callAsFunction &ioParms)
 	else 
 
 		ioParms.ReturnValue(result);	
+
+	moduleState->fCurrentPaths.pop_back();
 }
 
-void VJSRequireClass::_evaluate (VJSParms_callStaticFunction &ioParms, void *)
+void VJSRequireClass::_evaluate (VJSParms_callStaticFunction &ioParms, VJSModuleState *inModuleState)
 {
 	XBOX::VJSContext	context(ioParms.GetContext());
 	XBOX::VString		fullPath;
@@ -370,7 +478,7 @@ void VJSRequireClass::_evaluate (VJSParms_callStaticFunction &ioParms, void *)
 				arguments.push_back(exportsObject);
 				arguments.push_back(moduleObject);
 
-				if (!context.GetGlobalObject().CallFunction(functionObject, &arguments, &result, &exception, &path)) 
+				if (!context.GetGlobalObject().CallFunction(functionObject, &arguments, &result, &exception)) 
 
 					ioParms.SetException(exception);
 
@@ -389,19 +497,35 @@ void VJSRequireClass::_evaluate (VJSParms_callStaticFunction &ioParms, void *)
 
 // Actually returns the directory of the currently executing script.
 
-void VJSRequireClass::_getCurrentPath (VJSParms_callStaticFunction &ioParms, void *)
+void VJSRequireClass::_getCurrentPath (VJSParms_callStaticFunction &ioParms, VJSModuleState *inModuleState)
 {
-	VJSGlobalObject	*globalObject	= ioParms.GetContext().GetGlobalObjectPrivateInstance();
+	xbox_assert(inModuleState != NULL);
 	
-	xbox_assert(globalObject != NULL);
+	xbox_assert(!inModuleState->fCurrentPaths.empty());
+	if (inModuleState->fCurrentPaths.empty()) {
+		
+		// This should never happen.
 
-	XBOX::VFilePath	*path	= (XBOX::VFilePath *) globalObject->GetSpecific(VJSContext::kURLSpecificKey);
-	
-	xbox_assert(path != NULL);
+		XBOX::vThrowError(XBOX::VE_JVSC_MODULE_INTERNAL_ERROR);	
+		return;
 
-	XBOX::VFilePath	parent;
+	}
 
-	if (!path->GetParent(parent)) {
+	XBOX::VFilePath	path, parent;
+
+	path = inModuleState->fCurrentPaths.back();
+	if (path.IsEmpty()) {
+
+		// Current JavaScript execution doesn't have an URL. 
+		// (Because it is probably a function called directly from C++.)
+		// Relative paths are unavailable then.
+
+		XBOX::vThrowError(XBOX::VE_JVSC_UNABLE_TO_RETRIEVE_URL);
+		return;
+
+	}
+
+	if (!path.GetParent(parent)) {
 
 		ioParms.ReturnString("/");
 

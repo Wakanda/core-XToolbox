@@ -51,7 +51,11 @@
 #include "Kernel/Sources/VJSONTools.h"
 #include "Kernel/Sources/VJSONValue.h"
 #include "Kernel/Sources/VLogger.h"
+#include "Kernel/Sources/VLog4jMsgFile.h"
 #include "Kernel/Sources/VTextStyle.h"
+#if VERSIONMAC || VERSION_LINUX
+#include "Kernel/Sources/VSysLogOutput.h"
+#endif
 
 // File & Streams Headers
 #include "Kernel/Sources/VURL.h"
@@ -59,6 +63,7 @@
 #include "Kernel/Sources/VFileSystemObject.h"
 #include "Kernel/Sources/VFolder.h"
 #include "Kernel/Sources/VFilePath.h"
+#include "Kernel/Sources/VFileSystem.h"
 #include "Kernel/Sources/VFileTranslator.h"
 #include "Kernel/Sources/IStreamable.h"
 #include "Kernel/Sources/VStream.h"
@@ -124,6 +129,12 @@
 #include "Kernel/Sources/VChecksumMD5.h"
 
 #include "Kernel/Sources/VFullURL.h"
+
+#include "Kernel/Sources/VDocText.h"
+#include "Kernel/Sources/VDocImage.h"
+#include "Kernel/Sources/VDocParagraph.h"
+#include "Kernel/Sources/VDocTable.h"
+
 
 //#include "Kernel/Sources/VRefCountDebug.h"
 	

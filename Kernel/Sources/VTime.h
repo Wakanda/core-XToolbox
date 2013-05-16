@@ -198,8 +198,8 @@ public:
 	void	GetUTCTime (sWORD& outYear, sWORD& outMonth, sWORD& outDay, sWORD& outHour, sWORD& outMinute, sWORD& outSecond, sWORD& outMillisecond) const;
 	void	FromUTCTime (sWORD inYear, sWORD inMonth, sWORD inDay, sWORD inHour, sWORD inMinute, sWORD inSecond, sWORD inMillisecond);
 
-	sWORD	GetWeekDay () const;
-	sWORD	GetYearDay () const;
+	sLONG	GetWeekDay () const;	// 0 (Sunday) to 6 (Saturday)
+	sLONG	GetYearDay () const;
 	void	FromSystemTime (); /* UTC */
 	uLONG8	GetStamp () const;
 	void	FromStamp (uLONG8 inValue);
@@ -232,6 +232,12 @@ public:
 	void	FromJulianDay (sLONG inJulianDay);
 	void	GetJulianDate (sWORD& outYear, sWORD& outMonth, sWORD& outDay) const;
 	void	FromJulianDate (sWORD inYear, sWORD inMonth, sWORD inDay);
+
+	static	sLONG	ComputeJulianDay( sLONG inYear, sLONG inMonth, sLONG inDay);
+	static	sLONG	ComputeWeekDay( sLONG inYear, sLONG inMonth, sLONG inDay);	// 0 (Sunday) to 6 (Saturday)
+	static	sLONG	ComputeYearDay( sLONG inYear, sLONG inMonth, sLONG inDay);	// 1 = January 1st
+
+	void	toSimpleDateString(VString& outString) const;
 
 	// Inherited from VValueSingle
 	virtual const VValueInfo*	GetValueInfo () const;

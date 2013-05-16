@@ -29,31 +29,13 @@ VServer*								VJSWDebugger::sServer = 0;
 VJSWDebugger*							VJSWDebugger::sDebugger = 0;
 
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-#else
-XBOX::VCriticalSection					VJSWDebugger::sDbgLock;
+//XBOX::VCriticalSection					VJSWDebugger::sDbgLock;
 #if defined(UNIFIED_DEBUGGER_NET_DEBUG)
 XBOX::XTCPSock*							VJSWDebugger::sSck=NULL;
 #endif
 
-#endif
 
-#if 0
-// This is an example of an exported variable
-JSDEBUGGER_API int nJSDebugger=0;
-
-// This is an example of an exported function.
-JSDEBUGGER_API int fnJSDebugger(void)
-{
-	return 42;
-}
-#endif
-
-#if !defined(WKA_USE_UNIFIED_DBG)
-VJSWDebuggerCommand::VJSWDebuggerCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID, const VString & inParameters )
-#else
 VJSWDebuggerCommand::VJSWDebuggerCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID, const VString & inParameters )
-#endif
 {
 	fCommand = inCommand;
 
@@ -104,11 +86,7 @@ bool VJSWDebuggerCommand::HasSameContextID ( uintptr_t inContextID ) const
 }
 
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-void VJSWDebugger::SetSettings ( IJSWDebuggerSettings* inSettings )
-#else
 void VJSWDebugger::SetSettings( IWAKDebuggerSettings* inSettings )
-#endif
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
 	if ( cHandler == 0 )
@@ -125,11 +103,8 @@ void VJSWDebugger::SetSettings( IWAKDebuggerSettings* inSettings )
 	cHandler-> Release ( );
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-void VJSWDebugger::SetInfo ( IJSWDebuggerInfo* inInfo )
-#else
+
 void VJSWDebugger::SetInfo( IWAKDebuggerInfo* inInfo )
-#endif
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
 	if ( cHandler == 0 )
@@ -166,6 +141,17 @@ int VJSWDebugger::StopServer ( )
 
 	//jswchFactory-> RemoveAllPorts ( );
 	return 0;
+}
+void VJSWDebugger::GetStatus(
+			bool&			outStarted,
+			bool&			outConnected,
+			long long&		outDebuggingEventsTimeStamp,
+			bool&			outPendingContexts)
+{
+	outStarted = true;
+	outConnected = HasClients();
+	outDebuggingEventsTimeStamp = 1;
+	outPendingContexts = false;
 }
 
 int VJSWDebugger::StartServer ( )
@@ -310,18 +296,8 @@ int VJSWDebugger::WriteSource ( long inCommandID, uintptr_t inContext, const uns
 	return nResult;
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-int VJSWDebugger::SendBreakPoint (
-						uintptr_t inContext,
-						int inExceptionHandle /* -1 ? notException : ExceptionHandle */,
-						char* inURL, int inURLLength,
-						char* inFunction, int inFunctionLength,
-						int inLineNumber,
-						char* inMessage, int inMessageLength /* in bytes */,
-						char* inName, int inNameLength /* in bytes */,
-						long inBeginOffset, long inEndOffset /* in bytes */ )
-#else
-bool VJSWDebugger::BreakpointReached(	WAKDebuggerContext_t	inContext,
+
+bool VJSWDebugger::BreakpointReached(	OpaqueDebuggerContext	inContext,
 										int						inLineNumber,
 										int						inExceptionHandle,
 										char*					inURL,
@@ -334,7 +310,6 @@ bool VJSWDebugger::BreakpointReached(	WAKDebuggerContext_t	inContext,
 										int 					inNameLength,
 										long 					inBeginOffset,
 										long 					inEndOffset )
-#endif
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
 	if ( cHandler == 0 )
@@ -474,26 +449,8 @@ VError VJSWDebugger::RemoveAllHandlers ( )
 	return VE_OK;
 }
 
-/*VJSWDebuggerCommand::VJSWDebuggerCommand ( IJSWDebugger::JSWD_COMMAND inCommand ) :
-														fParameters ( )
-{
-	fCommand = inCommand;
-}*/
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-IJSWDebuggerCommand* VJSWDebugger::WaitForClientCommand ( uintptr_t inContext )
-{
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
-
-	IJSWDebuggerCommand*		dcResult = cHandler-> WaitForClientCommand ( inContext );
-	cHandler-> Release ( );
-
-	return dcResult;
-}
-#else
-WAKDebuggerServerMessage* VJSWDebugger::WaitFrom(WAKDebuggerContext_t inContext)
+WAKDebuggerServerMessage* VJSWDebugger::WaitFrom(OpaqueDebuggerContext inContext)
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler();
 	if ( cHandler == 0 )
@@ -509,34 +466,37 @@ void VJSWDebugger::DisposeMessage(WAKDebuggerServerMessage* inMessage)
 	xbox_assert(false);// appeler le free correspondant a cHandler->WaitForClientCommand 
 }
 
-bool VJSWDebugger::SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state)
+bool VJSWDebugger::SetState(OpaqueDebuggerContext inContext, WAKDebuggerState_t state)
 {
 	xbox_assert(false);//TBC
 	return true;
 }
-bool VJSWDebugger::SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize )
+bool VJSWDebugger::SendLookup( OpaqueDebuggerContext inContext, void* inVars, unsigned int inSize )
 {
 	xbox_assert(false);//TBC
 	return true;
 }
-bool VJSWDebugger::SendEval( WAKDebuggerContext_t inContext, void* inVars )
-{
-	xbox_assert(false);//TBC
-	return true;
-}
-
-bool VJSWDebugger::SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength )
-{
-	xbox_assert(false);//TBC
-	return true;
-}
-bool VJSWDebugger::SendSource( WAKDebuggerContext_t inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen )
+bool VJSWDebugger::SendEval( OpaqueDebuggerContext inContext, void* inVars )
 {
 	xbox_assert(false);//TBC
 	return true;
 }
 
-void VJSWDebugger::Trace(WAKDebuggerContext_t inContext, const void* inString, int inSize )
+bool VJSWDebugger::SendCallStack( OpaqueDebuggerContext inContext, const char *inData, int inLength,
+											const char*				inExceptionInfos,
+											int						inExceptionInfosLength )
+{
+	xbox_assert(false);//TBC
+	return true;
+}
+bool VJSWDebugger::SendSource( OpaqueDebuggerContext inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen )
+{
+	xbox_assert(false);//TBC
+	return true;
+}
+
+void VJSWDebugger::Trace(OpaqueDebuggerContext inContext, const void* inString, int inSize,
+							WAKDebuggerTraceLevel_t inTraceLevel )
 {
 	VString		l_trace(inString,(VSize)inSize,VTC_UTF_16);
 	VString l_tmp = CVSTR("DEBUG >>>> ");
@@ -565,84 +525,50 @@ void VJSWDebugger::Trace(WAKDebuggerContext_t inContext, const void* inString, i
 	}
 #endif
 }
-#endif
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-IJSWDebuggerCommand* VJSWDebugger::GetNextBreakPointCommand ( )
-#else
+
 WAKDebuggerServerMessage* VJSWDebugger::GetNextBreakPointCommand()
-#endif
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
 	if ( cHandler == 0 )
 		return 0;
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextBreakPointCommand ( );
-#else
 	WAKDebuggerServerMessage*	dcResult = cHandler-> GetNextBreakPointCommand ( );
-#endif
+
 	cHandler-> Release ( );
 
 	return dcResult;
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-IJSWDebuggerCommand* VJSWDebugger::GetNextSuspendCommand ( uintptr_t inContext )
-#else
-WAKDebuggerServerMessage* VJSWDebugger::GetNextSuspendCommand( WAKDebuggerContext_t inContext )
-#endif
+
+WAKDebuggerServerMessage* VJSWDebugger::GetNextSuspendCommand( OpaqueDebuggerContext inContext )
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
 	if ( cHandler == 0 )
 		return 0;
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextSuspendCommand ( inContext );
-#else
 	WAKDebuggerServerMessage*	dcResult = cHandler-> GetNextSuspendCommand ( (uintptr_t)inContext );
-#endif
+
 	cHandler-> Release ( );
 
 	return dcResult;
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-IJSWDebuggerCommand* VJSWDebugger::GetNextAbortScriptCommand ( uintptr_t inContext )
-#else
-WAKDebuggerServerMessage* VJSWDebugger::GetNextAbortScriptCommand ( WAKDebuggerContext_t inContext )
-#endif
+
+WAKDebuggerServerMessage* VJSWDebugger::GetNextAbortScriptCommand ( OpaqueDebuggerContext inContext )
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
 	if ( cHandler == 0 )
 		return 0;
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-	IJSWDebuggerCommand*		dcResult = cHandler-> GetNextAbortScriptCommand ( inContext );
-#else
 	WAKDebuggerServerMessage*	dcResult = cHandler-> GetNextAbortScriptCommand ( (uintptr_t)inContext );
-#endif
+
 	cHandler-> Release ( );
 
 	return dcResult;
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
-unsigned short* VJSWDebugger::EscapeForJSON ( const unsigned short* inString, int inSize, int & outSize )
-{
-	VString				vstrInput;
-	vstrInput. AppendBlock ( inString, inSize * sizeof ( unsigned short ), VTC_UTF_16 );
 
-	VString				vstrOutput;
-	vstrInput. GetJSONString ( vstrOutput );
-
-	outSize = vstrOutput. GetLength ( );
-	unsigned short*		szusResult = new unsigned short [ outSize + 1 ];
-	vstrOutput. ToBlock ( szusResult, ( outSize + 1 ) * sizeof ( unsigned short ), VTC_UTF_16, true, false );
-
-	return szusResult;
-}
-#else
 
 WAKDebuggerUCharPtr_t VJSWDebugger::EscapeForJSON( const unsigned char* inString, int inSize, int& outSize )
 {
@@ -673,7 +599,6 @@ void* VJSWDebugger::UStringToVString( const void* inString, int inSize )
 	return NULL;
 }
 
-#endif
 
 
 VError VJSWDebugger::AddHandler ( VJSWConnectionHandler* inHandler )
@@ -692,34 +617,8 @@ VError VJSWDebugger::AddHandler ( VJSWConnectionHandler* inHandler )
 	return VE_OK;
 }
 
-#if !defined(WKA_USE_UNIFIED_DBG)
 
-int VJSWDebugger::SendContextCreated ( uintptr_t inContext )
-{
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
-
-	int		nResult = cHandler-> SendContextCreated ( inContext );
-	cHandler-> Release ( );
-
-	return nResult;
-}
-
-int VJSWDebugger::SendContextDestroyed ( uintptr_t inContext )
-{
-	VJSWConnectionHandler*		cHandler = _RetainFirstHandler ( );
-	if ( cHandler == 0 )
-		return 0;
-
-	int		nResult = cHandler-> SendContextDestroyed ( inContext );
-	cHandler-> Release ( );
-
-	return nResult;
-}
-
-#else
-WAKDebuggerContext_t VJSWDebugger::AddContext( uintptr_t inContext  )
+OpaqueDebuggerContext VJSWDebugger::AddContext( uintptr_t inContext  )
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler();
 	if ( cHandler == 0 )
@@ -730,12 +629,12 @@ WAKDebuggerContext_t VJSWDebugger::AddContext( uintptr_t inContext  )
 
 	if (!nResult)
 	{
-		return (WAKDebuggerContext_t)inContext;
+		return (OpaqueDebuggerContext)inContext;
 	}
 	return NULL;
 }
 
-bool VJSWDebugger::RemoveContext( WAKDebuggerContext_t inContext )
+bool VJSWDebugger::RemoveContext( OpaqueDebuggerContext inContext )
 {
 	VJSWConnectionHandler*		cHandler = _RetainFirstHandler();
 	if ( cHandler == 0 )
@@ -751,91 +650,26 @@ WAKDebuggerType_t VJSWDebugger::GetType()
 {
 	return REGULAR_DBG_TYPE;
 }
-bool VJSWDebugger::Lock()
-{
-	bool	l_res;
-
-	l_res = sDbgLock.Lock();
-
-	xbox_assert(l_res);
-	return l_res;
-}
-bool VJSWDebugger::Unlock()
-{
-	bool	l_res;
-
-	l_res = sDbgLock.Unlock();
-
-	xbox_assert(l_res);
-	return l_res;
-}
-
-#endif
 
 
-#if 0
-IJSWDebugger* JSWDebuggerFactory::Get ( )
-{
-	return VJSWDebugger::Get ( );
-}
 
-#else
+
 IWAKDebuggerServer* JSWDebuggerFactory::Get()
 {
 	return VJSWDebugger::Get();
 }
 
-IWAKDebuggerServer* JSWDebuggerFactory::GetChromeDebugHandler()
+IChromeDebuggerServer* JSWDebuggerFactory::GetChromeDebugHandler(const XBOX::VString& inSolutionName)
 {
-	return VChromeDebugHandler::Get();
+	return VChromeDebugHandler::Get(inSolutionName);
 }
 
-IWAKDebuggerServer* JSWDebuggerFactory::GetChromeDebugHandler(
-		const XBOX::VString inIP,
-		uLONG				inPort,
-		const XBOX::VString inDebuggerHTMLSkeleton,
-		const XBOX::VString inTracesHTMLSkeleton)
+IChromeDebuggerServer* JSWDebuggerFactory::GetChromeDebugHandler(
+		const XBOX::VString&	inSolutionName,
+		const XBOX::VString&	inTracesHTMLSkeleton)
 {
-#if defined(WKA_USE_UNIFIED_DBG)
-	return VChromeDebugHandler::Get(inIP,inPort,inDebuggerHTMLSkeleton,inTracesHTMLSkeleton);
-#else
-	return NULL;
-#endif
+	return VChromeDebugHandler::Get(inSolutionName,inTracesHTMLSkeleton);
 }
 
-#endif
 
 
-/*VJSWContextRunTimeInfo::VJSWContextRunTimeInfo ( uintptr_t inContext ) :
-											fContext ( inContext )
-											, fInterruptCount ( 0 )
-											, fBreakPointCount ( 0 )
-{
-	;
-}
-
-bool VJSWContextRunTimeInfo::HasNewRunTimeInterrupt ( )
-{
-	sLONG		nCount = VInterlocked::AtomicGet ( &fInterruptCount );
-
-	return nCount > 0;
-}
-
-bool VJSWContextRunTimeInfo::HasNewBreakPoint ( )
-{
-	sLONG		nCount = VInterlocked::AtomicGet ( &fBreakPointCount );
-
-	return nCount > 0;
-}
-
-void VJSWContextRunTimeInfo::AddRunTimeInterrupt ( )
-{
-	VInterlocked::Increment ( &fBreakPointCount );
-}
-
-void VJSWContextRunTimeInfo::AddBreakPoint ( )
-{
-	VInterlocked::Decrement ( &fBreakPointCount );
-}
-
-*/

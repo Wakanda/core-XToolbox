@@ -734,7 +734,9 @@ void VJSCallbackEvent::Discard ()
 	Release();
 }
 
-VJSW3CFSEvent *VJSW3CFSEvent::RequestFS (VJSLocalFileSystem *inLocalFileSystem, sLONG inType, VSize inQuota, const XBOX::VJSObject &inSuccessCallback, const XBOX::VJSObject &inErrorCallback)
+VJSW3CFSEvent *VJSW3CFSEvent::RequestFS (VJSLocalFileSystem *inLocalFileSystem, 
+	sLONG inType, VSize inQuota, const XBOX::VString &inFileSystemName, 
+	const XBOX::VJSObject &inSuccessCallback, const XBOX::VJSObject &inErrorCallback)
 {
 	xbox_assert(inLocalFileSystem != NULL);
 	
@@ -745,6 +747,7 @@ VJSW3CFSEvent *VJSW3CFSEvent::RequestFS (VJSLocalFileSystem *inLocalFileSystem, 
 		fsEvent->fLocalFileSystem = XBOX::RetainRefCountable<VJSLocalFileSystem>(inLocalFileSystem);
 		fsEvent->fType = inType;
 		fsEvent->fQuota = inQuota;
+		fsEvent->fFileSystemName = inFileSystemName;
 
 	}
 	
@@ -949,7 +952,7 @@ void VJSW3CFSEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
 		
 	switch (fSubType) {
 
-		case eOPERATION_REQUEST_FILE_SYSTEM:	code = fLocalFileSystem->RequestFileSystem(inContext, fType, fQuota, &resultObject); break;
+		case eOPERATION_REQUEST_FILE_SYSTEM:	code = fLocalFileSystem->RequestFileSystem(inContext, fType, fQuota, &resultObject, false, fFileSystemName); break;
 		case eOPERATION_RESOLVE_URL:			code = fLocalFileSystem->ResolveURL(inContext, fURL, false, &resultObject); break;
 
 		case eOPERATION_GET_METADATA:			code = fEntry->GetMetadata(inContext, &resultObject); break;
@@ -1065,4 +1068,54 @@ VJSW3CFSEvent::VJSW3CFSEvent (sLONG inSubType, const XBOX::VJSObject &inSuccessC
 	fSubType = inSubType;
 	fSuccessCallback = inSuccessCallback.GetObjectRef();
 	fErrorCallback = inErrorCallback.GetObjectRef();	
+}
+
+VJSNewListenerEvent	*VJSNewListenerEvent::Create (VJSEventEmitter *inEventEmitter, const XBOX::VString &inEvent, XBOX::JS4D::ObjectRef inListener)
+{
+	xbox_assert(inEventEmitter != NULL);
+
+	VJSNewListenerEvent	*newListenerEvent;
+
+	newListenerEvent = new VJSNewListenerEvent();
+	newListenerEvent->fType = eTYPE_EVENT_EMITTER;
+	newListenerEvent->fTriggerTime.FromSystemTime();
+
+	newListenerEvent->fEventEmitter = XBOX::RetainRefCountable<VJSEventEmitter>(inEventEmitter);
+	newListenerEvent->fEvent = inEvent;
+	newListenerEvent->fListener = inListener;
+	
+	return newListenerEvent;
+}
+
+void VJSNewListenerEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
+{
+	xbox_assert(fEventEmitter != NULL);
+
+	std::vector<XBOX::VJSValue>	callbackArguments;
+	VJSValue					value(inContext);
+
+	value.SetString(fEvent);
+	callbackArguments.push_back(value);
+
+	if (fListener != NULL) {
+
+		// No check that the given listener is actually a function.
+
+		value.SetValueRef((XBOX::JS4D::ValueRef) fListener);
+		callbackArguments.push_back(value);
+
+	}
+
+	fEventEmitter->Emit(inContext, "newListener", &callbackArguments);
+
+	Discard();
+}
+
+void VJSNewListenerEvent::Discard ()
+{
+	xbox_assert(fEventEmitter != NULL);
+
+	XBOX::ReleaseRefCountable<VJSEventEmitter>(&fEventEmitter);
+
+	Release();
 }

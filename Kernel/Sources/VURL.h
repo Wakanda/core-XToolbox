@@ -372,6 +372,8 @@ public:
 	
 	VURL&		operator=( const VURL& inOther)		{ FromURL( inOther); return *this;}
 	
+	void	RemoveLastPathComponent()	{ _RemoveLastPathComponent(); }
+			
 private:
 			typedef URLPart	URLPartArray[e_LastPart];
 

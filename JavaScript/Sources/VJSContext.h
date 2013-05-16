@@ -20,7 +20,9 @@
 
 #define WKA_PROVIDES_UNIFIED_DBG
 
+class IRemoteDebuggerServer;
 class IWAKDebuggerServer;
+class IChromeDebuggerServer;
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -60,10 +62,6 @@ class XTOOLBOX_API VJSContext : public XBOX::VObject
 {
 friend class VJSParms_withContext;
 public:
-
-			// Key to retrieve URL of the currently executing script file, a VFilePath.
-
-			static const uLONG				kURLSpecificKey	= ('J' << 24) | ('U' << 16) | ('R' << 8) | 'L'; 
 
 											VJSContext( JS4D::ContextRef inContext):fContext( inContext),fGlobalContext(NULL),fDebuggerAllowed(true)		{}
 											VJSContext( const VJSContext& inOther):fContext( inOther.fContext),fGlobalContext(NULL),fDebuggerAllowed(true)	{}
@@ -132,12 +130,8 @@ public:
 			// debug client - they both use JS file paths relative to a given source root.
 	static	void							SetSourcesRoot ( const VFolder & inRootFolder );
 
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-	static	void							SetDebuggerServer ( IJSWDebugger* inDebuggerServer );
-#else
-	static	void							SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer );
-	static	IWAKDebuggerServer*				GetDebuggerServer( );
-#endif
+	static	void							SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer,IChromeDebuggerServer* inChromeDebuggerServer  );
+	static	IRemoteDebuggerServer*			GetDebuggerServer( );
 
 			// Returns true if debugger is currently paused on either breakpoint or an exception, false otherwise.
 	static	bool							IsDebuggerPaused ( );
@@ -168,7 +162,7 @@ private:
 											VJSGlobalContext& operator=( const VJSGlobalContext&);	// forbidden
 
 	JS4D::GlobalContextRef					fContext;
-	static IWAKDebuggerServer*				sWAKDebuggerServer;//also stored here, not to modify JSC API
+	static IRemoteDebuggerServer*				sWAKDebuggerServer;//also stored here, not to modify JSC API
 };
 
 

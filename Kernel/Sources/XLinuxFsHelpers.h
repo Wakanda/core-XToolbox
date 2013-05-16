@@ -66,7 +66,10 @@ public :
 	VError Init(const VString& inPath, Mode inMode=withoutRealPath);
 	VError InitWithCwd();
 	VError InitWithExe();
+	VError InitWithSysCacheDir();
+	VError InitWithPersistentTmpDir();
     VError InitWithUniqTmpDir();
+	VError InitWithUserDir();
 
 	PathBuffer& Reset();
 	

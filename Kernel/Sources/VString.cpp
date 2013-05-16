@@ -1748,13 +1748,7 @@ sWORD VString::GetWord() const
 
 Boolean VString::GetBoolean() const
 {
-	// on accepte toujours 'true'
-	if (EqualTo(CVSTR( "true"), false))
-		return true;
-	
-	VStr63 temp;
-	VIntlMgr::GetBoolString(temp, true);
-	return EqualTo(temp, false);
+	return EqualToString( CVSTR( "true"), false);
 }
 
 
@@ -2273,7 +2267,7 @@ void VString::FromFloat(const VFloat& inFloat)
 
 void VString::FromBoolean(Boolean inValue)
 {
-	VIntlMgr::GetBoolString(*this,inValue ? true : false);
+	FromString( inValue ? CVSTR( "true") : CVSTR( "false"));
 }
 
 
@@ -2723,16 +2717,36 @@ void VString::FromHexLong( uLONG8 inValue, bool inPrettyFormatting)
 }
 
 
-void VString::TranscodeToXML()
+void VString::TranscodeToXML(bool inEscapeControlChars)
 {
-	static const UniChar sXMLEscapeChars[] = { CHAR_AMPERSAND, CHAR_GREATER_THAN_SIGN, CHAR_QUOTATION_MARK, CHAR_LESS_THAN_SIGN, CHAR_APOSTROPHE };
+	//JQ 18/09/2012: escape controls chars 0x1-0x1F & 0x7F (optional) but tab, cr and lf
+
+	static const UniChar sXMLEscapeChars[] =  { CHAR_AMPERSAND, CHAR_GREATER_THAN_SIGN, CHAR_QUOTATION_MARK, CHAR_LESS_THAN_SIGN, CHAR_APOSTROPHE};
 
 	VString*	temp = NULL;
 	const UniChar*	ptr = GetCPointer();
 	const UniChar*	pFirst = ptr;
 	while(*ptr)
 	{
-		for (const UniChar* pEscape = sXMLEscapeChars ; pEscape != sXMLEscapeChars + sizeof(sXMLEscapeChars)/sizeof( UniChar) ; ++pEscape)
+		if (inEscapeControlChars && ((*ptr >= 0x01 && *ptr <= 0x1F && *ptr != 0x09 && *ptr != 0x0A && *ptr != 0x0D) || *ptr == 0x7F))
+		{
+			if (temp == NULL)
+				temp = new VString;
+			if (temp != NULL)
+			{
+				char hex[8];
+				sprintf(hex,"%X", *ptr);
+		
+				temp->AppendBlock(pFirst, (ptr-pFirst) * sizeof(UniChar), VTC_UTF_16);
+				pFirst = ptr+1;
+
+				if (strlen(hex) == 1)
+					temp->AppendString(CVSTR("&#x0")+hex+";");
+				else
+					temp->AppendString(CVSTR("&#x")+hex+";");
+			}
+		}
+		else for (const UniChar* pEscape = sXMLEscapeChars ; pEscape != sXMLEscapeChars + sizeof(sXMLEscapeChars)/sizeof( UniChar) ; ++pEscape)
 		{
 			if (*ptr == *pEscape)
 			{
@@ -2750,6 +2764,8 @@ void VString::TranscodeToXML()
 						case CHAR_QUOTATION_MARK:		temp->AppendString(CVSTR("&quot;")); break;
 						case CHAR_LESS_THAN_SIGN:		temp->AppendString(CVSTR("&lt;")); break;
 						case CHAR_APOSTROPHE:			temp->AppendString(CVSTR("&apos;")); break;
+						default:
+							break;
 					}
 				}
 				break;
@@ -2774,6 +2790,8 @@ void VString::TranscodeFromXML()
 	VString*	temp = NULL;
 	const UniChar*	ptr = GetCPointer();
 	const UniChar*	pFirst = ptr;
+	VIndex pos = 0;
+	VIndex length = GetLength();
 	while(*ptr)
 	{
 		if (*ptr == CHAR_AMPERSAND)
@@ -2781,30 +2799,58 @@ void VString::TranscodeFromXML()
 			UniChar replacement;
 			int toSkip;
 
-			if (ptr[1] == 'a' && ptr[2] == 'm' && ptr[3] == 'p' && ptr[4] == ';')
+			if (pos+4 < length && ptr[1] == 'a' && ptr[2] == 'm' && ptr[3] == 'p' && ptr[4] == ';')
 			{
 				toSkip = 4;
 				replacement = CHAR_AMPERSAND;
 			}
-			else if (ptr[1] == 'g' && ptr[2] == 't' && ptr[3] == ';')
+			else if (pos+3 < length && ptr[1] == 'g' && ptr[2] == 't' && ptr[3] == ';')
 			{
 				toSkip = 3;
 				replacement = CHAR_GREATER_THAN_SIGN;
 			}
-			else if (ptr[1] == 'q' && ptr[2] == 'u' && ptr[3] == 'o' && ptr[4] == 't' && ptr[5] == ';')
+			else if (pos+5 < length && ptr[1] == 'q' && ptr[2] == 'u' && ptr[3] == 'o' && ptr[4] == 't' && ptr[5] == ';')
 			{
 				toSkip = 5;
 				replacement = CHAR_QUOTATION_MARK;
 			}
-			else if (ptr[1] == 'l' && ptr[2] == 't' && ptr[3] == ';')
+			else if (pos+3 < length && ptr[1] == 'l' && ptr[2] == 't' && ptr[3] == ';')
 			{
 				toSkip = 3;
 				replacement = CHAR_LESS_THAN_SIGN;
 			}
-			else if (ptr[1] == 'a' && ptr[2] == 'p' && ptr[3] == 'o' && ptr[4] == 's' && ptr[5] == ';')
+			else if (pos+5 < length && ptr[1] == 'a' && ptr[2] == 'p' && ptr[3] == 'o' && ptr[4] == 's' && ptr[5] == ';')
 			{
 				toSkip = 5;
 				replacement = CHAR_QUOTATION_MARK;
+			}
+			else if (pos+3 < length && ptr[1] == '#' && ptr[2] == 'x')
+			{
+				toSkip = 2;
+				bool hasDigit = false;
+				while (pos+toSkip+1 < length && ptr[toSkip+1] != ';')
+				{
+					UniChar c = ptr[toSkip+1];
+					hasDigit =	(c >= CHAR_DIGIT_ZERO && c <= CHAR_DIGIT_NINE)
+								|| 
+								(c >= CHAR_LATIN_CAPITAL_LETTER_A && c <= CHAR_LATIN_CAPITAL_LETTER_F)
+								||
+								(c >= CHAR_LATIN_SMALL_LETTER_A && c <= CHAR_LATIN_SMALL_LETTER_F);
+					if (!hasDigit)
+						break;
+					toSkip++; //skip digit
+				}
+				if (hasDigit && pos+toSkip+1 < length && ptr[toSkip+1] == ';')
+				{
+					//JQ 18/09/2012: escaped characters
+					VString hex;
+					hex.FromBlock((void *)(ptr+3), sizeof(UniChar)*(toSkip-2), XBOX::VTC_UTF_16);
+					toSkip++; //skip ';'
+					replacement = hex.GetHexLong();
+					xbox_assert(replacement != 0);
+				}
+				else
+					replacement = 0;
 			}
 			else
 				replacement = 0;
@@ -2822,6 +2868,7 @@ void VString::TranscodeFromXML()
 			}
 		}
 		++ptr;
+		pos++;
 	}
 
 	if (temp != NULL)
@@ -3512,7 +3559,9 @@ VError VString::GetJSONString(VString& outJSONString, JSONOption inModifier) con
 					}
 					else
 					{
+						#if 0
 						if (c >= 768) // ceci est un fix rapide en attendant de trouver les caracteres qui posent problemes au parser JSON natif
+						// disabled for ACI0080592. Don't remember what characters were actually causing problems. Keep the code in case the problem comes back.
 						{
 							*dest = '\\';
 							dest++;
@@ -3538,6 +3587,7 @@ VError VString::GetJSONString(VString& outJSONString, JSONOption inModifier) con
 							len2+=6;
 						}
 						else
+						#endif
 						{
 							*dest = c;
 							dest++;
@@ -3662,6 +3712,14 @@ VString ToString(sLONG8 n)
 	return res;
 }
 
+#if ARCH_32 || COMPIL_GCC
+VString ToString(uLONG8 n)
+{
+	VString res;
+	res.FromULong8(n);
+	return res;
+}
+#endif
 
 VString ToString(VSize n)
 {

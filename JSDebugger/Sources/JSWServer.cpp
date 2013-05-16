@@ -1073,6 +1073,7 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			vbagArguments-> GetString ( CrossfireKeys::target, vstrTarget );
 			sLONG			nLine = 1;
 			vbagArguments-> GetLong ( CrossfireKeys::line, nLine );
+			fDebuggerSettings->RemoveBreakPoint(vstrTarget,nLine-1);
 			vstrTarget. AppendCString ( " " );
 			vstrTarget. AppendLong ( nLine );
 
@@ -1101,6 +1102,7 @@ XBOX::DebugMsg ( CVSTR ( "Received " ) + vstrCommand + CVSTR ( " for execution\n
 			vbagArguments-> GetString ( CrossfireKeys::target, vstrTarget );
 			sLONG			nLine = 1;
 			vbagArguments-> GetLong ( CrossfireKeys::line, nLine );
+			fDebuggerSettings->AddBreakPoint(vstrTarget,nLine-1);
 			vstrTarget. AppendCString ( " " );
 			vstrTarget. AppendLong ( nLine );
 

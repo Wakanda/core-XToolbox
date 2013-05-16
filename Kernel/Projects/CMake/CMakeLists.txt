@@ -23,13 +23,15 @@ add_library(Kernel SHARED ${Sources})
 
 
 include_directories(${IcuIncludeDir}
+  ${BsdIncludeDir}
+  ${UuidIncludeDir}
   ${KernelRoot}/Sources/M_APM
   ${XBoxRoot})
 
 
 target_link_libraries(Kernel Icu
-  bsd	#Needed by arc4random
+  Bsd	#Needed by arc4random
   dl	#Needed by dlopen and friends (used by KernelIPC)
   rt	#Needed by clock_gettime
-  uuid	#Needed by uuid_generate
+  Uuid	#Needed by uuid_generate
   )

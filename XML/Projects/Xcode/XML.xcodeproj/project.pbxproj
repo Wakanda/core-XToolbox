@@ -578,7 +578,7 @@
 		0867D690FE84028FC02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0420;
+				LastUpgradeCheck = 0450;
 			};
 			buildConfigurationList = 39A9D2D608CD93860019B724 /* Build configuration list for PBXProject "XML" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -830,6 +830,7 @@
 		126DA1120A4AC67F00D639DA /* Coverage */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Coverage;
 		};
@@ -855,6 +856,7 @@
 		39A9D2D408CD93860019B724 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Beta;
 		};
@@ -877,12 +879,14 @@
 		39A9D31708CD95150019B724 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Debug;
 		};
 		39A9D31808CD95150019B724 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Release;
 		};
@@ -923,6 +927,7 @@
 		39C38FC60C27FB470073EDA8 /* Performance */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Performance;
 		};
@@ -947,6 +952,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F4B97CDF116352A800987AC0 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Debug;
 		};
@@ -954,6 +960,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F4B97CDF116352A800987AC0 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Coverage;
 		};
@@ -961,6 +968,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F4B97CDF116352A800987AC0 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Beta;
 		};
@@ -968,6 +976,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F4B97CDF116352A800987AC0 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Release;
 		};
@@ -975,6 +984,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F4B97CDF116352A800987AC0 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Performance;
 		};

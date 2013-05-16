@@ -101,8 +101,10 @@ public:
 	void		FormatDate(const VTime& inDate, VString& outDate, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay) const;
 	void		FormatTime(const VTime& inTime, VString& outTime, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay) const;
 	void		FormatNumber(const VValueSingle& inValue, VString& outNumber) const;
-	void		FormatDuration(const VDuration& inDuration, VString& outDuration) const;
+	void		FormatDuration(const VDuration& inDuration, VString& outDuration, EOSFormats inFormat) const;
 
+	void		GetMonthName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 1 (january) to 12 (december)
+	void		GetWeekDayName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 0 (sunday) to 6 (saturday)
 
 private :
 

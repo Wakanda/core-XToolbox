@@ -318,17 +318,17 @@ void VJSStorageClass::GetDefinition (ClassDefinition &outDefinition)
 	outDefinition.finalize			= js_finalize<_Finalize>;
 }
 
-void VJSStorageClass::_Initialize( const XBOX::VJSParms_initialize& inParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_Initialize( const XBOX::VJSParms_initialize& inParms, VJSStorageObject *inStorageObject)
 {
 	inStorageObject->Retain();
 }
 
-void VJSStorageClass::_Finalize( const XBOX::VJSParms_finalize& inParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_Finalize( const XBOX::VJSParms_finalize& inParms, VJSStorageObject *inStorageObject)
 {
 	inStorageObject->Release();
 }
 
-void VJSStorageClass::_HasProperty (XBOX::VJSParms_hasProperty &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_HasProperty (XBOX::VJSParms_hasProperty &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
@@ -362,7 +362,7 @@ void VJSStorageClass::_HasProperty (XBOX::VJSParms_hasProperty &ioParms, IJSStor
 	}
 }
 
-void VJSStorageClass::_GetProperty (XBOX::VJSParms_getProperty &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_GetProperty (XBOX::VJSParms_getProperty &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
@@ -407,7 +407,7 @@ void VJSStorageClass::_GetProperty (XBOX::VJSParms_getProperty &ioParms, IJSStor
 	}
 }
 
-bool VJSStorageClass::_SetProperty (XBOX::VJSParms_setProperty &ioParms, IJSStorageObject *inStorageObject)
+bool VJSStorageClass::_SetProperty (XBOX::VJSParms_setProperty &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
  
@@ -433,14 +433,14 @@ bool VJSStorageClass::_SetProperty (XBOX::VJSParms_setProperty &ioParms, IJSStor
 	return true;
 }
 
-void VJSStorageClass::_GetPropertyNames (XBOX::VJSParms_getPropertyNames &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_GetPropertyNames (XBOX::VJSParms_getPropertyNames &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
 	inStorageObject->GetKeys(ioParms);
 }
 
-void VJSStorageClass::_DeleteProperty (XBOX::VJSParms_deleteProperty &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_DeleteProperty (XBOX::VJSParms_deleteProperty &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
@@ -455,7 +455,7 @@ void VJSStorageClass::_DeleteProperty (XBOX::VJSParms_deleteProperty &ioParms, I
 		ioParms.ReturnBoolean(inStorageObject->RemoveKeyValue(name));
 }
 
-void VJSStorageClass::_key (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_key (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
@@ -474,7 +474,7 @@ void VJSStorageClass::_key (VJSParms_callStaticFunction &ioParms, IJSStorageObje
 		ioParms.ReturnNullValue();
 }
 
-void VJSStorageClass::_getItem (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_getItem (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
@@ -493,7 +493,7 @@ void VJSStorageClass::_getItem (VJSParms_callStaticFunction &ioParms, IJSStorage
 		ioParms.ReturnNullValue();
 }
 
-void VJSStorageClass::_setItem (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_setItem (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
@@ -516,7 +516,7 @@ void VJSStorageClass::_setItem (VJSParms_callStaticFunction &ioParms, IJSStorage
 	}	
 }
 
-void VJSStorageClass::_removeItem (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_removeItem (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
@@ -527,28 +527,28 @@ void VJSStorageClass::_removeItem (VJSParms_callStaticFunction &ioParms, IJSStor
 		inStorageObject->RemoveKeyValue(name);
 }
 
-void VJSStorageClass::_clear (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_clear (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
 	inStorageObject->Clear();
 }
 
-void VJSStorageClass::_tryLock (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_tryLock (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
 	ioParms.ReturnBool(inStorageObject->TryLock());
 }
 
-void VJSStorageClass::_lock (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_lock (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 
 	inStorageObject->Lock();
 }
 
-void VJSStorageClass::_unlock (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject)
+void VJSStorageClass::_unlock (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject)
 {
 	xbox_assert(inStorageObject != NULL);
 

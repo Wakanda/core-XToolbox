@@ -1806,6 +1806,11 @@ void VReal::RealToXMLString( Real inValue, VString& outString)
 	#endif
 	
 	outString.FromCString( buff);
+
+	//JQ 07/11/2012: fixed ACI0078310 (in XML decimal separator is always '.')
+    const char  theDecimalPointChar = ::localeconv()->decimal_point[0];	// inspired from xalan
+	if (theDecimalPointChar != '.')
+		outString.ExchangeAll((UniChar)theDecimalPointChar,'.');
 }
 
 
@@ -1898,6 +1903,12 @@ VError VReal::GetJSONString(VString& outJSONString, JSONOption inModifier) const
 
 
 	outJSONString.FromCString( buff);
+
+	//JQ 07/11/2012: fixed ACI0078310 (in JSON decimal separator is always '.')
+    const char  theDecimalPointChar = ::localeconv()->decimal_point[0];	// inspired from xalan
+	if (theDecimalPointChar != '.')
+		outJSONString.ExchangeAll((UniChar)theDecimalPointChar,'.');
+
 	return VE_OK;
 }
 

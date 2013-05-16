@@ -75,7 +75,7 @@ public:
 			bool				GetDuration( XBOX::VDuration& outDuration, JS4D::ExceptionRef *outException = NULL) const;
 			XBOX::VFile*		GetFile( JS4D::ExceptionRef *outException = NULL) const;
 			XBOX::VFolder*		GetFolder( JS4D::ExceptionRef *outException = NULL) const;
-			XBOX::VValueSingle*	CreateVValue( JS4D::ExceptionRef *outException = NULL) const										{ return JS4D::ValueToVValue( fContext, fValue, outException); }
+			XBOX::VValueSingle*	CreateVValue( JS4D::ExceptionRef *outException = NULL, bool simpleDate = false) const										{ return JS4D::ValueToVValue( fContext, fValue, outException, simpleDate); }
 			void				GetObject( VJSObject& outObject, JS4D::ExceptionRef *outException = NULL) const;
 			VJSObject			GetObject( JS4D::ExceptionRef *outException = NULL) const;
 
@@ -184,23 +184,19 @@ public:
 
 			// call a member function on this object.
 			// returns false if the function was not found.
-			// If inFullPath is not NULL, set it as the "source" of the executing script.
-			// This is needed if files are referred relative to the script containing the function, require() for example.
 
 			bool				CallFunction(
 									const VJSObject& inFunctionObject, 
 									const std::vector<VJSValue> *inValues, 
 									VJSValue *outResult, 
-									JS4D::ExceptionRef *outException,
-									const XBOX::VFilePath *inFullPath = NULL);
+									JS4D::ExceptionRef *outException);
 			bool				CallMemberFunction(
 									const XBOX::VString& inFunctionName, 
 									const std::vector<VJSValue> *inValues, 
 									VJSValue *outResult, 
-									JS4D::ExceptionRef *outException,
-									const XBOX::VFilePath *inFullPath = NULL)
+									JS4D::ExceptionRef *outException)
 									{
-										return CallFunction(GetPropertyAsObject(inFunctionName, outException), inValues, outResult, outException, inFullPath);
+										return CallFunction(GetPropertyAsObject(inFunctionName, outException), inValues, outResult, outException);
 									}
 
 			// Call object as a constructor, return true if successful. outCreatedObject must not be NULL.
@@ -376,8 +372,6 @@ private:
 
 //======================================================
 
-#if !VERSION_LINUX  // Postponed Linux Implementation !
-
 class XTOOLBOX_API VJSPictureContainer : public XBOX::VObject, public XBOX::IRefCountable
 {
 public:
@@ -422,9 +416,6 @@ protected:
 
 };
 
-#endif
-
-
 //======================================================
 
 /*
@@ -435,7 +426,8 @@ protected:
 class XTOOLBOX_API VJSFunction : public XBOX::VObject
 {
 public:
-									VJSFunction( const VString& inFuncName, JS4D::ContextRef inContext):fContext( inContext), fResult( inContext), fFuncName( inFuncName), fExcept( NULL)		{}
+									VJSFunction( const VJSObject& inFunctionObject, JS4D::ContextRef inContext):fContext( inContext), fResult( inContext), fFunctionObject( inFunctionObject), fException( NULL)		{}
+									VJSFunction( const VString& inFunctionName, JS4D::ContextRef inContext):fContext( inContext), fResult( inContext), fFunctionObject( inContext), fFunctionName( inFunctionName), fException( NULL)		{}
 	virtual							~VJSFunction();
 
 			void					AddParam( const VValueSingle* inVal);
@@ -443,6 +435,8 @@ public:
 			void					AddParam( const VJSONValue& inVal);
 			void					AddParam( const VString& inVal);
 			void					AddParam( sLONG inVal);
+			void					AddUndefinedParam();
+			void					AddNullParam();
 			void					AddBoolParam( bool inVal);
 			void					AddLong8Param( sLONG8 inVal);
 
@@ -457,16 +451,17 @@ public:
 			bool					GetResultAsJSONValue( VJSONValue& outResult) const;
 			const VJSValue&			GetResult() const				{ return fResult; }
 			
-			JS4D::ExceptionRef		GetException() const			{ return fExcept; }
+			JS4D::ExceptionRef		GetException() const			{ return fException; }
 
 			void					ClearParamsAndResult();
 
 private:
 			std::vector<VJSValue>	fParams;
-			VString					fFuncName;
+			VString					fFunctionName;
+			VJSObject				fFunctionObject;
 			VJSValue				fResult;
 			VJSContext				fContext;
-			JS4D::ExceptionRef		fExcept;
+	mutable	JS4D::ExceptionRef		fException;
 };
 
 END_TOOLBOX_NAMESPACE

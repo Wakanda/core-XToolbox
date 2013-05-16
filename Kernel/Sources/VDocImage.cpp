@@ -16,7 +16,8 @@
 */
 
 #include "VKernelPrecompiled.h"
-#include "VDocText.h"
+
+
 #include "VString.h"
 
 //in order to be able to use std::min && std::max
@@ -24,3 +25,4 @@
 #undef min
 
 USING_TOOLBOX_NAMESPACE
+

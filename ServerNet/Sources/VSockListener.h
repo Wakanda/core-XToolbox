@@ -38,10 +38,10 @@ public:
 	
 	// IPV4 address
 	#if WITH_DEPRECATED_IPV4_API
-		bool AddListeningPort(uLONG  iAddr, PortNumber iPort, bool iSsl=false, Socket inBoundSock=kBAD_SOCKET);
+		bool AddListeningPort(uLONG  iAddr, PortNumber iPort, bool iSsl=false, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);
 	#else
-		bool AddListeningPort(VString  iAddr, PortNumber iPort, bool iSsl=false, Socket inBoundSock=kBAD_SOCKET);
-		bool AddListeningPort(const VNetAddress& inAddr, bool iSsl=false, Socket inBoundSock=kBAD_SOCKET);
+		bool AddListeningPort(VString  iAddr, PortNumber iPort, bool iSsl=false, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);
+		bool AddListeningPort(const VNetAddress& inAddr, bool iSsl=false, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);
 	#endif
 	
 	bool StartListening();
@@ -77,8 +77,6 @@ private:
 	std::vector<XSBind*> fSslListens;
 	XTCPAcceptIterator fAcceptIterator;
 	bool fListenStarted;
-	uLONG fId;
-	uLONG fAcceptTimeout;
 	VKeyCertChain* fKeyCertChain;
 };
 

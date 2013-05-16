@@ -74,13 +74,44 @@ class XWinStyledTextBox :
 	public VStyledTextBox
 {
 public:
-	XWinStyledTextBox(HDC inHDC, const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, const TextLayoutMode inLayoutMode = TLM_NORMAL, const GReal inRefDocDPI = 72.0f);
+	XWinStyledTextBox(	HDC inHDC, const VString& inText, const VTreeTextStyle *inStyles, 
+						const VRect& inHwndBounds, 
+						const VColor& inTextColor, 
+						VFont *inFont, 
+						const TextLayoutMode inLayoutMode = TLM_NORMAL, 
+						const GReal inRefDocDPI = 72.0f, 
+						const VColor& inParentFrameBackColor = VColor(0xff,0xff,0xff));
 // Minimal COM functionality
     HRESULT STDMETHODCALLTYPE QueryInterface( 
         /* [in] */ REFIID riid,
         /* [iid_is][out] */ void __RPC_FAR *__RPC_FAR *ppvObject);
     ULONG STDMETHODCALLTYPE AddRef(void);
     ULONG STDMETHODCALLTYPE Release(void);
+
+	/** set text horizontal alignment (default is AL_DEFAULT) */
+	void SetTextAlign( AlignStyle inHAlign, sLONG inStart = 0, sLONG inEnd = -1);
+
+	/** set text paragraph alignment (default is AL_DEFAULT) */
+	void SetParaAlign( AlignStyle inVAlign);
+
+	/** set paragraph line height 
+
+		if positive, it is fixed line height in point
+		if negative, line height is (-value)*normal line height (so -2 is 2*normal line height)
+		if -1, it is normal line height 
+	*/
+	void SetLineHeight( const GReal inLineHeight, sLONG inStart = 0, sLONG inEnd = -1);
+
+	void SetRTL(bool inRTL, sLONG inStart = 0, sLONG inEnd = -1);
+
+	/** set first line padding offset in point 
+	@remarks
+		might be negative for negative padding (that is second line up to the last line is padded but the first line)
+	*/
+	void SetPaddingFirstLine(const GReal inPadding, sLONG inStart = 0, sLONG inEnd = -1);
+
+	/** set tab stop offset in point & type */
+	void SetTabStop(const GReal inOffset, const eTextTabStopType inType, sLONG inStart = 0, sLONG inEnd = -1);
 
 	/** return the caret position & height of text at the specified text position
 	@remarks
@@ -117,13 +148,18 @@ public:
 	@note
 		override from VStyledTextBox
 	*/
-	Boolean GetPlainText( VString& outText);
+	Boolean GetPlainText( VString& outText) const;
+
+	VIndex GetPlainTextLength() const
+	{
+		return _GetPlainText().GetLength();
+	}
 
 	/** get uniform style on the specified range 
 	@remarks
 		return end location of uniform range
 	*/
-	sLONG GetStyle(VTextStyle* ioStyle, sLONG rangeStart, sLONG rangeEnd)
+	sLONG GetStyle(VTextStyle* ioStyle, sLONG rangeStart = 0, sLONG rangeEnd = -1)
 	{
 		return _GetUniformStyle( ioStyle, rangeStart, rangeEnd);
 	}
@@ -145,12 +181,18 @@ public:
 	virtual void InsertText( sLONG inPos, const VString& inText);
 
 	/** delete text range */
-	virtual void DeleteText( sLONG rangeStart, sLONG rangeEnd);
+	virtual void DeleteText( sLONG rangeStart = 0, sLONG rangeEnd = -1);
 
 	/** apply style (use style range) */
-	virtual void ApplyStyle( VTextStyle* inStyle) { DoApplyStyle( inStyle); }
+	virtual void ApplyStyle( const VTextStyle* inStyle) { DoApplyStyle( inStyle); }
+
+	/** set parent frame background color */
+	virtual void SetParentFrameBackColor( const VColor& inColor) { fParentFrameBackColor = inColor; }
 
 protected:
+	bool _GetRTL() const;
+	void _SetTextAlign( AlignStyle inHAlign);
+
 	/** get uniform style on the specified range 
 	 @remarks
 		return false if style is not uniform 
@@ -158,7 +200,7 @@ protected:
 	virtual bool _GetStyle(VTextStyle* ioStyle, sLONG rangeStart, sLONG rangeEnd);
 
 	/** get plain text */
-	const VString& _GetPlainText();
+	const VString& _GetPlainText() const;
 
 	bool _VTextStyleFromCharFormat(VTextStyle* ioStyle, CHARFORMAT2W* inCharFormat);
 
@@ -184,11 +226,13 @@ protected:
 	void DoRelease();
 	Boolean DoDraw(const VRect& inBounds);
 	void DoGetSize(GReal &ioWidth, GReal &outHeight);
-	void DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL);
+	void DoApplyStyle(const VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL);
 	void _SetFont(VFont *font, const VColor &textColor);
 	void _SetText(const VString& inText) { _SetTextEx( inText); }
 	void _SetTextEx(const VString& inText, bool inSelection = false);
 
+	void _Select(sLONG inStart, sLONG inEnd);
+	
 	/** compute x offset
 	@remarks
 		see fOffsetX comment
@@ -196,6 +240,7 @@ protected:
 	void _ComputeOffsetX();
 
 	GReal _GetOffsetX() const;
+	void _AdjustBoundsForVerticalAlign(VRect &ioBounds);
 
 	void _EnableMultiStyle();
 
@@ -251,7 +296,7 @@ private:
 	HRESULT	TxGetSelectionBarWidth(LONG *lSelBarWidth);
 
 // Custom functions
-	bool CharFormatFromVTextStyle(CHARFORMAT2W* ioCharFormat, VTextStyle* inStyle, HDC hdc);
+	bool CharFormatFromVTextStyle(CHARFORMAT2W* ioCharFormat, const VTextStyle* inStyle, HDC hdc, bool inParentHasBackColor = false);
 	HRESULT CharFormatFromHFONT(CHARFORMAT2W* ioCharFormat, HFONT hFont, const VColor &textColor, HDC hdc);
 	HRESULT InitDefaultCharFormat(HDC hdc);
 	HRESULT InitDefaultParaFormat();
@@ -274,11 +319,11 @@ private:
 	ITextServices	*fTextServices;
 	ITextDocument	*fTextDocument;
 	ITextRange		*fTextRange;
-	VString			fText;
+	mutable VString	fText;
 	LONG			fRefCount;					// Reference Count
 	HDC				fHDC;
 	HDC				fHDCMetrics;
-	bool			fIsPlainTextDirty;
+	mutable bool	fIsPlainTextDirty;
 
 	/** ratio to apply to fontsize in order to take account 4D form 72 dpi for instance on Windows 
 	@remarks
@@ -287,7 +332,12 @@ private:
 	GReal			fFontSizeToDocumentFontSize;
 
 	TextLayoutMode		fLayoutMode;
-	justificationStyle	fJust;
+	AlignStyle		fHAlign;
+	AlignStyle		fVAlign;
+	bool			fIsSizeDirty;
+	GReal			fMaxWidth;
+	GReal			fCurWidth, fCurHeight;
+	sLONG			fCurDPI;
 
 	/** RTE adds a extra left margin even if we do not request it (...)
 		so we need to decal textbox x origin with offset=-left margin
@@ -297,6 +347,8 @@ private:
 		 so if this bug is fixed in a future RTE version it should be fine)
 	*/
 	GReal			fOffsetX;
+
+	VColor			fParentFrameBackColor;
 };
 END_TOOLBOX_NAMESPACE
 

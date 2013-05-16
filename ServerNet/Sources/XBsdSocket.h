@@ -37,13 +37,13 @@ class XTOOLBOX_API XBsdTCPSocket : public VObject
 	
 	static XBsdTCPSocket* NewClientConnectedSock(const VString& inDnsName, PortNumber inPort, sLONG inMsTimeout);	//Client specific !
 #if WITH_DEPRECATED_IPV4_API
-	static XBsdTCPSocket* NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock=kBAD_SOCKET);	//Server specific !
+	static XBsdTCPSocket* NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);	//Server specific !
 #else
 	//jmo - TODO : Mettre une VString pour l'adresse.
-	static XBsdTCPSocket* NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock=kBAD_SOCKET);	//Server specific !
+	static XBsdTCPSocket* NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);	//Server specific !
 #endif
 	
-	static XBsdTCPSocket* NewServerListeningSock(PortNumber inPorts, Socket inBoundSock=kBAD_SOCKET);	//Server specific !
+	static XBsdTCPSocket* NewServerListeningSock(PortNumber inPorts, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);	//Server specific !
 
 	virtual ~XBsdTCPSocket();
 
@@ -92,6 +92,9 @@ class XTOOLBOX_API XBsdTCPSocket : public VObject
 	VError DoWrite(const void* inBuff, uLONG* ioLen);
 	VError DoWriteWithTimeout(const void* inBuff, uLONG* ioLen, sLONG inMsTimeout, sLONG* outMsSpent=NULL);
 	
+	//Reads and discard data on Close with receive loop. Helps prevent TCP RST flag.
+	static void TrashWithTimeout(Socket inFd, sLONG inMsTimeout, sLONG* outMsSpent=NULL);
+	
 	//It doesn't matter if we're building a client or server socket, we pass the SERVER address !
 	//XBsdTCPSocket(sLONG inSockFD, const sockaddr* inServerAddr=NULL, socklen_t inAddrLen=0);
 	
@@ -99,7 +102,7 @@ class XTOOLBOX_API XBsdTCPSocket : public VObject
 	PortNumber GetSockAddrPort() const;
 
 	VError Connect(const VNetAddress& inAddr, sLONG inMsTimeout);			//Client specific !
-	VError Listen(const VNetAddress& inAddr, bool inAlreadyBound=false);	//Server specific !
+	VError Listen(const VNetAddress& inAddr, bool inAlreadyBound=false, bool inReuseAddress=true);	//Server specific !
 
 	VError SetServicePort(PortNumber inServicePort);
 	
@@ -131,11 +134,15 @@ class XBsdAcceptIterator : public VObject
 public :
 	
 	XBsdAcceptIterator();
+	~XBsdAcceptIterator();
+	
 	VError AddServiceSocket(XBsdTCPSocket* inSock);
 	VError ClearServiceSockets();
 	VError GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG inMsTimeout);
 	
 private :
+
+	XBsdAcceptIterator(const XBsdAcceptIterator&);	//Copy doesn't make sense !
 
 	//Needs special error handling, done in the corresponding public method
 	VError GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG inMsTimeout, bool* outShouldRetry);
@@ -145,7 +152,8 @@ private :
 	
 	SockPtrColl::const_iterator fSockIt;
 
-	fd_set fReadSet;
+	//Dynamic alloc to make sure we use ServerNet FD_SETSIZE
+	fd_set* fReadSet;
 	
 };
 

@@ -24,6 +24,10 @@
 XMacIntlMgr::XMacIntlMgr( DialectCode inDialect)
 : fDialect( inDialect)
 , fCFLocaleRef( NULL)
+, fWeekdaySymbols( NULL)
+, fMonthSymbols( NULL)
+, fShortWeekdaySymbols( NULL)
+, fShortMonthSymbols( NULL)
 {
 }
 
@@ -31,12 +35,24 @@ XMacIntlMgr::XMacIntlMgr( DialectCode inDialect)
 XMacIntlMgr::XMacIntlMgr( const XMacIntlMgr& inOther)
 : fDialect( inOther.fDialect)
 , fCFLocaleRef( NULL)	// CFLocaleRef is supposed to be non thread safe. Don't retain it
+, fWeekdaySymbols( NULL)
+, fMonthSymbols( NULL)
+, fShortWeekdaySymbols( NULL)
+, fShortMonthSymbols( NULL)
 {
 }
 
 
 XMacIntlMgr::~XMacIntlMgr()
 {
+	if (fWeekdaySymbols != NULL)
+		CFRelease( fWeekdaySymbols);
+	if (fMonthSymbols != NULL)
+		CFRelease( fMonthSymbols);
+	if (fShortWeekdaySymbols != NULL)
+		CFRelease( fShortWeekdaySymbols);
+	if (fShortMonthSymbols != NULL)
+		CFRelease( fShortMonthSymbols);
 	if (fCFLocaleRef != NULL)
 		CFRelease( fCFLocaleRef);
 }
@@ -150,5 +166,235 @@ VFromUnicodeConverter* XMacIntlMgr::NewFromUnicodeConverter(CharSet inCharSet)
 		converter = NULL;
 	}
 	return converter;
+}
+
+
+void XMacIntlMgr::FormatVDuration( const VDuration& inTime, VString& outText, CFDateFormatterStyle inDateStyle, CFDateFormatterStyle inTimeStyle)
+{
+	outText.Clear();
+
+	CFDateFormatterRef dateFormatter = ::CFDateFormatterCreate( NULL, GetCFLocaleRef(), inDateStyle, inTimeStyle);
+	if (dateFormatter != NULL)
+	{
+		// Init CFGregorianDate structure from inDate.
+		sLONG day, hour, minute, second, millisecond;
+		inTime.GetDuration( day, hour, minute, second, millisecond);
+
+		CFGregorianDate date;
+		date.year = 0;
+		date.month = 0;
+		date.day = day;
+		date.hour = hour;
+		date.minute = minute;
+		date.second = second;
+
+		// VTime is in GMT time zone (CFDateFormatterCreateStringWithAbsoluteTime works in local time zone by default)
+
+		CFAbsoluteTime time = CFGregorianDateGetAbsoluteTime( date, NULL);	// use gmt
+
+		CFStringRef p_FormattedDate = ::CFDateFormatterCreateStringWithAbsoluteTime( NULL, dateFormatter, time);
+		if (p_FormattedDate)
+		{
+			outText.MAC_FromCFString(p_FormattedDate);
+			::CFRelease(p_FormattedDate);
+		}
+
+		::CFRelease( dateFormatter);
+	}
+}
+
+
+/*
+	static
+*/
+void XMacIntlMgr::FormatVTime( const VTime& inDate, VString& outText, CFDateFormatterRef inFormatter, bool inUseGMTTimeZoneForDisplay)
+{
+	outText.Clear();
+	
+	// Init CFGregorianDate structure from inDate.
+	sWORD year, month, day, hour, minute, second, millisecond;
+	inDate.GetUTCTime( year, month, day, hour, minute, second, millisecond);
+
+	CFGregorianDate date;
+	date.year = year;
+	date.month = month;
+	date.day = day;
+	date.hour = hour;
+	date.minute = minute;
+	date.second = second;
+
+	// VTime is in GMT time zone (CFDateFormatterCreateStringWithAbsoluteTime works in local time zone by default)
+
+	CFAbsoluteTime time = CFGregorianDateGetAbsoluteTime( date, NULL);	// use gmt
+
+	if (inUseGMTTimeZoneForDisplay)
+	{
+		CFTimeZoneRef utc_timeZone = CFTimeZoneCreateWithTimeIntervalFromGMT(NULL,0);
+		::CFDateFormatterSetProperty( inFormatter, kCFDateFormatterTimeZone, utc_timeZone);
+		::CFRelease( utc_timeZone);
+	}
+
+	CFStringRef p_FormattedDate = ::CFDateFormatterCreateStringWithAbsoluteTime( NULL, inFormatter, time);
+	if (p_FormattedDate)
+	{
+		outText.MAC_FromCFString(p_FormattedDate);
+		::CFRelease(p_FormattedDate);
+	}
+}
+
+
+/*
+	static
+*/
+void XMacIntlMgr::FormatVTime( const VTime& inDate, VString& outText, CFDateFormatterStyle inDateStyle, CFDateFormatterStyle inTimeStyle, bool inUseGMTTimeZoneForDisplay)
+{
+	CFDateFormatterRef cfFormatter = ::CFDateFormatterCreate( NULL, GetCFLocaleRef(), inDateStyle, inTimeStyle);
+	
+	if (testAssert( cfFormatter != NULL))
+	{
+		FormatVTime( inDate, outText, cfFormatter, inUseGMTTimeZoneForDisplay);
+		::CFRelease( cfFormatter);
+	}
+}
+
+
+/*
+	static
+*/
+void XMacIntlMgr::FormatVTimeWithTemplate( const VTime& inDate, VString& outText, CFStringRef inTemplate, bool inUseGMTTimeZoneForDisplay)
+{
+	CFDateFormatterRef cfFormatter = ::CFDateFormatterCreate( NULL, GetCFLocaleRef(), kCFDateFormatterNoStyle, kCFDateFormatterNoStyle);
+
+	CFStringRef cfDateFormat = CFDateFormatterCreateDateFormatFromTemplate( NULL, inTemplate, 0, GetCFLocaleRef());
+
+	if (testAssert( cfFormatter != NULL) && testAssert( cfDateFormat != NULL))
+	{
+		CFDateFormatterSetFormat( cfFormatter, cfDateFormat);
+		FormatVTime( inDate, outText, cfFormatter, inUseGMTTimeZoneForDisplay);
+	}
+
+	if (cfFormatter != NULL)
+		::CFRelease( cfFormatter);
+
+	if (cfDateFormat != NULL)
+		::CFRelease( cfDateFormat);
+}
+
+
+void XMacIntlMgr::FormatDate( const VTime& inDate, VString& outDate, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay)
+{
+	// Get the locale and date formatter
+	// Select date formatter settings
+	switch(inFormat)
+	{
+		case eOS_SHORT_FORMAT:
+			FormatVTime( inDate, outDate, kCFDateFormatterShortStyle, kCFDateFormatterNoStyle, inUseGMTTimeZoneForDisplay);
+			break;
+
+		case eOS_MEDIUM_FORMAT:
+			FormatVTime( inDate, outDate, kCFDateFormatterMediumStyle, kCFDateFormatterNoStyle, inUseGMTTimeZoneForDisplay);
+			break;
+
+		case eOS_LONG_FORMAT:
+			FormatVTime( inDate, outDate, kCFDateFormatterFullStyle, kCFDateFormatterNoStyle, inUseGMTTimeZoneForDisplay);
+			break;
+
+		default:
+			break;
+	}
+}
+
+
+void XMacIntlMgr::FormatTime( const VTime& inTime, VString& outTime, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay)
+{
+	// Get the time formatter style from inFormat.
+	CFDateFormatterStyle timeStyle;
+	switch(inFormat)
+	{
+		case eOS_SHORT_FORMAT:
+			timeStyle=kCFDateFormatterShortStyle;
+			break;
+		case eOS_MEDIUM_FORMAT:
+			timeStyle=kCFDateFormatterMediumStyle;
+			break;
+		case eOS_LONG_FORMAT:
+			timeStyle=kCFDateFormatterLongStyle;
+			break;
+		default:
+			xbox_assert( false);
+			timeStyle = kCFDateFormatterNoStyle;
+			break;
+	}
+
+	// Create the time formatter according inFormat.
+	FormatVTime( inTime, outTime, kCFDateFormatterNoStyle, timeStyle, inUseGMTTimeZoneForDisplay);
+}
+
+
+void XMacIntlMgr::FormatDuration( const VDuration& inTime, VString& outTime, EOSFormats inFormat)
+{
+	// Get the time formatter style from inFormat.
+	CFDateFormatterStyle timeStyle;
+	switch(inFormat)
+	{
+		case eOS_SHORT_FORMAT:
+			timeStyle=kCFDateFormatterShortStyle;
+			break;
+		case eOS_MEDIUM_FORMAT:
+			timeStyle=kCFDateFormatterMediumStyle;
+			break;
+		case eOS_LONG_FORMAT:
+			timeStyle=kCFDateFormatterLongStyle;
+			break;
+		default:
+			xbox_assert( false);
+			timeStyle = kCFDateFormatterNoStyle;
+			break;
+	}
+
+	// Create the time formatter according inFormat.
+	FormatVDuration( inTime, outTime, kCFDateFormatterNoStyle, timeStyle);
+}
+
+
+void XMacIntlMgr::GetMonthName( sLONG inIndex, bool inAbbreviated, VString& outName) const
+{
+	if (LoadCalendarSymbols())
+	{
+		outName.MAC_FromCFString((CFStringRef)CFArrayGetValueAtIndex( inAbbreviated ? fShortMonthSymbols : fMonthSymbols, inIndex - 1));
+	}
+}
+
+
+void XMacIntlMgr::GetWeekDayName( sLONG inIndex, bool inAbbreviated, VString& outName) const
+{
+	if (LoadCalendarSymbols())
+	{
+		outName.MAC_FromCFString((CFStringRef)CFArrayGetValueAtIndex( inAbbreviated ? fShortWeekdaySymbols : fWeekdaySymbols, inIndex));
+	}
+}
+
+
+bool XMacIntlMgr::LoadCalendarSymbols() const
+{
+	if ( (fWeekdaySymbols != NULL) && (fMonthSymbols != NULL) && (fShortWeekdaySymbols != NULL) && (fShortMonthSymbols != NULL) )
+		return true;
+
+	CFDateFormatterRef cfFormatter = ::CFDateFormatterCreate( NULL, GetCFLocaleRef(), kCFDateFormatterNoStyle, kCFDateFormatterNoStyle);
+	if (testAssert( cfFormatter != NULL))
+	{
+		// Get the list of names
+		if (fWeekdaySymbols == NULL)
+			fWeekdaySymbols = (CFArrayRef) ::CFDateFormatterCopyProperty( cfFormatter, kCFDateFormatterWeekdaySymbols);
+		if (fMonthSymbols == NULL)
+			fMonthSymbols = (CFArrayRef) ::CFDateFormatterCopyProperty( cfFormatter, kCFDateFormatterMonthSymbols);
+		if (fShortWeekdaySymbols == NULL)
+			fShortWeekdaySymbols = (CFArrayRef) ::CFDateFormatterCopyProperty( cfFormatter, kCFDateFormatterShortWeekdaySymbols);
+		if (fShortMonthSymbols == NULL)
+			fShortMonthSymbols = (CFArrayRef) ::CFDateFormatterCopyProperty( cfFormatter, kCFDateFormatterShortMonthSymbols);
+		::CFRelease( cfFormatter);
+	}
+
+	return (fWeekdaySymbols != NULL) && (fMonthSymbols != NULL) && (fShortWeekdaySymbols != NULL) && (fShortMonthSymbols != NULL);
 }
 

@@ -35,6 +35,7 @@ BEGIN_TOOLBOX_NAMESPACE
 
 class VFileKind;
 class VVolumeInfo;
+class VFileSystem;
 
 // you can not create a VFileDesc by yourself, you have to get one by calling the method VFile::Open
 // or "create" with a VFile
@@ -109,7 +110,8 @@ public:
 
 	explicit					VFile( const VFile& inSource );
 	explicit					VFile( const VURL& inUrl );
-	explicit					VFile( const VFolder& inFolder, const VString& inRelativPath, FilePathStyle inRelativPathStyle = FPS_DEFAULT);
+	explicit					VFile( const VFolder& inFolder, const VString& inRelativePath, FilePathStyle inRelativePathStyle = FPS_DEFAULT);
+	explicit					VFile( const VFilePath& inRootPath, const VString& inRelativePath, FilePathStyle inRelativePathStyle = FPS_DEFAULT);
 	
 	// It's is your responsibility to ensure that you pass a syntaxically correct file path.
 	// else you'll get an assert.
@@ -117,7 +119,8 @@ public:
 
 	// It's is your responsibility to ensure that you pass a syntaxically correct file path.
 	// else you'll get an assert.
-	explicit					VFile( const VFilePath& inPath );
+	// VFileSystem is optionnal and retained. It's there for conveniency for sandboxing support.
+	explicit					VFile( const VFilePath& inPath, VFileSystem *inFileSystem = NULL);
 
 
 #if VERSIONMAC
@@ -173,8 +176,10 @@ public:
 			// Delets the file. Don't throw an error If the file does not exist (but an err code if returned)
 			VError				Delete() const;
 
-			// return parent directory.
-			VFolder*			RetainParentFolder() const;
+			// Retain parent folder.
+			// If root has been reached returns NULL.
+			// In sandboxed mode, the root is the file system root (if any).
+			VFolder*			RetainParentFolder( bool inSandBoxed = false) const;
 
 			// return full file name ( ex: foo.html ).
 			void				GetName( VString& outName) const;
@@ -273,6 +278,7 @@ public:
 			VError				GetURL(VString& outURL, bool inEncoded);
 			VError				GetRelativeURL(VFolder* inBaseFolder, VString& outURL, bool inEncoded);
 
+			VFileSystem*		GetFileSystem() const	{ return fFileSystem;}
 
 #if VERSIONWIN
 			// file attributes
@@ -321,6 +327,7 @@ private:
 
 			XFileImpl			fImpl;
 			VFilePath			fPath;
+			VFileSystem*		fFileSystem;
 	mutable	VVolumeInfo*		fCachedVolumeInfo;
 };
 

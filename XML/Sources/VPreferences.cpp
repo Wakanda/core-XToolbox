@@ -89,7 +89,11 @@ VPreferences* VPreferences::Create( VFile *inFile, VFile *inDefaultPrefsFile /*,
 	
 	VFilePreferencesDelegate *delegate = new VFilePreferencesDelegate( inFile, xmlMainElement);
 	
-	return Create( delegate, inDefaultPrefsFile);
+	VPreferences *preferences = Create( delegate, inDefaultPrefsFile);
+	
+	ReleaseRefCountable( &delegate);
+	
+	return preferences;
 }
 
 
@@ -592,6 +596,11 @@ bool VFilePreferencesDelegate::WriteFile( VFile *inFile, const VString& inXmlMai
 		return false;
 
 	StErrorContextInstaller errorContext( false);
+
+	// make sure parent folder exists
+	VFolder *folder = inFile->RetainParentFolder();
+	folder->CreateRecursive();
+	ReleaseRefCountable( &folder);
 
 	VError err = WriteBagToFileInXML( *inBag, inXmlMainElement, inFile, false /* inWithIndentation */);
 	

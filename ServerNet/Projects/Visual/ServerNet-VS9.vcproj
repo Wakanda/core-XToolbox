@@ -1852,6 +1852,18 @@
 				>
 			</File>
 		</Filter>
+		<Filter
+			Name="Proxy"
+			>
+			<File
+				RelativePath="..\..\Sources\VProxyManager.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Sources\VProxyManager.h"
+				>
+			</File>
+		</Filter>
 	</Files>
 	<Globals>
 	</Globals>

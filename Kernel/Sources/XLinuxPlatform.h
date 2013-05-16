@@ -37,34 +37,35 @@
 	#define VERSION_LINUX_ON_XCODE	0
 #endif 
 
-//Test de LP64 pour ppc64 et x86_64
+#define ARCH_386    1
+#define ARCH_POWER  0
+#define BIGENDIAN   0
+#define SMALLENDIAN	1
+
 #if defined (__x86_64__)
     #define ARCH_32     0
     #define ARCH_64     1
-    #define ARCH_386    1
-    #define ARCH_POWER  0
-    #define BIGENDIAN   0
-    #define SMALLENDIAN	1
 #else
-    #error Need x86_64 support !
+	#define ARCH_32     1
+    #define ARCH_64     0
 #endif
 
 #if defined(__GNUC__)
     #define COMPIL_VISUAL       0
     #define COMPIL_CODEWARRIOR	0
     #define COMPIL_GCC          1
+	#define COMPIL_CLANG		1
     #else
-    #error Need gcc !
+    #error Need a GCC compatible compiler !
 #endif
 
-// Guess VERSIONDEBUG if not defined yet
 #ifndef VERSIONDEBUG
     #if COMPIL_GCC
-	#if __OPTIMIZE__
-	    #define VERSIONDEBUG    0
-	#else
-	    #define VERSIONDEBUG    1
-	#endif
+		#if __OPTIMIZE__
+	    	#define VERSIONDEBUG    0
+		#else
+	    	#define VERSIONDEBUG    1
+		#endif
     #endif
 #endif
 
@@ -76,9 +77,6 @@
 //Pas sur pour ceux la !
 #define VTC_WCHAR           VTC_UTF_32_RAW
 #define WCHAR_IS_UNICHAR    0
-
-//#define U_DISABLE_RENAMING 1    //Prevent ICU from renaming symbols
-//#define icu icu_3_8
 
 // Compiler relative macros & settings
 #if defined(__GNUC__)

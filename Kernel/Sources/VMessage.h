@@ -256,6 +256,9 @@ public:
 			It's typically used from inside DoExecute (that's why it should be protected).
 	*/
 	IMessageable*	GetTarget() const { return (fContext == NULL) ? NULL : fContext->GetTarget(); }
+
+	// for executing a message without sending or posting it.
+	bool			ActivateContext( IMessageable* inTarget);
 	
 protected:
 	VMessagingContext*	fContext;	// intermediate class for safe access to target

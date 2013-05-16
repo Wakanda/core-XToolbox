@@ -20,10 +20,15 @@
 
 #include "VPoint.h"
 #include "VRect.h"
+#if !VERSION_LINUX
 #include "VPolygon.h"
+#endif
 #include "VAffineTransform.h"
 #include "VColor.h"
-#include "VGraphicContext.h"
+
+#if ! VERSION_LINUX
+	#include "VGraphicContext.h"
+#endif
 
 #include "V4DPictureTools.h"
 #include "V4DPictureDecoder.h"
@@ -31,10 +36,11 @@
 #include "V4DPictureData.h"
 
 #if VERSIONWIN
-#include "XWinPictureData.h"
-#else
-#include "XMacPictureData.h"
+	#include "XWinPictureData.h"
+#elif VERSIONMAC
+	#include "XMacPictureData.h"
 #endif
+
 #include "V4DPicture.h"
 
 #endif

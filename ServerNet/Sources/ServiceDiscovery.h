@@ -68,7 +68,7 @@ public:
 	VString		fIPv4Address;		// IPv4 address.
 	VString		fIPv6Address;		// IPv6 address.
 	
-	PortNumber	fPort;				// Port.			
+	PortNumber	fPort;				// Port.
 	VValueBag	fValueBag;			// Used to store any additional information.
 	
 	// Retrieve hostname of machine and set it to fHostName, add ".local" suffix if needed.

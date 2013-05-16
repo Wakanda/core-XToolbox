@@ -17,8 +17,10 @@
 
 #if VERSIONMAC
 #include <4DJavaScriptCore/JavaScriptCore.h>
+#include <4DJavaScriptCore/JS4D_Tools.h>
 #else
 #include <JavaScriptCore/JavaScript.h>
+#include <JavaScriptCore/4D/JS4D_Tools.h>
 #endif
 
 #include "VJSValue.h"
@@ -62,7 +64,7 @@ JS4D::ValueRef VJSJSON::_Parse( JS4D::StringRef inJSON, JS4D::ExceptionRef *outE
 		return NULL;
 
 	JSValueRef arguments[] = { JSValueMakeString( fContext, inJSON)};
-	return JSObjectCallAsFunction( fContext, parseFunction, fJSONObject, 1, arguments, outException);
+	return JS4DObjectCallAsFunction( fContext, parseFunction, fJSONObject, 1, arguments, outException);
 }
 
 
@@ -73,7 +75,7 @@ JS4D::ValueRef VJSJSON::_Parse( JS4D::StringRef inJSON, JS4D::ObjectRef inRevive
 		return NULL;
 
 	JSValueRef arguments[] = { JSValueMakeString( fContext, inJSON), inReviverFunction };
-	return JSObjectCallAsFunction( fContext, parseFunction, fJSONObject, 2, arguments, outException);
+	return JS4DObjectCallAsFunction( fContext, parseFunction, fJSONObject, 2, arguments, outException);
 }
 
 
@@ -106,7 +108,7 @@ void VJSJSON::_Stringify( JS4D::ValueRef inValue, JS4D::ValueRef inReplacer, JS4
 		JS4D::ExceptionRef* outExcept = outException;
 		if (outExcept == NULL)
 			outExcept = &except;
-		JSValueRef result = JSObjectCallAsFunction( fContext, stringifyFunction, fJSONObject, 3, arguments, outExcept);
+		JSValueRef result = JS4DObjectCallAsFunction( fContext, stringifyFunction, fJSONObject, 3, arguments, outExcept);
 
 		if (result == NULL)
 			result = *outExcept;

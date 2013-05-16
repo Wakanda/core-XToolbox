@@ -27,27 +27,15 @@ USING_TOOLBOX_NAMESPACE
 
 class VJSWDebuggerCommand :
 			public VObject,
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-			public IJSWDebuggerCommand
-#else
 			public IWAKDebuggerCommand
-#endif
 {
 	public :
 
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		VJSWDebuggerCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
-#else
 		VJSWDebuggerCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
-#endif
 
 		virtual ~VJSWDebuggerCommand ( ) { ; }
 
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		virtual IJSWDebugger::JSWD_COMMAND GetType ( ) const { return fCommand; }
-#else
 		virtual IWAKDebuggerCommand::WAKDebuggerServerMsgType_t GetType ( ) const { return fCommand; }
-#endif
 
 		virtual const char* GetParameters ( ) const;
 		virtual const char* GetID ( ) const;
@@ -56,11 +44,8 @@ class VJSWDebuggerCommand :
 		//virtual const char* GetContextID ( ) const;
 
 	private :
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		IJSWDebugger::JSWD_COMMAND								fCommand;
-#else
+
 		IWAKDebuggerCommand::WAKDebuggerServerMsgType_t			fCommand;
-#endif
 
 		VString								fID;
 		VString								fContextID;
@@ -70,11 +55,7 @@ class VJSWDebuggerCommand :
 
 class VJSWDebugger :
 	public VObject,
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-	public IJSWDebugger
-#else
 	public IWAKDebuggerServer
-#endif
 {
 	public :
 
@@ -100,46 +81,23 @@ class VJSWDebugger :
 		virtual long long GetMilliseconds ( );
 		virtual void Reset ( );
 		virtual void WakeUpAllWaiters ( );
-#if 0 //!defined(WKA_USE_UNIFIED_DBG)
 
-		virtual void SetInfo ( IJSWDebuggerInfo* inInfo );
-		virtual void SetSettings ( IJSWDebuggerSettings* inSettings );
-		virtual int SendContextCreated ( uintptr_t inContext );
-		virtual int SendContextDestroyed ( uintptr_t inContext );
-/* Most methods will have JS context ID as a parameter. */
-
-
-		virtual int SendBreakPoint (
-								uintptr_t inContext,
-								int inExceptionHandle /* -1 ? notException : ExceptionHandle */,
-								char* inURL, int inURLLength /* in bytes */,
-								char* inFunction, int inFunctionLength /* in bytes */,
-								int inLineNumber,
-								char* inMessage = 0, int inMessageLength = 0 /* in bytes */,
-								char* inName = 0, int inNameLength = 0 /* in bytes */,
-								long inBeginOffset = 0, long inEndOffset = 0 /* in bytes */ );
-;
-		virtual IJSWDebuggerCommand* WaitForClientCommand ( uintptr_t inContext );
-		virtual IJSWDebuggerCommand* GetNextBreakPointCommand ( );
-		virtual IJSWDebuggerCommand* GetNextSuspendCommand ( uintptr_t inContext );
-		virtual IJSWDebuggerCommand* GetNextAbortScriptCommand ( uintptr_t inContext );
-
-
-		virtual unsigned short* EscapeForJSON (	const unsigned short* inString, int inSize, int & outSize );
-
-#else
 		virtual WAKDebuggerType_t			GetType();
 		virtual void						SetInfo( IWAKDebuggerInfo* inInfo );
 		virtual void						SetSettings( IWAKDebuggerSettings* inSettings );
-		virtual bool						Lock();
-		virtual bool						Unlock();
-		virtual WAKDebuggerContext_t		AddContext( uintptr_t inContext );
-		virtual bool						RemoveContext( WAKDebuggerContext_t inContext );
-		virtual bool						SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state);
-		virtual bool						SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize );
-		virtual bool						SendEval( WAKDebuggerContext_t inContext, void* inVars );
+		virtual void						SetSourcesRoot( void* inSourcesRootVStringPtr ) {;}
+		virtual void						GetStatus(
+												bool&			outStarted,
+												bool&			outConnected,
+												long long&		outDebuggingEventsTimeStamp,
+												bool&			outPendingContexts);
+		virtual OpaqueDebuggerContext		AddContext( uintptr_t inContext );
+		virtual bool						RemoveContext( OpaqueDebuggerContext inContext );
+		virtual bool						SetState(OpaqueDebuggerContext inContext, WAKDebuggerState_t state);
+		virtual bool						SendLookup( OpaqueDebuggerContext inContext, void* inVars, unsigned int inSize );
+		virtual bool						SendEval( OpaqueDebuggerContext inContext, void* inVars );
 		virtual bool						BreakpointReached(
-												WAKDebuggerContext_t	inContext,
+												OpaqueDebuggerContext	inContext,
 												int						inLineNumber,
 												int						inExceptionHandle = -1/* -1 ? notException : ExceptionHandle */,
 												char*					inURL  = NULL,
@@ -152,34 +110,34 @@ class VJSWDebugger :
 												int 					inNameLength = 0 /* in bytes */,
 												long 					inBeginOffset = 0,
 												long 					inEndOffset = 0 /* in bytes */ );
-		virtual bool						SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength );
-		virtual bool						SendSource( WAKDebuggerContext_t inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen );
-		virtual WAKDebuggerServerMessage*	WaitFrom(WAKDebuggerContext_t inContext);
+		virtual bool						SendCallStack(
+												OpaqueDebuggerContext	inContext,
+												const char				*inData,
+												int						inLength,
+												const char*				inExceptionInfos = NULL,
+												int						inExceptionInfosLength = 0 );
+		virtual bool						SendSource( OpaqueDebuggerContext inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen );
+		virtual WAKDebuggerServerMessage*	WaitFrom(OpaqueDebuggerContext inContext);
 		virtual void						DisposeMessage(WAKDebuggerServerMessage* inMessage);
 		virtual WAKDebuggerServerMessage* GetNextBreakPointCommand();
-		virtual WAKDebuggerServerMessage* GetNextSuspendCommand( WAKDebuggerContext_t inContext );
-		virtual WAKDebuggerServerMessage* GetNextAbortScriptCommand ( WAKDebuggerContext_t inContext );
+		virtual WAKDebuggerServerMessage* GetNextSuspendCommand( OpaqueDebuggerContext inContext );
+		virtual WAKDebuggerServerMessage* GetNextAbortScriptCommand ( OpaqueDebuggerContext inContext );
 
 		virtual WAKDebuggerUCharPtr_t		EscapeForJSON( const unsigned char* inString, int inSize, int& outSize );
 		virtual void						DisposeUCharPtr( WAKDebuggerUCharPtr_t inUCharPtr );
 
 		virtual void*						UStringToVString( const void* inString, int inSize );
 
-		virtual void						Trace(WAKDebuggerContext_t inContext, const void* inString, int inSize );
+		virtual void						Trace(OpaqueDebuggerContext inContext, const void* inString, int inSize,
+												WAKDebuggerTraceLevel_t inTraceLevel = WAKDBG_ERROR_LEVEL );
 
-#endif
 	private :
 
 		static VServer*						sServer;
 		static VJSWDebugger*				sDebugger;
 		VCriticalSection					fHandlersLock;
 		std::vector<VJSWConnectionHandler*>	fHandlers;
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		IJSWDebuggerSettings*				fSettings;
-#else
 		IWAKDebuggerSettings*				fSettings;
-		static XBOX::VCriticalSection		sDbgLock;
-#endif
 
 		VJSWDebugger ( );
 

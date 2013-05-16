@@ -88,7 +88,7 @@ void VJSImage::_setPath(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureCo
 	}
 }
 
-
+#if !VERSION_LINUX
 void VJSImage::_thumbnail(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureContainer* inPict)
 {
 	bool ok = true;
@@ -144,6 +144,7 @@ void VJSImage::_thumbnail(XBOX::VJSParms_callStaticFunction& ioParms, VJSPicture
 	else
 		ioParms.ReturnNullValue();
 }
+#endif
 
 
 void VJSImage::_saveMeta(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureContainer* inPict)
@@ -218,7 +219,9 @@ void VJSImage::_save(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureConta
 				{
 					VValueBag *pictureSettings = nil;
 
+#if !VERSION_LINUX
 					VValueBag *bagMetas = (VValueBag*)inPict->RetainMetaBag();
+
 					if (bagMetas != nil)
 					{
 						pictureSettings = new VValueBag();
@@ -227,9 +230,11 @@ void VJSImage::_save(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureConta
 						if (bagRetained) 
 							bagRetained->Release(); 
 					}
-					err=encoder->Encode(*pic, pictureSettings, *file);
 
 					QuickReleaseRefCountable(bagMetas);
+#endif
+					err=encoder->Encode(*pic, pictureSettings, *file);
+
 					QuickReleaseRefCountable(pictureSettings);
 
 					if (err == VE_OK)
@@ -339,7 +344,9 @@ void VJSImage::GetDefinition( ClassDefinition& outDefinition)
 		{ "setPath", js_callStaticFunction<_setPath>, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontEnum | JS4D::PropertyAttributeDontDelete },
 		{ "saveMeta", js_callStaticFunction<_saveMeta>, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontEnum | JS4D::PropertyAttributeDontDelete },
 		{ "save", js_callStaticFunction<_save>, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontEnum | JS4D::PropertyAttributeDontDelete },
+#if !VERSION_LINUX
 		{ "thumbnail", js_callStaticFunction<_thumbnail>, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontEnum | JS4D::PropertyAttributeDontDelete },
+#endif
 		{ 0, 0, 0}
 	};
 

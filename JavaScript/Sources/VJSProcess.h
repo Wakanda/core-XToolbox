@@ -38,6 +38,7 @@ public:
 	// Properties
 	static	void			_Version ( XBOX::VJSParms_getProperty& ioParms, void* );
 	static	void			_BuildNumber ( XBOX::VJSParms_getProperty& ioParms, void* );
+	static	void			_UserDocumentsFolder ( XBOX::VJSParms_getProperty& ioParms, void* );
 
 private:
 };
@@ -64,6 +65,7 @@ private:
 
 	static void	_Type (XBOX::VJSParms_callStaticFunction &ioParms, void *);
 	static void	_NetworkInterfaces (XBOX::VJSParms_callStaticFunction &ioParms, void *);
+	static void _getProxy(XBOX::VJSParms_callStaticFunction &ioParms, void *);
 
 	// Properties
 

@@ -14,11 +14,16 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VKernelPrecompiled.h"
+
+#include <algorithm>
+#undef max
+
 #include "VTime.h"
 #include "VJSONValue.h"
 #include "VJSONTools.h"
 #include "VError.h"
 #include "VValueBag.h"
+#include "VFile.h"
 #include "VUnicodeTableFull.h"
 
 BEGIN_TOOLBOX_NAMESPACE
@@ -30,13 +35,21 @@ BEGIN_TOOLBOX_NAMESPACE
 // ===========================================================
 
 
-VJSONImporter::VJSONImporter(const VString& inJSONString)
-: fString( inJSONString)
+
+VJSONImporter::VJSONImporter( const VString& inJSONString, EJSONImporterOptions inOptions)
+: fOptions( inOptions)
+, fString( inJSONString)
+, fInputLen( fString.GetLength())
+, fStartChar( fString.GetCPointer())
+, fStartToken( fString.GetCPointer())
+, fCurChar( fString.GetCPointer())
+, fRecursiveCallCount( 0)
 {
-	fInputLen = fString.GetLength();
-	fStartChar = fString.GetCPointer();
-	fCurChar = fStartChar;
-	fRecursiveCallCount = 0;
+}
+
+
+VJSONImporter::~VJSONImporter()
+{
 }
 
 
@@ -48,7 +61,7 @@ VJSONImporter::VJSONImporter(const VString& inJSONString)
 	It looks better to write 2 routines instead of filling this one with more parameter and testing, such as writting
 	a lot of if(!doNotFillString) or something
 */
-VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken(VString& outString, bool* withQuotes)
+VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken(VString& outString, bool* withQuotes, VError *outError)
 {
 	outString.Clear();
 	
@@ -56,6 +69,8 @@ VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken(VString& outString, boo
 	
 	if (withQuotes != NULL)
 		*withQuotes = false;
+	
+	fStartToken = fCurChar;
 	
 	UniChar c;
 	
@@ -91,144 +106,149 @@ VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken(VString& outString, boo
 					break;
 					
 				case '"':
-				{
-					if (withQuotes != NULL)
-						*withQuotes = true;
-					
-					do 
 					{
-						c = _GetNextChar(eof);
-						if (c != 0)
+						if (withQuotes != NULL)
+							*withQuotes = true;
+						
+						do 
 						{
-							if (c == '\\')
+							c = _GetNextChar(eof);
+							if (c != 0)
 							{
-								c = _GetNextChar(eof);
-								switch(c)
+								if (c == '\\')
 								{
-									case '\\':
-									case '"':
-									case '/':
-										//  c is the same
-										break;
-										
-									case 't':
-										c = 9;
-										break;
-										
-									case 'r':
-										c = 13;
-										break;
-										
-									case 'n':
-										c = 10;
-										break;
-										
-									case 'b':
-										c = 8;
-										break;
-										
-									case 'f':
-										c = 12;
-										break;
-										
-									case 'u':
-								/*	2010-02-22 - T.A.
-									http://www.ietf.org/rfc/rfc4627.txt
-									. . .
-									The application/json Media Type for JavaScript Object Notation (JSON)
-									. . .
-									Any character may be escaped.  If the character is in the Basic
-									Multilingual Plane (U+0000 through U+FFFF), then it may be
-									represented as a six-character sequence: a reverse solidus, followed
-									by the lowercase letter u, followed by four hexadecimal digits that
-									encode the character's code point.  The hexadecimal letters A though
-									F can be upper or lowercase.  So, for example, a string containing
-									only a single reverse solidus character may be represented as
-									"\u005C".
-									. . .
-							   */
-										if ( testAssert( fCurChar - fStartChar + 4 <= fInputLen))
-										{
-											c = 0;
-											for(sLONG i_fromHex = 1; i_fromHex <= 4; ++i_fromHex)
+									c = _GetNextChar(eof);
+									switch(c)
+									{
+										case '\\':
+										case '"':
+										case '/':
+											//  c is the same
+											break;
+											
+										case 't':
+											c = 9;
+											break;
+											
+										case 'r':
+											c = 13;
+											break;
+											
+										case 'n':
+											c = 10;
+											break;
+											
+										case 'b':
+											c = 8;
+											break;
+											
+										case 'f':
+											c = 12;
+											break;
+											
+										case 'u':
+									/*	2010-02-22 - T.A.
+										http://www.ietf.org/rfc/rfc4627.txt
+										. . .
+										The application/json Media Type for JavaScript Object Notation (JSON)
+										. . .
+										Any character may be escaped.  If the character is in the Basic
+										Multilingual Plane (U+0000 through U+FFFF), then it may be
+										represented as a six-character sequence: a reverse solidus, followed
+										by the lowercase letter u, followed by four hexadecimal digits that
+										encode the character's code point.  The hexadecimal letters A though
+										F can be upper or lowercase.  So, for example, a string containing
+										only a single reverse solidus character may be represented as
+										"\u005C".
+										. . .
+								   */
+											if ( testAssert( fCurChar - fStartChar + 4 <= fInputLen))
 											{
-												UniChar theChar = *fCurChar++;
-												if (theChar >= CHAR_DIGIT_ZERO && theChar <= CHAR_DIGIT_NINE)
+												c = 0;
+												for(sLONG i_fromHex = 1; i_fromHex <= 4; ++i_fromHex)
 												{
-													c *= 16L;
-													c += (theChar - CHAR_DIGIT_ZERO);
-												}
-												else if (theChar >= CHAR_LATIN_CAPITAL_LETTER_A && theChar <= CHAR_LATIN_CAPITAL_LETTER_F)
-												{
-													c *= 16L;
-													c += (theChar - CHAR_LATIN_CAPITAL_LETTER_A) + 10L;
-												}
-												else if (theChar >= CHAR_LATIN_SMALL_LETTER_A && theChar <= CHAR_LATIN_SMALL_LETTER_F)
-												{
-													c *= 16L;
-													c += (theChar - CHAR_LATIN_SMALL_LETTER_A) + 10L;
+													UniChar theChar = *fCurChar++;
+													if (theChar >= CHAR_DIGIT_ZERO && theChar <= CHAR_DIGIT_NINE)
+													{
+														c *= 16L;
+														c += (theChar - CHAR_DIGIT_ZERO);
+													}
+													else if (theChar >= CHAR_LATIN_CAPITAL_LETTER_A && theChar <= CHAR_LATIN_CAPITAL_LETTER_F)
+													{
+														c *= 16L;
+														c += (theChar - CHAR_LATIN_CAPITAL_LETTER_A) + 10L;
+													}
+													else if (theChar >= CHAR_LATIN_SMALL_LETTER_A && theChar <= CHAR_LATIN_SMALL_LETTER_F)
+													{
+														c *= 16L;
+														c += (theChar - CHAR_LATIN_SMALL_LETTER_A) + 10L;
+													}
 												}
 											}
-										}
-										else
-										{
-											eof = true;
-											c = 0;
-										}
-										break;
+											else
+											{
+												eof = true;
+												c = 0;
+											}
+											break;
+									}
+									if (c != 0)
+										outString.AppendUniChar(c);
 								}
-								if (c != 0)
+								else if (c == '"')
+								{
+									return jsonString;
+								}
+								else
+								{
 									outString.AppendUniChar(c);
-							}
-							else if (c == '"')
+								}
+							}							
+						} while(!eof);
+						if ((fOptions & EJSI_QuotesMandatoryForString) != 0)
+						{
+							if (outError != NULL)
+								*outError = _ThrowErrorUnterminated( "\"");
+							return jsonNone;
+						}
+						return jsonString;
+					}
+					break;
+					
+				default:
+					{
+						outString.AppendUniChar(c);
+						do 
+						{
+							const UniChar* oldpos = fCurChar;
+							c = _GetNextChar(eof);
+							if (c <= 32)
 							{
 								return jsonString;
 							}
 							else
 							{
-								outString.AppendUniChar(c);
+								switch(c)
+								{
+									case '{':
+									case '}':
+									case '[':
+									case ']':
+									case ',':
+									case ':':
+									case '"':
+										fCurChar = oldpos;
+										return jsonString;
+										break;
+										
+									default:
+										outString.AppendUniChar(c);
+										break;
+								}
 							}
-						}							
-					} while(!eof);
-					return jsonString;
-				}
-					break;
-					
-				default:
-				{
-					outString.AppendUniChar(c);
-					do 
-					{
-						const UniChar* oldpos = fCurChar;
-						c = _GetNextChar(eof);
-						if (c <= 32)
-						{
-							return jsonString;
-						}
-						else
-						{
-							switch(c)
-							{
-								case '{':
-								case '}':
-								case '[':
-								case ']':
-								case ',':
-								case ':':
-								case '"':
-									fCurChar = oldpos;
-									return jsonString;
-									break;
-									
-								default:
-									outString.AppendUniChar(c);
-									break;
-							}
-						}
-					} while(!eof);
-					return jsonString;
-				}
-					break;
+						} while(!eof);
+						return jsonString;
+					}
 			}
 		}
 	} while(!eof);
@@ -242,10 +262,12 @@ VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken(VString& outString, boo
 
 		=> if something must be changed here, think about changing the parsing also in the other GetNextJSONToken()
 */
-VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken()
+VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken( VError *outError)
 {	
 	bool		eof;
 	UniChar		c;
+
+	fStartToken = fCurChar;
 	
 	do 
 	{
@@ -279,56 +301,60 @@ VJSONImporter::JsonToken VJSONImporter::GetNextJSONToken()
 					break;
 					
 				case '"':
-				{
-					do 
 					{
-						c = _GetNextChar(eof);
-						if (c == '\\')
+						do 
 						{
 							c = _GetNextChar(eof);
-						}
-						else if (c == '"')
+							if (c == '\\')
+							{
+								c = _GetNextChar(eof);
+							}
+							else if (c == '"')
+							{
+								return jsonString;
+							}						
+						} while(!eof);
+						if ((fOptions & EJSI_QuotesMandatoryForString) != 0)
 						{
-							return jsonString;
-						}						
-					} while(!eof);
-					return jsonString;
-				}
-					break;
+							if (outError != NULL)
+								*outError = _ThrowErrorUnterminated( "\"");
+							return jsonNone;
+						}
+						return jsonString;
+					}
 					
 				default:
-				{
-					do 
 					{
-						const UniChar* oldpos = fCurChar;
-						c = _GetNextChar(eof);
-						if (c <= 32)
+						do 
 						{
-							return jsonString;
-						}
-						else
-						{
-							switch(c)
+							const UniChar* oldpos = fCurChar;
+							c = _GetNextChar(eof);
+							if (c <= 32)
 							{
-								case '{':
-								case '}':
-								case '[':
-								case ']':
-								case ',':
-								case ':':
-								case '"':
-									fCurChar = oldpos;
-									return jsonString;
-									break;
-									
-								default:
-									break;
+								return jsonString;
 							}
-						}
-					} while(!eof);
-					return jsonString;
-				}
-				break;
+							else
+							{
+								switch(c)
+								{
+									case '{':
+									case '}':
+									case '[':
+									case ']':
+									case ',':
+									case ':':
+									case '"':
+										fCurChar = oldpos;
+										return jsonString;
+										break;
+										
+									default:
+										break;
+								}
+							}
+						} while(!eof);
+						return jsonString;
+					}
 			}
 		}
 	} while(!eof);
@@ -417,34 +443,164 @@ bool VJSONImporter::_ParseNumber( const UniChar *inString)
 
 
 
-VError VJSONImporter::_StringToValue( const VString& inString, bool inWithQuotes, VJSONValue& outValue)
+VError VJSONImporter::_StringToValue( const VString& inString, bool inWithQuotes, VJSONValue& outValue, const char *inExpectedString)
 {
+	VError err = VE_OK;
+	
+	const UniChar *p = inString.GetCPointer();
+	
 	if (inWithQuotes)
 		outValue.SetString( inString);
-	else if (inString.EqualToUSASCIICString( "true"))
+	else if (p[0] == 't' && p[1] == 'r' && p[2] == 'u' && p[3] == 'e' && p[4] == 0)
 		outValue = VJSONValue::sTrue;
-	else if (inString.EqualToUSASCIICString( "false"))
+	else if (p[0] == 'f' && p[1] == 'a' && p[2] == 'l' && p[3] == 's' && p[4] == 'e' && p[5] == 0)
 		outValue = VJSONValue::sFalse;
-	else if (inString.EqualToUSASCIICString( "null"))
+	else if (p[0] == 'n' && p[1] == 'u' && p[2] == 'l' && p[3] == 'l' && p[4] == 0)
 		outValue = VJSONValue::sNull;
-	else if (!inString.IsEmpty())
+	else if (p[0] == '-' || (p[0] >= '0' && p[0] <= '9') )
 	{
-		// check if it's a number
-		if (_ParseNumber( inString.GetCPointer()))
+		if (_ParseNumber( p))
 			outValue.SetNumber( inString.GetReal());
 		else
-			outValue.SetString( inString);
+			err = _ThrowErrorInvalidToken( inString, "+- 0-9 eE");
 	}
-	else
+	else if ( (fOptions & EJSI_QuotesMandatoryForString) == 0)
 		outValue.SetString( inString);
+	else
+		err = _ThrowErrorInvalidToken( inString, inExpectedString);
 	
-	return VE_OK;
+	return err;
 }
 
 
-VError VJSONImporter::_ThrowError()
+/*
+	static
+*/
+VString VJSONImporter::_TokenToString( JsonToken inToken)
 {
-	return vThrowError( VE_MALFORMED_JSON_DESCRIPTION);
+	VString s;
+	switch( inToken)
+	{
+		case jsonBeginObject:	s = "{"; break;
+		case jsonEndObject:		s = "}"; break;
+		case jsonBeginArray:	s = "["; break;
+		case jsonEndArray:		s = "]"; break;
+		case jsonSeparator:		s = ","; break;
+		case jsonAssigne:		s = ":"; break;
+		case jsonString:		s = "\""; break;
+		case jsonNone:			s = ""; break;
+		default:				break;
+	}
+	return s;
+}
+
+
+VString VJSONImporter::_GetStartTokenFirstChar() const
+{
+	// skip white chars
+	const UniChar *startToken = fStartToken;
+	while( (startToken - fStartChar < fInputLen) && (*startToken <= 32) )
+		++startToken;
+
+	return (startToken - fStartChar < fInputLen) ? VString( *startToken) : CVSTR( "");
+}
+
+
+VError VJSONImporter::_ThrowErrorMalformed() const
+{
+	VErrorBase* err = new VErrorBase( VE_MALFORMED_JSON_DESCRIPTION, 0);
+	if (err != NULL)
+	{
+		// skip white chars
+		const UniChar *startToken = fStartToken;
+		while( (startToken - fStartChar < fInputLen) && (*startToken <= 32) )
+			++startToken;
+		
+		// count lines
+		sLONG countLF = 0;
+		sLONG countCR = 0;
+		const UniChar *lineStartLF = fStartChar;
+		const UniChar *lineStartCR = fStartChar;
+		for( const UniChar *p = fStartChar ; p != startToken ; ++p)
+		{
+			if (*p == '\n')
+			{
+				++countLF;
+				lineStartLF = p + 1;
+			}
+			else if (*p == '\r')
+			{
+				++countCR;
+				lineStartCR = p + 1;
+			}
+		}
+
+		VString source( fSourceID);
+		if (!source.IsEmpty())
+		{
+			source += ',';
+			source += ' ';
+		}
+		err->GetBag()->SetString( "source", source);
+		
+		err->GetBag()->SetLong( "line", std::max( countLF, countCR) + 1);
+		err->GetBag()->SetLong( "position", ((countLF > countCR) ? (startToken - lineStartLF) : (startToken - lineStartCR)) + 1);
+		
+		VTask::GetCurrent()->PushError( err);
+	}
+	ReleaseRefCountable( &err);
+	return VE_MALFORMED_JSON_DESCRIPTION;
+}
+
+
+VError VJSONImporter::_ThrowErrorInvalidToken( const VString& inFoundToken, const char *inExpectedString) const
+{
+	VErrorBase* err = new VErrorBase( inFoundToken.IsEmpty() ? VE_MALFORMED_JSON_EXPECTED_TOKEN : VE_MALFORMED_JSON_INVALID_TOKEN, 0);
+	if (err != NULL)
+	{
+		err->GetBag()->SetString( "found", inFoundToken);
+		err->GetBag()->SetString( "expected", inExpectedString);
+
+		VTask::GetCurrent()->PushError( err);
+	}
+	ReleaseRefCountable( &err);
+
+	// throw last the generic 550 error with line number and char pos
+	_ThrowErrorMalformed();
+	
+	return VE_MALFORMED_JSON_DESCRIPTION;
+}
+
+
+VError VJSONImporter::_ThrowErrorUnterminated( const char *inUnterminatedString) const
+{
+	VErrorBase* err = new VErrorBase( VE_MALFORMED_JSON_UNTERMINATED_TOKEN, 0);
+	if (err != NULL)
+	{
+		err->GetBag()->SetString( "token", inUnterminatedString);
+
+		VTask::GetCurrent()->PushError( err);
+	}
+	ReleaseRefCountable( &err);
+
+	// throw last the generic 550 error with line number and char pos
+	return _ThrowErrorMalformed();
+}
+
+
+VError VJSONImporter::_ThrowErrorExtraComma( const char *inTerminatingToken) const
+{
+	VErrorBase* err = new VErrorBase( VE_MALFORMED_JSON_EXTRA_COMMA, 0);
+	if (err != NULL)
+	{
+		err->GetBag()->SetString( "token", inTerminatingToken);
+
+		VTask::GetCurrent()->PushError( err);
+	}
+	ReleaseRefCountable( &err);
+
+	// throw last the generic 550 error with line number and char pos
+	return _ThrowErrorMalformed();
 }
 
 
@@ -452,41 +608,58 @@ VError VJSONImporter::_ParseObject( VJSONValue& outValue)
 {
 	VError err = VE_OK;
 	VJSONObject *object = new VJSONObject;
+	if (object == NULL)
+		err = VE_MEMORY_FULL;
+	
 	do
 	{
 		VString name;
-		JsonToken token = GetNextJSONToken( name, NULL);
+		bool withQuotes;
+		JsonToken token = GetNextJSONToken( name, &withQuotes, &err);
 		if (token == jsonString)
 		{
-			token = GetNextJSONToken();
-			if (token == jsonAssigne)
-			{
-				VJSONValue value;
-				err = Parse( value);
-				if (err == VE_OK)
-				{
-					object->SetProperty( name, value);
-
-					token = GetNextJSONToken();
-					if (token == jsonEndObject)
-						break;
-
-					if (token != jsonSeparator)
-						err = _ThrowError();
-				}
-			}
+			if ( !withQuotes && ((fOptions & EJSI_QuotesMandatoryForString) != 0) )
+				err = _ThrowErrorInvalidToken( name, "\"");
 			else
 			{
-				err = _ThrowError();
+				token = GetNextJSONToken( &err);
+				if (token == jsonAssigne)
+				{
+					VJSONValue value;
+					err = Parse( value);
+					if (err == VE_OK)
+					{
+						object->SetProperty( name, value);
+
+						token = GetNextJSONToken( &err);
+						if (token == jsonEndObject)
+							break;
+
+						if ( (token != jsonSeparator) && (err == VE_OK) )
+							err = _ThrowErrorInvalidToken( _TokenToString( token), "} ,");
+					}
+				}
+				else if (err == VE_OK)
+				{
+					err = _ThrowErrorInvalidToken( _GetStartTokenFirstChar(), ":");
+				}
 			}
 		}
 		else if (token == jsonEndObject)
 		{
+			if (!object->IsEmpty())
+			{
+				// just got a ,} sequence. It's generally an extraneous comma.
+				err = _ThrowErrorExtraComma( "}");
+			}
 			break;
 		}
-		else
+		else if (err == VE_OK)
 		{
-			err = _ThrowError();
+			if (object->IsEmpty())
+				err = _ThrowErrorInvalidToken( _TokenToString( token), "\" }");
+			else
+				err = _ThrowErrorInvalidToken( _TokenToString( token), "\"");
 		}
 	} while( err == VE_OK);
 	outValue.SetObject( object);
@@ -499,6 +672,9 @@ VError VJSONImporter::_ParseArray( VJSONValue& outValue)
 {
 	VError err = VE_OK;
 	VJSONArray *array = new VJSONArray;
+	if (array == NULL)
+		err = VE_MEMORY_FULL;
+
 	bool expectSeparator = false;
 	do
 	{
@@ -506,10 +682,10 @@ VError VJSONImporter::_ParseArray( VJSONValue& outValue)
 		VString s;
 		bool withQuotes;
 
-		JsonToken token = GetNextJSONToken( s, &withQuotes);
+		JsonToken token = GetNextJSONToken( s, &withQuotes, &err);
 		if (token == jsonString)
 		{
-			err = _StringToValue( s, withQuotes, value);
+			err = _StringToValue( s, withQuotes, value, "\" 0-9 null true false { [ ]");
 		}
 		else if (token == jsonBeginObject)
 		{
@@ -521,11 +697,19 @@ VError VJSONImporter::_ParseArray( VJSONValue& outValue)
 		}
 		else if (token == jsonEndArray)
 		{
+			if (!array->IsEmpty())
+			{
+				// just got a ,] sequence. It's generally an extraneous comma.
+				err = _ThrowErrorExtraComma( "]");
+			}
 			break;
 		}
-		else
+		else if (err == VE_OK)
 		{
-			err = _ThrowError();
+			if (array->IsEmpty())
+				err = _ThrowErrorInvalidToken( _TokenToString( token), "\" 0-9 null true false { [ ]");
+			else
+				err = _ThrowErrorInvalidToken( _TokenToString( token), "\" 0-9 null true false { [");
 		}
 
 		if (err == VE_OK)
@@ -533,17 +717,54 @@ VError VJSONImporter::_ParseArray( VJSONValue& outValue)
 			xbox_assert( !value.IsUndefined());
 			array->Push( value);
 
-			token = GetNextJSONToken();
+			token = GetNextJSONToken( &err);
 			if (token == jsonEndArray)
 				break;
 			
-			if (token != jsonSeparator)
-				err = _ThrowError();
+			if ( (token != jsonSeparator) && (err == VE_OK) )
+				err = _ThrowErrorInvalidToken( _GetStartTokenFirstChar(), "] ,");
 		}
 
 	} while( err == VE_OK);
 	outValue.SetArray( array);
 	ReleaseRefCountable( &array);
+	return err;
+}
+
+
+/*
+	static
+*/
+VError VJSONImporter::ParseString( const VString& inString, VJSONValue& outValue, EJSONImporterOptions inOptions)
+{
+	VJSONImporter importer( inString, inOptions);
+	return importer.Parse( outValue);
+}
+
+
+/*
+	static
+*/
+VError VJSONImporter::ParseFile( VFile *inFile, VJSONValue& outValue, EJSONImporterOptions inOptions)
+{
+	if (!testAssert( inFile != NULL))
+	{
+		outValue.SetUndefined();
+		return VE_OK;
+	}
+	
+	VString sourceID;
+	inFile->GetPath( sourceID, FPS_POSIX);
+
+	VString source;
+	VError err = inFile->GetContentAsString( source, VTC_UTF_8);
+	if (err == VE_OK)
+	{
+		VJSONImporter importer( source, inOptions);
+		importer.SetSourceID( sourceID);
+		err = importer.Parse( outValue);
+	}
+
 	return err;
 }
 
@@ -556,12 +777,12 @@ VError VJSONImporter::Parse( VJSONValue& outValue)
 	
 	bool withQuotes;
 	VString name;
-	JsonToken token = GetNextJSONToken( name, &withQuotes);
+	JsonToken token = GetNextJSONToken( name, &withQuotes, &err);
 	switch( token)
 	{
 		case jsonString:
 			{
-				err = _StringToValue( name, withQuotes, value);
+				err = _StringToValue( name, withQuotes, value, "\" 0-9 null true false { [");
 				break;
 			}
 		
@@ -579,12 +800,16 @@ VError VJSONImporter::Parse( VJSONValue& outValue)
 		
 		default:
 			{
-				err = _ThrowError();
+				if (err == VE_OK)
+					err = _ThrowErrorInvalidToken( _TokenToString( token), "\" 0-9 null true false { [");
 				break;
 			}
 	}
 	
-	outValue = value;
+	if ( (err != VE_OK) && ( (fOptions & EJSI_ReturnUndefinedWhenMalformed) != 0) )
+		outValue.SetUndefined();
+	else
+		outValue = value;
 
 	return err;
 }
@@ -598,83 +823,69 @@ VError VJSONImporter::JSONObjectToBag( VValueBag& outBag)
 	
 	// When JSONObjectToBag() recursively calls itself (because it finds a jsonBeginObject token)
 	// it must not error-check this, because the token has already been read.
-	if (fRecursiveCallCount == 0 && GetNextJSONToken(aStr, &withQuotes) != jsonBeginObject)
+	JsonToken token;
+	if (fRecursiveCallCount == 0 && (token = GetNextJSONToken(aStr, &withQuotes, &err)) != jsonBeginObject)
 	{
-		err = VE_MALFORMED_JSON_DESCRIPTION;
+		if (err != VE_OK)
+			err = _ThrowErrorInvalidToken( _TokenToString( token), "{");
 	}
 	else
 	{
 		VString		name;
-		
-		JsonToken token = GetNextJSONToken(name, &withQuotes);
+		bool gotSomeAttribute = false;
+		token = GetNextJSONToken(name, &withQuotes, &err);
 		while (token != jsonEndObject && token != jsonNone && err == VE_OK)
 		{
 			if (token == jsonString)
 			{
-				token = GetNextJSONToken(aStr, &withQuotes);
+				token = GetNextJSONToken(aStr, &withQuotes, &err);
 				if (token == jsonAssigne)
 				{
-					token = GetNextJSONToken(aStr, &withQuotes);
-					switch (token)
+					gotSomeAttribute = true;
+					token = GetNextJSONToken(aStr, &withQuotes, &err);
+					if (err == VE_OK)
 					{
-						case jsonString:
-							if(name == "__CDATA")
-							{
-								outBag.SetCData(aStr);
-							}
-							else if (withQuotes)
-							{
-								outBag.SetString(name, aStr);
-							}
-							else if (aStr == L"null")
-							{
-								//aStr.SetNull(true);
-								outBag.SetString(name, aStr);
-								VValueSingle* temp = outBag.GetAttribute(name);
-								aStr.SetNull(true);
-								outBag.SetString(name, aStr);
-							}
-							else if (aStr == L"true")
-							{
-								outBag.SetBool(name, true);
-							}
-							else if (aStr == L"false")
-							{
-								outBag.SetBool(name, false);
-							}
-							else if (aStr.FindUniChar('.') > 0)
-							{
-								outBag.SetReal(name, aStr.GetReal());
-							}
-							else
-							{
-								outBag.SetLong8(name, aStr.GetLong8());
-							}
-							break;
-							
-						case jsonBeginObject:
+						switch (token)
 						{
-							VValueBag* subBag = new VValueBag();
-							subBag->SetBool(L"____objectunic", true);
-						++fRecursiveCallCount;
-							err = JSONObjectToBag(*subBag);
-						--fRecursiveCallCount;
-							if (err == VE_OK)
-							{
-								outBag.AddElement(name, subBag);
-							}
-							subBag->Release();
-						}
-							break;
-							
-						case jsonBeginArray:
-						{
-							token = GetNextJSONToken(aStr, &withQuotes);
-							while (token != jsonEndArray && token != jsonNone && err == VE_OK)
-							{
-								if (token == jsonBeginObject)
+							case jsonString:
+								if (name.EqualToUSASCIICString( "__CDATA"))
+								{
+									outBag.SetCData(aStr);
+								}
+								else if (withQuotes)
+								{
+									outBag.SetString(name, aStr);
+								}
+								else if (aStr.EqualToUSASCIICString( "null"))
+								{
+									//aStr.SetNull(true);
+									outBag.SetString(name, aStr);
+									VValueSingle* temp = outBag.GetAttribute(name);
+									aStr.SetNull(true);
+									outBag.SetString(name, aStr);
+								}
+								else if (aStr.EqualToUSASCIICString( "true"))
+								{
+									outBag.SetBool(name, true);
+								}
+								else if (aStr.EqualToUSASCIICString( "false"))
+								{
+									outBag.SetBool(name, false);
+								}
+								else if (aStr.FindUniChar('.') > 0)
+								{
+									outBag.SetReal(name, aStr.GetReal());
+								}
+								else
+								{
+									outBag.SetLong8(name, aStr.GetLong8());
+								}
+								break;
+								
+							case jsonBeginObject:
 								{
 									VValueBag* subBag = new VValueBag();
+									subBag->SetBool(L"____objectunic", true);
 								++fRecursiveCallCount;
 									err = JSONObjectToBag(*subBag);
 								--fRecursiveCallCount;
@@ -684,35 +895,62 @@ VError VJSONImporter::JSONObjectToBag( VValueBag& outBag)
 									}
 									subBag->Release();
 								}
-								token = GetNextJSONToken(aStr, &withQuotes);
-								if (token == jsonSeparator)
-									token = GetNextJSONToken(aStr, &withQuotes);
-							}
-							
+								break;
+								
+							case jsonBeginArray:
+								{
+									token = GetNextJSONToken(aStr, &withQuotes, &err);
+									while (token != jsonEndArray && token != jsonNone && err == VE_OK)
+									{
+										if (token == jsonBeginObject)
+										{
+											VValueBag* subBag = new VValueBag();
+										++fRecursiveCallCount;
+											err = JSONObjectToBag(*subBag);
+										--fRecursiveCallCount;
+											if (err == VE_OK)
+											{
+												outBag.AddElement(name, subBag);
+											}
+											subBag->Release();
+										}
+										token = GetNextJSONToken(aStr, &withQuotes, &err);
+										if (token == jsonSeparator)
+											token = GetNextJSONToken(aStr, &withQuotes, &err);
+									}
+									
+								}
+								break;
+								
+							default:
+								err = _ThrowErrorInvalidToken( _TokenToString( token), "\" 0-9 null true false { [");
+								break;
 						}
-							break;
-							
-						default:
-							err = VE_MALFORMED_JSON_DESCRIPTION;
-							break;
 					}
 				}
-				else
-					err = VE_MALFORMED_JSON_DESCRIPTION;
+				else if (err == VE_OK)
+				{
+					err = _ThrowErrorInvalidToken( _GetStartTokenFirstChar(), ":");
+				}
 			}
-			else
-				err = VE_MALFORMED_JSON_DESCRIPTION;
+			else if (err == VE_OK)
+			{
+				if (!gotSomeAttribute)
+					err = _ThrowErrorInvalidToken( _TokenToString( token), "\" }");
+				else
+					err = _ThrowErrorInvalidToken( _TokenToString( token), "\"");
+			}
 			
 			if (err == VE_OK)
 			{
-				token = GetNextJSONToken(name, &withQuotes);
+				token = GetNextJSONToken(name, &withQuotes, &err);
 				if (token == jsonSeparator)
-					token = GetNextJSONToken(name, &withQuotes);
+					token = GetNextJSONToken(name, &withQuotes, &err);
 			}
 		}
 	}
 	
-	return vThrowError(err);
+	return err;
 }
 
 // ===========================================================

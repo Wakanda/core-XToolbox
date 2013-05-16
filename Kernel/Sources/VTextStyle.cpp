@@ -14,14 +14,13 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VKernelPrecompiled.h"
-#include "VTextStyle.h"
 #include "VString.h"
 
 //in order to be able to use std::min && std::max
 #undef max
 #undef min
 
-VTextStyle::VTextStyle(VTextStyle* inTextStyle)
+VTextStyle::VTextStyle(const VTextStyle* inTextStyle)
 {
 	fFontName = new VString();
 	if(inTextStyle)
@@ -34,11 +33,12 @@ VTextStyle::VTextStyle(VTextStyle* inTextStyle)
 		fEnd = inTextStyle->fEnd;
 		fFontSize = inTextStyle->fFontSize;
 		*fFontName = *(inTextStyle->fFontName);
-		fIsTransparent = inTextStyle->fIsTransparent;
+		fHasBackColor = inTextStyle->fHasBackColor;
 		fHasForeColor = inTextStyle->fHasForeColor;
 		fJust = inTextStyle->fJust;
 		fColor = inTextStyle->fColor;
 		fBkColor = inTextStyle->fBkColor;
+		fSpanTextRef = inTextStyle->fSpanTextRef ? new VDocSpanTextRef( *(inTextStyle->fSpanTextRef)) : NULL;
 	}
 	else
 	{
@@ -46,11 +46,12 @@ VTextStyle::VTextStyle(VTextStyle* inTextStyle)
 		fBegin = fEnd = 0;
 		fFontSize = -1;
 		*fFontName = "";
-		fColor = 0;
-		fBkColor = 0xFFFFFF;
-		fIsTransparent = true;
+		fColor = 0xFF000000;
+		fBkColor = 0xFFFFFFFF;
+		fHasBackColor = false;
 		fHasForeColor = false;
 		fJust = JST_Notset;
+		fSpanTextRef = NULL;
 	}
 }
 
@@ -67,12 +68,17 @@ VTextStyle& VTextStyle::operator = ( const VTextStyle& inTextStyle)
 	fBegin = inTextStyle.fBegin;
 	fEnd = inTextStyle.fEnd;
 	fFontSize = inTextStyle.fFontSize;
-	fIsTransparent = inTextStyle.fIsTransparent;
+	fHasBackColor = inTextStyle.fHasBackColor;
 	fHasForeColor = inTextStyle.fHasForeColor;
 	fJust = inTextStyle.fJust;
 	fColor = inTextStyle.fColor;
 	fBkColor = inTextStyle.fBkColor;
-
+	if (fSpanTextRef && inTextStyle.fSpanTextRef)
+		*fSpanTextRef = *inTextStyle.fSpanTextRef;
+	else if (inTextStyle.fSpanTextRef)
+		fSpanTextRef = new VDocSpanTextRef( *(inTextStyle.fSpanTextRef));
+	else
+		SetSpanRef( NULL);
 	return  *this;
 }
 
@@ -100,15 +106,21 @@ bool VTextStyle::IsEqualTo( const VTextStyle& inStyle, bool inIncludeRange) cons
 			&&
 			fHasForeColor == inStyle.fHasForeColor
 			&&
-			fIsTransparent == inStyle.fIsTransparent
+			fHasBackColor == inStyle.fHasBackColor
 			&&
 			(!fHasForeColor || (fHasForeColor && fColor == inStyle.fColor))
 			&&
-			(fIsTransparent || (!fIsTransparent && fBkColor == inStyle.fBkColor))
+			(!fHasBackColor || (fHasBackColor && fBkColor == inStyle.fBkColor))
 			&&
 			fJust == inStyle.fJust
 			&&
 			fFontName->EqualToString( *(inStyle.fFontName))
+			&&
+			(
+			(fSpanTextRef == NULL && inStyle.fSpanTextRef == NULL)
+			||
+			(fSpanTextRef != NULL && inStyle.fSpanTextRef != NULL && *fSpanTextRef == *(inStyle.fSpanTextRef))
+			)
 			);
 }
 
@@ -189,21 +201,23 @@ VTextStyle *VTextStyle::ExtractCommonStyle(VTextStyle *ioStyle2)
 		SetHasForeColor( false);
 		ioStyle2->SetHasForeColor( false);
 	}
-	if (!fIsTransparent && !ioStyle2->fIsTransparent && fBkColor == ioStyle2->fBkColor)
+	if (fHasBackColor && ioStyle2->fHasBackColor && fBkColor == ioStyle2->fBkColor)
 	{
 		if (!retStyle)
 			retStyle = new VTextStyle();
-		retStyle->fIsTransparent = fIsTransparent;
+		retStyle->fHasBackColor = fHasBackColor;
 		retStyle->fBkColor = fBkColor;
 
-		SetTransparent( true);
-		ioStyle2->SetTransparent( true);
+		SetHasBackColor( false);
+		ioStyle2->SetHasBackColor( false);
 	}
 	return retStyle;
 }
 
 VTextStyle::~VTextStyle()
 {
+	if (fSpanTextRef)
+		delete fSpanTextRef;
 	if(fFontName)
 		delete fFontName;
 }
@@ -280,23 +294,23 @@ RGBAColor VTextStyle::GetBackGroundColor() const
 	return fBkColor;
 }
 
-void VTextStyle::SetTransparent(bool inValue)											
+void VTextStyle::SetHasBackColor(bool inValue)											
 {
-	fIsTransparent = inValue;
-	if (inValue)
-		fBkColor = 0xFFFFFF;
+	fHasBackColor = inValue;
+	if (!fHasBackColor)
+		fBkColor = 0xFFFFFFFF;
 }
 
-bool VTextStyle::GetTransparent() const													
+bool VTextStyle::GetHasBackColor() const													
 {
-	return fIsTransparent;
+	return fHasBackColor;
 }
 
 void VTextStyle::SetHasForeColor(bool inValue)											
 {
 	fHasForeColor = inValue;
 	if (!fHasForeColor)
-		fColor = 0;
+		fColor = 0xFF000000;
 }
 
 bool VTextStyle::GetHasForeColor() const													
@@ -386,12 +400,12 @@ const VString& VTextStyle::GetFontName() const
 	return *fFontName;
 }
 
-void VTextStyle::SetJustification(justificationStyle inValue)	
+void VTextStyle::SetJustification(eStyleJust inValue)	
 {
 	fJust = inValue;
 }
 
-justificationStyle VTextStyle::GetJustification() const				
+eStyleJust VTextStyle::GetJustification() const				
 {
 	return fJust;
 }
@@ -410,7 +424,7 @@ void VTextStyle::Translate(sLONG inValue)
 	input style properties override current style properties without taking account input style range
 	(current style range is preserved)
 */
-void VTextStyle::MergeWithStyle( const VTextStyle *inStyle, const VTextStyle *inStyleParent)
+void VTextStyle::MergeWithStyle( const VTextStyle *inStyle, const VTextStyle *inStyleParent, bool inForMetricsOnly, bool inAllowMergeSpanRefs)
 {
 	if (inStyleParent)
 	{
@@ -427,29 +441,32 @@ void VTextStyle::MergeWithStyle( const VTextStyle *inStyle, const VTextStyle *in
 		if (!inStyle->GetFontName().IsEmpty())
 			SetFontName( inStyleParent->GetFontName().EqualToString(inStyle->GetFontName(), true) ? VString("") : inStyle->GetFontName());
 
-		if (inStyle->GetHasForeColor())
+		if (!inForMetricsOnly)
 		{
-			if	((!inStyleParent->GetHasForeColor()) || inStyleParent->GetColor() != inStyle->GetColor())
+			if (inStyle->GetHasForeColor())
 			{
-				SetHasForeColor(true);
-				SetColor(inStyle->GetColor());
+				if	((!inStyleParent->GetHasForeColor()) || inStyleParent->GetColor() != inStyle->GetColor())
+				{
+					SetHasForeColor(true);
+					SetColor(inStyle->GetColor());
+				}
+				else
+				{
+					SetHasForeColor(false);
+					SetColor(0);
+				}
 			}
-			else
+			if (inStyle->GetHasBackColor())
 			{
-				SetHasForeColor(false);
-				SetColor(0);
-			}
-		}
-		if (!inStyle->GetTransparent())
-		{
-			if (inStyleParent->GetTransparent() || inStyleParent->GetBackGroundColor() != inStyle->GetBackGroundColor())
-			{
-				SetTransparent( false);
-				SetBackGroundColor( inStyle->GetBackGroundColor());
-			}
-			else
-			{
-				SetTransparent(true);
+				if (!inStyleParent->GetHasBackColor() || inStyleParent->GetBackGroundColor() != inStyle->GetBackGroundColor())
+				{
+					SetHasBackColor( true);
+					SetBackGroundColor( inStyle->GetBackGroundColor());
+				}
+				else
+				{
+					SetHasBackColor(false);
+				}
 			}
 		}
 		if (inStyle->GetJustification() != JST_Notset)
@@ -470,23 +487,79 @@ void VTextStyle::MergeWithStyle( const VTextStyle *inStyle, const VTextStyle *in
 		if (!inStyle->GetFontName().IsEmpty())
 			SetFontName( inStyle->GetFontName());
 
-		if (inStyle->GetHasForeColor())
+		if (!inForMetricsOnly)
 		{
-			SetHasForeColor(true);
-			SetColor(inStyle->GetColor());
-		}
-		if (!inStyle->GetTransparent())
-		{
-			SetTransparent( false);
-			SetBackGroundColor( inStyle->GetBackGroundColor());
+			if (inStyle->GetHasForeColor())
+			{
+				SetHasForeColor(true);
+				SetColor(inStyle->GetColor());
+			}
+			if (inStyle->GetHasBackColor())
+			{
+				SetHasBackColor( true);
+				SetBackGroundColor( inStyle->GetBackGroundColor());
+			}
 		}
 		if (inStyle->GetJustification() != JST_Notset)
 			SetJustification( inStyle->GetJustification());
 	}
+	if (inAllowMergeSpanRefs) 
+	{
+		if (inStyle->IsSpanRef() && testAssert(!IsSpanRef()))
+			SetSpanRef( new VDocSpanTextRef( *(inStyle->GetSpanRef())));
+	}
 }
 
+/** append styles from the passed style 
+@remarks
+	input style properties override current style properties without taking account input style range
+	(current style range is preserved)
+
+	if (inOnlyIfNotSet == true), overwrite only styles which are not defined locally
+*/
+void VTextStyle::AppendStyle( const VTextStyle *inStyle, bool inOnlyIfNotSet, bool inAllowMergeSpanRefs)
+{
+	if (inOnlyIfNotSet)
+	{
+		if (GetBold() == UNDEFINED_STYLE && inStyle->GetBold() != UNDEFINED_STYLE)
+			SetBold( inStyle->GetBold());
+		if (GetItalic() == UNDEFINED_STYLE && inStyle->GetItalic() != UNDEFINED_STYLE)
+			SetItalic( inStyle->GetItalic());
+		if (GetUnderline() == UNDEFINED_STYLE && inStyle->GetUnderline() != UNDEFINED_STYLE)
+			SetUnderline( inStyle->GetUnderline());
+		if (GetStrikeout() == UNDEFINED_STYLE && inStyle->GetStrikeout() != UNDEFINED_STYLE)
+			SetStrikeout( inStyle->GetStrikeout());
+		if (GetFontSize() == UNDEFINED_STYLE && inStyle->GetFontSize() != UNDEFINED_STYLE)
+			SetFontSize( inStyle->GetFontSize());
+		if (GetFontName().IsEmpty() && !inStyle->GetFontName().IsEmpty())
+			SetFontName( inStyle->GetFontName());
+     
+		if (!GetHasForeColor() && inStyle->GetHasForeColor())
+		{
+			SetHasForeColor(true);
+			SetColor(inStyle->GetColor());
+		}
+		if (!GetHasBackColor() && inStyle->GetHasBackColor())
+		{
+			SetHasBackColor( true);
+			SetBackGroundColor( inStyle->GetBackGroundColor());
+		}
+		if (GetJustification() == JST_Notset && inStyle->GetJustification() != JST_Notset)
+			SetJustification( inStyle->GetJustification());
+
+		if (inAllowMergeSpanRefs) 
+		{
+			if (inStyle->IsSpanRef() && testAssert(!IsSpanRef()))
+				SetSpanRef( new VDocSpanTextRef( *(inStyle->GetSpanRef())));
+		}
+	}
+	else
+		MergeWithStyle( inStyle, NULL, false, inAllowMergeSpanRefs);
+}
+
+
 /** return true if none property is defined (such style is useless & should be discarded) */
-bool VTextStyle::IsUndefined() const
+bool VTextStyle::IsUndefined(bool inIgnoreSpanRef) const
 {
 	return	GetBold() == UNDEFINED_STYLE
 			&&
@@ -502,18 +575,21 @@ bool VTextStyle::IsUndefined() const
 			&&
 			(!GetHasForeColor())
 			&&
-			GetTransparent()
+			(!GetHasBackColor())
 			&&
-			GetJustification() == JST_Notset;
+			GetJustification() == JST_Notset
+			&&
+			(!inIgnoreSpanRef ? fSpanTextRef == NULL : true)
+			;
 }
 
 void VTextStyle::Reset()
 {
 	fBegin = fEnd = 0;
 	fIsBold = fIsUnderline = fIsStrikeout = fIsItalic = UNDEFINED_STYLE;
-	fColor = 0;
-	fBkColor = 0xFFFFFF;
-	fIsTransparent = true;
+	fColor = 0xFF000000;
+	fBkColor = 0xFFFFFFFF;
+	fHasBackColor = false;
 	fHasForeColor = false;
 	fFontSize = -1;
 	if (fFontName)
@@ -521,6 +597,11 @@ void VTextStyle::Reset()
 	else 
 		fFontName = new VString();
 	fJust = JST_Notset;
+	if (fSpanTextRef)
+	{
+		delete fSpanTextRef;
+		fSpanTextRef = NULL;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -530,15 +611,37 @@ VTreeTextStyle::VTreeTextStyle(VTextStyle* inData):IRefCountable()
 {
 	fParent = NULL;
 	fdata = inData;
+	fNumChildSpanRef = 0;
 }
 
-VTreeTextStyle::VTreeTextStyle(VTreeTextStyle* inStyle, bool inDeepCopy):IRefCountable()
+
+VTreeTextStyle::VTreeTextStyle(const VTreeTextStyle& inStyle):IRefCountable()
 {
 	fParent = NULL;
 	fdata = NULL;
+	fNumChildSpanRef = 0;
+	const VTextStyle* data = inStyle.GetData();
+	if(data)
+	{
+		fdata = new VTextStyle(data);
+
+		for( VectorOfStyle::const_iterator i = inStyle.fChildren.begin() ; i != inStyle.fChildren.end() ; ++i)
+		{
+			VTreeTextStyle* newstyle = new VTreeTextStyle( *(*i));
+			AddChild(newstyle);
+			newstyle->Release();
+		}
+	}
+}
+
+VTreeTextStyle::VTreeTextStyle(const VTreeTextStyle* inStyle, bool inDeepCopy):IRefCountable()
+{
+	fParent = NULL;
+	fdata = NULL;
+	fNumChildSpanRef = 0;
 	if(inStyle)
 	{
-		VTextStyle* data = inStyle->GetData();
+		const VTextStyle* data = inStyle->GetData();
 		if(data)
 		{
 			fdata = new VTextStyle(data);
@@ -564,6 +667,17 @@ VTreeTextStyle::~VTreeTextStyle()
 		(*i)->Release();
 	}
 	delete fdata;
+}
+
+void VTreeTextStyle::RemoveChildren()
+{
+	for( VectorOfStyle::iterator i = fChildren.begin() ; i != fChildren.end() ; ++i)
+	{
+		(*i)->SetParent(NULL);
+		(*i)->Release();
+	}
+	fChildren.clear();
+	fNumChildSpanRef = 0;
 }
 
 void VTreeTextStyle::SetParent(VTreeTextStyle* inValue)
@@ -607,6 +721,9 @@ void VTreeTextStyle::AddChild(VTreeTextStyle* inValue, bool inAutoGrowRange)
 		inValue->Retain();
 		inValue->SetParent(this);
 
+		if (inValue->GetData()->IsSpanRef())
+			fNumChildSpanRef++;
+
 		if (inAutoGrowRange && inValue->GetData() && GetData())
 		{
 			sLONG start, end;
@@ -637,6 +754,9 @@ void VTreeTextStyle::RemoveChildAt(sLONG inNth)
 		del_Iter = fChildren.begin();
 		fChildren.erase(del_Iter+(inNth -1));
 		
+		if (child->GetData()->IsSpanRef())
+			fNumChildSpanRef--;
+
 		child->SetParent(NULL);
 		child->Release();
 	}
@@ -664,7 +784,9 @@ void VTreeTextStyle::Translate(sLONG inValue)
 		text.Insert(textToInsert, 10); //caution: here 1-based index
 		styles->ExpandRangesAtPosBy( 9, textToInsert.GetLength()); //caution: here 0-based index so 10-1 and not 10
 */
-void VTreeTextStyle::ExpandAtPosBy(sLONG inStart, sLONG inInflate)
+void VTreeTextStyle::ExpandAtPosBy(	sLONG inStart, sLONG inInflate, const VDocSpanTextRef *inInflateSpanRef, VTextStyle **outStyleToPostApply, 
+									bool inOnlyTranslate,
+									bool inIsStartOfParagraph)
 {
 	if (inInflate <= 0)
 		return;
@@ -675,17 +797,147 @@ void VTreeTextStyle::ExpandAtPosBy(sLONG inStart, sLONG inInflate)
 
 	if (end < inStart)
 		return;
-	if (start >= inStart && start > 0) 
+	
+	if (inInflateSpanRef)
 	{
-		Translate(inInflate);
-		return;
-	}
-	style->SetRange( start, end+inInflate);
+		//we fall here if we replace a span ref plain text:
+		//we inflate only the passed span ref & the parent
 
-	for( VectorOfStyle::const_iterator i = fChildren.begin() ; i != fChildren.end() ; ++i)
+		if (GetData()->IsSpanRef() && inInflateSpanRef == GetData()->GetSpanRef())
+		{
+			xbox_assert(end == start && start == inStart);
+			style->SetRange( start, end+inInflate);
+			return;
+		}
+		else if (HasSpanRefs()) //we inflate span ref parent
+			style->SetRange( start, end+inInflate);
+		else if (start >= inStart) //other styles or span refs are translated if after inflated span ref, otherwise do nothing
+		{
+			Translate( inInflate);
+			return;
+		}
+	}
+	else
 	{
-		VTreeTextStyle* vstyle = *i;
-		vstyle->ExpandAtPosBy( inStart, inInflate);
+		if (inOnlyTranslate)  //if previous child has been translated or inflated, we cannot inflate otherwise we might overlap previous child range so translate
+		{
+			if (start >= inStart)
+				Translate(inInflate);
+			return;
+		}
+
+		//we fall here after some text has been inserted/replaced:
+		//ensure span references are not expanded but only translated
+
+		if (GetData()->IsSpanRef())
+		{
+			//ensure we do not inflate span refs 
+
+			if (start >= inStart)
+			{
+				if (inIsStartOfParagraph && start == inStart && outStyleToPostApply && !GetData()->IsUndefined( true))
+				{
+					//we need to expand span ref character style without expanding span ref itself:
+					//so pass new style to apply to caller (caller will propagate it to span ref next sibling(s))
+					VTextStyle *newstyle = new VTextStyle();
+					newstyle->MergeWithStyle( GetData()); //get only char styles but span ref
+					*outStyleToPostApply = newstyle;
+					newstyle->SetRange(inStart, inStart+inInflate);
+				}
+				Translate( inInflate);
+			}
+			else if (end == inStart && outStyleToPostApply && !inIsStartOfParagraph)
+			{
+				//we need to expand span ref character style without expanding span ref itself:
+				//so pass new style to apply to caller (caller will propagate it to span ref next sibling(s))
+				if (!GetData()->IsUndefined( true))
+				{
+					VTextStyle *newstyle = new VTextStyle();
+					newstyle->MergeWithStyle( GetData()); //get only char styles but span ref
+					*outStyleToPostApply = newstyle;
+					newstyle->SetRange(inStart, inStart+inInflate);
+				}
+			}
+			return;
+		}
+
+		if (start >= inStart) 
+		{
+			if (inIsStartOfParagraph)
+			{
+				if (start > inStart)
+				{
+					Translate(inInflate);
+					return;
+				}
+				else
+					//start == inStart == 0 or: insert at start of not empty paragraph & cur style range start == start of paragraph -> expand style
+					style->SetRange( start, end+inInflate);
+			}
+			else
+				if ((start > inStart || end > start) && start > 0)
+				{
+					Translate(inInflate);
+					return;
+				}
+				else
+					style->SetRange( start, end+inInflate);
+		}
+		else
+			if (!inIsStartOfParagraph || end > inStart)
+				style->SetRange( start, end+inInflate);
+			else
+				//insert at start of not empty paragraph & cur style range end == start of paragraph -> skip as we cannot expand style of previous paragraph over the paragraph unless it is empty
+				return;
+	}
+
+	bool onlyTranslate = false;
+	sLONG beforeChildStart, beforeChildEnd;
+	sLONG afterChildStart, afterChildEnd;
+	if (!outStyleToPostApply)
+	{
+		std::vector<VTextStyle *> postApplyStyles;
+		for( VectorOfStyle::const_iterator i = fChildren.begin() ; i != fChildren.end() ; ++i)
+		{
+			VTreeTextStyle* vstyle = *i;
+			VTextStyle *postApplyStyle = NULL;
+			if (!onlyTranslate)
+				vstyle->GetData()->GetRange( beforeChildStart, beforeChildEnd);
+			vstyle->ExpandAtPosBy( inStart, inInflate, inInflateSpanRef, &postApplyStyle, onlyTranslate, inIsStartOfParagraph);
+			if (!onlyTranslate)
+			{
+				vstyle->GetData()->GetRange( afterChildStart, afterChildEnd);
+				if (afterChildEnd > beforeChildEnd)
+					onlyTranslate = true;
+			}	
+			if (postApplyStyle)
+			{
+				onlyTranslate = true;
+				postApplyStyles.push_back( postApplyStyle);
+			}
+		}
+		std::vector<VTextStyle *>::iterator itPostApplyStyles = postApplyStyles.begin();
+		for(;itPostApplyStyles != postApplyStyles.end(); itPostApplyStyles++)
+		{
+			ApplyStyle( *itPostApplyStyles);
+			delete *itPostApplyStyles;
+		}
+	}
+	else
+	{
+		for( VectorOfStyle::const_iterator i = fChildren.begin() ; i != fChildren.end() ; ++i)
+		{
+			VTreeTextStyle* vstyle = *i;
+			if (!onlyTranslate)
+				vstyle->GetData()->GetRange( beforeChildStart, beforeChildEnd);
+			vstyle->ExpandAtPosBy( inStart, inInflate, inInflateSpanRef, NULL, onlyTranslate, inIsStartOfParagraph);
+			if (!onlyTranslate)
+			{
+				vstyle->GetData()->GetRange( afterChildStart, afterChildEnd);
+				if (afterChildEnd > beforeChildEnd)
+					onlyTranslate = true;
+			}	
+		}
 	}
 }
 
@@ -701,7 +953,7 @@ void VTreeTextStyle::ExpandAtPosBy(sLONG inStart, sLONG inInflate)
 		text.Remove(10, 5); //caution: here 1-based index
 		styles->Truncate(9, 5); //caution: here 0-based index so 10-1 and not 10
 */
-void VTreeTextStyle::Truncate(sLONG inStart, sLONG inLength)
+void VTreeTextStyle::Truncate(sLONG inStart, sLONG inLength, bool inRemoveStyleIfEmpty, bool inPreserveSpanRefIfEmpty)
 {
 	if (inLength == 0)
 		return;
@@ -753,20 +1005,30 @@ void VTreeTextStyle::Truncate(sLONG inStart, sLONG inLength)
 		vstyle->GetData()->GetRange( childStart, childEnd);
 		if (childStart >= inStartBase && childEnd <= inEndBase)
 		{
-			//child style is fully truncated: skip & remove it
-			RemoveChildAt( index+1);
-			i = fChildren.begin();
-			std::advance( i, index);
-			if (i == fChildren.end())
-				break;
-			else
-				continue;
+			if	((inRemoveStyleIfEmpty || (childStart > inStartBase || childEnd < inEndBase))
+				 &&
+				 (!inPreserveSpanRefIfEmpty || !vstyle->GetData()->IsSpanRef()))
+			{
+				//skip & remove it (we preserve only uniform styles on truncated range if inRemoveStyleIfEmpty == false)
+				RemoveChildAt( index+1);
+				i = fChildren.begin();
+				std::advance( i, index);
+				if (i == fChildren.end())
+					break;
+				else
+					continue;
+			}
+			else if (!inPreserveSpanRefIfEmpty && vstyle->GetData()->IsSpanRef())
+			{
+				vstyle->GetData()->SetSpanRef( NULL); //clear span reference but other styles
+				fNumChildSpanRef--;
+			}
 		}
 
-		vstyle->Truncate( inStartBase, inEndBase-inStartBase);
+		vstyle->Truncate( inStartBase, inEndBase-inStartBase, inRemoveStyleIfEmpty, inPreserveSpanRefIfEmpty);
 
 		vstyle->GetData()->GetRange( childStart, childEnd);
-		if (childStart <= start && childEnd >= end && vstyle->GetChildCount() <= 0)
+		if (!vstyle->GetData()->IsSpanRef() && childStart <= start && childEnd >= end && vstyle->GetChildCount() <= 0)
 		{
 			//truncated child style cover same range as actual style: merge with child style...
 			style->MergeWithStyle( vstyle->GetData(), fParent ? fParent->GetData() : NULL);
@@ -798,6 +1060,9 @@ void VTreeTextStyle::InsertChild(VTreeTextStyle* inValue, sLONG pos, bool inAuto
 		inValue->SetParent(this);
 		fChildren.insert( fChildren.begin() + (pos -1),inValue);
 		inValue->Retain();
+
+		if (inValue->GetData()->IsSpanRef())
+			fNumChildSpanRef++;
 
 		if (inAutoGrowRange && inValue->GetData() && GetData())
 		{
@@ -843,9 +1108,9 @@ VTreeTextStyle* VTreeTextStyle::GetNthChild(sLONG inNth) const
 @remarks
 	output styles ranges are disjoint & contain merged cascading styles & n+1 style range follows immediately n style range
 */
-void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( std::vector<VTextStyle *>& outStyles, VTextStyle *inStyleParent, bool inForMetrics)
+void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( std::vector<VTextStyle *>& outStyles, VTextStyle *inStyleParent, bool inForMetrics, bool inFirstUniformStyleOnly) const
 {
-	VTextStyle *styleCur = GetData();
+	const VTextStyle *styleCur = GetData();
 	if (styleCur)
 	{
 		VTextStyle *style = NULL;
@@ -853,35 +1118,7 @@ void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( std::vector<VText
 		{
 			//merge both styles
 			style = new VTextStyle( inStyleParent);
-			if (styleCur->GetBold() != UNDEFINED_STYLE)
-				style->SetBold( styleCur->GetBold());
-			if (styleCur->GetItalic() != UNDEFINED_STYLE)
-				style->SetItalic( styleCur->GetItalic());
-			if (styleCur->GetUnderline() != UNDEFINED_STYLE)
-				style->SetUnderline( styleCur->GetUnderline());
-			if (styleCur->GetStrikeout() != UNDEFINED_STYLE)
-				style->SetStrikeout( styleCur->GetStrikeout());
-			if (styleCur->GetFontSize() != UNDEFINED_STYLE)
-				style->SetFontSize( styleCur->GetFontSize());
-			if (!styleCur->GetFontName().IsEmpty())
-				style->SetFontName( styleCur->GetFontName());
-
-			if (!inForMetrics)
-			{
-				//if output styles are used only for metrics, we do not care about color or justify mode
-				if (styleCur->GetHasForeColor())
-				{
-					style->SetHasForeColor(true);
-					style->SetColor(styleCur->GetColor());
-				}
-				if (!styleCur->GetTransparent())
-				{
-					style->SetTransparent( false);
-					style->SetBackGroundColor( styleCur->GetBackGroundColor());
-				}
-				if (styleCur->GetJustification() != JST_Notset)
-					style->SetJustification( styleCur->GetJustification());
-			}
+			style->MergeWithStyle( styleCur, NULL, inForMetrics, true);
 		}
 		else
 			style = new VTextStyle( styleCur);
@@ -897,14 +1134,19 @@ void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( std::vector<VText
 			style->SetRange( start, end);
 			bool doDeleteStyle = false;
 			if (end > start)
+			{
 				outStyles.push_back( style);
+				if (inFirstUniformStyleOnly)
+					return;
+			}
 			else
 				doDeleteStyle = true;
 
 			for (int i = 1; i <= GetChildCount(); i++)
 			{
-				GetNthChild(i)->BuildSequentialStylesFromCascadingStyles( outStyles, style, inForMetrics);
-				outStyles.back()->GetRange(childStart, childEnd);
+				GetNthChild(i)->BuildSequentialStylesFromCascadingStyles( outStyles, style, inForMetrics, inFirstUniformStyleOnly);
+				if (outStyles.size() > 0)
+					outStyles.back()->GetRange(childStart, childEnd);
 				start = childEnd;
 				if (start >= endCur)
 				{
@@ -924,18 +1166,30 @@ void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( std::vector<VText
 							doDeleteStyle = false;
 							style->SetRange( start, childStart);
 							outStyles.push_back( style);
+							if (inFirstUniformStyleOnly)
+								return;
 						}
 					}
 					else
 					{
 						if (!doDeleteStyle)
 							style = new VTextStyle( style);
-						doDeleteStyle = false;
+						doDeleteStyle = true;
 					}
 				}
 			}
+
+			if (start < endCur)
+			{
+				style->SetRange( start, endCur);
+				outStyles.push_back( style);
+				if (inFirstUniformStyleOnly)
+					return;
+			}
+			else 
+				delete style;
 		}
-		if (start < endCur)
+		else if (!style->IsUndefined())
 		{
 			style->SetRange( start, endCur);
 			outStyles.push_back( style);
@@ -951,19 +1205,16 @@ void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( std::vector<VText
 	cascading styles are merged in order to build a tree which has only one level deeper;
 	on output, child VTreeTextStyle ranges will be disjoint & n+1 style range follows immediately n style range
 */
-void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( VTextStyle *inStyleParent)
+void VTreeTextStyle::BuildSequentialStylesFromCascadingStyles( VTextStyle *inStyleParent, bool inFirstUniformStyleOnly)
 {
 	std::vector<VTextStyle *> vstyle;
-	BuildSequentialStylesFromCascadingStyles( vstyle, inStyleParent);
+	BuildSequentialStylesFromCascadingStyles( vstyle, inStyleParent, false, inFirstUniformStyleOnly);
 
-	for (int j = GetChildCount(); j >= 1; j--)
-		RemoveChildAt(j);
-	xbox_assert(GetChildCount() == 0);
+	RemoveChildren();
 
 	sLONG start, end;
 	GetData()->GetRange( start, end);
-	delete GetData();
-	SetData( new VTextStyle());
+	GetData()->Reset();
 	GetData()->SetRange(start, end);
 	for (int i = 0; i < vstyle.size(); i++)
 	{
@@ -985,8 +1236,7 @@ void VTreeTextStyle::BuildCascadingStylesFromSequentialStyles( std::vector<VText
 	if (!GetData())
 		SetData( new VTextStyle());
 
-	for (int j = GetChildCount(); j >= 1; j--)
-		RemoveChildAt(j);
+	RemoveChildren();
 	xbox_assert(GetChildCount() == 0);
 
 	VTextStyle *curStyle = GetData();
@@ -1024,7 +1274,7 @@ void VTreeTextStyle::BuildCascadingStylesFromSequentialStyles( std::vector<VText
 			{
 				sLONG childStart, childEnd;
 				styleChild->GetRange( childStart, childEnd);
-				if (childStart <= 0 || childStart < childEnd)
+				if (childStart == 0 || childStart < childEnd)
 				{
 					start = std::min( start, childStart);
 					end = std::max( end, childEnd);
@@ -1054,34 +1304,146 @@ void VTreeTextStyle::BuildCascadingStylesFromSequentialStyles( std::vector<VText
 }
 
 
-
-/** apply style to the specified range 
+/** apply styles 
 @param inStyle
-	style to apply 
+	styles to apply
+@remarks
+	caller is owner of inStyle
 */
-void VTreeTextStyle::ApplyStyle( VTextStyle *inStyle)
+void VTreeTextStyle::ApplyStyles( const VTreeTextStyle *inStyles, bool inIgnoreIfEmpty, sLONG inStartBase)
 {
-	_ApplyStyleRec( inStyle, 0);
+	ApplyStyle( inStyles->GetData(), inIgnoreIfEmpty, inStartBase);
+
+	VectorOfStyle::const_iterator it = inStyles->fChildren.begin();
+	for (;it != inStyles->fChildren.end(); it++)
+		ApplyStyles( *it, inIgnoreIfEmpty, inStartBase);
 }
 
+
+
 /** apply style to the specified range 
 @param inStyle
 	style to apply 
 */
-void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTextStyle *inStyleInherit)
+void VTreeTextStyle::ApplyStyle( const VTextStyle *inStyle, bool inIgnoreIfEmpty, sLONG inStartBase)
+{
+	_ApplyStyleRec( inStyle, 0, NULL, inIgnoreIfEmpty, inStartBase);
+}
+
+
+/** return true if plain text range can be deleted or replaced 
+@remarks
+	return false if range overlaps span text references plain text & if range does not fully includes span text reference(s) plain text
+	(we cannot delete or replace some sub-part of span text reference plain text but only full span text reference plain text at once)
+*/
+bool VTreeTextStyle::CanDeleteOrReplace( sLONG inStart, sLONG inEnd)
+{
+	if (fChildren.size() == 0)
+		return true;
+	
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for(;it != fChildren.end(); it++)
+	{
+		const VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef())
+		{
+			sLONG curStart, curEnd;
+			style->GetRange( curStart, curEnd);
+
+			if (inStart > curStart && inStart < curEnd)
+				return false;
+			if (inEnd > curStart && inEnd < curEnd)
+				return false;
+		}
+	}
+	return true;
+}
+
+bool VTreeTextStyle::CanApplyStyle( const VTextStyle *inStyle, sLONG inStartBase) const
+{
+	if (GetData()->IsSpanRef() && inStyle->IsSpanRef()) //span references are not recursive
+		return false;
+	if (fChildren.size() == 0)
+		return true;
+	
+	sLONG inStart, inEnd;
+	inStyle->GetRange( inStart, inEnd);
+	inStart += inStartBase;
+	inEnd += inStartBase;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for(;it != fChildren.end(); it++)
+	{
+		const VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef())
+		{
+			sLONG curStart, curEnd;
+			style->GetRange( curStart, curEnd);
+
+			if (inStart > curStart && inStart < curEnd)
+				return false;
+			if (inEnd > curStart && inEnd < curEnd)
+				return false;
+		}
+	}
+	return true;
+}
+
+/** reset styles if equal to inStyle styles */
+void VTextStyle::ResetCommonStyles( const VTextStyle *inStyle, bool inIgnoreSpanRef)
+{
+	if (GetBold() != UNDEFINED_STYLE && inStyle->GetBold() == GetBold())
+		SetBold( UNDEFINED_STYLE);
+	if (GetItalic() != UNDEFINED_STYLE && inStyle->GetItalic() == GetItalic())
+		SetItalic( UNDEFINED_STYLE);
+	if (GetUnderline() != UNDEFINED_STYLE && inStyle->GetUnderline() == GetUnderline())
+		SetUnderline( UNDEFINED_STYLE);
+	if (GetStrikeout() != UNDEFINED_STYLE && inStyle->GetStrikeout() == GetStrikeout())
+		SetStrikeout( UNDEFINED_STYLE);
+	if (GetFontSize() != UNDEFINED_STYLE && inStyle->GetFontSize() == GetFontSize())
+		SetFontSize( UNDEFINED_STYLE);
+	if (!GetFontName().IsEmpty() && inStyle->GetFontName().EqualToString(GetFontName(), true))
+		SetFontName( CVSTR(""));
+
+	if (GetHasForeColor() && inStyle->GetHasForeColor() && inStyle->GetColor() == GetColor())
+		SetHasForeColor(false);
+	if (GetHasBackColor() && inStyle->GetHasBackColor() && inStyle->GetBackGroundColor() == GetBackGroundColor())
+		SetHasBackColor(false);
+
+	if (GetJustification() != JST_Notset && inStyle->GetJustification() == GetJustification())
+		SetJustification( JST_Notset);
+	
+	if (inIgnoreSpanRef)
+		return;
+	if (IsSpanRef() && inStyle->IsSpanRef() && (*GetSpanRef() == *(inStyle->GetSpanRef())))
+		SetSpanRef( NULL);
+}
+
+
+/** apply style to the specified range 
+@param inStyle
+	style to apply 
+*/
+void VTreeTextStyle::_ApplyStyleRec( const VTextStyle *inStyle, sLONG inRecLevel, VTextStyle *inStyleInherit, bool inIgnoreIfEmpty, sLONG inStartBase)
 {
 	sLONG inStart, inEnd;
 	inStyle->GetRange( inStart, inEnd);
-	if (inStart >= inEnd && inStart > 0)
-		return;
-
+	inStart += inStartBase;
+	inEnd += inStartBase;
+	if (inStart >= inEnd)
+	{
+		if (inIgnoreIfEmpty && inStart > 0)
+			return;
+		if (inStyle->IsSpanRef()) //span ref should be at least one character length
+			return;
+	}
 	if (inStyle->IsUndefined())
 		return;
 
 	sLONG curStart, curEnd;
 	GetData()->GetRange( curStart, curEnd);
 
-	if (inStart <= curStart && inEnd >= curEnd)
+	if (inStart <= curStart && inEnd >= curEnd && !inStyle->IsSpanRef())
 	{
 		//merge directly with current style if input style range fully includes current style range
 		_MergeWithStyle( inStyle, inStyleInherit);
@@ -1098,8 +1460,95 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 	if (inEnd > curEnd)
 		inEnd = curEnd;
 
-	if (inStart >= inEnd)
+	if (inStart > inEnd)
 	{
+		return;
+	}
+
+	if (!CanApplyStyle( inStyle, inStartBase))
+		return;
+	if (inStyle->IsSpanRef())
+	{
+		//span reference style can only be attached to this VTreeTextStyle
+
+		VTextStyle *styleSpanRef = new VTextStyle( inStyle);
+		styleSpanRef->ResetCommonStyles( GetData(), true);
+		styleSpanRef->SetRange(inStart, inEnd);  
+		VTreeTextStyle *stylesSpanRef = new VTreeTextStyle( styleSpanRef);
+
+		if (GetChildCount() <= 0)
+		{
+			AddChild( stylesSpanRef);
+			ReleaseRefCountable(&stylesSpanRef);
+		}
+		else
+		{
+			VTreeTextStyle *stylesBefore = curStart < inStart ? CreateTreeTextStyleOnRange(curStart, inStart, false) : NULL;
+			
+			xbox_assert(inStart < inEnd);
+			VTreeTextStyle *styles = CreateTreeTextStyleOnRange( inStart, inStart+1, false);
+			if (styles)
+			{
+				styles->GetData()->ResetCommonStyles( GetData(), true);
+				styleSpanRef->AppendStyle( styles->GetData(), true);
+				styles->Release();
+			}
+
+			VTreeTextStyle *stylesAfter = inEnd < curEnd ? CreateTreeTextStyleOnRange(inEnd, curEnd, false) : NULL;
+
+			RemoveChildren();
+			std::vector<VTreeTextStyle *> vstyles;
+			if (stylesBefore)
+			{
+				stylesBefore->GetData()->ResetCommonStyles( GetData(), true);
+				if (stylesBefore->HasSpanRefs() || stylesBefore->GetData()->IsUndefined())
+				{
+					sLONG count = stylesBefore->GetChildCount();
+					for (int i = 1; i <= count; i++)
+					{
+						VTreeTextStyle *childStyle = stylesBefore->GetNthChild(i);
+						childStyle->Retain();
+						vstyles.push_back(childStyle);
+					}
+				}
+				else
+				{
+					stylesBefore->Retain();
+					vstyles.push_back(stylesBefore);
+				}
+			}
+			ReleaseRefCountable(&stylesBefore);
+
+			vstyles.push_back( stylesSpanRef);
+
+			if (stylesAfter)
+			{
+				stylesAfter->GetData()->ResetCommonStyles( GetData(), true);
+				if (stylesAfter->HasSpanRefs() || stylesAfter->GetData()->IsUndefined())
+				{
+					sLONG count = stylesAfter->GetChildCount();
+					for (int i = 1; i <= count; i++)
+					{
+						VTreeTextStyle *childStyle = stylesAfter->GetNthChild(i);
+						childStyle->Retain();
+						vstyles.push_back(childStyle);
+					}
+				}
+				else
+				{
+					stylesAfter->Retain();
+					vstyles.push_back(stylesAfter);
+				}
+			}
+			ReleaseRefCountable(&stylesAfter);
+
+			std::vector<VTreeTextStyle *>::const_iterator itStyles = vstyles.begin();
+			for (;itStyles != vstyles.end(); itStyles++)
+			{
+				AddChild( *itStyles);
+				(*itStyles)->Release();
+			}
+		}
 		return;
 	}
 
@@ -1115,14 +1564,13 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 		styleInheritForChilds = new VTextStyle(GetParent()->GetData());
 		styleInheritForChilds->MergeWithStyle( GetData(), NULL);
 	}
-	else
-		styleInheritForChilds = NULL;
 
 	//ensure inStyle overrides only styles not equal to inherited styles
 	VTextStyle *newStyle = new VTextStyle();
 	xbox_assert(newStyle);
-	newStyle->SetRange( inStart, inEnd);
+	xbox_assert(!inStyle->IsSpanRef());
 	newStyle->MergeWithStyle( inStyle, styleInheritForChilds ? styleInheritForChilds : GetData());
+	newStyle->SetRange( inStart, inEnd);
 	bool applyOnCurrent = !newStyle->IsUndefined();
 
 	//recursively apply to child style
@@ -1141,10 +1589,11 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 		
 		sLONG childStart, childEnd;
 		childStyles->GetData()->GetRange( childStart, childEnd);
+
 		sLONG endTemp = std::min(childStart, inEnd);
 		if (applyOnCurrent && start < endTemp)
 		{
-			if (styleLastChild && endLastChild == start && styleLastChild->IsEqualTo( *newStyle, false))
+			if (styleLastChild && endLastChild == start && !styleLastChild->IsSpanRef() && styleLastChild->IsEqualTo( *newStyle, false))
 			{
 				//concat with previous child style
 				styleLastChild->SetRange( startLastChild, endTemp);
@@ -1152,7 +1601,7 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 			else 
 			{
 				bool childInserted = false;
-				if (inRecLevel <= 5 && styleLastChild && endLastChild == start)
+				if (inRecLevel <= 5 && styleLastChild && !styleLastChild->IsSpanRef() && endLastChild == start)
 				{
 					VTextStyle *newStyle2 = new VTextStyle( newStyle);
 					VTextStyle *styleCommon = styleLastChild->ExtractCommonStyle( newStyle2);
@@ -1230,78 +1679,89 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 			break;
 		}
 
-		childStyles->_ApplyStyleRec( inStyle, inRecLevel+1, styleInheritForChilds);
+		childStyles->_ApplyStyleRec( inStyle, inRecLevel+1, styleInheritForChilds, inIgnoreIfEmpty, inStartBase);
 
 		if (childStyles->GetChildCount() == 0 && childStyles->IsUndefined(true))
 			RemoveChildAt(i);
-		else if (styleLastChild && endLastChild == childStart && childStyles->GetChildCount() == 0 && styleLastChild->IsEqualTo( *(childStyles->GetData()), false))
+		else if (childStyles->GetData()->IsSpanRef())
 		{
-			//concat with previous child style
-			styleLastChild->SetRange( startLastChild, childEnd);
-			RemoveChildAt(i);
+			stylesLastChild = childStyles; 
+			styleLastChild = childStyles->GetData();
+			indexLastChild = i;
+			startLastChild = childStart;
+			endLastChild = childEnd;
+			i++;
 		}
 		else
-		{
-			bool childInserted = false;
-			if (inRecLevel <= 5 && styleLastChild && endLastChild == childStart)
+		{	
+			if (styleLastChild && !styleLastChild->IsSpanRef() && endLastChild == childStart && childStyles->GetChildCount() == 0 && styleLastChild->IsEqualTo( *(childStyles->GetData()), false))
 			{
-				VTextStyle *styleCommon = styleLastChild->ExtractCommonStyle( childStyles->GetData());
-				if (styleCommon)
+				//concat with previous child style
+				styleLastChild->SetRange( startLastChild, childEnd);
+				RemoveChildAt(i);
+			}
+			else
+			{
+				bool childInserted = false;
+				if (inRecLevel <= 5 && styleLastChild && !styleLastChild->IsSpanRef() && endLastChild == childStart)
 				{
-					if (styleLastChild->IsUndefined())
+					VTextStyle *styleCommon = styleLastChild->ExtractCommonStyle( childStyles->GetData());
+					if (styleCommon)
 					{
-						//set last child styles to common styles, expand range & add current child styles minus common prop as children for last child styles
-						*styleLastChild = *styleCommon;
-						delete styleCommon;
-						styleLastChild->SetRange( startLastChild, childEnd);
-			
-						childStyles->Retain();
-						RemoveChildAt(i);
-						stylesLastChild->AddChild( childStyles);
-						childStyles->Release();
-						endLastChild = childEnd;
-						childInserted = true;
-					}
-					else
-					{
-						//insert new child with common styles & for children the last child & currend child styles minus common properties
-						xbox_assert(stylesLastChild == GetNthChild( i-1));
-						stylesLastChild->Retain();
-						RemoveChildAt(i-1);
-						i = i-1;
-						xbox_assert(childStyles == GetNthChild( i));
-						childStyles->Retain();
-						RemoveChildAt(i);
+						if (styleLastChild->IsUndefined())
+						{
+							//set last child styles to common styles, expand range & add current child styles minus common prop as children for last child styles
+							*styleLastChild = *styleCommon;
+							delete styleCommon;
+							styleLastChild->SetRange( startLastChild, childEnd);
+				
+							childStyles->Retain();
+							RemoveChildAt(i);
+							stylesLastChild->AddChild( childStyles);
+							childStyles->Release();
+							endLastChild = childEnd;
+							childInserted = true;
+						}
+						else
+						{
+							//insert new child with common styles & for children the last child & currend child styles minus common properties
+							xbox_assert(stylesLastChild == GetNthChild( i-1));
+							stylesLastChild->Retain();
+							RemoveChildAt(i-1);
+							i = i-1;
+							xbox_assert(childStyles == GetNthChild( i));
+							childStyles->Retain();
+							RemoveChildAt(i);
 
-						styleCommon->SetRange( startLastChild, childEnd);
-						VTreeTextStyle *newStyles = new VTreeTextStyle( styleCommon);
-						newStyles->AddChild( stylesLastChild);
-						stylesLastChild->Release();
-						newStyles->AddChild( childStyles);
-						childStyles->Release();
+							styleCommon->SetRange( startLastChild, childEnd);
+							VTreeTextStyle *newStyles = new VTreeTextStyle( styleCommon);
+							newStyles->AddChild( stylesLastChild);
+							stylesLastChild->Release();
+							newStyles->AddChild( childStyles);
+							childStyles->Release();
 
-						stylesLastChild = newStyles;
-						styleLastChild = stylesLastChild->GetData();
-						InsertChild( newStyles, i);
-						indexLastChild = i;
-						endLastChild = childEnd;
-						newStyles->Release();
-						i++;
-						childInserted = true;
+							stylesLastChild = newStyles;
+							styleLastChild = stylesLastChild->GetData();
+							InsertChild( newStyles, i);
+							indexLastChild = i;
+							endLastChild = childEnd;
+							newStyles->Release();
+							i++;
+							childInserted = true;
+						}
 					}
 				}
-			}
-			if (!childInserted)
-			{
-				stylesLastChild = childStyles; 
-				styleLastChild = childStyles->GetData();
-				indexLastChild = i;
-				startLastChild = childStart;
-				endLastChild = childEnd;
-				i++;
+				if (!childInserted)
+				{
+					stylesLastChild = childStyles; 
+					styleLastChild = childStyles->GetData();
+					indexLastChild = i;
+					startLastChild = childStart;
+					endLastChild = childEnd;
+					i++;
+				}
 			}
 		}
-
 		start = std::max(start,childEnd);
 		if (start >= inEnd)
 			break;
@@ -1309,7 +1769,7 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 
 	if (applyOnCurrent && start < inEnd)
 	{
-		if (styleLastChild && endLastChild == start && styleLastChild->IsEqualTo( *newStyle, false))
+		if (styleLastChild && !styleLastChild->IsSpanRef() && endLastChild == start && styleLastChild->IsEqualTo( *newStyle, false))
 		{
 			//concat with previous child style
 			styleLastChild->SetRange( startLastChild, inEnd);
@@ -1317,7 +1777,7 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 		else
 		{
 			bool childInserted = false;
-			if (inRecLevel <= 5 && styleLastChild && endLastChild == start)
+			if (inRecLevel <= 5 && styleLastChild && !styleLastChild->IsSpanRef() && endLastChild == start)
 			{
 				VTextStyle *newStyle2 = new VTextStyle( newStyle);
 				VTextStyle *styleCommon = styleLastChild->ExtractCommonStyle( newStyle2);
@@ -1379,7 +1839,7 @@ void VTreeTextStyle::_ApplyStyleRec( VTextStyle *inStyle, sLONG inRecLevel, VTex
 		VTreeTextStyle *childStyles = GetNthChild(1);
 		sLONG end;
 		childStyles->GetData()->GetRange( start, end);
-		if (start <= curStart && end >= curEnd)
+		if (!childStyles->GetData()->IsSpanRef() &&  start <= curStart && end >= curEnd)
 		{
 			//merge cur style whith child node style & branch child node children to current node
 			childStyles->Retain();
@@ -1474,25 +1934,30 @@ bool VTreeTextStyle::IsUndefined(bool inTrueIfRangeEmpty) const
 
 
 /** create new tree text style from the current but constrained to the specified range & eventually relative to the start of the specified range */ 
-VTreeTextStyle *VTreeTextStyle::CreateTreeTextStyleOnRange( const sLONG inStart, const sLONG inEnd, bool inRelativeToStart, bool inNULLIfRangeEmpty)
+VTreeTextStyle *VTreeTextStyle::CreateTreeTextStyleOnRange( const sLONG inStart, const sLONG inEnd, bool inRelativeToStart, bool inNULLIfRangeEmpty, bool inNoMerge) const
 {
 	if (inNULLIfRangeEmpty && inStart == inEnd)
 		return NULL;
 
-	VTextStyle *style = GetData();
+	const VTextStyle *style = GetData();
 	if (style)
 	{
 		sLONG s,e;
 		style->GetRange( s, e);
+		if (s > inEnd)
+			return NULL;
+		if (e < inStart)
+			return NULL;
+
 		if (s < inStart)
 			s = inStart;
-		if (s > inEnd)
-			s = inEnd;
-		if (e < inStart)
-			e = inStart;
+		//if (s > inEnd)
+		//	s = inEnd;
+		//if (e < inStart)
+		//	e = inStart;
 		if (e > inEnd)
 			e = inEnd;
-		if (inNULLIfRangeEmpty && e-s <= 0)
+		if ((inNULLIfRangeEmpty || style->IsSpanRef()) && e-s <= 0)
 			return NULL;
 		if (inRelativeToStart)
 		{
@@ -1504,26 +1969,34 @@ VTreeTextStyle *VTreeTextStyle::CreateTreeTextStyleOnRange( const sLONG inStart,
 
 		VTreeTextStyle *styles = new VTreeTextStyle( newStyle);
 
+		bool doMerge = !inNoMerge; 
 		for (int i = 1; i <= GetChildCount(); i++)
 		{
 			VTreeTextStyle *childStyles = GetNthChild( i);
-			VTreeTextStyle *newChildStyles = childStyles->CreateTreeTextStyleOnRange( inStart, inEnd, inRelativeToStart, inNULLIfRangeEmpty);
+			VTreeTextStyle *newChildStyles = childStyles->CreateTreeTextStyleOnRange( inStart, inEnd, inRelativeToStart, inNULLIfRangeEmpty, inNoMerge);
 			if (newChildStyles)
 			{
 				sLONG childStart, childEnd;
 				newChildStyles->GetData()->GetRange( childStart, childEnd);
-				if (childStart == s && childEnd == e)
+				if (doMerge && ((s == e) || !newChildStyles->GetData()->IsSpanRef()) && childStart == s && childEnd == e)
 				{
 					//optimization: merge child style with current style if child style range is equal to current style range
 					styles->_MergeWithStyle( newChildStyles->GetData());
+					std::vector<VTreeTextStyle *> vstylesToAdd;
 					for (int j = 1; j <= newChildStyles->GetChildCount(); j++)
 					{
 						VTreeTextStyle *stylesToAdd = newChildStyles->GetNthChild( j);
-						styles->AddChild( stylesToAdd);
+						stylesToAdd->Retain();
+						vstylesToAdd.push_back(stylesToAdd);
 					}
-					for (int j = newChildStyles->GetChildCount(); j >= 1; j--)
-						newChildStyles->RemoveChildAt(j);
-					xbox_assert(newChildStyles->GetChildCount() == 0);
+					newChildStyles->RemoveChildren();
+				
+					std::vector<VTreeTextStyle *>::iterator itStyles = vstylesToAdd.begin();
+					for (;itStyles != vstylesToAdd.end(); itStyles++)
+					{
+						styles->AddChild( *itStyles);
+						(*itStyles)->Release();
+					}
 					newChildStyles->Release();
 				}
 				else
@@ -1536,6 +2009,126 @@ VTreeTextStyle *VTreeTextStyle::CreateTreeTextStyleOnRange( const sLONG inStart,
 		return styles;
 	}
 	return NULL;
+}
+
+
+/** create & return uniform style on the specified range 
+@remarks
+	undefined value is set for either mixed or undefined style 
+
+	mixed status is returned optionally in outMaskMixed using VTextStyle::Style mask values
+	return value is always not NULL
+*/
+VTextStyle *VTreeTextStyle::CreateUniformStyleOnRange( sLONG inStart, sLONG inEnd, bool inRelativeToStart, uLONG *outMaskMixed) const
+{
+	VTreeTextStyle *styles = CreateTreeTextStyleOnRange( inStart, inEnd, inRelativeToStart, inEnd > inStart);
+	
+	VTextStyle *style = new VTextStyle();
+	if (inRelativeToStart)
+	{
+		inEnd -= inStart;
+		inStart = 0;
+	}
+	style->SetRange( inStart, inEnd);
+
+	if (outMaskMixed)
+		*outMaskMixed = 0;
+	if (styles)
+	{
+		std::vector<VTextStyle *> vstyles;
+		styles->BuildSequentialStylesFromCascadingStyles( vstyles);
+		ReleaseRefCountable(&styles);
+
+		std::vector<VTextStyle *>::iterator it = vstyles.begin();
+		sLONG curEnd = inStart;
+		for(;it != vstyles.end(); it++)
+		{
+			VTextStyle *styleCur = *it;
+
+			sLONG styleCurStart, styleCurEnd;
+			styleCur->GetRange( styleCurStart, styleCurEnd);
+			if (!testAssert(styleCurStart == curEnd))
+			{
+				//if there is a hole between styles, style is not uniform at all 
+				//(but should never happen after call to BuildSequentialStylesFromCascadingStyles)
+				style->Reset();
+				if (outMaskMixed)
+					*outMaskMixed = VTextStyle::eStyle_Mask;
+				break;
+			}
+			xbox_assert(styleCurStart == curEnd);
+
+			if (it == vstyles.begin())
+			{
+				*style = *styleCur;
+				style->SetRange( inStart, inEnd);
+			}
+			else
+			{
+				//check if contiguous styles have uniform style
+				if (style->GetBold() != styleCur->GetBold())
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_Bold;
+					style->SetBold(UNDEFINED_STYLE);
+				}
+				if (style->GetItalic() != styleCur->GetItalic())
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_Italic;
+					style->SetItalic(UNDEFINED_STYLE);
+				}
+				if (style->GetUnderline() != styleCur->GetUnderline())
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_Underline;
+					style->SetUnderline(UNDEFINED_STYLE);
+				}
+				if (style->GetStrikeout() != styleCur->GetStrikeout())
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_Strikeout;
+					style->SetStrikeout(UNDEFINED_STYLE);
+				}
+				if (style->GetHasForeColor() != styleCur->GetHasForeColor() || (style->GetHasForeColor() && style->GetColor() != styleCur->GetColor()))
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_Color;
+					style->SetHasForeColor(false);
+				}
+				if (style->GetHasBackColor() != styleCur->GetHasBackColor() || (style->GetHasBackColor() && style->GetBackGroundColor() != styleCur->GetBackGroundColor()))
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_BackColor;
+					style->SetHasBackColor(false);
+				}
+				if (style->GetFontName() != styleCur->GetFontName())
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_Font;
+					style->SetFontName(CVSTR(""));
+				}
+				if (style->GetFontSize() != styleCur->GetFontSize())
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_FontSize;
+					style->SetFontSize( -1.0);
+				}
+				if (style->GetJustification() != styleCur->GetJustification())
+				{
+					if (outMaskMixed)
+						*outMaskMixed = *outMaskMixed | VTextStyle::eStyle_Just;
+					style->SetJustification(JST_Notset);
+				}
+			}
+			curEnd = styleCurEnd;
+		}
+
+		it = vstyles.begin();
+		for(;it != vstyles.end(); it++)
+			delete *it;
+	}
+	return style;
 }
 
 
@@ -1715,7 +2308,7 @@ bool VTreeTextStyle::GetTextBackColor(sLONG inStart, sLONG inEnd, RGBAColor& out
 	if (start > end)
 		return true;
 
-	if (!style->GetTransparent())
+	if (style->GetHasBackColor())
 		outColor = style->GetBackGroundColor();
 
 	RGBAColor prevColor = outColor;
@@ -1944,7 +2537,7 @@ bool VTreeTextStyle::GetStrikeout(sLONG inStart, sLONG inEnd, sLONG& ioStrikeout
 }
 
 
-bool VTreeTextStyle::GetJustification(sLONG inStart, sLONG inEnd, justificationStyle& ioJustification) const
+bool VTreeTextStyle::GetJustification(sLONG inStart, sLONG inEnd, eStyleJust& ioJustification) const
 {
 	VTextStyle *style = GetData();
 	if (!style)
@@ -1966,7 +2559,7 @@ bool VTreeTextStyle::GetJustification(sLONG inStart, sLONG inEnd, justificationS
 	if (style->GetJustification() >= 0)
 		ioJustification = style->GetJustification();
 
-	justificationStyle prevJustification = ioJustification;
+	eStyleJust prevJustification = ioJustification;
 	for (int i = 1; i <= GetChildCount(); i++)
 	{
 		VTreeTextStyle *childStyles = GetNthChild( i);
@@ -1992,3 +2585,815 @@ bool VTreeTextStyle::GetJustification(sLONG inStart, sLONG inEnd, justificationS
 	}
 	return true;
 }
+
+
+/** replace styled text at the specified range with text 
+@remarks
+	replaced text will inherit only uniform style on replaced range
+
+	return length or replaced text + 1 or 0 if failed (for instance it would fail if trying to replace some part only of a span text reference - only all span reference text might be replaced at once)
+*/
+VIndex VTreeTextStyle::ReplaceStyledText( VString& ioText, VTreeTextStyle*& ioStyles, const VString& inText, const VTreeTextStyle *inStyles, sLONG inStart, sLONG inEnd, 
+										bool inAutoAdjustRangeWithSpanRef, bool inSkipCheckRange, bool inInheritUniformStyle, const VDocSpanTextRef * inPreserveSpanTextRef, 
+										void *inUserData, fnBeforeReplace inBeforeReplace, fnAfterReplace inAfterReplace)
+{
+	//replace selected text or insert text
+
+	const VString *pText = &inText;
+	VString text;
+	if (inBeforeReplace)
+	{
+		text = inText;
+		inBeforeReplace( inUserData, inStart, inEnd, text);
+		pText = &text;
+	}
+
+	if (inStart < 0)
+		inStart = 0;
+	if (inEnd < 0 || inEnd > ioText.GetLength())
+		inEnd = ioText.GetLength();
+	if (inStart > inEnd)
+		return 0;
+
+	if (ioStyles)
+	{
+		if (inAutoAdjustRangeWithSpanRef)
+			ioStyles->AdjustRange( inStart, inEnd);
+		else if (!inSkipCheckRange && !ioStyles->CanDeleteOrReplace( inStart, inEnd))
+			return 0;
+	}
+
+	if (inEnd > inStart)
+		ioText.Replace( *pText, inStart+1, inEnd-inStart);
+	else if (pText->GetLength() > 0)
+		ioText.Insert( *pText, inStart+1);
+
+	if (ioStyles)
+	{
+		bool isStartOfParagraph = false;
+		if (!pText->IsEmpty() && inEnd < ioText.GetLength() && (inStart <= 0 || ioText[inStart-1] == 13)) 
+			//ensure inserted text will inherit style from paragraph first char if inserted at start of not empty paragraph
+			isStartOfParagraph = true;
+
+		bool done = false;
+		if (inEnd > inStart && !pText->IsEmpty()) //same as at start of paragraph as we want new text to inherit previous text uniform style and not style from previous character
+		{
+			isStartOfParagraph = true;
+
+			if (inInheritUniformStyle && !inPreserveSpanTextRef && inEnd-inStart > 1)
+			{
+				//style might not be uniform on the specified range: ensure we inherit only the first char style
+				ioStyles->FreezeSpanRefs(inStart, inEnd); //reset span references but keep normal style (we need to reset before as we truncate here not the full replaced range)
+				ioStyles->Truncate( inStart+1, inEnd-(inStart+1)); 
+				if (pText->GetLength() > 1)
+					ioStyles->ExpandAtPosBy( inStart+1, pText->GetLength()-1, NULL, NULL, false, false);
+				done = true;
+			}
+		}
+		if (!done)
+		{
+			if (inEnd > inStart)
+				ioStyles->Truncate( inStart, inEnd-inStart, 
+									(inInheritUniformStyle && !pText->IsEmpty()) ? false : true,	//true  -> new text will inherit only style from inserted position 
+																									//false -> new text will inherit style from replaced text uniform style 
+									inPreserveSpanTextRef != NULL); //if != NULL, span refs are preserved even if style range length is reset to 0 (only while updating a span ref plain text)
+			if (!pText->IsEmpty())
+				ioStyles->ExpandAtPosBy( inStart, pText->GetLength(), inPreserveSpanTextRef, NULL, false, isStartOfParagraph);
+		}
+	}
+
+	if (inStyles)
+	{
+		if (!ioStyles)
+		{
+			ioStyles = new VTreeTextStyle( new VTextStyle());
+			ioStyles->GetData()->SetRange( 0, ioText.GetLength());
+		}
+		ioStyles->ApplyStyles( inStyles, true, inStart);
+	}
+
+	if (inAfterReplace)
+		inAfterReplace(inUserData, inStart, inStart+pText->GetLength());
+	return (pText->GetLength()+1);
+}
+
+/** set and own span text reference */
+void VTextStyle::SetSpanRef( VDocSpanTextRef *inRef)
+{
+	if (fSpanTextRef)
+		delete fSpanTextRef;
+	fSpanTextRef = inRef;
+}
+
+/** convert uniform character index (the index used by 4D commands) to actual plain text position 
+@remarks
+	in order 4D commands to use uniform character position while indexing text containing span references 
+	(span ref content might vary depending on computed value or showing source or value)
+	we need to map actual plain text position with uniform char position:
+	uniform character position assumes a span ref has a text length of 1 character only
+*/
+void VTreeTextStyle::CharPosFromUniform( sLONG& ioPos) const
+{
+	if (!HasSpanRefs())
+		return;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			if (ioPos <= start)
+				break;
+			ioPos += end-start-1;
+		}
+	}
+}
+
+/** convert actual plain text char index to uniform char index (the index used by 4D commands) 
+@remarks
+	in order 4D commands to use uniform character position while indexing text containing span references 
+	(span ref content might vary depending on computed value or showing source or value)
+	we need to map actual plain text position with uniform char position:
+	uniform character position assumes a span ref has a text length of 1 character only
+*/
+void VTreeTextStyle::CharPosToUniform( sLONG& ioPos) const
+{
+	if (!HasSpanRefs())
+		return;
+
+	sLONG delta = 0;
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			if (ioPos <= start)
+				break;
+			if (ioPos < end)
+				delta -= ioPos-start; //move to uniform start
+			else 
+				delta -= end-(start+1); //move to uniform end
+		}
+	}
+	ioPos += delta;
+}
+
+/** convert uniform character range (as used by 4D commands) to actual plain text position 
+@remarks
+	in order 4D commands to use uniform character position while indexing text containing span references 
+	(span ref content might vary depending on computed value or showing source or value)
+	we need to map actual plain text position with uniform char position:
+	uniform character position assumes a span ref has a text length of 1 character only
+*/
+void VTreeTextStyle::RangeFromUniform( sLONG& inStart, sLONG& inEnd) const
+{
+	if (!HasSpanRefs())
+		return;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			if (inStart > start)
+			{
+				sLONG delta = end-start-1; 
+				inStart += delta;
+				inEnd += delta;
+			}
+			else if (inEnd <= start)
+				break;
+			else
+				inEnd += end-start-1;
+		}
+	}
+}
+
+/** convert actual plain text range to uniform range (as used by 4D commands) 
+@remarks
+	in order 4D commands to use uniform character position while indexing text containing span references 
+	(span ref content might vary depending on computed value or showing source or value)
+	we need to map actual plain text position with uniform char position:
+	uniform character position assumes a span ref has a text length of 1 character only
+*/
+void VTreeTextStyle::RangeToUniform( sLONG& inStart, sLONG& inEnd) const
+{
+	if (!HasSpanRefs())
+		return;
+
+	sLONG deltaStart = 0;
+	sLONG deltaEnd = 0;
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			if (inStart > start)
+			{
+				if (inStart < end)
+					deltaStart -= inStart-start; //move to uniform start
+				else 
+					deltaStart -= end-(start+1); //move to uniform end
+				if (inEnd < end)
+					deltaEnd -= inEnd-start; //move to uniform start
+				else
+					deltaEnd -= end-(start+1); //move to uniform end
+			} 
+			else if (inEnd <= start)
+				break;
+			else if (inEnd < end)
+				deltaEnd -= inEnd-start; //move to uniform start
+			else
+				deltaEnd -= end-(start+1);  //move to uniform end
+		}
+	}
+	inStart += deltaStart;
+	inEnd += deltaEnd;
+}
+
+/** adjust selection 
+@remarks
+	you should call this method to adjust selection if styles contain span references 
+*/
+void VTreeTextStyle::AdjustRange(sLONG& ioStart, sLONG& ioEnd) const
+{
+	if (!HasSpanRefs())
+		return;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			//range should be rounded to span reference range 
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			sLONG update = 0;
+			if (ioStart > start && ioStart < end)
+			{
+				ioStart = start;
+				update++;
+			}
+			if (ioEnd > start && ioEnd < end)
+			{
+				ioEnd = end;
+				update++;
+			}
+			if (update == 2 || ioEnd <= end)
+				break;
+		}
+	}
+}
+
+
+/** adjust char pos
+@remarks
+	you should call this method to adjust char pos if styles contain span references 
+*/
+void VTreeTextStyle::AdjustPos(sLONG& ioPos, bool inToEnd) const
+{
+	if (!HasSpanRefs())
+		return;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			//range should be rounded to span reference range 
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			if (ioPos > start && ioPos < end)
+			{
+				ioPos = inToEnd ? end : start;
+				return;
+			}
+			if (ioPos <= end)
+				break;
+		}
+	}
+}
+
+/** replace text with span text reference on the specified range
+@remarks
+	span ref plain text is set here to uniform non-breaking space: 
+	user should call UpdateSpanRefs to replace span ref plain text by computed value or reference value depending on show ref flag
+
+	you should no more use or destroy passed inSpanRef even if method returns false
+*/
+bool VTreeTextStyle::ReplaceAndOwnSpanRef( VString& ioText, VTreeTextStyle*& ioStyles, VDocSpanTextRef* inSpanRef, sLONG inStart, sLONG inEnd, bool inAutoAdjustRangeWithSpanRef, bool inSkipCheckRange, bool inNoUpdateRef, 
+										  void *inUserData, fnBeforeReplace inBeforeReplace, fnAfterReplace inAfterReplace)
+{
+	xbox_assert(inSpanRef);
+
+	VTextStyle *style = new VTextStyle();
+	style->SetSpanRef( inSpanRef);
+	VString textSpanRef = inNoUpdateRef ? VDocSpanTextRef::fNBSP : style->GetSpanRef()->GetDisplayValue(); 
+	style->SetRange(0, textSpanRef.GetLength()); 
+	VTreeTextStyle *styles = new VTreeTextStyle( style);
+	bool result = ReplaceStyledText( ioText, ioStyles, textSpanRef, styles, inStart, inEnd, inAutoAdjustRangeWithSpanRef, inSkipCheckRange, true, NULL, inUserData, inBeforeReplace, inAfterReplace) != 0;
+	ReleaseRefCountable(&styles);
+	return result;
+}
+
+
+/** insert span text reference at the specified text position 
+@remarks
+	span ref plain text is set here to uniform non-breaking space: 
+	user should call UpdateSpanRefs to replace span ref plain text by computed value or reference value depending on show ref flag
+
+	you should no more use or destroy passed inSpanRef even if method returns false
+*/
+bool VTreeTextStyle::InsertAndOwnSpanRef( VString& ioText, VTreeTextStyle*& ioStyles, VDocSpanTextRef* inSpanRef, sLONG inPos, bool inAutoAdjustRangeWithSpanRef, bool inSkipCheckRange, bool inNoUpdateRef, 
+										  void *inUserData, fnBeforeReplace inBeforeReplace, fnAfterReplace inAfterReplace)
+{
+	return ReplaceAndOwnSpanRef( ioText, ioStyles, inSpanRef, inPos, inPos, inAutoAdjustRangeWithSpanRef, inSkipCheckRange, inNoUpdateRef, inUserData, inBeforeReplace, inAfterReplace);
+}
+
+
+
+/** return span reference at the specified text position */
+const VTextStyle *VTreeTextStyle::GetStyleRefAtPos(sLONG inPos) const
+{
+	if (!HasSpanRefs())
+		return NULL;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			if (inPos >= start && inPos < end)
+				return (*it)->GetData();
+			if (inPos < end)
+				break;
+		}
+	}
+	return NULL;
+}
+
+/** return the first span reference which intersects the passed range */
+const VTextStyle *VTreeTextStyle::GetStyleRefAtRange(const sLONG inStart, const sLONG _inEnd) const
+{
+	if (!HasSpanRefs())
+		return NULL;
+
+	sLONG inEnd = _inEnd;
+	if (inEnd < 0)
+	{
+		sLONG start, end;
+		GetData()->GetRange( start, end);
+		inEnd = end;
+	}
+
+	if (inStart == inEnd)
+		return GetStyleRefAtPos( inStart);
+
+	if (inStart > inEnd)
+		return NULL;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			sLONG start, end;
+			(*it)->GetData()->GetRange( start, end);
+			if (inStart < end && inEnd > start)
+				return (*it)->GetData();
+			if (inEnd <= end)
+				break;
+		}
+	}
+	return NULL;
+}
+
+
+/** show or hide span ref value or source
+@remarks
+	propagate flag to all VDocSpanTextRef & mark all as dirty
+
+	false: show computed value (4D expression result, url link, user prop value)
+	true: show reference (4D tokenized expression, url texte, user prop name) 
+*/ 
+void VTreeTextStyle::ShowSpanRefs( bool inShowSpanRefs)
+{
+	if (!HasSpanRefs())
+		return;
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+			(*it)->GetData()->GetSpanRef()->ShowRef( inShowSpanRefs); //if status is changed, mark plain text as dirty
+	}
+}
+
+/** highlight or not span references 
+@remarks
+	propagate flag to all VDocSpanTextRef 
+
+	on default (if VDocSpanTextRef delegate is not overriden) it changes only highlight status for value
+	because if reference is displayed, it is always highlighted
+*/ 
+void VTreeTextStyle::ShowHighlight( bool inShowHighlight)
+{
+	if (!HasSpanRefs())
+		return;
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+			(*it)->GetData()->GetSpanRef()->ShowHighlight( inShowHighlight); 
+	}
+}
+
+/** call this method to update span reference style while mouse enters span ref 
+@remarks
+	return true if style has changed
+*/
+bool VTreeTextStyle::NotifyMouseEnterStyleSpanRef( const VTextStyle *inStyleSpanRef)
+{
+	xbox_assert(inStyleSpanRef);
+	if (!HasSpanRefs() || !inStyleSpanRef->IsSpanRef())
+		return false;
+	bool styleHasChanged = false;
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			if ((*it)->GetData() == inStyleSpanRef)
+				styleHasChanged = (*it)->GetData()->GetSpanRef()->OnMouseEnter() || styleHasChanged;
+			else
+				styleHasChanged = (*it)->GetData()->GetSpanRef()->OnMouseLeave() || styleHasChanged;
+		}
+	}
+	return styleHasChanged;
+}
+
+
+/** call this method to update span reference style while mouse leaves span ref 
+@remarks
+	return true if style has changed
+*/
+bool VTreeTextStyle::NotifyMouseLeaveStyleSpanRef( const VTextStyle *inStyleSpanRef)
+{
+	if (!HasSpanRefs())
+		return false;
+	
+	//if inStyleSpanRef is NULL, we notify all span refs to ensure status is updated
+
+	bool styleHasChanged = false;
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		if ((*it)->GetData()->IsSpanRef())
+		{
+			if ((*it)->GetData() == inStyleSpanRef)
+				styleHasChanged = (*it)->GetData()->GetSpanRef()->OnMouseLeave() || styleHasChanged;
+			else
+				styleHasChanged = (*it)->GetData()->GetSpanRef()->OnMouseLeave() || styleHasChanged;
+		}
+	}
+	return styleHasChanged;
+}
+
+
+bool VTreeTextStyle::HasExpressions() const
+{
+	if (!HasSpanRefs())
+		return false;
+
+	VectorOfStyle::const_iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef() && style->GetSpanRef()->GetType() == kSpanTextRef_4DExp)
+			return true;
+	}
+	return false;
+}
+
+/** reset cached 4D expressions on the specified range */
+void VTreeTextStyle::ResetCacheExpressions( VDocCache4DExp *inCache4DExp, sLONG inStart, sLONG inEnd)
+{
+	xbox_assert(inCache4DExp);
+
+	if (!HasSpanRefs())
+		return;
+
+	if (inStart < 0)
+		inStart = 0;
+	sLONG start, end;
+	GetData()->GetRange(start, end);
+	if (inEnd < 0 || inEnd > end)
+		inEnd = end;
+
+	VectorOfStyle::iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef())
+		{
+			sLONG refstart, refend;
+			style->GetRange( refstart, refend);
+			if (inEnd <= refstart)
+				break;
+
+			if (inStart < refend)
+			{
+				if (style->GetSpanRef()->GetType() == kSpanTextRef_4DExp)
+				{
+					//remove cached 4D expression (so it will be evaluated next time it is requested)
+					inCache4DExp->Remove( style->GetSpanRef()->GetRef());
+				}
+			}
+		}
+	}
+}
+
+/** eval 4D expressions  
+@remarks
+	return true if any 4D expression has been evaluated
+*/
+bool VTreeTextStyle::EvalExpressions( VDBLanguageContext *inLC, sLONG inStart, sLONG inEnd, VDocCache4DExp *inCache4DExp)
+{
+	if (!HasSpanRefs())
+		return false;
+
+	if (inStart < 0)
+		inStart = 0;
+	sLONG start, end;
+	GetData()->GetRange(start, end);
+	if (inEnd < 0 || inEnd > end)
+		inEnd = end;
+
+	bool done = false;
+	VectorOfStyle::iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef())
+		{
+			sLONG refstart, refend;
+			style->GetRange( refstart, refend);
+			if (inEnd <= refstart)
+				break;
+
+			if (inStart < refend)
+			{
+				if (style->GetSpanRef()->GetType() == kSpanTextRef_4DExp)
+				{
+					//force to eval 4D exp & to replace plain text with evaluated string
+					style->GetSpanRef()->EvalExpression( inLC, inCache4DExp);
+					done = true;
+				}
+			}
+		}
+	}
+	return done;
+}
+
+
+/** freeze expressions  
+@remarks
+	parse & replace any 4D expression reference with evaluated expression plain text on the passed range
+
+	return true if any 4D expression has been replaced with plain text
+*/
+bool VTreeTextStyle::FreezeExpressions( VDBLanguageContext *inLC, VString& ioText, VTreeTextStyle& ioStyles, sLONG inStart, sLONG inEnd, void *inUserData, fnBeforeReplace inBeforeReplace, fnAfterReplace inAfterReplace)
+{
+	if (!ioStyles.HasSpanRefs())
+		return false;
+
+	if (inStart < 0)
+		inStart = 0;
+	if (inEnd < 0 || inEnd > ioText.GetLength())
+		inEnd = ioText.GetLength();
+
+	bool done = false;
+	VectorOfStyle::iterator it = ioStyles.fChildren.begin();
+	for (;it != ioStyles.fChildren.end(); it++)
+	{
+		VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef())
+		{
+			sLONG refstart, refend;
+			style->GetRange( refstart, refend);
+			if (inEnd <= refstart)
+				break;
+
+			if (inStart < refend)
+			{
+				if (style->GetSpanRef()->GetType() == kSpanTextRef_4DExp)
+				{
+					//force to eval 4D exp & to replace plain text with evaluated string
+					style->GetSpanRef()->ShowRef(false);
+					if (inLC)
+						style->GetSpanRef()->EvalExpression(inLC);
+
+					VString text = style->GetSpanRef()->GetDisplayValue(); //will reset display value dirty flag
+					VTreeTextStyle *styles = &ioStyles;
+					VIndex lengthReplaced = ReplaceStyledText( ioText, styles, text, NULL, refstart, refend, false, true, true, style->GetSpanRef(), inUserData, inBeforeReplace, inAfterReplace);
+					style->SetSpanRef(NULL); //destroy span ref
+					(*it)->NotifyClearSpanRef();
+
+					if (lengthReplaced)
+					{
+						done = true;
+						lengthReplaced--;
+						if (inStart > refstart)
+						{
+							if (inStart < refend)
+							{
+								xbox_assert(false);
+								break;
+							}
+							else 
+								inStart = inStart-(refend-refstart)+lengthReplaced;
+						}
+						if (inEnd > refstart)
+						{
+							if (inEnd < refend)
+							{
+								xbox_assert(false);
+								break;
+							}
+							else 
+								inEnd = inEnd-(refend-refstart)+lengthReplaced;
+						}
+					}
+				}
+			}
+		}
+	}
+	return done;
+}
+
+
+/** freeze span references  
+@remarks
+	reset styles span references
+
+	this method preserves VTextStyle span reference container: it only resets VTextStyle span reference, transforming it to a normal VTextStyle
+	(it does not eval 4D expressions too)
+*/
+void VTreeTextStyle::FreezeSpanRefs( sLONG inStart, sLONG inEnd)
+{
+	if (!HasSpanRefs())
+		return;
+
+	if (inStart < 0)
+		inStart = 0;
+	sLONG start, end;
+	GetData()->GetRange( start, end);
+	if (inEnd < 0 || inEnd > end)
+		inEnd = end;
+
+	VectorOfStyle::iterator it = fChildren.begin();
+	for (;it != fChildren.end(); it++)
+	{
+		VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef())
+		{
+			sLONG refstart, refend;
+			style->GetRange( refstart, refend);
+			if (inEnd <= refstart)
+				break;
+
+			if (inStart < refend)
+				style->SetSpanRef(NULL); //reset span ref
+		}
+	}
+}
+
+
+/** update span references plain text  
+@remarks
+	parse & update span references plain text according to span ref type & dirty status
+
+	return true if plain text or styles have been updated, false otherwise
+*/
+bool VTreeTextStyle::UpdateSpanRefs( VString& ioText, VTreeTextStyle& ioStyles, sLONG inStart, sLONG inEnd, void *inUserData, fnBeforeReplace inBeforeReplace, fnAfterReplace inAfterReplace)
+{
+	if (!ioStyles.HasSpanRefs())
+		return false;
+
+	if (inStart < 0)
+		inStart = 0;
+	if (inEnd < 0 || inEnd > ioText.GetLength())
+		inEnd = ioText.GetLength();
+
+	bool done = false;
+	VectorOfStyle::iterator it = ioStyles.fChildren.begin();
+	for (;it != ioStyles.fChildren.end(); it++)
+	{
+		VTextStyle *style = (*it)->GetData();
+		if (style->IsSpanRef())
+		{
+			sLONG refstart, refend;
+			style->GetRange( refstart, refend);
+			if (inEnd <= refstart)
+				break;
+
+			if (inStart < refend)
+			{
+				if (style->GetSpanRef()->IsDisplayValueDirty())
+				{
+					VString text = style->GetSpanRef()->GetDisplayValue(); //will reset display value dirty flag
+					VTreeTextStyle *styles = &ioStyles;
+					VIndex lengthReplaced = ReplaceStyledText( ioText, styles, text, NULL, refstart, refend, false, true, true, style->GetSpanRef(), inUserData, inBeforeReplace, inAfterReplace);
+					if (lengthReplaced)
+					{
+						done = true;
+						lengthReplaced--;
+						if (inStart > refstart)
+						{
+							if (inStart < refend)
+							{
+								xbox_assert(false);
+								break;
+							}
+							else 
+								inStart = inStart-(refend-refstart)+lengthReplaced;
+						}
+						if (inEnd > refstart)
+						{
+							if (inEnd < refend)
+							{
+								xbox_assert(false);
+								break;
+							}
+							else 
+								inEnd = inEnd-(refend-refstart)+lengthReplaced;
+						}
+					}
+				}
+			}
+		}
+	}
+	return done;
+}
+
+/** convert CSS dimension to TWIPS */
+sLONG ICSSUtil::CSSDimensionToTWIPS(const Real inDimNumber, const eCSSUnit inDimUnit, const uLONG inDPI, const sLONG inParentValue)
+{
+	switch (inDimUnit)
+	{
+	case kCSSUNIT_PERCENT:
+		return (sLONG)(floor(inParentValue * inDimNumber + 0.5f));
+		break;
+	case kCSSUNIT_PX:
+		return (sLONG)(floor(inDimNumber*1440/(inDPI ? inDPI : 72)+0.5f));
+		break;
+	case kCSSUNIT_PC:
+		return (sLONG)(inDimNumber*12*20);
+		break;
+	case kCSSUNIT_PT:
+		return (sLONG)(inDimNumber*20);
+		break;
+	case kCSSUNIT_MM:
+		return (sLONG)(floor(inDimNumber*1440/25.4+0.5f));
+		break;
+	case kCSSUNIT_CM:
+		return (sLONG)(floor(inDimNumber*1440/2.54+0.5f));
+		break;
+	case kCSSUNIT_IN:
+		return (sLONG)(inDimNumber*1440);
+		break;
+	case kCSSUNIT_EM:
+	case kCSSUNIT_EX:
+		return (sLONG)(inDimNumber*(inParentValue ? inParentValue : 12.0f));
+		break;
+	case kCSSUNIT_FONTSIZE_LARGER:
+		{
+		sLONG fontSize = inParentValue ? inParentValue : 12.0f;
+		return (sLONG)(fontSize+(0.20*fontSize));
+		}
+		break;
+	case kCSSUNIT_FONTSIZE_SMALLER:
+		{
+		sLONG fontSize = inParentValue ? inParentValue : 12.0f;
+		fontSize = (sLONG)(fontSize-(0.20*fontSize));
+		if (fontSize <= 0)
+			fontSize = (inParentValue ? inParentValue : 12.0f);
+		return fontSize;
+		}
+		break;
+	default:
+		xbox_assert(false);
+		return inParentValue;
+		break;
+	}
+}
+

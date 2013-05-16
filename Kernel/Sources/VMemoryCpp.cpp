@@ -1483,7 +1483,7 @@ bool VCppMemMgr::AddVirtualAllocation( VSize inMaxBytes, const void *inHintAddre
 
 	if (!fUseStdLibMgr)
 	{
-		#if ARCH_64
+		#if ARCH_64 || VERSION_LINUX
 		ok = true;
 		VKernelTaskLock lock(&fMgrMutex);
 		VSize sizeToAdd = inMaxBytes / fNbMems;

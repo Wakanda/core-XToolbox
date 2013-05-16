@@ -116,11 +116,6 @@ void VWinGDIGraphicContext::DebugUnRegisterHDC(HDC inDC)
 	}
 }
 
-VGraphicContext* VWinGDIGraphicContext::CreateBitmapContext(VRect inBounds)
-{
-	return NULL;
-}
-
 Boolean VWinGDIGraphicContext::Init()
 {
 	HDC	screenDC = ::GetDC(NULL);
@@ -875,33 +870,6 @@ void VWinGDIGraphicContext::SetPixelBackColor(const VColor& inColor)
 }
 
 
-TransferMode VWinGDIGraphicContext::SetPixelTransferMode(TransferMode inMode)
-{
-	DWORD	mode;
-	
-	switch (inMode)
-	{
-		case TM_COPY:
-			mode = SRCCOPY;
-			break;
-			
-		case TM_OR:
-			mode = SRCPAINT;
-			break;
-			
-		case TM_XOR:
-			mode = SRCINVERT;
-			break;
-		
-		case TM_TRANSPARENT:
-		default:
-			assert(false);
-			break;
-	}
-	
-	return TM_COPY;
-}
-
 
 #pragma mark-
 
@@ -1447,8 +1415,7 @@ void VWinGDIGraphicContext::FramePolygon(const VPolygon& inHwndPolygon)
 	_StSelectObject	pen(fContext,::GetStockObject(NULL_BRUSH));
 	_UpdateLineBrush();
 	
-	::Polyline(fContext, const_cast<VPolygon&>(inHwndPolygon).WIN_LockPolygon(), inHwndPolygon.GetPointCount());
-	const_cast<VPolygon&>(inHwndPolygon).WIN_UnlockPolygon();
+	::Polyline(fContext, const_cast<VPolygon&>(inHwndPolygon).GetNativePoints(), inHwndPolygon.GetPointCount());
 }
 
 
@@ -1540,8 +1507,7 @@ void VWinGDIGraphicContext::FillPolygon(const VPolygon& inHwndPolygon)
 	StUseContext_NoRetain	context(this);
 	_StSelectObject	pen(fContext,::GetStockObject(NULL_PEN));
 	_UpdateFillBrush();
-	::Polygon(fContext, const_cast<VPolygon&>(inHwndPolygon).WIN_LockPolygon(), inHwndPolygon.GetPointCount());
-	const_cast<VPolygon&>(inHwndPolygon).WIN_UnlockPolygon();
+	::Polygon(fContext, const_cast<VPolygon&>(inHwndPolygon).GetNativePoints(), inHwndPolygon.GetPointCount());
 }
 
 
@@ -1935,7 +1901,7 @@ void VWinGDIGraphicContext::ClipRect(const VRect& inHwndBounds, Boolean inAddToP
 		}
 	}
 
-	_RevealClipping(fContext);
+	RevealClipping(fContext);
 }
 
 
@@ -1989,7 +1955,7 @@ void VWinGDIGraphicContext::ClipRegion(const VRegion& inHwndRegion, Boolean inAd
 	::GetClipBox( fContext, &boxRect);
 #endif
 
-	_RevealClipping(fContext);
+	RevealClipping(fContext);
 }
 
 
@@ -2157,7 +2123,7 @@ void VWinGDIGraphicContext::GetClipBoundingBox( VRect& outBounds)
 }
 
 
-void VWinGDIGraphicContext::_RevealClipping(ContextRef inContext)
+void VWinGDIGraphicContext::RevealClipping(ContextRef inContext)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealClipping)
@@ -2180,7 +2146,7 @@ void VWinGDIGraphicContext::_RevealClipping(ContextRef inContext)
 }
 
 
-void VWinGDIGraphicContext::_RevealUpdate(HWND inWindow)
+void VWinGDIGraphicContext::RevealUpdate(HWND inWindow)
 {
 // Please call this BEFORE BeginPaint
 #if VERSIONDEBUG
@@ -2216,7 +2182,7 @@ void VWinGDIGraphicContext::_RevealUpdate(HWND inWindow)
 }
 
 
-void VWinGDIGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRef inHwndRegion)
+void VWinGDIGraphicContext::RevealBlitting(ContextRef inContext, const RgnRef inHwndRegion)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealBlitting)
@@ -2242,7 +2208,7 @@ void VWinGDIGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRef i
 }
 
 
-void VWinGDIGraphicContext::_RevealInval(ContextRef inContext, const RgnRef inHwndRegion)
+void VWinGDIGraphicContext::RevealInval(ContextRef inContext, const RgnRef inHwndRegion)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealInval)
@@ -3824,7 +3790,7 @@ Boolean VWinGDIBitmapContext::CreateBitmap(const VRect& inHwndBounds)
 		fBitmap = ::CreateDIBSection(fContext, info, DIB_RGB_COLORS, &fBitmapPixels, 0, 0);
 		gMemory->DisposePtr((VPtr) info);
 	#else
-		fBitmap = ::CreateCompatibleBitmap(fSrcContext, inHwndBounds.GetWidth(), inHwndBounds.GetHeight());
+		fBitmap = ::CreateCompatibleBitmap(fSrcContext ? fSrcContext : fContext, inHwndBounds.GetWidth(), inHwndBounds.GetHeight());
 	#endif
 	
 		if (fBitmap != NULL)

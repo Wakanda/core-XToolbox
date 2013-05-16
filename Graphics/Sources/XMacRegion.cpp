@@ -37,6 +37,10 @@ public:
 	virtual void SetSizeBy( GReal inHoriz, GReal inVert) {;}
 	virtual VRegionNode* Clone() { return new VRegionNode;}
 
+	virtual	bool UnionRect( const VRect& inRegion)	{ return false;}
+	
+	virtual	bool IsRect( VRect& outRect)			{ outRect.SetEmpty(); return true;}
+	
 	virtual HIShapeRef	CreateShape()
 	{
 		return ::HIShapeCreateEmpty();
@@ -63,6 +67,40 @@ public:
 	virtual VRegionNode_rect* Clone()
 	{
 		return new VRegionNode_rect( fBounds);
+	}
+
+	virtual	bool IsRect( VRect& outRect)			{ outRect.MAC_FromCGRect( fBounds); return true;}
+
+	virtual	bool UnionRect( const VRect& inRect)
+	{
+		CGRect r = inRect;
+
+		if (CGRectIsEmpty( r) || CGRectContainsRect( fBounds, r))
+			return true;
+		
+		bool ok;
+
+		// check if union of two rectangles is a rectangle
+
+		if ( (r.size.width == fBounds.size.width) && (r.origin.x == fBounds.origin.x) )
+		{
+			ok = ( ( (r.origin.y >= fBounds.origin.y) && (r.origin.y <= fBounds.origin.y + fBounds.size.height) )
+				|| ( (r.origin.y + r.size.height >= fBounds.origin.y) && (r.origin.y + r.size.height <= fBounds.origin.y + fBounds.size.height) ) );
+		}
+		else if ( (r.size.height == fBounds.size.height) && (r.origin.y == fBounds.origin.y) )
+		{
+			ok = ( ( (r.origin.x >= fBounds.origin.x) && (r.origin.x <= fBounds.origin.x + fBounds.size.width) )
+				|| ( (r.origin.x + r.size.width >= fBounds.origin.x) && (r.origin.x + r.size.width <= fBounds.origin.x + fBounds.size.width) ) );
+		}
+		else
+		{
+			ok = false;
+		}
+		
+		if (ok)
+			fBounds = CGRectUnion( fBounds, r);
+
+		return ok;
 	}
 
 	virtual HIShapeRef	CreateShape()
@@ -103,6 +141,16 @@ public:
 	virtual VRegionNode_op* Clone()
 	{
 		return new VRegionNode_op( fNode1->Clone(), fNode2->Clone(), fOpCode);
+	}
+
+	virtual	bool IsRect( VRect& outRect)			{ return false;}
+
+	virtual	bool UnionRect( const VRect& inRect)
+	{
+		if (fOpCode == UNION)
+			return fNode1->UnionRect( inRect) || fNode2->UnionRect( inRect);
+		else
+			return false;
 	}
 
 	virtual HIShapeRef	CreateShape()
@@ -328,7 +376,10 @@ void VRegion::Union(const VRegion& inRgn)
 {
 	_PurgeShape();
 
-	fNode = new VRegionNode_op( fNode, inRgn.fNode->Clone(), VRegionNode::UNION);
+	// simple and frequent case: union with connected rectangles produces a rectangle
+	VRect r;
+	if (!inRgn.fNode->IsRect( r) || !fNode->UnionRect( r))
+		fNode = new VRegionNode_op( fNode, inRgn.fNode->Clone(), VRegionNode::UNION);
 	
 	fBounds.Union( inRgn.fBounds);
 }

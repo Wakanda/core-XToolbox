@@ -13,6 +13,7 @@
 * Consequently, no title, copyright or other proprietary rights
 * other than those specified in the applicable license is granted.
 */
+
 #ifndef __VJS_MODULE__
 #define __VJS_MODULE__
 
@@ -21,65 +22,64 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
-// VJSModuleState is not the state of a module but the state of the entire module system of a JavaScript execution.
+// VJSModuleState is not the state of a module but the state of the module system of a JavaScript context.
 
-class VJSModuleState : public XBOX::VObject
+class XTOOLBOX_API VJSModuleState : public XBOX::VObject
 {
+friend class VJSRequireClass;
+
 public:
 
-	// Get module system state of current execution. Unless out of memory, this function will always succeed (return
-	// non NULL). However, if JavaScript code for require() failed to load, GetRequireFunctionRef() will then always
-	// return NULL.
+	// If the require() function path is not specified, then find it in walib folder.
 
-	static VJSModuleState			*GetModuleState (XBOX::VJSContext &inContext);
+	static void						SetRequireFunctionPath (const XBOX::VString &inFullPath);
 
+	static VJSModuleState			*CreateModuleState (const XBOX::VJSContext &inContext);
+	virtual							~VJSModuleState ()	{}
+	
 	// Retrieve ObjectRef to JavaScript code for require() function.
 
 	XBOX::JS4D::ObjectRef			GetRequireFunctionRef ()	{	return fRequireFunctionRef;	}
 
-	// Load a script file, inURLString must be a full path URL.
+	// Load a script file, inFullPath must be a POSIX path.
 
-	static XBOX::VError				LoadScript (const XBOX::VString &inURLString, XBOX::VURL *outURL, XBOX::VString *outScript);
+	static XBOX::VError				LoadScript (const XBOX::VString &inFullPath, XBOX::VURL *outURL, XBOX::VString *outScript);
 
 private:
 
-	static const uLONG				kSpecificKey	= ('J' << 24) | ('S' << 16) | ('M' << 8) | 'S'; 
-
 	static XBOX::VCriticalSection	sMutex;
 	static bool						sIsCodeLoaded;
-	static XBOX::VURL				sRequireFunctionURL;
-	static XBOX::VString			sRequireFunctionScript;
+	static XBOX::VString			sRequireFunctionPath;
+	static XBOX::VString			sRequireFunctionScript;	
 
+	std::vector<XBOX::VFilePath>	fCurrentPaths;			// Stack of execution paths.
 	XBOX::JS4D::ObjectRef			fRequireFunctionRef;
 
-	
-									VJSModuleState (XBOX::JS4D::ObjectRef inRequireFunctionRef);
-	virtual							~VJSModuleState ();
+									VJSModuleState ();
 
-	// Retrieve the URL string of requireFunction.js. Currently only implemented for Wakanda Studio.
-	// ** (Wakanda Server uses different path) **.
+	// Retrieve the full path of requireFunction.js. 
 
-	static void						_GetRequireFunctionURL (XBOX::VString *outURLString);	
+	static void						_GetRequireFunctionPath (XBOX::VString *outFullPath);
 };
 
-// The require object is implemented using both C++ and JavaScript. The require() function is implemented using JavaScript 
-// (loaded by VJSModuleState).
+// The require object is implemented using both C++ and JavaScript. 
+// The actual require() function is implemented using JavaScript.
 
-class XTOOLBOX_API VJSRequireClass : public XBOX::VJSClass<VJSRequireClass, void>
+class XTOOLBOX_API VJSRequireClass : public XBOX::VJSClass<VJSRequireClass, VJSModuleState>
 {
 public:
 
 	static void				GetDefinition (ClassDefinition &outDefinition);
-	static XBOX::VJSObject	MakeObject (XBOX::VJSContext &inContext);
+	static XBOX::VJSObject	MakeObject (const XBOX::VJSContext &inContext);
 	
 private:
 
-	static void				_Initialize (const VJSParms_initialize &inParms, void *);
-	static bool				_SetProperty (XBOX::VJSParms_setProperty &ioParms, void *);
+	static void				_Initialize (const VJSParms_initialize &inParms, VJSModuleState *inModuleState);
+	static bool				_SetProperty (XBOX::VJSParms_setProperty &ioParms, VJSModuleState *inModuleState);
 	static void				_CallAsFunction (VJSParms_callAsFunction &ioParms);
 
-	static void				_evaluate (VJSParms_callStaticFunction &ioParms, void *);
-	static void				_getCurrentPath (VJSParms_callStaticFunction &ioParms, void *);
+	static void				_evaluate (VJSParms_callStaticFunction &ioParms, VJSModuleState *inModuleState);
+	static void				_getCurrentPath (VJSParms_callStaticFunction &ioParms, VJSModuleState *inModuleState);
 };
 
 END_TOOLBOX_NAMESPACE

@@ -16,12 +16,7 @@
 #ifndef __JSW_DEBUGGER_FACTORY__
 #define __JSW_DEBUGGER_FACTORY__
 
-#if 0//!WKA_USE_UNIFIED_DBG
-#include "IJSWDebugger.h"
-#else
 #include "4DDebuggerServer.h"
-#endif
-
 
 #ifdef JSDEBUGGER_EXPORTS
     #define JSDEBUGGER_API __declspec(dllexport)
@@ -38,44 +33,45 @@ class JSDEBUGGER_API JSWDebuggerFactory
 {
 	public:
 		JSWDebuggerFactory ( ) { ; }
-#if 0
-		IJSWDebugger* Get ( );
-#else
+
 		IWAKDebuggerServer*	Get();
-		IWAKDebuggerServer*	GetChromeDebugHandler();
-		IWAKDebuggerServer*	GetChromeDebugHandler(
-			const XBOX::VString inIP,
-			uLONG				inPort,
-			const XBOX::VString inDebuggerHTMLSkeleton,
-			const XBOX::VString inTracesHTMLSkeleton);
-#endif
+		IChromeDebuggerServer*	GetChromeDebugHandler(const XBOX::VString& inSolutionName);
+		IChromeDebuggerServer*	GetChromeDebugHandler(
+			const XBOX::VString&	inSolutionName,
+			const XBOX::VString&	inTracesHTMLSkeleton);
+
 	private:
 };
 
 
 class IAuthenticationInfos;
-#if 0 //!WKA_USE_UNIFIED_DBG
-class JSDEBUGGER_API IJSWDebuggerSettings
-#else
+
 class JSDEBUGGER_API IWAKDebuggerSettings
-#endif
 {
 	public:
 
-		virtual bool NeedsAuthentication ( ) const = 0;
+		virtual bool	NeedsAuthentication ( ) const = 0;
 		/* Returns 'true' if a given user can debug with this JS debugger. Returns 'false' otherwise. */
-		virtual bool UserCanDebug ( const UniChar* inUserName, const UniChar* inUserPassword ) const = 0;
-		virtual bool UserCanDebug(IAuthenticationInfos* inAuthenticationInfos) const = 0;
-		virtual bool HasDebuggerUsers ( ) const = 0;
+		virtual bool	UserCanDebug ( const UniChar* inUserName, const UniChar* inUserPassword ) const = 0;
+		virtual bool	UserCanDebug(IAuthenticationInfos* inAuthenticationInfos) const = 0;
+		virtual bool	HasDebuggerUsers ( ) const = 0;
+
+		virtual	bool	AddBreakPoint( OpaqueDebuggerContext inContext, const XBOX::VString& inUrl, intptr_t inSrcId, int inLineNumber ) = 0;
+		virtual	bool	AddBreakPoint( const XBOX::VString& inUrl, int inLineNumber ) = 0;
+		virtual	bool	RemoveBreakPoint( const XBOX::VString& inUrl, int inLineNumber ) = 0;
+		virtual	bool	RemoveBreakPoint( OpaqueDebuggerContext inContext, const XBOX::VString& inUrl, intptr_t inSrcId, int inLineNumber ) = 0;
+		virtual void	Set(OpaqueDebuggerContext	inContext, const XBOX::VString& inUrl, intptr_t inSrcId, const XBOX::VString& inData) = 0;
+		virtual void	Add(OpaqueDebuggerContext inContext) = 0;
+		virtual void	Remove(OpaqueDebuggerContext	inContext) = 0;
+		virtual bool	HasBreakpoint(OpaqueDebuggerContext	inContext,intptr_t inSrcId, unsigned lineNumber) = 0;
+		virtual bool	GetData(OpaqueDebuggerContext inContext, intptr_t inSrcId, XBOX::VString& outSourceUrl, XBOX::VectorOfVString& outSourceData) = 0;
+		virtual void	GetJSONBreakpoints(XBOX::VString& outJSONBreakPoints) = 0;
 
 	protected:
-#if 0//!defined(WKA_USE_UNIFIED_DBG)	
-		IJSWDebuggerSettings ( ) { ; }
-		virtual ~IJSWDebuggerSettings ( ) { ; }
-#else
+
 		IWAKDebuggerSettings ( ) { ; }
 		virtual ~IWAKDebuggerSettings ( ) { ; }
-#endif
+
 };
 
 

@@ -42,15 +42,7 @@ enum EOSFormats
 {
 	eOS_SHORT_FORMAT=0,
 	eOS_MEDIUM_FORMAT=1,
-	eOS_LONG_FORMAT=2
-};
-
-enum EMonthDayList
-{
-	eDayOfWeekList=0,
-	eMonthList,
-	eAbbreviatedDayOfWeekList,
-	eAbbreviatedMonthList
+	eOS_LONG_FORMAT=2,
 };
 
 enum EFindStringMode
@@ -144,11 +136,16 @@ public:
 			VCollator*			GetCollator() const			{ return fCollator;}
 			UniChar				GetWildChar() const;
 	
-	// Char analyse utilities
+	// Char analysis utilities
 			bool				IsAlpha( UniChar inChar) const;
-			bool				IsDigit( UniChar inChar) const;
 			bool				IsSpace( UniChar inChar) const;
 			bool				IsPunctuation( UniChar inChar) const;
+
+	// '0'-'9' is not the only possible range for digits.
+			bool				IsDigit( UniChar inChar) const;
+
+	// CharDigitValue returns 0 to 9 if given a valid decimal digit else -1
+			sLONG				CharDigitValue( UniChar inChar) const;
 
 			void				NormalizeString( VString& ioString, NormalizationMode inMode);
 	
@@ -235,36 +232,40 @@ public:
 #endif	// VERSIONWIN
 	
 	// Class utilities
-	static	void				GetBoolString( VString& outString, bool inValue);
 	
 	static	bool				IsAMacCharacter( uBYTE inChar, uBYTE inCharSet);
-	static	bool				IsUsingAmPm()			{ return GetDefaultMgr()->fUsingAmPm; }
+			bool				IsUsingAmPm() const				{ return fUsingAmPm; }
 	
-	static	const VString&		GetAMString()			{ return GetDefaultMgr()->fAMString; }
-	static	const VString&		GetPMString()			{ return GetDefaultMgr()->fPMString; }
+			const VString&		GetAMString() const				{ return fAMString; }
+			const VString&		GetPMString() const				{ return fPMString; }
 	
-	static	DateOrder			GetDateOrder()			{ return GetDefaultMgr()->fDateOrder; }
+			DateOrder			GetDateOrder() const			{ return fDateOrder; }
 
-	static	const VString&		GetDateSeparator()		{ return GetDefaultMgr()->fDateSeparator; }
-	static	const VString&		GetTimeSeparator()		{ return GetDefaultMgr()->fTimeSeparator; }
+			const VString&		GetDateSeparator() const		{ return fDateSeparator; }
+			const VString&		GetTimeSeparator() const		{ return fTimeSeparator; }
 
-			const VString&		GetThousandsSeparator() { return fThousandsSeparator; }
-			const VString&		GetDecimalSeparator()	{ return fDecimalSeparator; }
-			const VString&		GetCurrency()			{ return fCurrency;}
+			const VString&		GetThousandsSeparator() const	{ return fThousandsSeparator; }
+			const VString&		GetDecimalSeparator() const		{ return fDecimalSeparator; }
+			const VString&		GetCurrency() const				{ return fCurrency;}
 	
-	static	const VString&		GetLongDatePattern()	{ return GetDefaultMgr()->fLongDatePattern; }
-	static	const VString&		GetMediumDatePattern()	{ return GetDefaultMgr()->fMediumDatePattern; }
-	static	const VString&		GetShortDatePattern()	{ return GetDefaultMgr()->fShortDatePattern; }
-	static	const VString&		GetLongTimePattern()	{ return GetDefaultMgr()->fLongTimePattern; }
-	static	const VString&		GetMediumTimePattern()	{ return GetDefaultMgr()->fMediumTimePattern; }
-	static	const VString&		GetShortTimePattern()	{ return GetDefaultMgr()->fShortTimePattern; }
-	
-	static	void				GetMonthDayNames( EMonthDayList inListType,VArrayString* outArray);
+			const VString&		GetLongDatePattern() const		{ return fLongDatePattern; }
+			const VString&		GetMediumDatePattern() const	{ return fMediumDatePattern; }
+			const VString&		GetShortDatePattern() const		{ return fShortDatePattern; }
+			const VString&		GetLongTimePattern() const		{ return fLongTimePattern; }
+			const VString&		GetMediumTimePattern() const	{ return fMediumTimePattern; }
+			const VString&		GetShortTimePattern() const		{ return fShortTimePattern; }
 
-			void				FormatDateByOS( const VTime& inDate,VString& outDate,EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
-			void				FormatTimeByOS( const VTime& inDate,VString& outDate,EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
-			void				FormatDurationByOS( const VDuration& inDuration,VString& outTime,EOSFormats inFormat);
-			void				FormatNumberByOS( const VValueSingle& inValue,VString& outNumber);
+			void				FormatDate( const VTime& inDate,VString& outDate,EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
+			void				FormatTime( const VTime& inDate,VString& outDate,EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
+			void				FormatDuration( const VDuration& inDuration,VString& outTime,EOSFormats inFormat);
+			
+			// format the VTime information according to Unicode Technical Standard #35
+			// http://unicode.org/reports/tr35/#Date_Format_Patterns
+			// if inMonthName is not NULL, it will be used whenever needed as the name of the month instead of calling GetMonthName()
+			void				FormatDateTimeWithPattern( const VTime& inTime, const XBOX::VString& inPattern, bool inUseUTC, const XBOX::VString *inMonthName, XBOX::VString& outDate);
+
+			void				GetMonthName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 1 (january) to 12 (december)
+			void				GetWeekDayName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 0 (sunday) to 6 (saturday)
 
 			DialectCode			GetDialectCode() const	{ return fDialect;}
 	static	DialectCode			GetCurrentDialectCode()	{ VIntlMgr *cur = GetDefaultMgr(); if (cur != NULL) return cur->GetDialectCode(); else return DC_ENGLISH_US; }
@@ -314,8 +315,6 @@ private:
 			VString					fAMString;
 			VString					fPMString;
 			bool					fUsingAmPm;
-			VString					fTrue;
-			VString					fFalse;
 
 			VString					fDecimalSeparator;
 			VString					fThousandsSeparator;

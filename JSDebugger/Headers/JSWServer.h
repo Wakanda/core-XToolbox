@@ -40,13 +40,10 @@ class VJSWConnectionHandler : public VConnectionHandler
 
 		virtual int GetType ( ) { return Handler_Type; }
 		virtual VError Stop ( );
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		virtual void SetInfo ( IJSWDebuggerInfo* inInfo );
-		virtual void SetSettings ( IJSWDebuggerSettings* inSettings );
-#else
+
 		virtual void SetInfo( IWAKDebuggerInfo* inInfo );
 		virtual void SetSettings( IWAKDebuggerSettings* inSettings );
-#endif
+
 		bool IsHandling ( );
 		bool IsDone ( ) { return fIsDone; }; /* There is a short but non-zero time in the beginning of life of a handler during which it is not handling yet and not done yet too. */
 		int Write ( const char * inData, long inLength, bool inToUTF8 = false );
@@ -68,17 +65,12 @@ class VJSWConnectionHandler : public VConnectionHandler
 
 		void Reset ( ) { fBlockWaiters = true; }
 		VError WakeUpAllWaiters ( );
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		IJSWDebuggerCommand* WaitForClientCommand ( uintptr_t inContext );
-		IJSWDebuggerCommand* GetNextBreakPointCommand ( );
-		IJSWDebuggerCommand* GetNextSuspendCommand ( uintptr_t inContext );
-		IJSWDebuggerCommand* GetNextAbortScriptCommand ( uintptr_t inContext );
-#else
+
 		IWAKDebuggerCommand* WaitForClientCommand( uintptr_t inContext );
 		IWAKDebuggerCommand* GetNextBreakPointCommand ( );
 		IWAKDebuggerCommand* GetNextSuspendCommand ( uintptr_t inContext );
 		IWAKDebuggerCommand* GetNextAbortScriptCommand ( uintptr_t inContext );
-#endif
+
 		char* GetRelativeSourcePath (
 								const unsigned short* inAbsoluteRoot, int inRootSize,
 								const unsigned short* inAbsolutePath, int inPathSize,
@@ -96,13 +88,9 @@ class VJSWConnectionHandler : public VConnectionHandler
 		bool							fShouldStop;
 		bool							fIsDone;
 
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		IJSWDebuggerInfo*				fDebuggerInfo;
-		IJSWDebuggerSettings*			fDebuggerSettings;
-#else
 		IWAKDebuggerInfo*				fDebuggerInfo;
 		IWAKDebuggerSettings*			fDebuggerSettings;
-#endif
+
 		bool							fNeedsAuthentication;
 		bool							fHasAuthenticated;
 		//std::vector<VJSWContextRunTimeInfo*>	fContexts;
@@ -128,15 +116,11 @@ class VJSWConnectionHandler : public VConnectionHandler
 
 		VError ExtractCommands ( );
 		VError AddCommand ( const VString & inCommand );
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-		VError AddCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID );
-		VError AddCommand ( IJSWDebugger::JSWD_COMMAND inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
-		VError SendContextList ( long inCommandID, uintptr_t* inContextIDs, IJSWDebuggerInfo::JSWD_CONTEXT_STATE* outStates, int inCount );
-#else
+
 		VError AddCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID );
 		VError AddCommand( IWAKDebuggerCommand::WAKDebuggerServerMsgType_t inCommand, const VString & inID, const VString & inContextID, const VString & inParameters );
 		VError SendContextList ( long inCommandID, uintptr_t* inContextIDs, IWAKDebuggerInfo::JSWD_CONTEXT_STATE* outStates, int inCount );
-#endif
+
 		VError AddCommand ( const VValueBag & inCommand );
 		VError ClearCommands ( );
 

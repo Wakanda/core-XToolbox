@@ -28,6 +28,7 @@
 #include "ILogger.h"
 #include "VJSONValue.h"
 
+
 #if VERSIONMAC
 	#include "crt_externs.h"
 	#include "XMacResource.h"
@@ -56,8 +57,8 @@ HINSTANCE	VProcess::sWIN_ToolboxInstance = NULL;
 VProcess::VProcess()
 : fFibered( false)
 , fLocalizer( NULL)
-, fLogger( NULL)
 , fPreferencesInApplicationData( VERSIONMAC)
+, fLogger(NULL)
 {
 	_FetchCommandLineArguments( fCommandLineArguments);
 
@@ -92,6 +93,7 @@ VProcess::VProcess()
 	_ReadProductVersion ( fProductVersion);
 	
 	xbox_assert(sInstance == NULL);	// set at init
+
 }
 
 
@@ -189,6 +191,12 @@ bool VProcess::_Init( VProcess::InitOptions inOptions)
 	ReleaseRefCountable( &handler);
 #endif
 
+	if (inOptions & Init_EnableLogger)
+	{
+		fLogger.Adopt(new VLogger());
+		fLogger->Start();
+	}
+
 	return ok;
 }
 
@@ -214,7 +222,6 @@ void VProcess::_DeInit()
 	VDebugMgr::Get()->DeInit();
 #endif
 	
-	ReleaseRefCountable( &fLogger);
 	VErrorBase::DeInit();
 	VTaskMgr::DeInit();
 #if WITH_RESOURCE_FILE
@@ -224,8 +231,14 @@ void VProcess::_DeInit()
 	VFile::DeInit();
 	VProgressManager::Deinit();
 	XBOX::ReleaseRefCountable( &fIntlManager);
+
+	fLogger->Stop();// not necessary since the included thread has already been stopped by RIAServer
 }
 
+XBOX::ILogger* VProcess::GetLogger()
+{
+	return fLogger.Get();
+}
 
 void VProcess::Run()
 {
@@ -507,7 +520,6 @@ VFolder* VProcess::RetainFolder( VProcess::EFolderKind inSelector) const
 			}
 		
 		default:
-			xbox_assert( false);
 			break;
 	}
 
@@ -660,18 +672,6 @@ VFolder *VProcess::RetainProductSystemFolder( ESystemFolderKind inSelector, bool
 	}
 
 	return folder;
-}
-
-
-ILogger* VProcess::RetainLogger() const
-{
-	return RetainRefCountable( fLogger);
-}
-
-
-void VProcess::SetLogger( ILogger *inLogger)
-{
-	CopyRefCountable( &fLogger, inLogger);
 }
 
 
@@ -853,7 +853,7 @@ void VProcess::_ReadProductName( VString& outName) const
 		outName.MAC_FromCFString( cfProductName);
 
 #elif VERSION_LINUX
-    outName="Wakanda Linux";	//Postponed Linux Implementation
+    outName="Wakanda Server";	//Postponed Linux Implementation
 #endif
 }
 

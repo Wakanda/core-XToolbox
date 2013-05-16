@@ -37,9 +37,8 @@ public:
 	FontRef	GetFontRef () const { return fFontRef; }
 
 	/** accessor on native font */
-#if GRAPHIC_MIXED_GDIPLUS_D2D
 	Gdiplus::Font *GetGDIPlusFont() const { return fGDIPlusFont; }
-#endif
+
 #if ENABLE_D2D
 	/** accessor on DWrite font */
 	IDWriteFont *GetDWriteFont() const { return fDWriteFont; }
@@ -51,7 +50,7 @@ public:
 	@remarks
 		inWidth & inHeight are in DIP
 	*/
-	IDWriteTextLayout *CreateTextLayout(ID2D1RenderTarget *inRT, const VString& inText, const bool isAntialiased = true, const GReal inWidth = DWRITE_TEXT_LAYOUT_MAX_WIDTH, const GReal inHeight = DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AlignStyle inHoriz = AL_LEFT, AlignStyle inVert = AL_TOP, TextLayoutMode inMode = TLM_NORMAL, VTreeTextStyle *inStyles = NULL, const GReal inRefDocDPI = 72.0f, const bool inUseCache = true);
+	IDWriteTextLayout *CreateTextLayout(ID2D1RenderTarget *inRT, const VString& inText, const bool isAntialiased = true, const GReal inWidth = DWRITE_TEXT_LAYOUT_MAX_WIDTH, const GReal inHeight = DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AlignStyle inHoriz = AL_LEFT, AlignStyle inVert = AL_TOP, TextLayoutMode inMode = TLM_NORMAL, VTreeTextStyle *inStyles = NULL, const GReal inRefDocDPI = 72.0f, const bool inUseCache = true) const;
 
 	/** create text style for the specified text position 
 	@remarks
@@ -79,28 +78,26 @@ protected:
 	bool _GetFontStyleFromStyleName( const VString& inStyleName, int& outFontStyle) const;
 	bool _GetFontStretchFromStyleName( const VString& inStyleName, int& outFontStretch) const;
 
-	IDWriteTextLayout *_GetCachedTextLayout( const VString& inText, const GReal inWidth = DWRITE_TEXT_LAYOUT_MAX_WIDTH, const GReal inHeight = DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AlignStyle inHoriz = AL_LEFT, AlignStyle inVert = AL_TOP, TextLayoutMode inMode = TLM_NORMAL, const bool isAntialiased = true, const GReal inRefDocDPI = 72.0f);
-	void _ApplyMultiStyle( ID2D1RenderTarget *inRT, IDWriteTextLayout *inLayout, VTreeTextStyle *inStyles, VSize inTextLength, const GReal inRefDocDPI = 72.0f);
+	IDWriteTextLayout *_GetCachedTextLayout( const VString& inText, const GReal inWidth = DWRITE_TEXT_LAYOUT_MAX_WIDTH, const GReal inHeight = DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AlignStyle inHoriz = AL_LEFT, AlignStyle inVert = AL_TOP, TextLayoutMode inMode = TLM_NORMAL, const bool isAntialiased = true, const GReal inRefDocDPI = 72.0f) const;
+	void _ApplyMultiStyle( ID2D1RenderTarget *inRT, IDWriteTextLayout *inLayout, VTreeTextStyle *inStyles, VSize inTextLength, const GReal inRefDocDPI = 72.0f) const;
 #endif
 private:
     static int CALLBACK EnumFontFamiliesExProc(ENUMLOGFONTEX *lpelfe, NEWTEXTMETRICEX *lpntme,DWORD FontType,LPARAM lParam);
 	VFont*	fFont;
 	FontRef	fFontRef;
 	bool	fIsTrueType;
-#if GRAPHIC_MIXED_GDIPLUS_D2D
 	Gdiplus::Font *fGDIPlusFont;
-#endif
 #if ENABLE_D2D
 	IDWriteFont* fDWriteFont;
 	IDWriteTextFormat *fDWriteTextFormat;
 	IDWriteInlineObject *fDWriteEllipsisTrimmingSign;
-	VString fCachedText;
-	GReal fCachedWidth, fCachedHeight;
-	AlignStyle fCachedHAlign, fCachedVAlign;
-	TextLayoutMode fCachedLayoutMode;
-	IDWriteTextLayout *fCachedDWriteTextLayout;
-	GReal fCachedDPI;
-	bool fCachedAntialiased;
+	mutable	VString fCachedText;
+	mutable	GReal fCachedWidth, fCachedHeight;
+	mutable	AlignStyle fCachedHAlign, fCachedVAlign;
+	mutable	TextLayoutMode fCachedLayoutMode;
+	mutable	IDWriteTextLayout *fCachedDWriteTextLayout;
+	mutable	GReal fCachedDPI;
+	mutable	bool fCachedAntialiased;
 #endif
 
 };

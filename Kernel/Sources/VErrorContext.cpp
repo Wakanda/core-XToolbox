@@ -86,16 +86,51 @@ VError VErrorContext::SaveToBag( VValueBag& ioBag) const
 }
 
 
-VError VErrorContext::SaveToJSONArray( VJSONArrayWriter& ioWriter, JSONOption inModifier) const
+void VErrorContext::SaveToJSONArray( VJSONValue& outArray) const
 {
-	VString errDescription;
-
-	for( VErrorStack::const_iterator i = fStack.begin() ; i != fStack.end() ; ++i)
+	if (fStack.empty())
 	{
-		(*i)->GetErrorDescription( errDescription);
-		ioWriter.AddString( errDescription, inModifier | JSON_WithQuotesIfNecessary);
+		outArray.SetUndefined();
 	}
-	return VE_OK;
+	else
+	{
+		VJSONArray *array = new VJSONArray;
+		if (array != NULL)
+		{
+			for( VErrorStack::const_iterator i = fStack.begin() ; i != fStack.end() ; ++i)
+			{
+				VJSONObject *errorObject = new VJSONObject;
+				if (errorObject != NULL)
+				{
+					VString description;
+					(*i)->GetErrorDescription( description);
+					errorObject->SetPropertyAsString( CVSTR( "message"), description);
+
+					VError errCode = (*i)->GetError();
+					sLONG errnum = ERRCODE_FROM_VERROR( errCode);
+					OsType component = COMPONENT_FROM_VERROR( errCode);
+					
+					#if SMALLENDIAN
+					ByteSwap( &component);
+					#endif
+					
+					VString compname(&component, 4, VTC_US_ASCII);
+
+					errorObject->SetPropertyAsString( CVSTR( "componentSignature"), compname);
+					errorObject->SetPropertyAsNumber( CVSTR( "errCode"), errnum);
+					
+					array->Push( VJSONValue( errorObject));
+				}
+				ReleaseRefCountable( &errorObject);
+			}
+			outArray.SetArray( array);
+		}
+		else
+		{
+			outArray.SetUndefined();
+		}
+		ReleaseRefCountable( &array);
+	}
 }
 
 
@@ -424,6 +459,40 @@ void VErrorTaskContext::PopContext()
 		else
 		{
 			fStack.pop_back();
+		}
+	}
+}
+
+
+inline sWORD SwapWord(sWORD x) { return ((x & 0x00FF) << 8) | (x >> 8); };
+inline uWORD SwapWord(uWORD x) { return ((x & 0x00FF) << 8) | (x >> 8); };
+
+inline sLONG SwapLong(sLONG x) { return ( ((sLONG)(SwapWord((uWORD)(x & 0x0000FFFF))) << 16) | (sLONG)SwapWord((uWORD)(x >> 16))); };
+inline uLONG SwapLong(uLONG x) { return ( ((uLONG)(SwapWord((uWORD)(x & 0x0000FFFF))) << 16) | (uLONG)SwapWord((uWORD)(x >> 16))); };
+
+void VErrorTaskContext::BuildErrorStack(VValueBag& outBag)
+{
+	VErrorTaskContext *context = VTask::GetCurrent()->GetErrorContext( false);
+	if (context)
+	{
+		VErrorContext combinedContext;
+		context->GetErrors( combinedContext);
+
+		const VErrorStack& errorstack = combinedContext.GetErrorStack();
+		for( VErrorStack::const_iterator cur = errorstack.begin(), end = errorstack.end(); cur != end; cur++)
+		{
+			VErrorBase *err = *cur;
+			BagElement errbag(outBag, "__ERROR");
+			VString errdesc;
+			err->DumpToString(errdesc);
+			errbag->SetString(L"message", errdesc);
+			VError xerr = err->GetError();
+			sLONG errnum = ERRCODE_FROM_VERROR(xerr);
+			OsType component = COMPONENT_FROM_VERROR(xerr);
+			component = SwapLong(component);
+			VString compname(&component, 4, VTC_US_ASCII);
+			errbag->SetString(L"componentSignature", compname);
+			errbag->SetLong(L"errCode", errnum);
 		}
 	}
 }

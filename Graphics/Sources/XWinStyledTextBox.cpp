@@ -148,9 +148,21 @@ USING_TOOLBOX_NAMESPACE
 
 /////////////////////////////////////////////////////////////////////////////
 // XWinStyledTextBox
-XWinStyledTextBox::XWinStyledTextBox(HDC inHDC, const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, const TextLayoutMode inLayoutMode, const GReal inRefDocDPI)
+XWinStyledTextBox::XWinStyledTextBox(HDC inHDC, const VString& inText, 
+									 const VTreeTextStyle *inStyles, 
+									 const VRect& inHwndBounds, 
+									 const VColor& inTextColor, 
+									 VFont *inFont, 
+									 const TextLayoutMode inLayoutMode, 
+									 const GReal inRefDocDPI, 
+									 const VColor& inParentFrameBackColor)
 : fHDC(inHDC), fHDCMetrics(NULL), VStyledTextBox(inText, inStyles, inHwndBounds, inTextColor, inFont)
 {
+	fParentFrameBackColor = inParentFrameBackColor;
+	fIsSizeDirty = true;
+	fCurWidth = fCurHeight = 0;
+	fCurDPI = 0;	
+
 	VRect bounds(inHwndBounds);
 	bounds.NormalizeToInt(false); //normalize from floating point coord space to integer coord space (to ensure we do not down-crop the layout box)
 	RECT rt = bounds;
@@ -176,6 +188,7 @@ XWinStyledTextBox::XWinStyledTextBox(HDC inHDC, const VString& inText, VTreeText
 */
 void XWinStyledTextBox::SetDrawContext( ContextRef inContextRef)
 {
+	sLONG oldDPI = fCurDPI;
 	fHDC = inContextRef;
 	if (!fHDC)
 	{
@@ -185,6 +198,9 @@ void XWinStyledTextBox::SetDrawContext( ContextRef inContextRef)
 	}
 	nPixelsPerInchX = GetDeviceCaps(fHDC, LOGPIXELSX);
 	nPixelsPerInchY = GetDeviceCaps(fHDC, LOGPIXELSY);
+
+	fCurDPI = nPixelsPerInchY;
+	fIsSizeDirty = fIsSizeDirty || oldDPI != fCurDPI;
 }
 
 /** compute x offset
@@ -193,7 +209,7 @@ void XWinStyledTextBox::SetDrawContext( ContextRef inContextRef)
 */
 void XWinStyledTextBox::_ComputeOffsetX()
 {
-	if (::GetDeviceCaps(fHDC, TECHNOLOGY) != DT_RASDISPLAY || fJust == JST_Right || fJust == JST_Center)
+	if (::GetDeviceCaps(fHDC, TECHNOLOGY) != DT_RASDISPLAY || fHAlign == AL_RIGHT || fHAlign == AL_CENTER)
 	{
 		if (gOffsetX)
 			fOffsetX = gOffsetX;
@@ -228,7 +244,7 @@ void XWinStyledTextBox::_SetDocumentDPI( const GReal inDPI)
 	fFontSizeToDocumentFontSize = inDPI / nPixelsPerInchY;
 }
 
-Boolean XWinStyledTextBox::GetPlainText( VString& outText)
+Boolean XWinStyledTextBox::GetPlainText( VString& outText) const
 {
 	if (!fIsPlainTextDirty || !fTextServices)
 	{
@@ -258,7 +274,7 @@ Boolean XWinStyledTextBox::GetPlainText( VString& outText)
 }
 
 /** get plain text */
-const VString& XWinStyledTextBox::_GetPlainText()
+const VString& XWinStyledTextBox::_GetPlainText() const
 {
 	if (!fIsPlainTextDirty || !fTextServices)
 		return fText;
@@ -473,6 +489,7 @@ Boolean XWinStyledTextBox::SetRTFText(const VString& inRTFText)
 	free(buffer);
 
 	fIsPlainTextDirty = true;
+	fIsSizeDirty = true;
 
 	//ensure hidden text is not included with plain text
 	//_ClearHidden(); //FIXME: using ITextServices to clear hidden text seems to be buggy randomly (although hidden text ranges are correct) so for now defer it to caller
@@ -491,11 +508,13 @@ void XWinStyledTextBox::_SetTextEx(const VString& inText, bool inSelection)
 	{
 		HRESULT hr = fTextServices->TxSendMessage(EM_SETTEXTEX, (WPARAM) (&pST),(LPARAM)inText.GetCPointer(), &lResult );
 		fIsPlainTextDirty = true;
+		fIsSizeDirty = true;
 		return;
 	}
 	fText.FromString(inText);
 	HRESULT hr = fTextServices->TxSendMessage(EM_SETTEXTEX, (WPARAM) (&pST),(LPARAM)fText.GetCPointer(), &lResult );
 	fIsPlainTextDirty = false;
+	fIsSizeDirty = true;
 }
 
 GReal XWinStyledTextBox::_GetOffsetX() const
@@ -507,15 +526,42 @@ GReal XWinStyledTextBox::_GetOffsetX() const
 		return fOffsetX;
 }
 
+void XWinStyledTextBox::_AdjustBoundsForVerticalAlign(VRect &ioBounds)
+{
+	switch (fVAlign)
+	{
+	case AL_BOTTOM:
+		{
+			GReal width = ioBounds.GetWidth(), height = 0;
+			DoGetSize(width, height);
+			ioBounds.SetY( ioBounds.GetBottom()-height);
+			ioBounds.SetHeight(height);
+		}
+	case AL_CENTER:
+		{
+			GReal width = ioBounds.GetWidth(), height = 0;
+			DoGetSize(width, height);
+			ioBounds.SetY( floor(ioBounds.GetY()+ioBounds.GetHeight()/2-height/2));
+			ioBounds.SetHeight(height);
+		}
+		break;
+	}
+}
+
+
 Boolean XWinStyledTextBox::DoDraw(const XBOX::VRect &inBounds)
 {
 	VRect bounds(inBounds);
+
 	GReal offsetX = _GetOffsetX();
 	bounds.SetPosBy( offsetX, 0.0f);
 	bounds.SetSizeBy( -offsetX, 0.0f); //inflate also width by abs(fOffsetX) because right limit should not be modified (especially for wordwrap)
 	bounds.NormalizeToInt(false); //normalize from floating point coord space to integer coord space (to ensure we do not down-crop the layout box)
 
-	RECT rt = bounds;
+	VRect boundsClient = bounds;
+	_AdjustBoundsForVerticalAlign(boundsClient);
+
+	RECT rt = boundsClient;
 	fClientRect = rt;
 	HRESULT hr = S_OK;
 
@@ -930,6 +976,7 @@ void XWinStyledTextBox::InsertText( sLONG inPos, const VString& inText)
 	HRESULT hr = fTextServices->TxSendMessage(EM_SETSEL, inPos, inPos, &lResult); //select
 	_SetTextEx( inText, true);
 	fIsPlainTextDirty = true;
+	fIsSizeDirty = true;
 	hr = fTextServices->TxSendMessage(EM_SETSEL, -1, -1, &lResult); //unselect
 
 	if (inPos > 0)
@@ -990,9 +1037,12 @@ void XWinStyledTextBox::DeleteText( sLONG rangeStart, sLONG rangeEnd)
 	if (!fTextDocument)
 		return;
 
+	LONG len = _GetPlainText().GetLength();
+	if (rangeEnd == -1)
+		rangeEnd = len;
+
 	if (rangeEnd <= rangeStart)
 		return;
-	LONG len = _GetPlainText().GetLength();
 	if (rangeStart < 0)
 		rangeStart = 0;
 	if (rangeStart > len)
@@ -1004,6 +1054,7 @@ void XWinStyledTextBox::DeleteText( sLONG rangeStart, sLONG rangeEnd)
 	HRESULT hr = fTextServices->TxSendMessage(EM_SETSEL, rangeStart, rangeEnd, &lResult); //select
 	_SetTextEx( VString(), true);
 	fIsPlainTextDirty = true;
+	fIsSizeDirty = true;
 	hr = fTextServices->TxSendMessage(EM_SETSEL, -1, -1, &lResult); //unselect
 
 	/*
@@ -1024,34 +1075,260 @@ void XWinStyledTextBox::DeleteText( sLONG rangeStart, sLONG rangeEnd)
 	*/
 }
 
-void XWinStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle * /*inStyleInherit*/)
+bool XWinStyledTextBox::_GetRTL() const
 {
-	sLONG rangeStart, rangeEnd;
+	LRESULT lResult = 0;
+	PARAFORMAT2	paraFormat;
+	memset(&paraFormat, 0, sizeof(PARAFORMAT2));
+	paraFormat.cbSize = sizeof(PARAFORMAT2);
+	fTextServices->TxSendMessage(EM_GETPARAFORMAT , 0, (LPARAM)&paraFormat, &lResult );
 
-	inStyle->GetRange(rangeStart, rangeEnd);
+	return ((paraFormat.dwMask & PFM_RTLPARA) && (paraFormat.wEffects & PFM_RTLPARA));
+}
+
+void XWinStyledTextBox::_SetTextAlign( AlignStyle inHAlign)
+{
 	LONG len = _GetPlainText().GetLength();
-	LONG wParam;
 
-	if (rangeStart > 0 || rangeEnd < len)
+	PARAFORMAT2	paraFormat;
+	memset(&paraFormat, 0, sizeof(PARAFORMAT2));
+	paraFormat.cbSize = sizeof(PARAFORMAT2);
+	paraFormat.dwMask |= PFM_ALIGNMENT;
+
+	switch (inHAlign)
+	{
+		case AL_CENTER:
+			{
+			paraFormat.wAlignment = PFA_CENTER;
+			}
+			break;
+			
+		case AL_RIGHT:
+			{
+			paraFormat.wAlignment = PFA_RIGHT;
+			}
+			break;
+			
+		case AL_LEFT:
+			{
+			paraFormat.wAlignment = PFA_LEFT;
+			}
+			break;
+
+		case AL_JUST:
+			{
+			paraFormat.wAlignment = PFA_JUSTIFY;
+			}
+			break;
+
+		default:
+			{
+			//default: depends on rtl
+			paraFormat.wAlignment = _GetRTL() ? PFA_RIGHT : PFA_LEFT;
+			}
+			break;
+	}
+
+	LRESULT lResult = 0;
+	fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&paraFormat, &lResult );
+	//fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE); //we do not update default paraformat because we update selection
+	
+	fIsSizeDirty = true;
+}
+
+
+/** set text horizontal alignment (default is AL_DEFAULT) */
+void XWinStyledTextBox::SetTextAlign( AlignStyle inHAlign, sLONG inStart, sLONG inEnd)
+{
+	VIndex length = GetPlainTextLength();
+	if (inEnd == -1)
+		inEnd = length;
+	if (inStart == 0 && inEnd == length)
+	{
+		if (fHAlign == inHAlign)
+			return;
+	}
+	_Select( inStart, inEnd);
+	if (inStart == 0 && inEnd >= length-1)
+		fHAlign = inHAlign;
+	_SetTextAlign( inHAlign);
+	if (inStart == 0 && inEnd >= length-1)
+		_ComputeOffsetX();
+}
+
+/** set text vertical alignment (default is AL_DEFAULT) */
+void XWinStyledTextBox::SetParaAlign( AlignStyle inVAlign)
+{
+	//only on full text
+	fVAlign = inVAlign;
+}
+
+
+/** set paragraph line height 
+
+	if positive, it is fixed line height in point
+	if negative, line height is (-value)*normal line height (so -2 is 2*normal line height)
+	if -1, it is normal line height 
+*/
+void XWinStyledTextBox::SetLineHeight( const GReal inLineHeight, sLONG inStart, sLONG inEnd)
+{
+	_Select( inStart, inEnd);
+
+	PARAFORMAT2	paraFormat;
+	memset(&paraFormat, 0, sizeof(PARAFORMAT2));
+	paraFormat.cbSize = sizeof(PARAFORMAT2);
+	paraFormat.dwMask |= PFM_LINESPACING;
+		
+	if (inLineHeight == -1)
+		//single spacing
+		paraFormat.bLineSpacingRule = 0;
+	else if (inLineHeight < 0)
+	{
+		//multiple of line height
+		paraFormat.bLineSpacingRule = 5;
+		paraFormat.dyLineSpacing = (-inLineHeight)*20;
+	}
+	else
+	{
+		//fixed line height
+		paraFormat.bLineSpacingRule = 4;
+		paraFormat.dyLineSpacing = ICSSUtil::PointToTWIPS( inLineHeight);
+	}
+
+	LRESULT lResult = 0;
+	fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&paraFormat, &lResult );
+	//fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE); //we do not update default paraformat because we update selection
+	
+	fIsSizeDirty = true;
+}
+
+void XWinStyledTextBox::SetRTL(bool inRTL, sLONG inStart, sLONG inEnd)
+{
+	_Select( inStart, inEnd);
+
+	PARAFORMAT2	paraFormat;
+	memset(&paraFormat, 0, sizeof(PARAFORMAT2));
+	paraFormat.cbSize = sizeof(PARAFORMAT2);
+	paraFormat.dwMask |= PFM_RTLPARA;
+	if (inRTL)
+		paraFormat.wEffects |= PFM_RTLPARA;
+	else
+		paraFormat.wEffects &= ~PFM_RTLPARA;
+
+	LRESULT lResult = 0;
+	fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&paraFormat, &lResult );
+	//fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE); //we do not update default paraformat because we update selection
+	
+	if (inStart == 0 && (inEnd == -1 || inEnd == GetPlainTextLength()) && fHAlign == AL_DEFAULT)
+	{
+		//default is based on rtl or ltr so reset it
+		fHAlign = AL_LEFT;
+		SetTextAlign(AL_DEFAULT, inStart, inEnd); 
+	}
+	fIsSizeDirty = true;
+}
+
+/** set first line padding offset in point 
+@remarks
+	might be negative for negative padding (that is second line up to the last line is padded but the first line)
+*/
+void XWinStyledTextBox::SetPaddingFirstLine(const GReal inPadding, sLONG inStart, sLONG inEnd)
+{
+	_Select( inStart, inEnd);
+
+	PARAFORMAT2	paraFormat;
+	memset(&paraFormat, 0, sizeof(PARAFORMAT2));
+	paraFormat.cbSize = sizeof(PARAFORMAT2);
+	paraFormat.dwMask |= PFM_STARTINDENT | PFM_OFFSET;
+	if (inPadding >= 0)
+	{
+		paraFormat.dxStartIndent = ICSSUtil::PointToTWIPS(inPadding);
+		paraFormat.dxOffset = 0;
+	}
+	else
+	{
+		paraFormat.dxStartIndent = 0;
+		paraFormat.dxOffset = -ICSSUtil::PointToTWIPS(inPadding);
+	}
+
+	LRESULT lResult = 0;
+	fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&paraFormat, &lResult );
+	//fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE); //we do not update default paraformat because we update selection
+	
+	fIsSizeDirty = true;
+}
+
+/** set tab stop offset in point */
+void XWinStyledTextBox::SetTabStop(const GReal inOffset, const eTextTabStopType inType, sLONG inStart, sLONG inEnd)
+{
+	_Select( inStart, inEnd);
+
+	PARAFORMAT2	paraFormat;
+	memset(&paraFormat, 0, sizeof(PARAFORMAT2));
+	paraFormat.cbSize = sizeof(PARAFORMAT2);
+	paraFormat.dwMask |= PFM_TABSTOPS;
+	paraFormat.cTabCount = 1;
+	paraFormat.rgxTabs[0] = ICSSUtil::PointToTWIPS( inOffset) & 0xffffff;
+	LONG alignment = 0; //TTST_LEFT
+	switch (inType)
+	{
+	case TTST_RIGHT:
+		alignment = 2;
+		break;
+	case TTST_CENTER:
+		alignment = 1;
+		break;
+	case TTST_DECIMAL:
+		alignment = 3;
+		break;
+	case TTST_BAR:
+		alignment = 4;
+		break;
+	}
+	alignment = alignment<<24;
+	paraFormat.rgxTabs[0] |= alignment;
+
+	LRESULT lResult = 0;
+	fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&paraFormat, &lResult );
+	//fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE); //we do not update default paraformat because we update selection
+	
+	fIsSizeDirty = true;
+}
+
+
+void XWinStyledTextBox::_Select(sLONG inStart, sLONG inEnd)
+{
+	LONG len = _GetPlainText().GetLength();
+	if (inEnd == -1)
+		inEnd = len;
+	if (inEnd < inStart)
+		inEnd = inStart;
+
+	if (inStart > 0 || inEnd < len)
 		//switch to RichText mode if style is not applied to all text
 		_EnableMultiStyle();
 
 	xbox_assert(fTextRange == NULL);
 
-	//JQ 09/07/2010: fixed range for whole string (rangeEnd=rangeStart+len)
-	//JQ 18/04/2011: using SCF_ALL overrides current settings too than merging with current one so always use SCF_SELECTION here
-	//if (rangeStart == 0 && rangeEnd == len)
-	//{
-	//	// For the whole string
-	//	wParam = SCF_ALL;
-	//}
-	//else
+	fTextDocument->Range(inStart, inEnd, &fTextRange);
+	if (testAssert(fTextRange))
 	{
-		// The selection only
-		fTextDocument->Range(rangeStart, rangeEnd, &fTextRange);
 		fTextRange->Select();
-		wParam = SCF_SELECTION;
+		fTextRange->Release();
+		fTextRange = NULL;
 	}
+}
+
+
+void XWinStyledTextBox::DoApplyStyle(const VTextStyle* inStyle, VTextStyle * inStyleInherit)
+{
+	LONG len = _GetPlainText().GetLength();
+	sLONG rangeStart, rangeEnd;
+	LONG wParam = SCF_SELECTION;
+
+	inStyle->GetRange(rangeStart, rangeEnd);
+	_Select( rangeStart, rangeEnd);
+
 	LRESULT lResult = 0;
 
 	if (m_dwPropertyBits & TXTBIT_RICHTEXT)
@@ -1062,99 +1339,47 @@ void XWinStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle * /*inStyle
 		memset(&charFormat, 0, sizeof(CHARFORMAT2W));
 		charFormat.cbSize = sizeof(CHARFORMAT2W);
 		
-		if (CharFormatFromVTextStyle(&charFormat, inStyle, fHDC))
+		if (CharFormatFromVTextStyle(&charFormat, inStyle, fHDC, inStyleInherit && inStyleInherit->GetHasBackColor() && inStyleInherit->GetBackGroundColor() != RGBACOLOR_TRANSPARENT))
+		{		
 			fTextServices->TxSendMessage(EM_SETCHARFORMAT , (WPARAM)wParam, (LPARAM)&charFormat, &lResult );
+			fIsSizeDirty = true;
+		}
 	}
 	else
 	{
 		//monostyle: we update uniform fCharFormat & inform control with TXTBIT_CHARFORMATCHANGE because EM_SETCHARFORMAT works only with RichText edit control
 
-		if (CharFormatFromVTextStyle(&fCharFormat, inStyle, fHDC))
+		if (CharFormatFromVTextStyle(&fCharFormat, inStyle, fHDC, inStyleInherit && inStyleInherit->GetHasBackColor() && inStyleInherit->GetBackGroundColor() != RGBACOLOR_TRANSPARENT))
 		{
 			fTextServices->TxSendMessage(EM_SETCHARFORMAT , (WPARAM)wParam, (LPARAM)&fCharFormat, &lResult );
 			fTextServices->OnTxPropertyBitsChange(TXTBIT_CHARFORMATCHANGE, 
 				TXTBIT_CHARFORMATCHANGE);
+			fIsSizeDirty = true;
 		}
 	}
 
 	//update eventually paragraph format: here only justification
-
-	//PARAFORMAT2	paraFormat;
-	//memset(&paraFormat, 0, sizeof(PARAFORMAT2));
-	//paraFormat.cbSize = sizeof(PARAFORMAT2);
-	//fTextServices->TxSendMessage(EM_GETPARAFORMAT , 0, (LPARAM)&paraFormat, &lResult );
-
-	//set alignment (can only be applied on all text)
-	justificationStyle oldJust = fJust;
-	if (inStyle && rangeStart == 0 && rangeEnd >= len)
+	if (inStyle->GetJustification() != JST_Notset)
 	{
-		bool needUpdate = false;
-		if (fJust == JST_Notset)
-			fJust = inStyle->GetJustification();
-		else if (fJust != inStyle->GetJustification() && inStyle->GetJustification() != JST_Notset)
-			fJust = inStyle->GetJustification();
-
-		switch (inStyle->GetJustification())
+		AlignStyle alignment = VTextLayout::JustToAlignStyle(inStyle->GetJustification());
+		if (rangeStart == 0 && rangeEnd >= len-1) 
 		{
-			case JST_Center:
-				{
-				fParaFormat.wAlignment = PFA_CENTER;
-				needUpdate = true;
-				}
-				break;
-				
-			case JST_Right:
-				{
-				fParaFormat.wAlignment = PFA_RIGHT;
-				needUpdate = true;
-				}
-				break;
-				
-			case JST_Left:
-				{
-				fParaFormat.wAlignment = PFA_LEFT;
-				needUpdate = true;
-				}
-				break;
-
-			case JST_Default:
-				{
-				fParaFormat.wAlignment = PFA_LEFT;
-				needUpdate = true;
-				}
-				break;
-
-			case JST_Justify:
-				{
-				fParaFormat.wAlignment = PFA_JUSTIFY;
-				needUpdate = true;
-				}
-				break;
-
-			default:
-				break;
-		}
-		if (needUpdate)
-		{
-			fTextServices->TxSendMessage(EM_SETPARAFORMAT , (WPARAM)0, (LPARAM)&fParaFormat, &lResult );
-			fTextServices->OnTxPropertyBitsChange(TXTBIT_PARAFORMATCHANGE, TXTBIT_PARAFORMATCHANGE);
+			if (fHAlign != alignment)
+			{
+				fHAlign = alignment;
+				_SetTextAlign( alignment);
+				_ComputeOffsetX();
+			}
 		}
 	}
-
-	if (fTextRange)
-	{
-		fTextRange->Release();
-		fTextRange = NULL;
-	}
-
-	if (fJust != oldJust)
-		_ComputeOffsetX();
+	_DoApplyStyleRef( inStyle);
 }
 
 
 Boolean XWinStyledTextBox::DoInitialize()
 {
 	fIsPlainTextDirty = false;
+	fIsSizeDirty = true;
 
 	SetRectEmpty(&fClientRect);
 	SetRectEmpty(&fViewInset);
@@ -1202,6 +1427,8 @@ void XWinStyledTextBox::_EnableMultiStyle()
 
 	if (m_dwPropertyBits & TXTBIT_RICHTEXT)
 		return;
+
+	fIsSizeDirty = true;
 
 	//in order to switch to RichText control, we need to re-create control from scratch because we cannot transform a standard edit control to a RichText edit control
 	//(we could use first RichText edit in plain text mode but we do not want to use RichText control in monostyle only)
@@ -1265,6 +1492,15 @@ void XWinStyledTextBox::DoRelease()
 
 void XWinStyledTextBox::DoGetSize(GReal &ioWidth, GReal &outHeight)
 {
+	if (fMaxWidth == ioWidth && !fIsSizeDirty)
+	{
+		ioWidth = fCurWidth;
+		outHeight = fCurHeight;
+		return;
+	}
+
+	fMaxWidth = ioWidth;
+
 	if (fTextServices)
 	{
 		GReal offsetX = _GetOffsetX();
@@ -1289,7 +1525,14 @@ void XWinStyledTextBox::DoGetSize(GReal &ioWidth, GReal &outHeight)
 		if (ioWidth < 0.0f)
 			ioWidth = 0.0f;
 		outHeight = height;
+
+		fCurWidth = ioWidth;
+		fCurHeight = height;
+
+		fIsSizeDirty = false;
 	}
+	else
+		fIsSizeDirty = true;
 }
 
 void XWinStyledTextBox::_SetFont(VFont *font, const VColor &textColor)
@@ -1301,6 +1544,8 @@ void XWinStyledTextBox::_SetFont(VFont *font, const VColor &textColor)
 	fTextServices->TxSendMessage(EM_SETCHARFORMAT , (WPARAM)SCF_ALL, (LPARAM)&fCharFormat, &lResult );
 	fTextServices->OnTxPropertyBitsChange(TXTBIT_CHARFORMATCHANGE, 
 		TXTBIT_CHARFORMATCHANGE);
+
+	fIsSizeDirty = true;
 }
 
 bool XWinStyledTextBox::_VTextStyleFromCharFormat(VTextStyle* ioStyle, CHARFORMAT2W* inCharFormat)
@@ -1308,7 +1553,7 @@ bool XWinStyledTextBox::_VTextStyleFromCharFormat(VTextStyle* ioStyle, CHARFORMA
 	if (!ioStyle)
 		return false;
 
-	ioStyle->SetJustification(fJust);
+	ioStyle->SetJustification(VTextLayout::JustFromAlignStyle(fHAlign));
 
 	bool isUniform = true;
 	if (inCharFormat->dwMask & CFM_BOLD)
@@ -1365,8 +1610,7 @@ bool XWinStyledTextBox::_VTextStyleFromCharFormat(VTextStyle* ioStyle, CHARFORMA
 	if (inCharFormat->dwMask & CFM_SIZE)
 	{
 		xbox_assert(fFontSizeToDocumentFontSize > 0.0f);
-		GReal fontSize = inCharFormat->yHeight*72/LY_PER_INCH; 
-		fontSize = fontSize / fFontSizeToDocumentFontSize; //for consistency with  XWinStyledTextBox::CharFormatFromVTextStyle
+		Real fontSize = floor((inCharFormat->yHeight*72.0f)/(LY_PER_INCH * fFontSizeToDocumentFontSize) + 0.5f); //for consistency with  XWinStyledTextBox::CharFormatFromVTextStyle
 		ioStyle->SetFontSize( fontSize);
 	}
 	else
@@ -1379,11 +1623,11 @@ bool XWinStyledTextBox::_VTextStyleFromCharFormat(VTextStyle* ioStyle, CHARFORMA
 	{
 		if (inCharFormat->dwEffects & CFE_AUTOBACKCOLOR)
 		{
-			ioStyle->SetTransparent(true);
+			ioStyle->SetHasBackColor(false);
 		}
 		else
 		{
-			ioStyle->SetTransparent(false);
+			ioStyle->SetHasBackColor(true);
 			XBOX::VColor backcolor;
 			backcolor.WIN_FromCOLORREF(inCharFormat->crBackColor);
 			ioStyle->SetBackGroundColor(backcolor.GetRGBAColor());
@@ -1391,7 +1635,7 @@ bool XWinStyledTextBox::_VTextStyleFromCharFormat(VTextStyle* ioStyle, CHARFORMA
 	}
 	else
 	{
-		ioStyle->SetTransparent(true);
+		ioStyle->SetHasBackColor(false);
 		isUniform = false;
 	}
 
@@ -1690,7 +1934,7 @@ HRESULT	XWinStyledTextBox::TxGetSelectionBarWidth(LONG *lSelBarWidth)
 
 /////////////////////////////////////////////////////////////////////////////
 // custom functions
-bool XWinStyledTextBox::CharFormatFromVTextStyle(CHARFORMAT2W* ioCharFormat, VTextStyle* inStyle, HDC inHDC)
+bool XWinStyledTextBox::CharFormatFromVTextStyle(CHARFORMAT2W* ioCharFormat, const VTextStyle* inStyle, HDC inHDC, bool inParentHasBackColor)
 {
 	//remark: here we must update dwMask only for styles we override (!)
 
@@ -1779,18 +2023,26 @@ bool XWinStyledTextBox::CharFormatFromVTextStyle(CHARFORMAT2W* ioCharFormat, VTe
 		//				 et fontsize en himetrics = fonsize en inch * LY_PER_INCH
 		//LONG yPixPerInch = GetDeviceCaps(inHDC, LOGPIXELSY);
 		//ioCharFormat->yHeight = fontsize * LY_PER_INCH / yPixPerInch;
-		ioCharFormat->yHeight = floor(fontsize * fFontSizeToDocumentFontSize * LY_PER_INCH / 72 + 0.5f);
+		ioCharFormat->yHeight = floor((fontsize * fFontSizeToDocumentFontSize * LY_PER_INCH) / 72 + 0.5f);
 	}
 
-	bool istransparent = inStyle->GetTransparent();
-	if(!istransparent)
+	bool hasBackColor = inStyle->GetHasBackColor();
+	if(hasBackColor && (inParentHasBackColor || inStyle->GetHasBackColor() != RGBACOLOR_TRANSPARENT))
 	{
 		needUpdate = true;
 		ioCharFormat->dwMask |= CFM_BACKCOLOR;
-		ioCharFormat->dwEffects &= ~CFE_AUTOBACKCOLOR;
-		XBOX::VColor backcolor;
-		backcolor.FromRGBAColor(inStyle->GetBackGroundColor());
-		ioCharFormat->crBackColor = backcolor.WIN_ToCOLORREF();
+		if (inStyle->GetBackGroundColor() == RGBACOLOR_TRANSPARENT)
+		{
+			ioCharFormat->dwEffects &= ~CFE_AUTOBACKCOLOR;
+			ioCharFormat->crBackColor = fParentFrameBackColor.WIN_ToCOLORREF();
+		}
+		else
+		{
+			ioCharFormat->dwEffects &= ~CFE_AUTOBACKCOLOR;
+			XBOX::VColor backcolor;
+			backcolor.FromRGBAColor(inStyle->GetBackGroundColor());
+			ioCharFormat->crBackColor = backcolor.WIN_ToCOLORREF();
+		}
 	}
 
 	bool hasForeColor = inStyle->GetHasForeColor();
@@ -1833,7 +2085,7 @@ HRESULT XWinStyledTextBox::CharFormatFromHFONT(CHARFORMAT2W* ioCharFormat, HFONT
 	ioCharFormat->cbSize = sizeof(CHARFORMAT2W);
 
 	//ioCharFormat->yHeight = -lf.lfHeight * LY_PER_INCH / nPixelsPerInchY;
-	ioCharFormat->yHeight = floor(-lf.lfHeight * fFontSizeToDocumentFontSize * LY_PER_INCH / 72 + 0.5f);
+	ioCharFormat->yHeight = floor((-lf.lfHeight * fFontSizeToDocumentFontSize * LY_PER_INCH) / 72 + 0.5f);
 	ioCharFormat->yOffset = 0;
 	ioCharFormat->crTextColor = textColor.WIN_ToCOLORREF();
 
@@ -1881,7 +2133,8 @@ HRESULT XWinStyledTextBox::InitDefaultParaFormat()
 	fParaFormat.cbSize = sizeof(PARAFORMAT2);
 	fParaFormat.dwMask = PFM_ALL2;
 	fParaFormat.wAlignment = PFA_LEFT;
-	fJust = JST_Notset;
+	fHAlign = AL_LEFT;
+	fVAlign = AL_TOP;
 	//fParaFormat.dxStartIndent = -2*;
 	fParaFormat.cTabCount = 0;
 	fParaFormat.rgxTabs[0] = lDefaultTab;
@@ -2101,6 +2354,9 @@ void XWinStyledTextBox::_ClearHidden()
 		textRange->Release();
 	}
 	if (ranges.size() > 0)
+	{
+		fIsSizeDirty = true;
 		fIsPlainTextDirty = true;
+	}
 }
 

@@ -54,7 +54,7 @@ public:
 	void								SetMaxAge (sLONG inMaxAge) { fMaxAge = inMaxAge; }
 	void								SetHttpOnly (bool flag = true) { fHTTPOnly = flag; }
 
-	XBOX::VString						ToString() const;
+	XBOX::VString						ToString (bool inAlwaysExpires = true) const;
 	void								FromString (const XBOX::VString& inString);
 
 private:

@@ -76,7 +76,7 @@ public :
 
 
 /* A synchronized queue of connection handlers. */
-class XTOOLBOX_API VConnectionHandlerQueue
+class XTOOLBOX_API VConnectionHandlerQueue : public VObject
 {
 public :
 	

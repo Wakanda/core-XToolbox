@@ -146,8 +146,8 @@ void XPosixProcessLauncher::SetDefaultDirectory(const VString &inDirectory)
 	{
 		VFolder		theFolder(inDirectory);
 		VString		currentDirectoryUnixPath;
-		theFolder.GetPath().GetPosixPath(currentDirectoryUnixPath);
-		
+	
+        theFolder.GetPath().GetPosixPath(currentDirectoryUnixPath);
 		fCurrentDirectory = _CreateCString(currentDirectoryUnixPath);
 	}
 }
@@ -405,6 +405,15 @@ sLONG XPosixProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 		case 0:	// Child
 	// -------------------------------------------------
 		{
+            
+            /* ACI0073005:
+			 *
+			 * SQLServer seems to have added callback(s) (using some sort of calls to atexit()) and exit() just doesn't quit.
+			 * Use _Exit() instead, this will quit without bothering with callback(s). It may not do all the flushing of exit(),
+			 * but this is ok as we just forked the child process and failed directory change or execution, so there is not much
+			 * to clean-up.
+			 */
+            
 			_CloseOnePipe(&fPipeParentToChild[pWriteSide]);
 			_CloseOnePipe(&fPipeChildToParent[pReadSide]);
 			_CloseOnePipe(&fPipeChildErrorToParent[pReadSide]);
@@ -432,7 +441,7 @@ sLONG XPosixProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 				{
 					fprintf(stderr, "********** XPosixProcessLauncher::Start/fork() -> child -> Error: [%s] chdir failed (%s)\n", fCurrentDirectory, strerror(errno));
 					fflush(stderr);
-					exit(-1);
+					_Exit(-1);
 				}
 			}
 			
@@ -466,7 +475,7 @@ sLONG XPosixProcessLauncher::Start(const EnvVarNamesAndValuesMap &inVarToUse)
 			fprintf(stderr, "********** XPosixProcessLauncher::Start/fork() -> child -> Error: [%s] execve/execv failed (%s)\n", fBinaryPath, strerror(errno));
 			fflush(stderr);
 						
-			exit(1);
+			_Exit(1);
 		}
 			break;
 			

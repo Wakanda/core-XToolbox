@@ -17,12 +17,6 @@
 #include "XLinuxSystem.h"
 #include "XLinuxProcParsers.h"
 #include "VString.h"
-// #include "VError.h"
-// #include "VValueBag.h"
-// #include "ILocalizer.h"
-
-// #include <sys/types.h>
-// #include <sys/sysctl.h>
 
 #include <time.h>
 #include <unistd.h>
@@ -30,7 +24,7 @@
 
 #if VERSION_LINUX_STRICT
 	#include <sys/sysinfo.h>
-	#include <bsd/random.h>
+	#include "bsd/stdlib.h"
 #endif
 
 

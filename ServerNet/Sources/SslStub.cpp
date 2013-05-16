@@ -125,9 +125,9 @@ int SNET_STDCALL SSLSTUB::SSL_CTX_use_certificate(SSL_CTX* ctx, X509* x)
 	return ::SSL_CTX_use_certificate(ctx, x);
 }
 
-int	SNET_STDCALL SSLSTUB::SSL_ctrl(SSL* ssl, int cmd, long larg, void *parg)
+int SNET_STDCALL SSLSTUB::SSL_add_client_CA(SSL* ssl, X509* x)
 {
-	return ::SSL_ctrl(ssl, cmd, larg, parg);
+	return ::SSL_add_client_CA(ssl, x);
 }
 
 void SNET_STDCALL SSLSTUB::SSL_free(SSL* ssl)
@@ -180,6 +180,11 @@ int SNET_STDCALL SSLSTUB::SSL_set_fd(SSL* ssl, int fd)
 	return ::SSL_set_fd(ssl, fd);
 }
 
+void SNET_STDCALL SSLSTUB::SSL_set_verify(SSL* ssl, int mode, int (SNET_CDECL *verify_callback)(int, X509_STORE_CTX*))
+{
+	return ::SSL_set_verify(ssl, mode, verify_callback);
+}
+
 int SNET_STDCALL SSLSTUB::SSL_shutdown(SSL* ssl)
 {
 	return ::SSL_shutdown(ssl);
@@ -208,6 +213,31 @@ const SSL_METHOD* SNET_STDCALL SSLSTUB::SSLv23_method()
 void SNET_STDCALL SSLSTUB::X509_free(X509* x)
 {
 	return ::X509_free(x);
+}
+
+X509_NAME* SNET_STDCALL SSLSTUB::X509_get_subject_name(X509* a)
+{
+	return ::X509_get_subject_name(a);
+}
+
+char* SNET_STDCALL SSLSTUB::X509_NAME_oneline(X509_NAME* a, char* buf, int size)
+{
+	return ::X509_NAME_oneline(a, buf, size);
+}
+
+X509* SNET_STDCALL SSLSTUB::X509_STORE_CTX_get_current_cert(X509_STORE_CTX* ctx)
+{
+	return ::X509_STORE_CTX_get_current_cert(ctx);
+}
+
+int SNET_STDCALL SSLSTUB::X509_STORE_CTX_get_error(X509_STORE_CTX* ctx)
+{
+	return ::X509_STORE_CTX_get_error(ctx);
+}
+
+int SNET_STDCALL SSLSTUB::X509_STORE_CTX_get_error_depth(X509_STORE_CTX* ctx)
+{
+	return ::X509_STORE_CTX_get_error_depth(ctx);
 }
 
 

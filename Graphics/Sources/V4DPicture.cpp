@@ -41,11 +41,11 @@ namespace VPicturesBagKeys
 
 const VPicture_info	VPicture::sInfo;
 
-void VPicture::Init(VPictureQDBridgeBase* inQDBridge,VMacPictureAllocatorBase* inMacAllocator)
+void VPicture::Init(VMacHandleAllocatorBase* inMacAllocator)
 {
 	VPictureCodecFactory::Init();
-	XBOX::VPictureData::InitStatic(inQDBridge,inMacAllocator);
-	XBOX::VPictureDataProvider::InitStatic(inMacAllocator);
+	XBOX::VPictureData::InitMemoryAllocator(inMacAllocator);
+	XBOX::VPictureDataProvider::InitMemoryAllocator(inMacAllocator);
 }
 void VPicture::Deinit()
 {
@@ -54,262 +54,10 @@ void VPicture::Deinit()
 	XBOX::VPictureDataProvider::DeinitStatic();
 }
 
-void xVPictureMapWatch::IW_GetPropInfo(sLONG inPropID,bool& outEditable,IWatchable_Base** outChild)
+void VPicture::InitQDBridge(VPictureQDBridgeBase* inQDBridge)
 {
-	if(inPropID==0)
-		return;
-	sLONG i;
-	outEditable=false;
-	_VPictDataMap_Iterrator it;
-	for(i=1,it=fMap->begin();it!=fMap->end();it++,i++)
-	{
-		if(i==inPropID)
-		{
-			if((*it).second)
-				*outChild=const_cast<VPictureData*>((*it).second);
-			else
-				*outChild=NULL;
-		}
-	}
+	XBOX::VPictureData::InitQDBridge(inQDBridge);
 }
-
-/*******************************************************/
-// debug code
-/*******************************************************/
-
-I4DPictureDebug::I4DPictureDebug()
-{
-
-}
-I4DPictureDebug::~I4DPictureDebug()
-{
-}
-void I4DPictureDebug::AddBreak(long id)
-{
-	fBreakMap[id]=1;
-}
-bool I4DPictureDebug::IsBreakEnable(long inID)const
-{
-	return fBreakMap[inID]!=0;
-}
-void I4DPictureDebug::RemoveBreak(long inID)
-{
-	fBreakMap[inID]=0;
-}
-void I4DPictureDebug::ToogleBreak(long inID) 
-{
-	Boolean b;
-	fBreakMap[inID]=!fBreakMap[inID];
-	b=fBreakMap[inID];
-	if(!b)
-		b=true;
-}
-void I4DPictureDebug::InvokeBreak(long inID) const
-{
-	if(IsBreakEnable(inID))
-	{
-		VDebugMgr::Break();
-	}
-}
-
-void VPicture::IW_GetPropName(sLONG inPropID,VValueSingle& outName)
-{
-	#if VERSIONDEBUG
-	switch(inPropID)
-	{
-	case 0:
-		outName.FromString(typeid(*this).name());
-		break;
-	case 1:
-		{
-			outName.FromString("VPictData Map");
-			break;
-		}
-	case 2:
-		{
-			outName.FromString("PicHandle");
-			break;
-		}
-	case 3:
-		{
-			outName.FromString("Size");
-			break;
-		}
-	case 4:
-		{
-			outName.FromString("RefCount");
-			break;
-		}
-	case 5:
-		{
-			outName.FromString("Cached CV");
-			break;
-		}
-	case 6:
-		{
-			outName.FromString("Width");
-			break;
-		}
-	case 7:
-		{
-			outName.FromString("Height");
-			break;
-		}
-	default:
-		outName.FromString("??????");
-		break;
-	}
-	#else
-	switch(inPropID)
-	{
-		case 0:
-			outName.FromString("Picture Info");
-			break;
-		case 1:
-		{
-			outName.FromString("size");
-			break;
-		}
-		case 2:
-		{
-			outName.FromString("width");
-			break;
-		}
-		case 3:
-		{
-			outName.FromString("height");
-			break;
-		}
-	}
-	#endif
-}
-void VPicture::IW_GetPropValue(sLONG inPropID,VValueSingle& outValue)
-{
-	VString tmp;
-	#if VERSIONDEBUG
-	switch(inPropID)
-	{
-	case 0:
-		IW_SetHexVal((sLONG_PTR)this,tmp);
-		tmp+=" map=";
-		tmp.AppendLong((sLONG)fPictDataMap.size());
-		outValue.FromString(tmp);
-		break;
-	case 1:
-		outValue.FromLong((sLONG)fPictDataMap.size());
-		break;
-	case 2:
-		outValue.FromLong(0);
-		break;
-	case 3:
-		IW_SetHexVal((uLONG)GetDataSize(),outValue);
-		break;
-	case 4:
-		outValue.FromLong(fInCVCache);
-		break;
-	case 5:
-		outValue.FromLong(GetWidth());
-		break;
-	case 6:
-		outValue.FromLong(GetHeight());
-		break;
-	}
-	#else
-	switch(inPropID)
-	{
-		case 1:
-			tmp.FromLong((sLONG)(GetDataSize()/1024));
-			tmp.AppendCString(" ko");
-			outValue.FromString(tmp);
-			break;
-		case 2:
-			outValue.FromLong(GetWidth());
-			break;
-		case 3:
-			outValue.FromLong(GetHeight());
-			break;
-	}
-	#endif
-}
-sLONG VPicture::IW_CountProperties()
-{
-	#if VERSIONDEBUG
-	return 7;
-	#else
-	return 4;
-	#endif
-}
-void VPicture::IW_SetPropValue(sLONG /*inPropID*/,VValueSingle& /*inValue*/)
-{
-
-}
-void VPicture::IW_GetPropInfo(sLONG inPropID,bool& outEditable,IWatchable_Base** outChild)
-{
-	#if VERSIONDEBUG
-	if(inPropID==1)
-	{
-		*outChild=&fMapWatch;
-	}
-	else
-	{
-		outEditable=false;
-	}
-	#else
-	*outChild=0;
-	outEditable=false;
-	#endif
-}
-short VPicture::IW_GetIconID(sLONG inPropID)
-{
-	short id=925;
-	#if VERSIONDEBUG
-	if(fInCVCache && inPropID==0)
-		id= 282;
-	#endif
-	return id;
-}
-#if 0
-bool VPicture::IW_UseCustomMenu(long inPropID,IWatchableMenuInfoArray &outmenuinfo)
-{
-	#if !VERSIONDEBUG
-	return false;
-	#endif
-	bool result=false;
-	IWatchableMenuInfo info;
-	switch(inPropID)
-	{
-	case 0:
-		{
-			result=true;
-			info.SetMenuItemInfo("break on delete",true,IsBreakEnable(XBOX::kPict_DBG_Delete),XBOX::kPict_DBG_Delete);
-			outmenuinfo.push_back(info);
-			info.SetMenuItemInfo("break on copy",true,IsBreakEnable(XBOX::kPict_DBG_Copy),XBOX::kPict_DBG_Copy);
-			outmenuinfo.push_back(info);
-			break;
-		}
-	default:
-		{
-			#if 0
-			if(fPictData)
-			{
-				result=true;
-				info.SetMenuItemInfo("break on delete",true,IsBreakEnable(XBOX::kPictData_DBG_Delete),XBOX::kPictData_DBG_Delete);
-				outmenuinfo.push_back(info);
-				info.SetMenuItemInfo("break on retain",true,IsBreakEnable(XBOX::kPictData_DBG_Retain),XBOX::kPictData_DBG_Retain);
-				outmenuinfo.push_back(info);
-				info.SetMenuItemInfo("break on release",true,IsBreakEnable(XBOX::kPictData_DBG_Release),XBOX::kPictData_DBG_Release);
-				outmenuinfo.push_back(info);
-			}
-			#endif
-			break;
-		}
-	}
-	return result;
-}
-void VPicture::IW_HandleCustomMenu(sLONG /*inID*/)
-{
-}
-#endif
 
 
 /**********************************************************/
@@ -488,18 +236,15 @@ void VPicture::_Init(bool inSetNULL)
 		SetNull(true);
 }
 VPicture::VPicture()
-:fMapWatch(&fPictDataMap)
 {
 	_Init(true);
 }
 VPicture::VPicture(VStream* inStream,_VPictureAccumulator* inRecorder)
-:fMapWatch(&fPictDataMap)
 {
 	_Init();
 	_FromStream(inStream,inRecorder);
 }
 VPicture::VPicture(VBlob* inBlob)
-:fMapWatch(&fPictDataMap)
 {
 	_Init();
 	
@@ -509,7 +254,6 @@ VPicture::VPicture(VBlob* inBlob)
 }
 
 VPicture::VPicture(const VPictureData* inData)
-:fMapWatch(&fPictDataMap)
 {
 	_Init();
 	
@@ -517,23 +261,21 @@ VPicture::VPicture(const VPictureData* inData)
 }
 
 VPicture::VPicture(const VPicture& inData)
-:fMapWatch(&fPictDataMap)
 {
 	_Init();
 	
-	FromVPicture_Retain(inData);
+	FromVPicture_Retain(inData,false);
 }
 
 VPicture::VPicture(VFile& inFile,bool inAllowUnknownData)
-:fMapWatch(&fPictDataMap)
 {
 	_Init();
 	
 	FromVFile(inFile,inAllowUnknownData);
 }
 
+#if !VERSION_LINUX
 VPicture::VPicture(PortRef inPortRef,VRect inBounds)
-:fMapWatch(&fPictDataMap)
 {
 	_Init(true);
 	VPictureData* data=VPictureData::CreatePictureDataFromPortRef(inPortRef,inBounds);
@@ -545,6 +287,7 @@ VPicture::VPicture(PortRef inPortRef,VRect inBounds)
 		data->Release();
 	}
 }
+#endif
 
 VPicture::~VPicture()
 {
@@ -555,7 +298,7 @@ VPicture::~VPicture()
 
 VPicture& VPicture::operator=(const VPicture& inPict)
 {
-	FromVPicture_Retain(inPict);
+	FromVPicture_Retain(inPict,false);
 	return *this;
 }
 
@@ -665,6 +408,36 @@ void VPicture::GetKeywords( VString& outKeywords)
 	ReleaseRefCountable( &picdata);
 }
 
+VError VPicture::ImportFromStream (VStream& ioStream) 
+{
+	VError err=VE_INVALID_PARAMETER;
+	
+	Clear();
+	
+	VPictureDataProvider* dataprovider=VPictureDataProvider::Create(ioStream);
+	
+	if(!dataprovider)
+	{
+		err=VTask::GetCurrent()->GetLastError();
+	}
+	else
+	{
+		VPictureCodecFactoryRef fact;
+		VPictureData* data=fact->CreatePictureData(*dataprovider,NULL);
+		if(data)
+		{
+			FromVPictureData(data);
+			data->Release();
+			err=VE_OK;
+		}
+		else
+		{
+			err=VE_INVALID_PARAMETER;
+		}
+		dataprovider->Release();	
+	}
+	return err;
+}
 
 void VPicture::FromVFile(VFile& inFile,bool inAllowUnknownData)
 {
@@ -827,7 +600,7 @@ VError VPicture::_SaveExtensions(VPtrStream& outStream) const
 	err=outStream.OpenWriting();
 	if(vThrowError(err)==VE_OK)
 	{
-		for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end() && err==VE_OK;it++)
+		for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end() && err==VE_OK;it++)
 		{
 			if((*it).second)
 			{
@@ -1257,6 +1030,8 @@ VError VPicture::_BuildData(xVPictureBlock* inData,sLONG version,std::vector<VSt
 	}
 	return err;
 }
+
+#if !VERSION_LINUX
 VPicture* VPicture::CreateGrayPicture()const
 {
 	VPicture* result=0;
@@ -1275,6 +1050,8 @@ VPicture* VPicture::CreateGrayPicture()const
 	}
 	return result;
 }
+#endif
+
 const VPictureData* VPicture::_GetBestForDisplay()
 {
 	const VPictureData* data=0;
@@ -1421,7 +1198,7 @@ void VPicture::FromValue( const VValueSingle& inValue)
 {
 	if(inValue.GetValueKind()==VK_IMAGE)
 	{
-		FromVPicture_Copy(dynamic_cast<const VPicture&>(inValue));
+		FromVPicture_Copy(dynamic_cast<const VPicture&>(inValue),false);
 	}
 	else if (inValue.GetValueKind()==VK_BLOB)
 	{
@@ -1479,7 +1256,7 @@ bool VPicture::AppendPictData(const VPictureData* inData,bool inReplaceIfExist,b
 sLONG VPicture::_GetMaxPictDataRefcount()
 {
 	sLONG result=0,refcount;
-	for(_VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -1495,9 +1272,9 @@ sLONG VPicture::_GetMaxPictDataRefcount()
 
 void VPicture::RemovePastablePicData()
 {
-	_VPictDataMap tmpmap;
+	VPictDataMap tmpmap;
 	
-	for(_VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -1525,7 +1302,7 @@ const VPictureData* VPicture::_GetNthPictData(VIndex inIndex) const
 	const VPictureData* result=0;
 	if(inIndex>=1 && inIndex<=fPictDataMap.size())
 	{
-		_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();
+		VPictDataMap_Const_Iterrator it=fPictDataMap.begin();
 		advance(it,inIndex-1);
 		if(it!=fPictDataMap.end())
 		{
@@ -1604,7 +1381,7 @@ void VPicture::GetMimeList(VString& outMimes) const
 	
 	outMimes="";
 	
-	for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -1656,7 +1433,7 @@ const VPictureData* VPicture::_GetPictDataByMimeType(const VString& inMime) cons
 {
 	VPictureCodecFactoryRef fact;
 	const VPictureData* result=0;
-	for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -1680,7 +1457,7 @@ const VPictureData* VPicture::_GetPictDataByExtension(const VString& inExt) cons
 	
 	VPictureCodecFactoryRef fact;
 	const VPictureData* result=0;
-	for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -1708,7 +1485,7 @@ const VPictureData* VPicture::_GetPictDataByIdentifier(const VString& inID) cons
 	const VPictureCodec* refdeco=fact->RetainDecoderByIdentifier(inID);
 	if(refdeco)
 	{
-		for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+		for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 		{
 			if((*it).second)
 			{
@@ -1783,6 +1560,8 @@ VError VPicture::ReadFromBlob(VBlob& inBlob)
 	return _FromStream(&st);
 }
 
+#if !VERSION_LINUX
+//TODO - jmo : Voir avec Patrick pour virer le VHandle ?
 void VPicture::FromMacHandle(void* inMacPict,bool trydecode,bool inWithPicEnd)
 {
 	_SetValueSourceDirty();
@@ -1805,10 +1584,11 @@ void VPicture::FromMacHandle(void* inMacPict,bool trydecode,bool inWithPicEnd)
 		{
 			if(trydecode)
 			{
-				VHandle vh=VPictureData::GetMacAllocator()->ToVHandle(inMacPict);
-				if(vh)
+				VSize ptrsize;
+				VPtr vp=VPictureData::GetMacAllocator()->ToVPtr(inMacPict,ptrsize);
+				if(vp)
 				{
-					XBOX::VPictureDataProvider* datasource= XBOX::VPictureDataProvider::Create(vh,true);
+					XBOX::VPictureDataProvider* datasource= XBOX::VPictureDataProvider::Create(vp,true,ptrsize);
 					if(datasource)
 					{
 						VPictureCodecFactoryRef fact;
@@ -1821,7 +1601,7 @@ void VPicture::FromMacHandle(void* inMacPict,bool trydecode,bool inWithPicEnd)
 						datasource->Release();
 					}
 					else
-						VMemory::DisposeHandle(vh);
+						VMemory::DisposePtr(vp);
 				}
 			}
 			else
@@ -1838,6 +1618,7 @@ void VPicture::FromMacHandle(void* inMacPict,bool trydecode,bool inWithPicEnd)
 	}
 	_UpdateNullState();
 }
+#endif
 
 void VPicture::FromPtr(void* inPtr,VSize inSize)
 {
@@ -1950,7 +1731,7 @@ void VPicture::Draw(Gdiplus::Graphics* inPortRef,const VRect& r,class VPictureDr
 			data->DrawInGDIPlusGraphics(inPortRef,r,inSet);
 	}
 }
-#else
+#elif VERSIONMAC
 void VPicture::Draw(CGContextRef inPortRef,const VRect& r,class VPictureDrawSettings* inSet)const
 {
 	const VPictureData* data=0;
@@ -1971,6 +1752,8 @@ void VPicture::Draw(CGContextRef inPortRef,const VRect& r,class VPictureDrawSett
 	}
 }
 #endif
+
+#if !VERSION_LINUX
 void VPicture::Draw(PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet)const
 {
 	const VPictureData* data=0;
@@ -2049,13 +1832,14 @@ void VPicture::Print(VGraphicContext* inGraphicContext,const VRect& r,class VPic
 			data->DrawInVGraphicContext(*inGraphicContext,r,inSet);
 	}
 }
+#endif
 
 void VPicture::GetValue( VValueSingle& outValue) const
 {
 	if(outValue.GetValueKind()==VK_IMAGE)
 	{
 		VPicture& outPicture=static_cast<VPicture&>(outValue);
-		outPicture.FromVPicture_Retain(*this);
+		outPicture.FromVPicture_Retain(*this,false);
 	}
 	else if ( outValue.GetValueKind()==VK_BLOB )
 	{
@@ -2082,7 +1866,7 @@ void VPicture::Clear()
 	fBestForPrinting=0;
 	SetNull(true);
 }
-void VPicture::FromVPicture_Retain(const VPicture& inData,bool inKeepSettings)
+void VPicture::FromVPicture_Retain(const VPicture& inData,bool inKeepSettings,bool inCopyOutsidePath)
 {
 	bool done=false;
 	_SetValueSourceDirty();
@@ -2119,14 +1903,15 @@ void VPicture::FromVPicture_Retain(const VPicture& inData,bool inKeepSettings)
 		fBestForPrinting=inData.fBestForPrinting;
 		fSourceFileName=inData.fSourceFileName;
 	}
-
-	if (inData.fVValueSource != NULL)
-		inData.fVValueSource->GetOutsidePath(fOutsidePath);
-	else
-		fOutsidePath = inData.fOutsidePath;
-	if (fVValueSource != NULL)
-		fVValueSource->SetOutsidePath(fOutsidePath);
-
+	if(inCopyOutsidePath)
+	{
+		if (inData.fVValueSource != NULL)
+			inData.fVValueSource->GetOutsidePath(fOutsidePath);
+		else
+			fOutsidePath = inData.fOutsidePath;
+		if (fVValueSource != NULL)
+			fVValueSource->SetOutsidePath(fOutsidePath);
+	}
 	_UpdateNullState();
 }
 
@@ -2145,7 +1930,7 @@ void VPicture::_FullyClone(const VPicture& inData,bool ForAPush)
 	fVValueSourceDirty=inData.fVValueSourceDirty;
 	_UpdateNullState();
 }
-void VPicture::FromVPicture_Copy(const VPicture& inData,bool inKeepSettings)
+void VPicture::FromVPicture_Copy(const VPicture& inData,bool inKeepSettings,bool inCopyOutsidePath)
 {
 	bool done=false;
 	if(inData.fVValueSource)
@@ -2174,24 +1959,25 @@ void VPicture::FromVPicture_Copy(const VPicture& inData,bool inKeepSettings)
 		
 		fSourceFileName=inData.fSourceFileName;
 	}
-
-	if (inData.fVValueSource != NULL)
-		inData.fVValueSource->GetOutsidePath(fOutsidePath);
-	else
-		fOutsidePath = inData.fOutsidePath;
-	if (fVValueSource != NULL)
-		fVValueSource->SetOutsidePath(fOutsidePath);
-
+	if(inCopyOutsidePath)
+	{
+		if (inData.fVValueSource != NULL)
+			inData.fVValueSource->GetOutsidePath(fOutsidePath);
+		else
+			fOutsidePath = inData.fOutsidePath;
+		if (fVValueSource != NULL)
+			fVValueSource->SetOutsidePath(fOutsidePath);
+	}
 	_SetValueSourceDirty();
 	_UpdateNullState();
 }
 
-void VPicture::FromVPicture_Retain(const VPicture* inData,bool inKeepSettings)
+void VPicture::FromVPicture_Retain(const VPicture* inData,bool inKeepSettings,bool inCopyOutsidePath)
 {
 	_SetValueSourceDirty();
 	if(inData)
 	{
-		FromVPicture_Retain(*inData,inKeepSettings);
+		FromVPicture_Retain(*inData,inKeepSettings,inCopyOutsidePath);
 	}
 	else
 	{
@@ -2199,12 +1985,12 @@ void VPicture::FromVPicture_Retain(const VPicture* inData,bool inKeepSettings)
 	}
 }
 
-void VPicture::FromVPicture_Copy(const VPicture* inData,bool inKeepSettings)
+void VPicture::FromVPicture_Copy(const VPicture* inData,bool inKeepSettings,bool inCopyOutsidePath)
 {
 	_SetValueSourceDirty();
 	if(inData)
 	{
-		FromVPicture_Copy(*inData,inKeepSettings);
+		FromVPicture_Copy(*inData,inKeepSettings,inCopyOutsidePath);
 	}
 	else
 	{
@@ -2212,6 +1998,8 @@ void VPicture::FromVPicture_Copy(const VPicture* inData,bool inKeepSettings)
 	}
 	
 }
+
+#if WITH_VMemoryMgr
 void* VPicture::GetPicHandle(bool inAppendPicEnd) const
 {
 	void* result=0;
@@ -2241,6 +2029,8 @@ void* VPicture::GetPicHandle(bool inAppendPicEnd) const
 
 	return result;
 }
+#endif
+
 VSize VPicture::GetDataSize(_VPictureAccumulator* inRecorder) const
 {
 	VSize result=0;
@@ -2351,6 +2141,7 @@ sLONG VPicture::GetWidth(bool inIgnoreTransform)const
 	const VPictureData* data=_GetDefault();
 	if(data)
 	{
+#if !VERSION_LINUX
 		if(!inIgnoreTransform)
 		{
 			VRect pictrect(0,0,data->GetWidth(),data->GetHeight());
@@ -2359,6 +2150,7 @@ sLONG VPicture::GetWidth(bool inIgnoreTransform)const
 			return pictpoly.GetWidth();
 		}
 		else
+#endif
 		{
 			return data->GetWidth(); 
 		}
@@ -2371,6 +2163,7 @@ sLONG VPicture::GetHeight(bool inIgnoreTransform)const
 	const VPictureData* data=_GetDefault();
 	if(data)
 	{
+#if !VERSION_LINUX
 		if(!inIgnoreTransform)
 		{
 			VRect pictrect(0,0,data->GetWidth(),data->GetHeight());
@@ -2379,6 +2172,7 @@ sLONG VPicture::GetHeight(bool inIgnoreTransform)const
 			return pictpoly.GetHeight();
 		}
 		else
+#endif
 		{
 			return data->GetHeight();
 		}
@@ -2432,7 +2226,7 @@ Boolean VPicture::FromValueSameKind(const VValue* inValue)
 	XBOX_ASSERT_KINDOF(VPicture, inValue);
 	
 	const VPicture* theValue = reinterpret_cast<const VPicture*>(inValue);
-	FromVPicture_Retain(theValue);
+	FromVPicture_Retain(theValue,false);
 	return true;
 }
 
@@ -2694,7 +2488,7 @@ void VPicture::_ClearMap()
 {
 	if(fPictDataMap.size())
 	{
-		for(_VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+		for(VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 		{
 			if((*it).second)
 				(*it).second->Release();
@@ -2705,11 +2499,11 @@ void VPicture::_ClearMap()
 	fBestForPrinting=0;
 }
 
-void VPicture::_CopyMap_Retain(const _VPictDataMap& inSrcMap)
+void VPicture::_CopyMap_Retain(const VPictDataMap& inSrcMap)
 {
 	_ClearMap();
 	fPictDataMap=inSrcMap;
-	for(_VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -2717,11 +2511,11 @@ void VPicture::_CopyMap_Retain(const _VPictDataMap& inSrcMap)
 		}
 	}
 }
-void VPicture::_CopyMap_Copy(const _VPictDataMap& inSrcMap)
+void VPicture::_CopyMap_Copy(const VPictDataMap& inSrcMap)
 {
 	_ClearMap();
 	fPictDataMap=inSrcMap;
-	for(_VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -2729,10 +2523,11 @@ void VPicture::_CopyMap_Copy(const _VPictDataMap& inSrcMap)
 		}
 	}
 }
+
 VSize VPicture::_GetDataSize(_VPictureAccumulator* inRecorder) const
 {
 	VSize result=0;
-	for( _VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for( VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{
@@ -2783,6 +2578,7 @@ VError VPicture::_LoadFromVValueSource()
 					{
 						FromVPictureData(data);
 						data->Release();
+						_SetValueSourceDirty(false);
 					}
 					else
 					{
@@ -2808,6 +2604,7 @@ VError VPicture::_LoadFromVValueSource()
 								{
 									FromVPictureData(data);
 									data->Release();
+									_SetValueSourceDirty(false);
 								}
 								decoder->Release();
 							}
@@ -2957,7 +2754,7 @@ VSize VPicture::_CountSaveable()const
 {
 	VSize result=0;
 	
-	for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		result+= ((*it).second!=0);
 	}
@@ -3050,7 +2847,7 @@ VError VPicture::_Save(VBlob* inBlob,bool inEvenIfEmpty,_VPictureAccumulator* in
 					{
 						dataoffset=headersize + header->fExtraDataSize + header->fBagSize + header->fExtensionsBufferSize + mapsize;
 						
-						for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+						for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 						{
 							if((*it).second)
 							{
@@ -3162,6 +2959,7 @@ VError VPicture::_Save(VBlob* inBlob,bool inEvenIfEmpty,_VPictureAccumulator* in
 	return err;
 }
 
+#if !VERSION_LINUX
 VPicture* VPicture::BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureMosaic inMode,bool inNoAlpha,const VColor& inColor)const
 {
 	VPictureData* thumbdata=NULL;
@@ -3189,6 +2987,7 @@ VPicture* VPicture::BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureMosaic in
 	}
 	return result;
 }
+#endif
 
 const VValueBag* VPicture::RetainMetaDatas(const VString* inPictureIdentifier)
 {
@@ -3253,7 +3052,7 @@ void VPicture::DumpPictureInfo(VString& outDump,sLONG level) const
 		
 	outDump+="\r\n";
 	
-	for(_VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
+	for(VPictDataMap_Const_Iterrator it=fPictDataMap.begin();it!=fPictDataMap.end();it++)
 	{
 		if((*it).second)
 		{

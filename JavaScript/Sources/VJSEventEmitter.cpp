@@ -19,18 +19,18 @@
 
 #include "VJSContext.h"
 #include "VJSGlobalClass.h"
+#include "VJSEvent.h"
 
 USING_TOOLBOX_NAMESPACE
 
-void VJSEventEmitter::AddListener (const XBOX::VString &inEventName, XBOX::VJSObject inCallback, bool inOnce)
+void VJSEventEmitter::AddListener (VJSWorker *inWorker, const XBOX::VString &inEventName, XBOX::VJSObject inCallback, bool inOnce)
 {
+	xbox_assert(inWorker != NULL);
+
 	// Note: That it is possible to add a same function several times for a single event.
 
 	SListener	newListener;
-/*
-	XBOX::DebugMsg("VJSEventEmitter:AddListener(): context %lu: objectref: %lu\n", 
-		(unsigned long) inCallback.GetContextRef(), (unsigned long) inCallback.GetObjectRef());
-*/
+
 	JS4D::ProtectValue(inCallback.GetContextRef(), inCallback.GetObjectRef());
 
 	newListener.fOnce = inOnce;
@@ -55,7 +55,9 @@ void VJSEventEmitter::AddListener (const XBOX::VString &inEventName, XBOX::VJSOb
 
 	}
 
-	// TODO: Queue a newListener event. Or not! Is this feature useful?
+	// Queue a "newListener" event.
+
+	inWorker->QueueEvent(VJSNewListenerEvent::Create(this, inEventName, newListener.fCallback));
 }
 
 bool VJSEventEmitter::HasListener (const XBOX::VString &inEventName)
@@ -83,8 +85,6 @@ void VJSEventEmitter::Emit (XBOX::VJSContext inContext, const XBOX::VString &inE
 
 		for (i = callbackList.begin(); i != callbackList.end(); i++) {
 
-//				XBOX::DebugMsg("VJSEventEmitter::emit() context %lu\n", (unsigned long) callbackObject.GetContextRef());
-
 			callbackObject.SetObjectRef(*i);
 			globalObject.CallFunction(callbackObject, inArguments, NULL, NULL);
 
@@ -110,12 +110,6 @@ VJSEventEmitter::~VJSEventEmitter ()
 		for (it2 = fAllListeners[it1->first].begin(); it2 != fAllListeners[it1->first].end(); it2++) {
 
 			;	
-	
-/*
-			XBOX::DebugMsg("~VJSEventEmitter() context %lu: objectref: %lu\n", 
-				(unsigned long) it2->fContext, (unsigned long) it2->fCallback);
-
-*/
 
 		// Do not do unprotect, the heap has always been cleaned-up by garbage collector.
 			
@@ -368,9 +362,18 @@ void VJSEventEmitter::_add (XBOX::VJSParms_callStaticFunction &ioParms, VJSEvent
 
 		XBOX::vThrowError(XBOX::VE_INVALID_PARAMETER);
 		
-	else
+	else {
 
-		inEventEmitter->AddListener(eventName, callbackObject, inOnce);
+		VJSWorker	*worker;
+
+		worker = VJSWorker::RetainWorker(ioParms.GetContext());
+		xbox_assert(worker != NULL);
+	
+		inEventEmitter->AddListener(worker, eventName, callbackObject, inOnce);
+
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+	}
 }
 
 sLONG VJSEventEmitter::_getCallbacks (const XBOX::VString &inEventName, std::list<XBOX::JS4D::ObjectRef> *outList, bool inRemoveOnce)
@@ -418,4 +421,62 @@ sLONG VJSEventEmitter::_getCallbacks (const XBOX::VString &inEventName, std::lis
 		}
 
 	return n;
+}
+
+void VJSEventEmitterClass ::GetDefinition (ClassDefinition &outDefinition)
+{
+	outDefinition.className			= "EventEmitter";	
+	outDefinition.callAsConstructor	= js_callAsConstructor<_Construct>;
+    outDefinition.initialize		= js_initialize<_Initialize>;
+    outDefinition.finalize			= js_finalize<_Finalize>;
+}
+
+XBOX::VJSObject VJSEventEmitterClass::MakeModuleObject (const XBOX::VJSContext &inContext)
+{
+	XBOX::VJSObject	module(inContext);
+
+	module.MakeEmpty();
+	module.SetProperty("EventEmitter", _NewInstance(inContext), JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete);
+	
+	return module;
+}
+
+void VJSEventEmitterClass::_Construct (XBOX::VJSParms_callAsConstructor &ioParms)
+{
+	ioParms.ReturnConstructedObject(_NewInstance(ioParms.GetContext()));
+}
+
+void VJSEventEmitterClass::_Initialize (const XBOX::VJSParms_initialize &inParms, VJSEventEmitter *inEventEmitter)
+{
+	xbox_assert(inEventEmitter != NULL);
+
+	inEventEmitter->Retain();
+	inEventEmitter->SetupEventEmitter(inParms);
+}
+
+void VJSEventEmitterClass::_Finalize (const XBOX::VJSParms_finalize &inParms, VJSEventEmitter *inEventEmitter)
+{
+	xbox_assert(inEventEmitter != NULL);
+
+	inEventEmitter->Release();
+}
+
+XBOX::VJSObject VJSEventEmitterClass::_NewInstance (const XBOX::VJSContext &inContext)
+{
+	XBOX::VJSObject	constructedObject(inContext);
+	VJSEventEmitter	*eventEmitter;
+
+	if ((eventEmitter = new VJSEventEmitter()) == NULL) {
+
+		XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
+		constructedObject.SetNull();
+	
+	} else {
+
+		constructedObject = CreateInstance(inContext, eventEmitter);
+		eventEmitter->Release();
+
+	}
+
+	return constructedObject;
 }

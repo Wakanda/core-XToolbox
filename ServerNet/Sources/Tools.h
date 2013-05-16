@@ -92,6 +92,8 @@ namespace ServerNetTools
 
 	bool XTOOLBOX_API IsLocalInterface(const VString& inIP);
 
+	bool XTOOLBOX_API IsLoopBack(const VString& inIP);
+
 	sLONG XTOOLBOX_API GetHostIPs(std::vector<VString>* outIPs);
 
 	sLONG XTOOLBOX_API GetHostIPs(VString* outIPs, const VString& inSep);
@@ -102,7 +104,9 @@ namespace ServerNetTools
 
 	IP4 XTOOLBOX_API GetIP4FromString(const VString& inIP);
 
-	VString XTOOLBOX_API AddIPv6Brackets(VString inIP);
+	VString XTOOLBOX_API AddIPv6Brackets(const VString& inIP);
+
+	VString XTOOLBOX_API RemoveIPv6Brackets(const VString& inIP);
 
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +126,14 @@ namespace ServerNetTools
 
 
 //StErrorContextInstaller(bool inKeepingErrors, bool inSilentContext)
+
+//An error context for places where we do not care about errors
+class StKillErrorContext : public StErrorContextInstaller
+{
+public :
+
+	StKillErrorContext() : StErrorContextInstaller(false /*we drop errors*/, true /*from now on, popups are forbidden*/) { }
+};
 
 //An error context for loop, to flush errors on each iteration.
 class StDropErrorContext : public StErrorContextInstaller

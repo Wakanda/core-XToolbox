@@ -214,6 +214,7 @@ class XTOOLBOX_API VJSONObject : public VObject, public IRefCountable
 {
 	friend class VJSONPropertyIterator;
 	friend class VJSONPropertyConstIterator;
+	friend class VJSONPropertyConstOrderedIterator;
 	friend class VJSONWriter;
 public:
 			// construct an empty collection
@@ -223,9 +224,65 @@ public:
 			// gets the property named inName or returns a JSON_undefined value if property is not found.
 	virtual	VJSONValue				GetProperty( const VString& inName) const;
 
+			
+			// conveniency getters that does nothing and returns false if value type mismatches
+			
+			template<class T>
+			bool GetPropertyAsNumber( const XBOX::VString& inPropertyName, T *outValue) const
+			{
+				VJSONValue value( GetProperty( inPropertyName));
+				if (!value.IsNumber())
+					return false;
+				
+				*outValue = static_cast<T>( value.GetNumber());
+				return true;
+			}
+
+
+			bool GetPropertyAsBool( const XBOX::VString& inPropertyName, bool *outValue) const
+			{
+				VJSONValue value( GetProperty( inPropertyName));
+				if (!value.IsBool())
+					return false;
+				
+				*outValue = value.GetBool();
+				return true;
+			}
+
+
+			bool GetPropertyAsString( const XBOX::VString& inPropertyName, XBOX::VString& outValue) const
+			{
+				VJSONValue value( GetProperty( inPropertyName));
+				if (!value.IsString())
+					return false;
+				
+				value.GetString( outValue);
+				return true;
+			}
+
+
 			// if inValue is not JSON_undefined, SetProperty sets the property named inName with specified value, replacing previous one if it exists.
 			// else the property is removed from the collection.
 	virtual	bool					SetProperty( const VString& inName, const VJSONValue& inValue);
+
+			// conveniency setters
+			
+			template<class T>
+			bool					SetPropertyAsNumber( const VString& inName, const T& inValue)
+			{
+				return SetProperty( inName, VJSONValue( static_cast<double>( inValue)));
+			}
+
+			bool					SetPropertyAsBool( const VString& inName, bool inValue)
+			{
+				return SetProperty( inName, VJSONValue( inValue ? JSON_true : JSON_false));
+			}
+
+			bool					SetPropertyAsString( const VString& inName, const VString& inValue)
+			{
+				return SetProperty( inName, VJSONValue( inValue));
+			}
+
 
 			// remove the property named inName.
 			// equivalent to SetProperty( inName, VJSONValue( JSON_undefined));
@@ -247,6 +304,10 @@ public:
 
 			VJSONGraph**			GetGraph() const		{ return &fGraph;}
 
+
+			// Merge with another object
+	virtual VError					MergeWith( const VJSONObject* inOther, bool inPrivilegesSourceOnConflict = false);
+
 			// to detect leaks
 	static	sLONG					GetInstancesCount()					{ return sCount;}
 
@@ -261,8 +322,10 @@ protected:
 
 private:
 	static	sLONG					sCount;
-			typedef unordered_map_VString<VJSONValue>	MapType;
+			typedef unordered_map_VString<std::pair<VJSONValue,size_t> >	MapType;
 			MapType					fMap;
+			typedef std::vector<const UniChar*> VectorOfPropertyNames;
+			VectorOfPropertyNames	fNames;
 	mutable	VJSONGraph*				fGraph;
 };
 
@@ -281,13 +344,13 @@ private:
 	}
 	
 */
-class VJSONPropertyIterator : public XBOX::VObject
+class XTOOLBOX_API VJSONPropertyIterator : public XBOX::VObject
 {
 public:
 			VJSONPropertyIterator( VJSONObject *inObject):fIterator( inObject->fMap.begin()), fIterator_end( inObject->fMap.end()) {}
 	
 			const VString&			GetName() const		{ return fIterator->first;}
-			VJSONValue&				GetValue() const	{ return fIterator->second;}
+			VJSONValue&				GetValue() const	{ return fIterator->second.first;}
 			
 			VJSONPropertyIterator&	operator++()		{ ++fIterator; return *this;}
 			
@@ -300,13 +363,14 @@ private:
 			VJSONObject::MapType::iterator	fIterator_end;
 };
 
-class VJSONPropertyConstIterator : public XBOX::VObject
+
+class XTOOLBOX_API VJSONPropertyConstIterator : public XBOX::VObject
 {
 public:
 			VJSONPropertyConstIterator( const VJSONObject *inObject):fIterator( inObject->fMap.begin()), fIterator_end( inObject->fMap.end()) {}
 
 			const VString&			GetName() const		{ return fIterator->first;}
-			const VJSONValue&		GetValue() const	{ return fIterator->second;}
+			const VJSONValue&		GetValue() const	{ return fIterator->second.first;}
 
 			VJSONPropertyConstIterator&	operator++()	{ ++fIterator; return *this;}
 
@@ -317,6 +381,29 @@ private:
 			VJSONPropertyConstIterator&	operator=( const VJSONPropertyConstIterator&);	// forbidden
 			VJSONObject::MapType::const_iterator	fIterator;
 			VJSONObject::MapType::const_iterator	fIterator_end;
+};
+
+
+class XTOOLBOX_API VJSONPropertyConstOrderedIterator : public XBOX::VObject
+{
+public:
+			VJSONPropertyConstOrderedIterator( const VJSONObject *inObject);
+
+			const VString&			GetName() const		{ return (*fIterator)->first;}
+			const VJSONValue&		GetValue() const	{ return (*fIterator)->second.first;}
+
+			VJSONPropertyConstOrderedIterator&	operator++()	{ ++fIterator; return *this;}
+
+			bool					IsValid() const		{ return fIterator != fIterator_end;}
+
+private:
+			VJSONPropertyConstOrderedIterator( const VJSONPropertyConstOrderedIterator&);				// forbidden
+			VJSONPropertyConstOrderedIterator&	operator=( const VJSONPropertyConstOrderedIterator&);	// forbidden
+			
+			typedef std::vector<const VJSONObject::MapType::value_type*>	VectorOfMappedValueRef;
+			VectorOfMappedValueRef					fMappedValues;
+			VectorOfMappedValueRef::const_iterator	fIterator;
+			VectorOfMappedValueRef::const_iterator	fIterator_end;
 };
 
 
@@ -395,6 +482,8 @@ public:
 			VError					StringifyValue( const VJSONValue& inValue, VString& outString);
 			VError					StringifyObject( const VJSONObject *inObject, VString& outString);
 			VError					StringifyArray( const VJSONArray *inArray, VString& outString);
+
+	static	VError					StringifyValueToFile( VFile *inFile, const VJSONValue& inValue, JSONOption inOptions = JSON_WithQuotesIfNecessary);
 			
 protected:
 			void					IncrementLevel();

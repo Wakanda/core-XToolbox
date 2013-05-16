@@ -40,12 +40,8 @@ void VGraphicPath::_Init( bool inComputeBoundsAccurate, bool inCreateStorageForC
 		fDrawCmds.reserve(16); //slightly optimize allocation
 	fHasBezier = false;
 
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (VWinD2DGraphicContext::IsAvailable())
-		fPath = NULL;
-	else
-#endif
-		fPath = new Gdiplus::GraphicsPath( Gdiplus::FillModeAlternate);
+	fPath = new Gdiplus::GraphicsPath( Gdiplus::FillModeAlternate);
+	
 	fLastPoint.x = 0.0f;
 	fLastPoint.y = 0.0f;
 
@@ -124,12 +120,7 @@ VGraphicPath& VGraphicPath::operator = (const VGraphicPath& inOriginal)
 	fBounds = inOriginal.fBounds;
 	fPolygon = inOriginal.fPolygon;
 
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (VWinD2DGraphicContext::IsAvailable())
-		fPath = NULL;
-	else
-#endif
-		fPath = inOriginal.fPath->Clone();
+	fPath = inOriginal.fPath->Clone();
 
 	fComputeBoundsAccurate = inOriginal.fComputeBoundsAccurate;
 	if (fComputeBoundsAccurate)
@@ -260,14 +251,14 @@ VGraphicPath *VGraphicPath::CloneWithCrispEdges( VGraphicContext *inGC, bool inF
 		case GPDCT_BEGIN_SUBPATH_AT:
 			{
 			VPoint pt(*(it->GetPoints()));
-			inGC->_CEAdjustPointInTransformedSpace( pt, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( pt, inFillOnly);
 			path->BeginSubPathAt( pt);
 			}
 			break;
 		case GPDCT_ADD_LINE_TO:
 			{
 			VPoint pt(*(it->GetPoints()));
-			inGC->_CEAdjustPointInTransformedSpace( pt, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( pt, inFillOnly);
 			path->AddLineTo( pt);
 			}
 			break;
@@ -277,9 +268,9 @@ VGraphicPath *VGraphicPath::CloneWithCrispEdges( VGraphicContext *inGC, bool inF
 			VPoint d(*(it->GetPoints()+1));
 			VPoint c2(*(it->GetPoints()+2));
 
-			inGC->_CEAdjustPointInTransformedSpace( c1, inFillOnly);
-			inGC->_CEAdjustPointInTransformedSpace( d, inFillOnly);
-			inGC->_CEAdjustPointInTransformedSpace( c2, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( c1, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( d, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( c2, inFillOnly);
 			path->AddBezierTo( c1, d, c2);
 			}
 			break;
@@ -289,7 +280,7 @@ VGraphicPath *VGraphicPath::CloneWithCrispEdges( VGraphicContext *inGC, bool inF
 		case GPDCT_ADD_OVAL:
 			{
 			VRect rect(it->GetRect());
-			inGC->_CEAdjustRectInTransformedSpace( rect, inFillOnly);
+			inGC->CEAdjustRectInTransformedSpace( rect, inFillOnly);
 			path->AddOval( rect);
 			}
 			break;
@@ -518,15 +509,8 @@ void VGraphicPath::End()
 }
 void VGraphicPath::BeginSubPathAt(const VPoint& inLocalPoint)
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		fLastPoint = VPoint((GReal)inLocalPoint.GetX(), (GReal)inLocalPoint.GetY());
-		fPath->StartFigure();
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	fLastPoint = VPoint((GReal)inLocalPoint.GetX(), (GReal)inLocalPoint.GetY());
+	fPath->StartFigure();
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable())
@@ -560,17 +544,10 @@ void VGraphicPath::BeginSubPathAt(const VPoint& inLocalPoint)
 
 void VGraphicPath::AddLineTo(const VPoint& inDestPoint)
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		Gdiplus::PointF d = Gdiplus::PointF(inDestPoint.GetX(), inDestPoint.GetY());
-		fPath->AddLine(Gdiplus::PointF(fLastPoint.x,fLastPoint.y), d);
-		fLastPoint.x = d.X;
-		fLastPoint.y = d.Y;
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	Gdiplus::PointF d = Gdiplus::PointF(inDestPoint.GetX(), inDestPoint.GetY());
+	fPath->AddLine(Gdiplus::PointF(fLastPoint.x,fLastPoint.y), d);
+	fLastPoint.x = d.X;
+	fLastPoint.y = d.Y;
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable())
@@ -599,20 +576,13 @@ void VGraphicPath::AddLineTo(const VPoint& inDestPoint)
 
 void VGraphicPath::AddBezierTo(const VPoint& inStartControl, const VPoint& inDestPoint, const VPoint& inDestControl)
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		Gdiplus::PointF d = Gdiplus::PointF(inDestPoint.GetX(), inDestPoint.GetY());
-		Gdiplus::PointF c1 = Gdiplus::PointF(inStartControl.GetX(), inStartControl.GetY());
-		Gdiplus::PointF c2 = Gdiplus::PointF(inDestControl.GetX(), inDestControl.GetY());
+	Gdiplus::PointF d = Gdiplus::PointF(inDestPoint.GetX(), inDestPoint.GetY());
+	Gdiplus::PointF c1 = Gdiplus::PointF(inStartControl.GetX(), inStartControl.GetY());
+	Gdiplus::PointF c2 = Gdiplus::PointF(inDestControl.GetX(), inDestControl.GetY());
 		
-		fPath->AddBezier(Gdiplus::PointF(fLastPoint.x,fLastPoint.y), c1, c2, d);
-		fLastPoint.x = d.X;
-		fLastPoint.y = d.Y;
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	fPath->AddBezier(Gdiplus::PointF(fLastPoint.x,fLastPoint.y), c1, c2, d);
+	fLastPoint.x = d.X;
+	fLastPoint.y = d.Y;
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable())
@@ -646,15 +616,8 @@ void VGraphicPath::AddBezierTo(const VPoint& inStartControl, const VPoint& inDes
 
 void VGraphicPath::AddOval(const VRect& inBounds)
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		Gdiplus::RectF rect(inBounds.GetLeft(), inBounds.GetTop(), inBounds.GetWidth(), inBounds.GetHeight());
-		fPath->AddEllipse(rect);
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	Gdiplus::RectF rect(inBounds.GetLeft(), inBounds.GetTop(), inBounds.GetWidth(), inBounds.GetHeight());
+	fPath->AddEllipse(rect);
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable())
@@ -699,10 +662,7 @@ void VGraphicPath::AddOval(const VRect& inBounds)
 
 void VGraphicPath::CloseSubPath()
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-#endif
-		fPath->CloseFigure();
+	fPath->CloseFigure();
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable())
@@ -723,16 +683,9 @@ void VGraphicPath::CloseSubPath()
 
 void VGraphicPath::Clear()
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		fPath->Reset();
-		fLastPoint.x = 0.0f;
-		fLastPoint.y = 0.0f;
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	fPath->Reset();
+	fLastPoint.x = 0.0f;
+	fLastPoint.y = 0.0f;
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable())
@@ -769,16 +722,9 @@ void VGraphicPath::Clear()
 
 void VGraphicPath::SetPosBy(GReal inHoriz, GReal inVert)
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		Gdiplus::Matrix matrix;
-		matrix.Translate(inHoriz, inVert);
-		fPath->Transform(&matrix);
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	Gdiplus::Matrix matrix;
+	matrix.Translate(inHoriz, inVert);
+	fPath->Transform(&matrix);
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable() && fPathD2D)
@@ -830,16 +776,9 @@ void VGraphicPath::SetPosBy(GReal inHoriz, GReal inVert)
 
 void VGraphicPath::SetSizeBy(GReal inWidth, GReal inHeight)
 {
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		Gdiplus::Matrix matrix;
-		matrix.Scale(1.0 + inWidth / fBounds.GetWidth(), 1.0 + inHeight / fBounds.GetHeight());
-		fPath->Transform(&matrix);
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	Gdiplus::Matrix matrix;
+	matrix.Scale(1.0 + inWidth / fBounds.GetWidth(), 1.0 + inHeight / fBounds.GetHeight());
+	fPath->Transform(&matrix);
 
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable() && fPathD2D)
@@ -902,18 +841,10 @@ Boolean VGraphicPath::HitTest(const VPoint& inPoint) const
 	}
 #endif
 
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		Gdiplus::Color black_default_color(0,0,0);
-		Gdiplus::Pen p(black_default_color);
-		p.SetWidth(4);
-		return fPath->IsOutlineVisible((Gdiplus::REAL)inPoint.GetX(), (Gdiplus::REAL)inPoint.GetY(), &p );
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
-	return false;
+	Gdiplus::Color black_default_color(0,0,0);
+	Gdiplus::Pen p(black_default_color);
+	p.SetWidth(4);
+	return fPath->IsOutlineVisible((Gdiplus::REAL)inPoint.GetX(), (Gdiplus::REAL)inPoint.GetY(), &p );
 }
 
 // JM 201206
@@ -932,18 +863,10 @@ Boolean VGraphicPath::ScaledHitTest(const VPoint& inPoint, GReal scale) const
 	}
 #endif
 
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		Gdiplus::Color black_default_color(0,0,0);
-		Gdiplus::Pen p(black_default_color);
-		p.SetWidth(4 * scale);
-		return fPath->IsOutlineVisible((Gdiplus::REAL)inPoint.GetX(), (Gdiplus::REAL)inPoint.GetY(), &p );
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
-	return false;
+	Gdiplus::Color black_default_color(0,0,0);
+	Gdiplus::Pen p(black_default_color);
+	p.SetWidth(4 * scale);
+	return fPath->IsOutlineVisible((Gdiplus::REAL)inPoint.GetX(), (Gdiplus::REAL)inPoint.GetY(), &p );
 }
 
 
@@ -983,16 +906,9 @@ void VGraphicPath::_ComputeBounds()
 		}
 #endif
 
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-		if (!VWinD2DGraphicContext::IsAvailable())
-		{
-#endif
-			Gdiplus::RectF bounds;
-			fPath->GetBounds( &bounds);
-			fBounds = VRect ( bounds.GetLeft(), bounds.GetTop(), bounds.GetRight()-bounds.GetLeft(), bounds.GetBottom()-bounds.GetTop());
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-		}
-#endif
+		Gdiplus::RectF bounds;
+		fPath->GetBounds( &bounds);
+		fBounds = VRect ( bounds.GetLeft(), bounds.GetTop(), bounds.GetRight()-bounds.GetLeft(), bounds.GetBottom()-bounds.GetTop());
 	}
 }
 
@@ -1002,17 +918,10 @@ void VGraphicPath::SetFillMode( FillRuleType inFillMode)
 {
 	fFillMode = inFillMode;
 
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	if (!VWinD2DGraphicContext::IsAvailable())
-	{
-#endif
-		if (inFillMode == FILLRULE_EVENODD)
-			fPath->SetFillMode( Gdiplus::FillModeAlternate);
-		else
-			fPath->SetFillMode( Gdiplus::FillModeWinding);
-#if !GRAPHIC_MIXED_GDIPLUS_D2D
-	}
-#endif
+	if (inFillMode == FILLRULE_EVENODD)
+		fPath->SetFillMode( Gdiplus::FillModeAlternate);
+	else
+		fPath->SetFillMode( Gdiplus::FillModeWinding);
 
 #if ENABLE_D2D
 	if (fGeomSink != NULL)

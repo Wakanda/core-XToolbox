@@ -26,7 +26,11 @@ class XTOOLBOX_API VRect : public VObject, public IStreamable
 			VRect ();
 			VRect (GReal inX, GReal inY, GReal inWidth, GReal inHeight);
 			VRect (const VRect& inOriginal);
+
+#if !VERSION_LINUX
 			VRect (const RectRef& inNativeRect);
+#endif
+
 	virtual	~VRect();
 
 	// Operators
@@ -96,19 +100,20 @@ class XTOOLBOX_API VRect : public VObject, public IStreamable
 
 	// Copy operators
 	void	FromRect (const VRect& inOriginal);
-	void	FromRectRef (const RectRef& inNativeRect);
-	
+
+#if !VERSION_LINUX
 	// Native operators
+	void	FromRectRef (const RectRef& inNativeRect);
 	void	ToRectRef (RectRef& outNativeRect) const;
-	
+	operator const RectRef () const { RectRef r; ToRectRef(r); return r; };
+#endif	
+
 	/** set rect to the smallest containing rect with integer coordinates 
 	@param inStickOriginToNearestInteger
 		false (default): origin is set to floor(origin) (use it in order to get ideal GDI/QD clipping or invaliding rectangle which contains GDI/QD drawing rectangle)
 		true: origin is rounded to the nearest int (use it to get ideal GDI/QD drawing rectangle)
 	*/
 	void	NormalizeToInt(bool inStickOriginToNearestInteger = false);
-
-	operator const RectRef () const { RectRef r; ToRectRef(r); return r; };
 	
 	// Inherited from VObject
 	virtual VError	LoadFromBag (const VValueBag& inBag);

@@ -179,6 +179,8 @@ class _HDC_TransformSetter
 
 
 #endif
+
+#if !VERSION_LINUX
 VAffineTransform VPictureData::_MakeScaleMatrix(const VRect& inDisplayRect,VPictureDrawSettings& inSet)const
 {
 	// calcul de la matrice pour obtenir le rect dest a partir de rect de l'image et du mode de dessin
@@ -229,6 +231,9 @@ VAffineTransform VPictureData::_MakeScaleMatrix(const VRect& inDisplayRect,VPict
 	}
 	return ouMat;
 }
+#endif
+
+#if !VERSION_LINUX
 void VPictureData::_AjustFlip(VAffineTransform& inMat, VRect* inPictureBounds) const
 {
 	#if 0
@@ -272,6 +277,9 @@ void VPictureData::_AjustFlip(VAffineTransform& inMat, VRect* inPictureBounds) c
 		inMat.Translate(transx, transy,VAffineTransform::MatrixOrderAppend);					
 	}
 }
+#endif
+
+#if !VERSION_LINUX
 void VPictureData::_ApplyDrawingMatrixTranslate(VAffineTransform& inMat,VPictureDrawSettings& inSet)const
 {
 	VAffineTransform tmp(inSet.GetDrawingMatrix());
@@ -280,6 +288,9 @@ void VPictureData::_ApplyDrawingMatrixTranslate(VAffineTransform& inMat,VPicture
 	
 	inMat.Multiply(tmp,VAffineTransform::MatrixOrderAppend);		
 }
+#endif
+
+#if !VERSION_LINUX
 VAffineTransform VPictureData::_MakeFinalMatrix(const VRect& inDisplayRect,VPictureDrawSettings& inSet,bool inAutoSwapAxis)const
 {
 	GReal swp_x,swp_y;
@@ -506,6 +517,7 @@ VAffineTransform VPictureData::_MakeFinalMatrix(const VRect& inDisplayRect,VPict
 	
 	return scalemat;
 }
+#endif
 
 VPictureData_Animator::VPictureData_Animator()
 {
@@ -639,6 +651,8 @@ sLONG VPictureData_Animator::GetFrameCount()
 	else
 		return 0;
 }
+
+#if !VERSION_LINUX
 void VPictureData_Animator::Draw(sLONG inFrameNumber,PortRef inPortRef,const VRect& r,VPictureDrawSettings* inSet)
 {
 	VPictureDrawSettings set(inSet);
@@ -703,6 +717,7 @@ void VPictureData_Animator::Draw(VGraphicContext* inGraphicContext,const VRect& 
 {
 	Draw(fCurrentFrame,inGraphicContext,r,inSet);
 }
+#endif
 
 bool VPictureData_Animator::Idle()
 {
@@ -1244,93 +1259,7 @@ sWORD xGifInfo::LWZReadByte( sWORD flag, sWORD input_code_size)
        }
        return code;
 }
-#if 0
-void xGifInfo::ReadImage(xGifFrame* im, sWORD len, sWORD height, uCHAR (*cmap)[256], sWORD interlace, sWORD ignore)
-{
-     
-       uCHAR   c;      
-       sWORD             v;
-       sWORD             xpos = 0, ypos = 0, pass = 0;
-       sWORD i;
-       
-       
-       /* Stash the color map into the image */
-       for (i=0; (i<xGifInfo_MaxColors); i++) {
-               im->red[i] = cmap[xGifInfo_CM_RED][i];	
-               im->green[i] = cmap[xGifInfo_CM_GREEN][i];	
-               im->blue[i] = cmap[xGifInfo_CM_BLUE][i];	
-               im->open[i] = 1;
-       }
-       
-       /* Many (perhaps most) of these colors will remain marked open. */
-       im->colorsTotal = xGifInfo_MaxColors;
-       /*
-       **  Initialize the Compression routines
-       */
-       if (! ReadOK(&c,1)) {
-               return; 
-       }
-       if (LWZReadByte(true, c) < 0) {
-               return;
-       }
 
-       /*
-       **  If this is an "uninteresting picture" ignore it.
-       */
-       if (ignore) {
-               while (LWZReadByte( false, c) >= 0)
-                       ;
-               return;
-       }
-
-       while ((v = LWZReadByte(false,c)) >= 0 ) {
-               /* This how we recognize which colors are actually used. */
-               if (im->open[v]) {
-                       im->open[v] = 0;
-               }
-               gdImageSetPixel(im, xpos, ypos, v);
-               ++xpos;
-               if (xpos == len) {
-                       xpos = 0;
-                       if (interlace) {
-                               switch (pass) {
-                               case 0:
-                               case 1:
-                                       ypos += 8; break;
-                               case 2:
-                                       ypos += 4; break;
-                               case 3:
-                                       ypos += 2; break;
-                               }
-
-                               if (ypos >= height) {
-                                       ++pass;
-                                       switch (pass) {
-                                       case 1:
-                                               ypos = 4; break;
-                                       case 2:
-                                               ypos = 2; break;
-                                       case 3:
-                                               ypos = 1; break;
-                                       default:
-                                               goto fini;
-                                       }
-                               }
-                       } else {
-                               ++ypos;
-                       }
-               }
-               if (ypos >= height)
-                       break;
-       }
-
-fini:
-       if (LWZReadByte(false,c)>=0) {
-               /* Ignore extra */
-       }
-      
-}
- #endif
 void xGifInfo::ReadImage(xGifFrame* im, sWORD len, sWORD height, xGifColorPalette &inPalette, sWORD interlace, sWORD ignore)
 {
        uCHAR   c;      
@@ -1441,87 +1370,6 @@ void xGifInfo::gdImageSetPixel(xGifFrame* im, sWORD x, sWORD y, sWORD color)	// 
 	}
 }
 
-
-
-/********************************************************************/
-// debug
-/*******************************************************************/
-void VPictureData::IW_DumpLeaks()
-{
-	#if VERSIONDEBUG && VERSIONWIN
-	if((::GetKeyState(VK_CAPITAL)&0x0001)!=0)
-	{
-		HWND hwnd=GetDesktopWindow();
-		HDC dc=GetDC(0);
-		RECT wr;
-		VRect r(0,0,GetWidth(),GetHeight());
-		r.ToRectRef(wr);
-		FillRect(dc,&wr,(HBRUSH)::GetStockObject(WHITE_BRUSH));
-		DrawInPortRef(dc,r,0);
-		ReleaseDC(0,dc); 
-		Sleep(1000);
-	}
-	#endif
-}
-sLONG VPictureData::IW_CountProperties()
-{	
-	if(fDataProvider)
-		return 5;
-	else
-		return 3;
-};
-void VPictureData::IW_GetPropName(sLONG inPropID,VValueSingle& outName)
-{
-	switch(inPropID)
-	{
-	case 0:
-		IW_SetClassNameVal(outName);
-		break;
-	case 1:
-		outName.FromString("Refcount");
-		break;
-	case 2:
-		outName.FromString("Kind");
-		break;
-	case 3:
-		outName.FromString("DataProvider");
-		break;
-	case 4:
-		outName.FromString("DataProvider RefCount");
-		break;
-	}
-
-};
-void VPictureData::IW_GetPropValue(sLONG inPropID,VValueSingle& outValue)
-{
-	switch(inPropID)
-	{
-	case 0:
-		IW_SetHexVal((sLONG_PTR)this,outValue);
-		break;
-	case 1:
-		outValue.FromLong(GetRefCount());
-		break;
-	case 2:
-		outValue.FromString(GetEncoderID());
-		break;
-	case 3:
-		IW_SetHexVal((sLONG_PTR)fDataProvider,outValue);
-		break;
-	case 4:
-		if(fDataProvider)
-			outValue.FromLong(fDataProvider->GetRefCount());
-		else
-			outValue.FromLong(0);
-		break;
-	}
-};
-void VPictureData::IW_GetPropInfo(sLONG inPropID,bool& outEditable,IWatchable_Base** outChild)
-{
-	*outChild=0;
-	outEditable=false;
-}
-
 /******************************************************************/
 
 void VPictureData::_SetSafe() const
@@ -1532,32 +1380,36 @@ void VPictureData::_SetSafe() const
 
 
 VPictureQDBridgeBase* VPictureData::sQDBridge=NULL;
-VMacPictureAllocatorBase* VPictureData::sMacAllocator=NULL;
+VMacHandleAllocatorBase* VPictureData::sMacAllocator=NULL;
 
 
+#if !VERSION_LINUX
 VPictureData* VPictureData::CreatePictureDataFromPortRef(PortRef inPortRef,const VRect& inBounds)
 {
 	VPictureData *data=NULL;
-	#if VERSIONMAC 
-		#if WITH_QUICKDRAW
+	
+#if VERSIONMAC 
+	#if WITH_QUICKDRAW
 		data=new VPictureData_MacPicture(inPortRef,inBounds);
-		#endif
-	#else
-	data=new VPictureData_GDIPlus(inPortRef,inBounds);
 	#endif
+#elif VERSIONWIN
+	data=new VPictureData_GDIPlus(inPortRef,inBounds);
+#endif
+	
 	return data;
 }
+#endif
 
 sLONG	VPictureData::Retain(const char* DebugInfo) const
 {
-	//InvokeBreak(kPictData_DBG_Retain);
 	return IRefCountable::Retain(DebugInfo);
 }
+
 sLONG	VPictureData::Release(const char* DebugInfo) const
 {
-	//InvokeBreak(kPictData_DBG_Release);
 	return IRefCountable::Release(DebugInfo);
 }
+
 VString VPictureData::GetEncoderID() const
 {
 	VString res;
@@ -1568,6 +1420,7 @@ VString VPictureData::GetEncoderID() const
 	return res;
 
 }
+
 bool VPictureData::IsKind(const VString& inID)const
 {
 	if(fDecoder)
@@ -1578,6 +1431,7 @@ bool VPictureData::IsKind(const VString& inID)const
 		assert(false);
 	return false;
 }
+
 VPictureData::VPictureData(VPictureDataProvider* inDataProvider,_VPictureAccumulator* inRecorder)
 {
 	_InitSafeProc(false);
@@ -1595,6 +1449,7 @@ VPictureData::VPictureData(VPictureDataProvider* inDataProvider,_VPictureAccumul
 		inRecorder->AddPictureData(this,outIndex);
 	}
 }
+
 VPictureData::VPictureData()
 {
 	_InitSafeProc(false);
@@ -1630,17 +1485,18 @@ VPictureData::~VPictureData()
 		fMetadatas = NULL;
 	}
 	
-	//InvokeBreak(kPictData_DBG_Delete);
 	_ReleaseDataProvider();
 
 	if(fDecoder)
 		fDecoder->Release();
 }
+
 VPictureData* VPictureData::CreatePictureDataFromVFile(VFile& inFile)
 {	
 	VPictureCodecFactoryRef fact;
 	return fact->CreatePictureData(inFile);
 }
+
 VPictureData* VPictureData::Clone()const
 {
 	return new VPictureData(*this);
@@ -1663,12 +1519,14 @@ void VPictureData::_SetDecoderByMime(const VString& inMime)
 	_ReleaseDecodeur();
 	fDecoder=fact->RetainDecoderForMimeType(inMime);
 }
+
 void VPictureData::_SetDecoderByExtension(const VString& inExt)
 {
 	VPictureCodecFactoryRef fact;
 	_ReleaseDecodeur();
 	fDecoder=fact->RetainDecoderForExtension(inExt);
 }
+
 void VPictureData::_SetAndRetainDecoder(const VPictureCodec* inDecodeur)
 {
 	_ReleaseDecodeur();
@@ -1678,6 +1536,7 @@ void VPictureData::_SetAndRetainDecoder(const VPictureCodec* inDecodeur)
 		fDecoder->Retain();
 	}
 }
+
 void VPictureData::_SetRetainedDecoder(const VPictureCodec* inDecodeur)
 {
 	_ReleaseDecodeur();
@@ -1703,7 +1562,7 @@ VPictureData*	VPictureData::CreateSubPicture(VRect& inSubRect,VPictureDrawSettin
 	{
 		result=new VPictureData_GDIPlus(bm,true);
 	}
-	#else
+	#elif VERSIONMAC
 	CGImageRef bm=CreateCGImage(inSet,&inSubRect);
 	if(bm)
 	{
@@ -1723,6 +1582,7 @@ VPictureData*	VPictureData::CreateSubPicture(VRect& inSubRect,VPictureDrawSettin
 @remarks
 	if the VPictureDatas have not the same width or height, return false & optionally set *outMask to NULL
 */
+#if !VERSION_LINUX
 bool VPictureData::Compare( const VPictureData *inPictData, VPictureData **outMask) const
 {
 	xbox_assert(inPictData);
@@ -1773,7 +1633,7 @@ bool VPictureData::Compare( const VPictureData *inPictData, VPictureData **outMa
 
 	return isEqual;
 }
-
+#endif
 
 
 #if VERSIONWIN
@@ -2014,6 +1874,7 @@ Gdiplus::Metafile* VPictureData::CreateGDIPlus_Metafile(VPictureDrawSettings* in
 	return result;
 }
 
+#if WITH_VMemoryMgr
 xMacPictureHandle	VPictureData::CreatePicHandle(VPictureDrawSettings* inSet,bool& outCanAddPicEnd) const
 {
 	void* result=NULL;
@@ -2094,6 +1955,7 @@ xMacPictureHandle	VPictureData::CreatePicHandle(VPictureDrawSettings* inSet,bool
 	}
 	return (xMacPictureHandle)result;
 }
+#endif
 
 VBitmapData*	VPictureData::CreateVBitmapData(const VPictureDrawSettings* inSet,VRect* inSub)const
 {
@@ -2109,7 +1971,7 @@ VBitmapData*	VPictureData::CreateVBitmapData(const VPictureDrawSettings* inSet,V
 }
 
 
-#else
+#elif VERSIONMAC
 
 VBitmapData*	VPictureData::CreateVBitmapData(const VPictureDrawSettings* inSet,VRect* inSub)const
 {
@@ -2305,7 +2167,7 @@ CGImageRef		VPictureData::CreateCGImage(VPictureDrawSettings* inSet,VRect* inSub
 }
 
 
-
+#if WITH_VMemoryMgr
 xMacPictureHandle VPictureData::CreatePicHandle(VPictureDrawSettings* inSet,bool &outCanAddPicEnd)const
 {
 	xMacPictureHandle result=0;
@@ -2315,57 +2177,9 @@ xMacPictureHandle VPictureData::CreatePicHandle(VPictureDrawSettings* inSet,bool
 	{
 		result = (xMacPictureHandle)sQDBridge->VPictureDataToPicHandle(*this, inSet);
 	}
-
-
-#if 0
-	VPictureDrawSettings set(inSet);
-	
-	outCanAddPicEnd=true;
-	if(GetPicHandle())
-	{
-		if(set.IsIdentityMatrix())
-		{
-			return (xMacPictureHandle)GetMacAllocator()->Duplicate((void*)GetPicHandle());
-		}
-	}
-	// on cree une bitmap
-	OSErr err;
-	VPolygon poly=set.TransformSize(GetWidth(),GetHeight());
-	Rect r={0,0,poly.GetHeight(),poly.GetWidth()};
-	VRect rr=GetBounds();
-	Rect mac_dstrect;
-	GrafPtr oldPort;
-	GWorldPtr off,oldgw;
-	GDHandle oldgd;
-	GetGWorld(&oldgw,&oldgd);
-	err = NewGWorld( &off, 32, &r, NULL, 0, 0);
-	if(err==0)
-	{
-		PicHandle tmppict;
-		SetGWorld(off,NULL);
-		EraseRect(&r);
-		
-		set.SetScaleMode(PM_MATRIX);
-		
-		set.SetBackgroundColor(VColor(0xff,0xff,0xff));
-		
-		DrawInPortRef(off,rr,&set);
-		
-		PicHandle	newPicture = ::OpenPicture(&r);
-		const BitMap*	portBits = ::GetPortBitMapForCopyBits(off);
-	
-		::ClipRect(&r);
-		::CopyBits(portBits, portBits, &r, &r, srcCopy, NULL);
-		::ClosePicture();
-
-		
-		SetGWorld(oldgw,oldgd);
-		DisposeGWorld(off);
-		result=(xMacPicture**)newPicture;
-	}
-#endif
 	return result;
 }
+#endif
 
 static size_t MyPutBytes (void* info, const void* buffer, size_t count)// 1
 {
@@ -2481,6 +2295,7 @@ CGPDFDocumentRef		VPictureData::CreatePDF(VPictureDrawSettings* inSet,VPictureDa
 	
 #endif
 
+#if WITH_VMemoryMgr
 VHandle			VPictureData::CreatePicVHandle(VPictureDrawSettings* inSet)const
 {
 	bool b;
@@ -2493,6 +2308,7 @@ VHandle			VPictureData::CreatePicVHandle(VPictureDrawSettings* inSet)const
 	};
 	return result;
 }
+#endif
 
 VSize VPictureData::GetDataSize(_VPictureAccumulator* inRecorder) const
 {
@@ -2502,7 +2318,7 @@ VSize VPictureData::GetDataSize(_VPictureAccumulator* inRecorder) const
 	else
 	{
 		VSize outSize;
-		VBlobWithHandle b;
+		VBlobWithPtr b;
 
 		if( const_cast<VPictureData*>(this)->Save(&b,0,outSize,inRecorder) ==VE_OK )
 		{
@@ -2511,21 +2327,25 @@ VSize VPictureData::GetDataSize(_VPictureAccumulator* inRecorder) const
 	}
 	return result;
 }
+
 sLONG VPictureData::GetWidth()  const
 {
 	_Load();
 	return fBounds.GetWidth();
 }
+
 sLONG VPictureData::GetHeight() const
 {
 	_Load();
 	return fBounds.GetHeight();
 }
+
 sLONG VPictureData::GetX()  const
 {
 	_Load();
 	return fBounds.GetX();
 }
+
 sLONG VPictureData::GetY() const
 {
 	_Load();
@@ -2537,6 +2357,8 @@ const VRect& VPictureData::GetBounds() const
 	_Load();
 	return fBounds;
 }
+
+#if !VERSION_LINUX
 void VPictureData::_CalcDestRect(const VRect& inWanted,VRect &outDestRect,VRect & /*outSrcRect*/,VPictureDrawSettings& inSet)const
 {
 	sLONG scalemode=inSet.GetScaleMode();
@@ -2559,140 +2381,9 @@ void VPictureData::_CalcDestRect(const VRect& inWanted,VRect &outDestRect,VRect 
 		outDestRect=inWanted;
 	}
 }
-
-#if 0
-void VPictureData::_CalcDestRect(const VRect inWanted,VRect &outDestRect,VRect &outSrcRect,VPictureDrawSettings& inSet)
-{
-	VRect pictrect(0,0,GetWidth(),GetHeight());
-	VRect scaledrect;
-	VPoint p(GetWidth(),GetHeight());
-	VPoint p0(0,0);
-	
-	p=inSet.fPictureMatrix*p;
-	p0=inSet.fPictureMatrix*p0;
-	
-	outSrcRect.SetCoords(GetX(),GetY(),GetWidth(),GetHeight());
-	
-	scaledrect.SetTopLeft(p0);
-	scaledrect.SetBotRight(p);
-	VAffineTransform scalemat=MakeMatrixScale(inSet.fPictureMatrix,*this,inWanted,inSet.GetScaleMode());
-	switch(inSet.GetScaleMode())
-	{
-		case PM_SCALE_CENTER:
-		{
-			pictrect=scalemat*pictrect;
-			if(pictrect.GetWidth()<inWanted.GetWidth())
-			{
-				pictrect.SetPosBy( (inWanted.GetWidth()-pictrect.GetWidth())/2,0);
-				scalemat.Translate((inWanted.GetWidth()-pictrect.GetWidth())/2,0);
-			}
-			else
-			{
-				pictrect.SetPosBy(0,(inWanted.GetHeight()-pictrect.GetHeight())/2);
-				scalemat.Translate(0,(inWanted.GetHeight()-pictrect.GetHeight())/2);
-			}
-			pictrect.SetPosBy(inWanted.GetX(),inWanted.GetY());
-			pictrect=inSet.fDrawingMatrix*pictrect;
-			
-			//inSet.fPictureMatrix *= scalemat;
-			
-			outDestRect=pictrect;
-			outSrcRect.SetCoords(GetX(),GetY(),GetWidth(),GetHeight());
-			break;
-		}
-		case PM_SCALE_EVEN:
-		{
-			pictrect=scalemat*pictrect;
-			
-			scalemat.Translate(inWanted.GetX(),inWanted.GetY());
-			//inSet.fPictureMatrix *=scalemat;
-			
-			pictrect.SetPosBy(inWanted.GetX(),inWanted.GetY());
-			//pictrect=inSet.fDrawingMatrix*pictrect;
-			outDestRect=pictrect;
-			outSrcRect.SetCoords(GetX(),GetY(),GetWidth(),GetHeight());
-			break;
-		}
-		case PM_CENTER:
-		{
-			VAffineTransform mat;
-			pictrect=scalemat*pictrect;
-			mat.Translate( inWanted.GetX() + (inWanted.GetWidth()-pictrect.GetWidth())/2.0, inWanted.GetY() + (inWanted.GetHeight()-pictrect.GetHeight())/2.0,VAffineTransform::MatrixOrderPrepend);
-			
-			scalemat*=mat;
-			//inSet.fPictureMatrix *=scalemat;
-			
-			pictrect=mat*pictrect;
-			pictrect=inSet.fDrawingMatrix*pictrect;
-			outDestRect=pictrect;
-			outSrcRect.SetCoords(GetX(),GetY(),GetWidth(),GetHeight());
-			break;
-		}
-		#if 0
-		case PM_SCALE_CENTER:
-		case PM_SCALE_EVEN:
-		{
-			sLONG width,height;
-			Real left=inWanted.GetX();
-			Real top=inWanted.GetY();
-			Real wr = inWanted.GetWidth()  / scaledrect.GetWidth();
-			Real hr = inWanted.GetHeight() / scaledrect.GetHeight();
-			width=scaledrect.GetWidth();
-			height=scaledrect.GetHeight();
-			if(wr<hr)
-			{
-				width = (sLONG) (width * wr);
-				height = (sLONG) (height * wr);
-				if(inSet.GetScaleMode()==PM_SCALE_CENTER)
-					top += (sLONG) (((inWanted.GetHeight()-height)/2) /** pZoom*/);
-			}
-			else
-			{
-				width = (sLONG) (width * hr);
-				height = (sLONG) (height * hr);
-				if(inSet.GetScaleMode()==PM_SCALE_CENTER)
-					left += (sLONG) (((inWanted.GetWidth()-width)/2) /** pZoom*/);
-			}
-			outDestRect.SetCoordsTo(left,top,width,height);
-			break;
-		}
-		#endif
-		case PM_SCALE_TO_FIT:
-		case PM_TILE:
-		{
-			outDestRect=inWanted;
-			break;
-		}/*
-		case PM_CENTER:
-		{
-			VRect pictrect(GetX(),GetY(),GetWidth(),GetHeight());
-			VAffineTransform mat;
-			pictrect=inSet.fPictureMatrix.TransformVector(pictrect); // on utilise uniquement le scaling, seul le mode topleft supporte translation
-			
-			mat.Translate( inWanted.GetX() + (inWanted.GetWidth()-pictrect.GetWidth())/2.0, inWanted.GetY() + (inWanted.GetHeight()-pictrect.GetHeight())/2.0,VAffineTransform::MatrixOrderPrepend);
-			outDestRect= mat * pictrect;
-			outSrcRect.SetCoords(GetX(),GetY(),GetWidth(),GetHeight());
-			break;
-		} */
-		case PM_TOPLEFT:
-		default: // topleft
-		{
-			// applique la transformation sur l'image
-			outDestRect.SetCoords(0,0,GetWidth(),GetHeight());
-			outDestRect=inSet.fPictureMatrix*outDestRect;
-			// positionne dans le rect de destination
-			outDestRect.SetPosBy(inWanted.GetX(),inWanted.GetY());
-			// applique la matrice de dessin
-			outDestRect=inSet.fDrawingMatrix*outDestRect;
-			
-			outSrcRect.SetPosBy(0,0);
-			outSrcRect.SetSizeTo(GetWidth(),GetHeight());
-			
-			break;
-		}
-	}
-}
 #endif
+
+
 void VPictureData::DumpPictureInfo(VString& outDump,sLONG level) const
 {
 	VString kind=GetEncoderID();
@@ -2842,6 +2533,7 @@ bool VPictureData::SameDataProvider(VPictureDataProvider* inRef)
 	return inRef==fDataProvider;
 };
 
+#if !VERSION_LINUX
 VPictureData*	VPictureData::ConvertToGray(const VPictureDrawSettings* inSet)const
 {
 	VPictureData* result=0;
@@ -2864,7 +2556,7 @@ VPictureData*	VPictureData::ConvertToGray(const VPictureDrawSettings* inSet)cons
 			delete bm;
 		}
 	}
-	#else
+	#elif VERSIONMAC
 	VBitmapData *bm=CreateVBitmapData(inSet);
 	if(bm)
 	{
@@ -2875,7 +2567,9 @@ VPictureData*	VPictureData::ConvertToGray(const VPictureDrawSettings* inSet)cons
 	#endif
 	return result;
 }
+#endif
 
+#if !VERSION_LINUX
 VPictureData* VPictureData::BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureMosaic inMode,const VPictureDrawSettings* inSet,bool inNoAlpha,const VColor& inColor)const
 {
 	VPictureDrawSettings set(inSet);
@@ -2914,7 +2608,7 @@ VPictureData* VPictureData::BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureM
 		
 	result=new VPictureData_GDIPlus(bm_thumbnail,true);
 	
-	#else
+#elif VERSIONMAC
 
 	CGContextRef    context = NULL;
 	CGColorSpaceRef colorSpace;
@@ -2979,7 +2673,7 @@ VPictureData* VPictureData::BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureM
 		free(bitmapData);
 	}
 	CGColorSpaceRelease( colorSpace );
-	#endif
+#endif
 	
 	if(result)
 	{
@@ -2999,6 +2693,9 @@ VPictureData* VPictureData::BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureM
 	
 	return result;
 }
+#endif
+
+#if !VERSION_LINUX 
 void VPictureData::CalcThumbRect(sLONG inWidth,sLONG inHeight,PictureMosaic inMode,VRect& outRect,const VPictureDrawSettings& inSet)const
 {
 	VRect r(0,0,GetWidth(),GetHeight());
@@ -3050,7 +2747,11 @@ void VPictureData::CalcThumbRect(sLONG inWidth,sLONG inHeight,PictureMosaic inMo
 	else
 		outRect.SetCoords(0,0,0,0);	
 }
+#endif
+
 /******************** vector ****************************/
+
+
 VPictureData_Vector::VPictureData_Vector()
 :VPictureData()
 {
@@ -3359,7 +3060,7 @@ void		VPictureData_MacPicture::_CreateTransparent(VPictureDrawSettings* /*inSet*
 		}
 	}
 }
-#else
+#elif VERSIONMAC
 void		VPictureData_MacPicture::_CreateTransparent(VPictureDrawSettings* inSet)const
 {
 	CGImageRef result=0;
@@ -3478,6 +3179,7 @@ void VPictureData_MacPicture::DrawInCGContext(CGContextRef inDC,const VRect& r,V
 	else if(GetPicHandle())
 		xDraw(GetPicHandle(),inDC,r,inSet);	
 }
+
 #endif
 
 void VPictureData_MacPicture::DrawInPortRef(PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet) const
@@ -3538,12 +3240,14 @@ void VPictureData_MacPicture::DrawInPortRef(PortRef inPortRef,const VRect& inBou
 		sQDBridge->DrawInMacPort(inPortRef,*this,(xMacRect*)&r,drset.GetDrawingMode()==1,drset.GetScaleMode()==PM_TILE);
 	}
 }
+
 VPictureData* VPictureData_MacPicture::Clone()const
 {
 	VPictureData_MacPicture* clone;
 	clone= new VPictureData_MacPicture(*this);
 	return clone;
 }
+
 VSize VPictureData_MacPicture::GetDataSize(_VPictureAccumulator* /*inRecorder*/) const
 {
 	if(fDataProvider)
@@ -3554,6 +3258,7 @@ VSize VPictureData_MacPicture::GetDataSize(_VPictureAccumulator* /*inRecorder*/)
 	}
 	return 0;
 }
+
 VError VPictureData_MacPicture::Save(VBlob* inData,VIndex inOffset,VSize& outSize,_VPictureAccumulator* inRecorder)const
 {
 	VError result=VE_OK;
@@ -3639,6 +3344,7 @@ VError VPictureData_MacPicture::Save(VBlob* inData,VIndex inOffset,VSize& outSiz
 	}
 	return result;
 }
+
 void VPictureData_MacPicture::_DisposeMetaFile()const
 {
 	if(fMetaFile)
@@ -3652,21 +3358,21 @@ void VPictureData_MacPicture::_DisposeMetaFile()const
 	}
 	if(fTrans)
 	{
-		#if VERSIONWIN
-#if ENABLE_D2D
+#if VERSIONWIN
+	#if ENABLE_D2D
 		VWinD2DGraphicContext::ReleaseBitmap( fTrans);
-#endif
+	#endif
 		delete fTrans;
-		#else
+#elif VERSIONMAC
 		CFRelease(fTrans);
-		#endif
+#endif
 		fTrans=NULL;
 	}
-	#if VERSIONWIN
+#if VERSIONWIN
 	if(fGdiplusMetaFile)
 		delete fGdiplusMetaFile;
 	fGdiplusMetaFile=0;
-	#endif
+#endif
 }
 void VPictureData_MacPicture::DoDataSourceChanged()
 {
@@ -3687,22 +3393,22 @@ VPictureData_MacPicture::VPictureData_MacPicture(xMacPictureHandle inMacPicHandl
 	fPicHandle=NULL;
 	fMetaFile=NULL;
 	fTrans=NULL;
-	#if VERSIONWIN
+#if VERSIONWIN
 	fGdiplusMetaFile=0;
-	#endif
+#endif
 	
 	if(inMacPicHandle)
 	{
 		
-		#if VERSIONWIN // pp c'est une resource, sous windows elle est deja swap√©
+	#if VERSIONWIN // pp c'est une resource, sous windows elle est deja swap√©
 		ByteSwapWordArray((sWORD*)(*inMacPicHandle),5);
-		#endif
+	#endif
 
 		VPictureDataProvider *prov=VPictureDataProvider::Create((xMacHandle)inMacPicHandle,false);
 		
-		#if VERSIONWIN // pp c'est une resource, sous windows elle est deja swap√©
+	#if VERSIONWIN // pp c'est une resource, sous windows elle est deja swap√©
 		ByteSwapWordArray((sWORD*)(*inMacPicHandle),5);
-		#endif
+	#endif
 		
 		if(prov)
 		{
@@ -3712,26 +3418,6 @@ VPictureData_MacPicture::VPictureData_MacPicture(xMacPictureHandle inMacPicHandl
 		}
 		
 	}
-	
-	/*if(inMacPicHandle)
-	{
-		VHandle h = GetMacAllocator()->ToVHandle(inMacPicHandle);
-		if(h)
-		{
-			VPtr tmp=VMemory::LockHandle(h);
-			#if VERSIONWIN // pp c'est une resource, sous windows elle est deja swap√©
-			ByteSwapWordArray((sWORD*)tmp,5);
-			#endif
-			VMemory::UnlockHandle(h);
-			VPictureDataProvider *prov=VPictureDataProvider::Create(h,true);
-			if(prov)
-			{
-				prov->SetDecoder(fDecoder);
-				SetDataProvider(prov,true);
-				prov->Release();
-			}
-		}
-	}*/
 }
 
 void VPictureData_MacPicture::_DoReset()const
@@ -3786,29 +3472,29 @@ void VPictureData_MacPicture::_DoLoad()const
 	}
 	if(fPicHandle)
 	{
-		#if VERSIONWIN
+#if VERSIONWIN
 		xMacRect rect;
 		rect=   (*((xMacPicture**)fPicHandle))->picFrame;
 		//QDGetPictureBounds((qtime::Picture**)fPicHandle,&rect);
 		fBounds.SetCoords(0,0,rect.right-rect.left,rect.bottom-rect.top);
-		#else
+#elif VERSIONMAC
 		Rect rect;
 		QDGetPictureBounds((Picture**)fPicHandle,&rect);
 		fBounds.SetCoords(0,0,rect.right-rect.left,rect.bottom-rect.top);
-		#endif
+#endif
 	}
 	if(fPicHandle)
 	{
-		#if VERSIONMAC
+#if VERSIONMAC
 		GetMacAllocator()->Lock(fPicHandle);
 		CGDataProviderRef dataprov= xV4DPicture_MemoryDataProvider::CGDataProviderCreate(*(char**)fPicHandle,GetMacAllocator()->GetSize(fPicHandle),true);
 		GetMacAllocator()->Unlock(fPicHandle);
 		fMetaFile=QDPictCreateWithProvider (dataprov);
 		CGDataProviderRelease (dataprov);
-		#else
+#elif VERSIONWIN
 		if(sQDBridge)
 			fMetaFile=sQDBridge->ToMetaFile(fPicHandle);
-		#endif
+#endif
 	}
 }
 
@@ -3872,6 +3558,7 @@ VError VPictureData_MacPicture::SaveToFile(VFile& inFile)const
 	return result;
 }
 
+#if WITH_VMemoryMgr
 xMacPictureHandle	VPictureData_MacPicture::CreatePicHandle(VPictureDrawSettings* inSet,bool& outCanAddPicEnd) const
 {
 	void* result=NULL;
@@ -3885,7 +3572,7 @@ xMacPictureHandle	VPictureData_MacPicture::CreatePicHandle(VPictureDrawSettings*
 	if(sQDBridge)
 	{
 		if( !result) // YT & PP - 24-Nov-2008 - ACI0059927 & ACI0059923
-		#if VERSIONWIN
+#if VERSIONWIN
 		{
 			Gdiplus::Bitmap* bm=CreateGDIPlus_Bitmap(&set);
 			if(bm)
@@ -3900,15 +3587,17 @@ xMacPictureHandle	VPictureData_MacPicture::CreatePicHandle(VPictureDrawSettings*
 				delete bm;
 			}
 		}
-		#else
+#elif VERSIONMAC
 		{
 			result = sQDBridge->VPictureDataToPicHandle(*this, inSet);
 		}
-		#endif
+#endif
 	}
 	return (xMacPictureHandle)result;
 }
+#endif
 
+#if WITH_VMemoryMgr
 xMacPictureHandle VPictureData_MacPicture::GetPicHandle()const
 {
 	_Load();
@@ -3918,9 +3607,10 @@ xMacPictureHandle VPictureData_MacPicture::GetPicHandle()const
 	}
 	return (xMacPictureHandle)fPicHandle;
 }
-
+#endif
 #endif // end version 64 bit
 
+#if !VERSION_LINUX
 bool VPictureData::MapPoint(XBOX::VPoint& ioPoint, const XBOX::VRect& inDisplayRect,VPictureDrawSettings* inSet) const
 {
 	bool res=false;
@@ -3953,6 +3643,7 @@ bool VPictureData::MapPoint(XBOX::VPoint& ioPoint, const XBOX::VRect& inDisplayR
 	}
 	return res;
 }
+#endif
 
 
 /** transform input bounds from image space to display space
@@ -3966,6 +3657,8 @@ bool VPictureData::MapPoint(XBOX::VPoint& ioPoint, const XBOX::VRect& inDisplayR
 	@param inSet
 		drawing settings
 */
+
+#if !VERSION_LINUX
 void VPictureData::TransformRectFromImageSpaceToDisplayBounds( XBOX::VRect& ioBounds, const XBOX::VRect& inBoundsDisplay, const VPictureDrawSettings *inSet) const
 {
 	//force non euclidian y axis (y pointing down)
@@ -3977,11 +3670,14 @@ void VPictureData::TransformRectFromImageSpaceToDisplayBounds( XBOX::VRect& ioBo
 
 	ioBounds = finalmat.TransformRect(ioBounds);
 }
+#endif
 
+#if !VERSION_LINUX
 void VPictureData::DrawInVGraphicContext(class VGraphicContext& inDC,const VRect& r,VPictureDrawSettings* inSet=NULL)const
 {
 	inDC.DrawPictureData(this,r,inSet);
 }
+#endif
 
 /**************************************************************************************************/
 // bitmap drawing
@@ -4260,6 +3956,11 @@ void VPictureData::xDraw(Gdiplus::Bitmap* inBmp,VWinD2DGraphicContext* inDC,cons
 				VAffineTransform xformScale = xform;
 				xformScale.SetTranslation(0.0f, 0.0f);
 				VRect vDestRect = xformScale.TransformRect( vSrcRect);
+				GReal dx = vDestRect.GetX(), dy = vDestRect.GetY();
+				vDestRect.SetPosTo(0,0);
+				if (dx != 0 || dy != 0)
+					//add translation if reversed axis (inverse of transformed rect origin here as we draw first in local bitmap space)
+					xformScale.SetTranslation( -dx, -dy);
 
 				drset.SetPictureMatrix( VAffineTransform());
 				drset.SetDrawingMatrix( xformScale);
@@ -4281,6 +3982,9 @@ void VPictureData::xDraw(Gdiplus::Bitmap* inBmp,VWinD2DGraphicContext* inDC,cons
 
 				//set current transform to translation only
 				xform.SetScaling( 1.0f, 1.0f);
+				if (dx != 0 || dy != 0)
+					//append translation if reversed axis
+					xform.SetTranslation(xform.GetTranslateX()+dx, xform.GetTranslateY()+dy);
 				inDC->SetTransform(xform);
 					
 				//draw scaled image
@@ -4756,46 +4460,6 @@ void VPictureData::xDraw(QDPictRef inPict,PortRef inPortRef,const VRect& inBound
 	if(inPict && sQDBridge)
 	{
 		sQDBridge->DrawInPortRef(*this, inPict, inPortRef,inBounds,inSet);
-		/*
-		VPictureDrawSettings set(inSet);
-		if(inDC.BeginUsingContextRef())
-		{
-			VRect r=inDC.GetBounds();
-			float trans=(float)(r.GetHeight()) ;
-			float scale= 1.0;
-			set.SetYAxisSwap(trans,true);
-			
-			xDraw(inPict,inDC.GetContextRef(),inBounds,&set);
-			inDC.EndUsingContextRef();
-		}
-		*/
-		/*
-		Rect portrect;
-		OSStatus err;
-		GetPortBounds(inDC,&portrect);
-		CGContextRef fCGContext;
-		
-		RgnHandle rgnclip = ::NewRgn();
-		::GetClip( rgnclip);
-		
-		float trans=(float)(portrect.bottom-portrect.top) ;
-		float scale= 1.0;
-
-		set.SetYAxisSwap(trans,true);
-		
-		err = QDBeginCGContext(inDC,&fCGContext);
-		
-		CGContextSaveGState(fCGContext);
-		
-		err = ::SyncCGContextOriginWithPort( fCGContext, inDC);
-		ClipCGContextToRegion(fCGContext,&portrect,rgnclip);
-
-		xDraw(inPict,fCGContext,r,&set);
-
-		CGContextRestoreGState(fCGContext);
-		err =  QDEndCGContext(inDC,&fCGContext);
-		::SetClip( rgnclip);
-		::DisposeRgn( rgnclip);*/
 	}
 }
 
@@ -4950,7 +4614,7 @@ void VPictureData::xDraw(CGPDFDocumentRef  inPict,CGContextRef inDC,const VRect&
 		}
 		
 		page=CGPDFDocumentGetPage (inPict,1);
-		CGRect docre={{0,0},{GetWidth(),GetHeight()}};
+		CGRect docre={{0,0},{static_cast<CGFloat>(GetWidth()),static_cast<CGFloat>(GetHeight())}};
 		CGAffineTransform doctransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox,docre,0,false);
 		
 		if(set.GetScaleMode()!=PM_TILE)
@@ -5017,49 +4681,6 @@ void VPictureData::xDraw(CGImageRef inPict,PortRef inPortRef,const VRect& inBoun
 	if(inPict && sQDBridge)
 	{
 		sQDBridge->DrawInPortRef(*this,inPict,inPortRef,inBounds,inSet);
-		/*VPictureDrawSettings set(inSet);
-		if(inDC.BeginUsingContextRef())
-		{
-			VRect r=inDC.GetBounds();
-			float trans=(float)(r.GetHeight()) ;
-			float scale= 1.0;
-			set.SetYAxisSwap(trans,true);
-			
-			xDraw(inPict,inDC.GetContextRef(),inBounds,&set);
-			
-			inDC.EndUsingContextRef();
-		}
-		*/
-		/*
-		
-		Rect portrect;
-		OSStatus err;
-		GetPortBounds(inDC,&portrect);
-		CGContextRef fCGContext;
-		
-		assert(inDC);
-		
-		RgnHandle rgnclip = ::NewRgn();
-		::GetClip( rgnclip);
-		
-		float trans=(float)(portrect.bottom-portrect.top) ;
-		float scale= 1.0;
-
-		set.SetYAxisSwap(trans,true);
-		
-		err = QDBeginCGContext(inDC,&fCGContext);
-		
-		CGContextSaveGState(fCGContext);
-		
-		err = ::SyncCGContextOriginWithPort( fCGContext, inDC);
-		ClipCGContextToRegion(fCGContext,&portrect,rgnclip);
-
-		xDraw(inPict,fCGContext,inBounds,&set);
-
-		CGContextRestoreGState(fCGContext);
-		err =  QDEndCGContext(inDC,&fCGContext);
-		::SetClip( rgnclip);
-		::DisposeRgn( rgnclip);*/
 	}
 }
 
@@ -5069,47 +4690,6 @@ void VPictureData::xDraw(CGPDFDocumentRef inPict,PortRef inPortRef,const VRect& 
 	if(inPict && sQDBridge)
 	{
 		sQDBridge->DrawInPortRef(*this,inPict,inPortRef,inBounds,inSet);
-		/*
-		VPictureDrawSettings set(inSet);
-		
-		if(inDC.BeginUsingContextRef())
-		{
-			VRect r=inDC.GetBounds();
-			float trans=(float)(r.GetHeight()) ;
-			float scale= 1.0;
-			set.SetYAxisSwap(trans,true);
-			
-			xDraw(inPict,inDC.GetContextRef(),r,&set);
-			inDC.EndUsingContextRef();
-		}
-		*/
-		/*
-		Rect portrect;
-		OSStatus err;
-		GetPortBounds(inDC,&portrect);
-		CGContextRef fCGContext;
-		
-		RgnHandle rgnclip = ::NewRgn();
-		::GetClip( rgnclip);
-		
-		float trans=(float)(portrect.bottom-portrect.top) ;
-		float scale= 1.0;
-
-		set.SetYAxisSwap(trans,true);
-		
-		err = QDBeginCGContext(inDC,&fCGContext);
-		
-		CGContextSaveGState(fCGContext);
-		
-		err = ::SyncCGContextOriginWithPort( fCGContext, inDC);
-		ClipCGContextToRegion(fCGContext,&portrect,rgnclip);
-
-		xDraw(inPict,fCGContext,inBounds,&set);
-
-		CGContextRestoreGState(fCGContext);
-		err =  QDEndCGContext(inDC,&fCGContext);
-		::SetClip( rgnclip);
-		::DisposeRgn( rgnclip);*/
 	}
 }
 
@@ -5181,8 +4761,8 @@ VPictureData_Meta::VPictureData_Meta(const VPictureData_Meta& inData)
 	fRecorder=0;
 	fPicture1=new VPicture();
 	fPicture2=new VPicture();
-	fPicture1->FromVPicture_Retain(inData.fPicture1);
-	fPicture2->FromVPicture_Retain(inData.fPicture2);
+	fPicture1->FromVPicture_Retain(inData.fPicture1,false);
+	fPicture2->FromVPicture_Retain(inData.fPicture2,false);
 	fOperation=inData.fOperation;
 }
 VPictureData_Meta::VPictureData_Meta(VPictureDataProvider* inDataProvider,_VPictureAccumulator* inRecorder)
@@ -5204,10 +4784,10 @@ VPictureData_Meta::VPictureData_Meta(class VPicture* inPict1,class VPicture* inP
 	_SetDecoderByExtension(sCodec_4dmeta);
 	
 	fPicture1=new VPicture();
-	fPicture1->FromVPicture_Retain(inPict1);
+	fPicture1->FromVPicture_Retain(inPict1,false);
 	
 	fPicture2=new VPicture();
-	fPicture2->FromVPicture_Retain(inPict2);
+	fPicture2->FromVPicture_Retain(inPict2,false);
 	
 	fOperation=op;
 	
@@ -5260,7 +4840,7 @@ void VPictureData_Meta::_InitSize()const
 	fBounds.SetCoords(0,0,width,height);
 }
 
-
+#if !VERSION_LINUX
 bool VPictureData_Meta::_PrepareDraw(const VRect& inRect,VPictureDrawSettings* inSet,VRect& outRect1,VRect& outRect2,VPictureDrawSettings& outSet1,VPictureDrawSettings& outSet2)const
 {	
 	if(fPicture1 && fPicture2)
@@ -5343,6 +4923,7 @@ bool VPictureData_Meta::_PrepareDraw(const VRect& inRect,VPictureDrawSettings* i
 	}	
 	return false;
 }
+#endif
 
 bool VPictureData_Meta::FindDeprecatedPictureData(bool inLookForMacPicture,bool inLookForQuicktimeCodec)const
 {
@@ -5425,6 +5006,7 @@ bool VPictureData_Meta::FindDeprecatedPictureData(bool inLookForMacPicture,bool 
 	return result;
 }
 
+#if !VERSION_LINUX
 void VPictureData_Meta::DrawInPortRef(PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet)const
 {
 	//_HDC_RightToLeft_SaverSetter rtlsetter(inDC,*inSet);
@@ -5498,9 +5080,9 @@ void VPictureData_Meta::DrawInPortRef(PortRef inPortRef,const VRect& inBounds,VP
 			pData2->Release();
 	}
 }
+#endif
 
-#if VERSIONWIN 
-#if ENABLE_D2D
+#if VERSIONWIN && ENABLE_D2D
 void VPictureData_Meta::DrawInD2DGraphicContext(VWinD2DGraphicContext* inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
 {
 	VRect dst1(0,0,0,0);
@@ -5575,11 +5157,14 @@ void VPictureData_Meta::DrawInD2DGraphicContext(VWinD2DGraphicContext* inDC,cons
 			pData2->Release();
 	}
 }
-#endif
-void VPictureData_Meta::DrawInGDIPlusGraphics(Gdiplus::Graphics* inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
-#else
-void VPictureData_Meta::DrawInCGContext(CGContextRef inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
-#endif
+#endif 
+
+#if !VERSION_LINUX
+	#if VERSIONWIN
+	void VPictureData_Meta::DrawInGDIPlusGraphics(Gdiplus::Graphics* inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
+	#elif VERSIONMAC
+	void VPictureData_Meta::DrawInCGContext(CGContextRef inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
+	#endif
 {
 	VRect dst1(0,0,0,0);
 	VRect dst2(0,0,0,0);
@@ -5669,6 +5254,7 @@ void VPictureData_Meta::DrawInCGContext(CGContextRef inDC,const VRect& inBounds,
 			pData2->Release();
 	}
 }
+#endif
 
 void VPictureData_Meta::_DoLoad()const
 {
@@ -5699,7 +5285,7 @@ void VPictureData_Meta::_DoLoad()const
 					else
 					{
 						fPicture2=new VPicture();
-						fPicture2->FromVPicture_Retain(*fPicture1);
+						fPicture2->FromVPicture_Retain(*fPicture1,false);
 					}
 				}
 				else if(header.fVersion==2)
@@ -5933,8 +5519,6 @@ Gdiplus::Bitmap*	VPictureData_Meta::CreateGDIPlus_Bitmap(VPictureDrawSettings* i
 	DrawInGDIPlusGraphics(&graph,bounds,&set);
 	return result;
 }
-#else
-
 #endif
 
 /************************************************************************/
@@ -5949,7 +5533,7 @@ VPictureData_VPicture::VPictureData_VPicture(const VPictureData_VPicture& inData
 :inherited(inData)
 {
 	fPicture=new VPicture();
-	fPicture->FromVPicture_Retain(inData.GetVPicture());
+	fPicture->FromVPicture_Retain(inData.GetVPicture(),false);
 }
 VPictureData_VPicture::VPictureData_VPicture(VPictureDataProvider* inDataProvider,_VPictureAccumulator* inRecorder)
 :inherited(inDataProvider,inRecorder)
@@ -5962,7 +5546,7 @@ VPictureData_VPicture::VPictureData_VPicture(const VPicture& inPict)
 	_SetDecoderByExtension(sCodec_4pct);
 	
 	fPicture=new VPicture();
-	fPicture->FromVPicture_Retain(inPict);
+	fPicture->FromVPicture_Retain(inPict,false);
 }
 VPictureData_VPicture::~VPictureData_VPicture()
 {
@@ -5977,6 +5561,8 @@ void VPictureData_VPicture::DumpPictureInfo(VString& outDump,sLONG level)const
 {
 	outDump="VPicture Container\r";
 }
+
+#if !VERSION_LINUX
 void VPictureData_VPicture::DrawInPortRef(PortRef inPortRef,const VRect& inBounds,VPictureDrawSettings* inSet)const
 {
 	if(fPicture)
@@ -5989,9 +5575,9 @@ void VPictureData_VPicture::DrawInPortRef(PortRef inPortRef,const VRect& inBound
 		}
 	}
 }
+#endif
 
-#if VERSIONWIN 
-#if ENABLE_D2D
+#if VERSIONWIN && ENABLE_D2D
 void VPictureData_VPicture::DrawInD2DGraphicContext(VWinD2DGraphicContext* inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
 {
 	if(fPicture)
@@ -6005,10 +5591,13 @@ void VPictureData_VPicture::DrawInD2DGraphicContext(VWinD2DGraphicContext* inDC,
 	}
 }
 #endif
-void VPictureData_VPicture::DrawInGDIPlusGraphics(Gdiplus::Graphics* inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
-#else
-void VPictureData_VPicture::DrawInCGContext(CGContextRef inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
-#endif
+
+#if !VERSION_LINUX
+	#if VERSIONWIN
+	void VPictureData_VPicture::DrawInGDIPlusGraphics(Gdiplus::Graphics* inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
+	#elif VERSIONMAC
+	void VPictureData_VPicture::DrawInCGContext(CGContextRef inDC,const VRect& inBounds,VPictureDrawSettings* inSet)const
+	#endif
 {
 	if(fPicture)
 	{
@@ -6017,13 +5606,14 @@ void VPictureData_VPicture::DrawInCGContext(CGContextRef inDC,const VRect& inBou
 		{
 			#if VERSIONWIN
 			data->DrawInGDIPlusGraphics(inDC,inBounds,inSet);
-			#else
+			#elif VERSIONMAC
 			data->DrawInCGContext(inDC,inBounds,inSet);
 			#endif
 			data->Release();
 		}
 	}
 }
+#endif
 
 void VPictureData_VPicture::_DoLoad()const
 {
@@ -6125,6 +5715,7 @@ VPictureData_NonRenderable_ITKBlobPict::VPictureData_NonRenderable_ITKBlobPict(c
 
 }
 
+#if WITH_VMemoryMgr
 xMacPictureHandle VPictureData_NonRenderable_ITKBlobPict::CreatePicHandle(VPictureDrawSettings* inSet,bool& outCanAddPicEnd)const
 {
 	void* outPicHandle=NULL;
@@ -6144,3 +5735,4 @@ xMacPictureHandle VPictureData_NonRenderable_ITKBlobPict::CreatePicHandle(VPictu
 	}
 	return (xMacPictureHandle)outPicHandle;
 }
+#endif

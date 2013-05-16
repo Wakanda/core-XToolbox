@@ -39,14 +39,11 @@
 	
 	#define VERSION_DARWIN	0
 	
-#if defined(__MWERKS__)
-	#define COMPIL_VISUAL 0
-	#define COMPIL_CODEWARRIOR 1
-	#define COMPIL_GCC 0
-#elif defined(_MSC_VER)
+#if defined(_MSC_VER)
 	#define COMPIL_VISUAL 1
 	#define COMPIL_CODEWARRIOR 0
 	#define COMPIL_GCC 0
+	#define COMPIL_CLANG 0
 #else
 	#pragma warning("Unknown compiler")
 #endif

@@ -17,8 +17,10 @@
 
 #if VERSIONMAC
 #include <4DJavaScriptCore/JavaScriptCore.h>
+#include <4DJavaScriptCore/JS4D_Tools.h>
 #else
 #include <JavaScriptCore/JavaScript.h>
+#include <JavaScriptCore/4D/JS4D_Tools.h>
 #endif
 
 #include "VJSValue.h"
@@ -146,7 +148,6 @@ JS4D::ValueRef JS4D::VStringToValue( ContextRef inContext, const VString& inStri
 }
 
 
-#if !VERSION_LINUX   // Postponed Linux Implementation !
 JS4D::ValueRef JS4D::VPictureToValue( ContextRef inContext, const VPicture& inPict)
 {
 	if (inPict.IsNull())
@@ -159,7 +160,6 @@ JS4D::ValueRef JS4D::VPictureToValue( ContextRef inContext, const VPicture& inPi
 	xpic->Release();
 	return value;
 }
-#endif
 
 
 JS4D::ValueRef JS4D::VBlobToValue( ContextRef inContext, const VBlob& inBlob, const VString& inContentType)
@@ -189,6 +189,10 @@ JS4D::ValueRef JS4D::DoubleToValue( ContextRef inContext, double inValue)
 	return JSValueMakeNumber( inContext, inValue);
 }
 
+sLONG8 JS4D::GetDebugContextId( ContextRef inContext )
+{
+	return (sLONG8)JS4DGetDebugContextId(inContext);
+}
 
 JS4D::ObjectRef JS4D::VTimeToObject( ContextRef inContext, const VTime& inTime, ExceptionRef *outException)
 {
@@ -248,42 +252,66 @@ bool JS4D::ValueToVDuration( ContextRef inContext, ValueRef inValue, VDuration& 
 }
 
 
-bool JS4D::DateObjectToVTime( ContextRef inContext, ObjectRef inObject, VTime& outTime, ExceptionRef *outException)
+bool JS4D::DateObjectToVTime( ContextRef inContext, ObjectRef inObject, VTime& outTime, ExceptionRef *outException, bool simpleDate)
 {
 	// it's caller responsibility to check inObject is really a Date using ValueIsInstanceOf
 	
 	// call getTime()
 	bool ok = false;
-    JSStringRef jsString = JSStringCreateWithUTF8CString( "getTime");
-	JSValueRef getTime = JSObjectGetProperty( inContext, inObject, jsString, outException);
-	JSObjectRef getTimeFunction = JSValueToObject( inContext, getTime, outException);
-    JSStringRelease( jsString);
-	JSValueRef result = (getTime != NULL) ? JSObjectCallAsFunction( inContext, getTimeFunction, inObject, 0, NULL, outException) : NULL;
-	if (result != NULL)
+	if (simpleDate)
 	{
-		// The getTime() method returns the number of milliseconds since midnight of January 1, 1970.
-		double r = JSValueToNumber( inContext, result, outException);
-		sLONG8 n = (sLONG8) r;
-		if (n == r)
+		JSStringRef jsStringGetDate = JSStringCreateWithUTF8CString( "getDate");
+		JSStringRef jsStringGetMonth = JSStringCreateWithUTF8CString( "getMonth");
+		JSStringRef jsStringGetYear = JSStringCreateWithUTF8CString( "getYear");
+		JSValueRef getDate = JSObjectGetProperty( inContext, inObject, jsStringGetDate, outException);
+		JSValueRef getMonth = JSObjectGetProperty( inContext, inObject, jsStringGetMonth, outException);
+		JSValueRef getYear = JSObjectGetProperty( inContext, inObject, jsStringGetYear, outException);
+
+		JSValueRef day =  JS4DObjectCallAsFunction( inContext, JSValueToObject( inContext, getDate, outException), inObject, 0, NULL, outException);
+		JSValueRef month =  JSObjectCallAsFunction( inContext, JSValueToObject( inContext, getMonth, outException), inObject, 0, NULL, outException);
+		JSValueRef year =  JSObjectCallAsFunction( inContext, JSValueToObject( inContext, getYear, outException), inObject, 0, NULL, outException);
+		JSStringRelease( jsStringGetDate);
+		JSStringRelease( jsStringGetMonth);
+		JSStringRelease( jsStringGetYear);
+
+		ok = true;
+		outTime.FromUTCTime(JSValueToNumber( inContext, year, outException)+1900, JSValueToNumber( inContext, month, outException)+1, JSValueToNumber( inContext, day, outException), 0, 0, 0, 0);
+		if (!ok)
+			outTime.SetNull( true);
+	}
+	else
+	{
+		JSStringRef jsString = JSStringCreateWithUTF8CString( "getTime");
+		JSValueRef getTime = JSObjectGetProperty( inContext, inObject, jsString, outException);
+		JSObjectRef getTimeFunction = JSValueToObject( inContext, getTime, outException);
+		JSStringRelease( jsString);
+		JSValueRef result = (getTime != NULL) ? JS4DObjectCallAsFunction( inContext, getTimeFunction, inObject, 0, NULL, outException) : NULL;
+		if (result != NULL)
 		{
-			outTime.FromUTCTime( 1970, 1, 1, 0, 0, 0, 0);
-			outTime.AddMilliseconds( n);
-			ok = true;
+			// The getTime() method returns the number of milliseconds since midnight of January 1, 1970.
+			double r = JSValueToNumber( inContext, result, outException);
+			sLONG8 n = (sLONG8) r;
+			if (n == r)
+			{
+				outTime.FromUTCTime( 1970, 1, 1, 0, 0, 0, 0);
+				outTime.AddMilliseconds( n);
+				ok = true;
+			}
+			else
+			{
+				outTime.SetNull( true);
+			}
 		}
 		else
 		{
 			outTime.SetNull( true);
 		}
 	}
-	else
-	{
-		outTime.SetNull( true);
-	}
 	return ok;
 }
 
 
-VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, ExceptionRef *outException)
+VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, ExceptionRef *outException, bool simpleDate)
 {
 	if (inValue == NULL)
 		return NULL;
@@ -341,7 +369,8 @@ VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, Excep
 					if (time != NULL)
 					{
 						JSObjectRef dateObject = JSValueToObject( inContext, inValue, outException);
-						DateObjectToVTime( inContext, dateObject, *time, outException);
+
+						DateObjectToVTime( inContext, dateObject, *time, outException, simpleDate);
 						value = time;
 					}
 					else
@@ -405,7 +434,6 @@ VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, Excep
 						value = NULL;
 					}
 				}
-#if !VERSION_LINUX  // Postponed Linux Implementation !
 				else if (JSValueIsObjectOfClass( inContext, inValue, VJSImage::Class()))
 				{
 					VJSImage::PrivateDataType* piccontainer = static_cast<VJSImage::PrivateDataType*>(JSObjectGetPrivate( JSValueToObject( inContext, inValue, outException) ));
@@ -419,7 +447,6 @@ VValueSingle *JS4D::ValueToVValue( ContextRef inContext, ValueRef inValue, Excep
 						value = NULL;
 					}
 				}
-#endif
 				else
 				{
 					value = NULL;
@@ -495,9 +522,7 @@ JS4D::ValueRef JS4D::VValueToValue( ContextRef inContext, const VValueSingle& in
 			break;
 
 		case VK_IMAGE:
-#if !VERSION_LINUX  // Postponed Linux Implementation !
 			jsValue = VPictureToValue(inContext, (const VPicture&)( inValue));
-#endif
 			break;
 
 		default:
@@ -611,7 +636,7 @@ static JS4D::ValueRef _VJSONValueToValue( JS4D::ContextRef inContext, const VJSO
 						i_ConvertedObjects.first->second = jsObject;
 						i_ConvertedObjects.first = ioConvertedObjects.end();	// calling _VJSONValueToValue recursively make this iterator invalid
 
-						for( VJSONPropertyConstIterator i( inValue.GetObject()) ; i.IsValid() && (exception == NULL) ; ++i)
+						for( VJSONPropertyConstOrderedIterator i( inValue.GetObject()) ; i.IsValid() && (exception == NULL) ; ++i)
 						{
 							const VString& name = i.GetName();
 							JSStringRef jsName = JSStringCreateWithCharacters( name.GetCPointer(), name.GetLength());
@@ -652,18 +677,32 @@ static JS4D::ValueRef _VJSONValueToValue( JS4D::ContextRef inContext, const VJSO
 JS4D::ValueRef JS4D::VJSONValueToValue( JS4D::ContextRef inContext, const VJSONValue& inValue, JS4D::ExceptionRef *outException)
 {
 	std::map<VJSONObject*,JSObjectRef> convertedObjects;
-	
+
 	return _VJSONValueToValue( inContext, inValue, outException, convertedObjects);
 }
 
 
-static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inValue, VJSONValue& outJSONValue, JS4D::ExceptionRef *outException, std::map<JSObjectRef,VJSONObject*>& ioConvertedObjects)
+static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inValue, VJSONValue& outJSONValue, JS4D::ExceptionRef *outException, std::map<JSObjectRef,VJSONObject*>& ioConvertedObjects, sLONG& ioStackLevel)
 {
 	if (inValue == NULL)
 	{
 		outJSONValue.SetUndefined();
 		return true;
 	}
+	
+	if (ioStackLevel > 100)
+	{
+		// navigator.mimeTypes[0].enabledPlugin is cyclic and we can't detect it because enabledPlugin returns a different object for each call
+		JSStringRef jsString = JS4D::VStringToString( CVSTR( "Maximum call stack size exceeded."));	// same error as webkit
+		JSValueRef argumentsErrorValues[] = { JSValueMakeString( inContext, jsString) };
+		JSStringRelease( jsString);
+
+		*outException = JSObjectMakeError( inContext, 1, argumentsErrorValues, NULL);
+		outJSONValue.SetUndefined();
+		return false;
+	}
+	
+	++ioStackLevel;
 	
 	bool ok = true;
 	JS4D::ValueRef exception = NULL;
@@ -726,7 +765,7 @@ static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inVal
 							if (elemValue != NULL)
 							{
 								VJSONValue value;
-								ok = _ValueToVJSONValue( inContext, elemValue, value, &exception, ioConvertedObjects);
+								ok = _ValueToVJSONValue( inContext, elemValue, value, &exception, ioConvertedObjects, ioStackLevel);
 								jsonArray->SetNth( i+1, value);
 							}
 						}
@@ -750,14 +789,7 @@ static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inVal
 				{
 					JSObjectRef jsObject = JSValueToObject( inContext, inValue, &exception);
 
-					std::pair<std::map<JSObjectRef,VJSONObject*>::iterator,bool> i_ConvertedObjects = ioConvertedObjects.insert( std::map<JSObjectRef,VJSONObject*>::value_type( jsObject, NULL));
-					
-					if (!i_ConvertedObjects.second)
-					{
-						// already converted object
-						outJSONValue.SetObject( i_ConvertedObjects.first->second);
-					}
-					else if (JSObjectIsFunction( inContext, jsObject))
+					if (JSObjectIsFunction( inContext, jsObject))
 					{
 						// skip function objects (are also skipped by JSON.stringify and produce cyclic structures)
 						outJSONValue.SetUndefined();
@@ -765,62 +797,105 @@ static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inVal
 					}
 					else
 					{
-						// get prototype object to filter out its properties
-						JSValueRef prototypeValue = JSObjectGetPrototype( inContext, jsObject);
-						JSObjectRef prototypeObject = (prototypeValue != NULL) ? JSValueToObject( inContext, prototypeValue, &exception) : NULL;
-						
-						VJSONObject *jsonObject = new VJSONObject;
-						
-						xbox_assert( i_ConvertedObjects.first->second == NULL);
-						i_ConvertedObjects.first->second = jsonObject;
-						i_ConvertedObjects.first = ioConvertedObjects.end();	// calling _ValueToVJSONValue recursively make this iterator invalid
-
-						JSPropertyNameArrayRef namesArray = JSObjectCopyPropertyNames( inContext, jsObject);
-						if ( (jsonObject != NULL) && (namesArray != NULL) )
+						// if the object has a function property named 'toJSON', let's use it instead of collecting its properties
+						// this is so that native objects like Date() are properly interpreted.
+						JSStringRef jsFunctionName = JSStringCreateWithUTF8CString( "toJSON");
+						JSValueRef toJSONValue = JSObjectGetProperty( inContext, jsObject, jsFunctionName, &exception);
+						JSStringRelease( jsFunctionName);
+						JSObjectRef toJSONObject = ((toJSONValue != NULL) && JSValueIsObject( inContext, toJSONValue)) ? JSValueToObject( inContext, toJSONValue, &exception) : NULL;
+						if ( (toJSONObject != NULL) && JSObjectIsFunction( inContext, toJSONObject))
 						{
-							size_t size = JSPropertyNameArrayGetCount( namesArray);
-							for( size_t i = 0 ; (i < size) && ok ; ++i)
+							JSValueRef jsonValue = JS4DObjectCallAsFunction( inContext, toJSONObject, jsObject, 0, NULL, &exception);
+							if (_ValueToVJSONValue( inContext, jsonValue, outJSONValue, &exception, ioConvertedObjects, ioStackLevel))
 							{
-								JSStringRef jsName = JSPropertyNameArrayGetNameAtIndex( namesArray, i);
-								
-								// just like JSON.stringify or structure cloning, skip properties from the prototype chain
-								if ( (prototypeObject == NULL) || !JSObjectHasProperty( inContext, prototypeObject, jsName))
+								// if we got a string we need to parse it as JSON
+								if (outJSONValue.IsString())
 								{
-									VString name;
-									ok = JS4D::StringToVString( jsName, name);
-
-									JSValueRef valueRef = JSObjectGetProperty( inContext, jsObject, jsName, &exception);
-									if ( (exception != NULL) || (valueRef == NULL) )
+									StErrorContextInstaller errorContext( false, false);
+									VString s, jsonString;
+									outJSONValue.GetString( s);
+									s.GetJSONString( jsonString, JSON_WithQuotesIfNecessary);
+									if (VJSONImporter::ParseString( jsonString, outJSONValue, VJSONImporter::EJSI_Strict) != VE_OK)
+									{
+										JS4D::ConvertErrorContextToException( inContext, errorContext.GetContext(), &exception);
+										outJSONValue.SetUndefined();
 										ok = false;
-
-									VJSONValue jsonValue;
-									if (ok)
-										ok = _ValueToVJSONValue( inContext, valueRef, jsonValue, &exception, ioConvertedObjects);
-
-									if (ok)
-										ok = jsonObject->SetProperty( name, jsonValue);
+									}
 								}
-
-								//JSStringRelease( jsName);	// owned by namesArray
 							}
 						}
 						else
 						{
-							ok = false;
-						}
+							std::pair<std::map<JSObjectRef,VJSONObject*>::iterator,bool> i_ConvertedObjects = ioConvertedObjects.insert( std::map<JSObjectRef,VJSONObject*>::value_type( jsObject, NULL));
+							
+							if (!i_ConvertedObjects.second)
+							{
+								// already converted object
+								outJSONValue.SetObject( i_ConvertedObjects.first->second);
+							}
+							else
+							{
+								VJSONObject *jsonObject = new VJSONObject;
+								
+								xbox_assert( i_ConvertedObjects.first->second == NULL);
+								i_ConvertedObjects.first->second = jsonObject;
+								i_ConvertedObjects.first = ioConvertedObjects.end();	// calling _ValueToVJSONValue recursively make this iterator invalid
 
-						if (namesArray != NULL)
-							JSPropertyNameArrayRelease( namesArray);
+								// get prototype object to filter out its properties
 
-						if (ok && (exception == NULL) )
-						{
-							outJSONValue.SetObject( jsonObject);
+								JSValueRef prototypeValue = JSObjectGetPrototype( inContext, jsObject);
+								JSObjectRef prototypeObject = (prototypeValue != NULL) ? JSValueToObject( inContext, prototypeValue, &exception) : NULL;
+								
+								JSPropertyNameArrayRef namesArray = JSObjectCopyPropertyNames( inContext, jsObject);
+								if ( (jsonObject != NULL) && (namesArray != NULL) )
+								{
+									size_t size = JSPropertyNameArrayGetCount( namesArray);
+									for( size_t i = 0 ; (i < size) && ok ; ++i)
+									{
+										JSStringRef jsName = JSPropertyNameArrayGetNameAtIndex( namesArray, i);
+										
+										// just like JSON.stringify or structure cloning, skip properties from the prototype chain
+										if ( (prototypeObject == NULL) || !JSObjectHasProperty( inContext, prototypeObject, jsName))
+										{
+											VString name;
+											ok = JS4D::StringToVString( jsName, name);
+
+											// some property of 'window' sometimes throw an exception when accessing them
+											JS4D::ValueRef propertyException = NULL;
+											JSValueRef valueRef = JSObjectGetProperty( inContext, jsObject, jsName, &propertyException);
+											if ( ok && (propertyException == NULL) && (valueRef != NULL) )
+											{
+												VJSONValue jsonValue;
+												if (ok)
+													ok = _ValueToVJSONValue( inContext, valueRef, jsonValue, &exception, ioConvertedObjects, ioStackLevel);
+
+												if (ok)
+													ok = jsonObject->SetProperty( name, jsonValue);
+											}
+										}
+
+										//JSStringRelease( jsName);	// owned by namesArray
+									}
+								}
+								else
+								{
+									ok = false;
+								}
+
+								if (namesArray != NULL)
+									JSPropertyNameArrayRelease( namesArray);
+
+								if (ok && (exception == NULL) )
+								{
+									outJSONValue.SetObject( jsonObject);
+								}
+								else
+								{
+									outJSONValue.SetUndefined();
+								}
+								ReleaseRefCountable( &jsonObject);
+							}
 						}
-						else
-						{
-							outJSONValue.SetUndefined();
-						}
-						ReleaseRefCountable( &jsonObject);
 					}
 				}
 				break;
@@ -834,6 +909,8 @@ static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inVal
 	
 	if (outException != NULL)
 		*outException = exception;
+
+	--ioStackLevel;
 	
 	return ok && (exception == NULL);
 }
@@ -842,7 +919,8 @@ static bool _ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inVal
 bool JS4D::ValueToVJSONValue( JS4D::ContextRef inContext, JS4D::ValueRef inValue, VJSONValue& outJSONValue, JS4D::ExceptionRef *outException)
 {
 	std::map<JSObjectRef,VJSONObject*> convertedObjects;
-	bool ok = _ValueToVJSONValue( inContext, inValue, outJSONValue, outException, convertedObjects);
+	sLONG stackLevel = 0;
+	bool ok = _ValueToVJSONValue( inContext, inValue, outJSONValue, outException, convertedObjects, stackLevel);
 	return ok;
 }
 
@@ -920,7 +998,7 @@ void JS4D::EvaluateScript( ContextRef inContext, const VString& inScript, VJSVal
 {
 	JSStringRef jsScript = JS4D::VStringToString( inScript);
 	
-	outValue.SetValueRef( (jsScript != NULL) ? JSEvaluateScript( inContext, jsScript, NULL /*thisObject*/, NULL /*jsUrl*/, 0 /*startingLineNumber*/, outException) : NULL);
+	outValue.SetValueRef( (jsScript != NULL) ? JS4DEvaluateScript( inContext, jsScript, NULL /*thisObject*/, NULL /*jsUrl*/, 0 /*startingLineNumber*/, outException) : NULL);
 	
 	JSStringRelease( jsScript);
 }
@@ -1076,7 +1154,7 @@ JS4D::ObjectRef JS4D::MakeFunction( ContextRef inContext, const VString& inName,
 		}
 	}
 	
-	JSObjectRef functionObject = ok ? JSObjectMakeFunction( inContext, jsName, countNames, names, jsBody, jsUrl, inStartingLineNumber, outException) : NULL;
+	JSObjectRef functionObject = ok ? JS4DObjectMakeFunction( inContext, jsName, countNames, names, jsBody, jsUrl, inStartingLineNumber, outException) : NULL;
 
 	for( JSStringRef *i = names ; i != names + countNames ; ++i)
 	{
@@ -1098,7 +1176,7 @@ JS4D::ObjectRef JS4D::MakeFunction( ContextRef inContext, const VString& inName,
 
 JS4D::ValueRef JS4D::CallFunction (const ContextRef inContext, const ObjectRef inFunctionObject, const ObjectRef inThisObject, sLONG inNumberArguments, const ValueRef *inArguments, ExceptionRef *ioException)
 {
-	return JSObjectCallAsFunction(inContext, inFunctionObject, inThisObject, inNumberArguments, inArguments, ioException);
+	return JS4DObjectCallAsFunction(inContext, inFunctionObject, inThisObject, inNumberArguments, inArguments, ioException);
 }
 
 

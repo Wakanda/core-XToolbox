@@ -22,6 +22,12 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
+#if WITH_ASSERT
+	#define CPPMEM_CACHE_INFO 1
+#else
+	#define CPPMEM_CACHE_INFO 1
+#endif
+
 // Class constants
 const VSize	kDefaultMemAllocationSize = 20*1024*1024;
 
@@ -122,7 +128,7 @@ public:
 	inline Boolean IsAnObject() { return (fLength > 0) && ((fLength & 1) == 1); };
 	inline Boolean IsAPageAllocation() { return (fLength > 0) && ((fLength & 2) == 2); };
 
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 	inline void SetTag(sLONG inTag) { fTag = inTag; };
 	inline sLONG GetTag() const { return fTag; };
 #endif
@@ -131,7 +137,7 @@ private:
 	VMemImplAllocation* fOwner;
 	sLONG	fLength;
 	sLONG	fPreviousLength;
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 	sLONG	fTag;
 #endif
 	VMemImplBlock*	fNext;	// a partir d'ici ne prend pas de place si block est plein
@@ -154,14 +160,14 @@ public:
 	//VMemImplSmallBlock*	GetPrevious () const { return fPrevious; };
 	//void	SetPrevious (VMemImplSmallBlock* inPrevious) { fPrevious = inPrevious; };
 
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 	inline void SetTag(sLONG inTag) { fTag = inTag; };
 	inline sLONG GetTag() const { return fTag; };
 #endif
 
 private:
 	sLONG	fOffset;
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 	sLONG	fTag;
 #endif
 	VMemImplSmallBlock*	fNext;	// a partir d'ici ne prend pas de place si block est plein
@@ -219,7 +225,7 @@ private:
 class VMemThreadImpl
 {
 public:
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 	enum { SizeSmallHeader = sizeof(sLONG) + sizeof(sLONG) }; // 1 offset sur le debut de la page proprietaire du block , plus un tag de 4 octets
 #else
 	enum { SizeSmallHeader = sizeof(sLONG) }; // 1 offset sur le debut de la page proprietaire du block
@@ -273,7 +279,7 @@ public:
 		 //stage4 = kFirstStepAllocNbPages + kSecondStepAllocNbPages + kThirdStepAllocNbPages,
 		 //stage5 = kFirstStepAllocNbPages + kSecondStepAllocNbPages + kThirdStepAllocNbPages + kFourthStepAllocNbPages
 	};
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 	enum { SizeHeader = sizeof(void*)+sizeof(sLONG)+sizeof(sLONG) + sizeof(sLONG) }; // 1 Ptr qui contient le block d'allocation et 2 sLONG qui contiennent la longueur d'un block et celle du block precedent
 																	// en debug on ajoute un tag sur 4 octets
 #else

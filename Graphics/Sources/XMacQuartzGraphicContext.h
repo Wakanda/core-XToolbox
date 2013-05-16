@@ -54,8 +54,6 @@ public:
 			VMacQuartzGraphicContext (const VMacQuartzGraphicContext& inOriginal);
 	virtual	~VMacQuartzGraphicContext ();
 
-	static		VGraphicContext* CreateBitmapContext(VRect inBounds);
-
 	// Pen management
 	virtual void	SetFillColor (const VColor& inColor, VBrushFlags* ioFlags = NULL);
 	virtual void	SetFillPattern (const VPattern* inPattern, VBrushFlags* ioFlags = NULL);
@@ -120,8 +118,6 @@ public:
 	
 	// Pixel management
 	virtual uBYTE	SetAlphaBlend (uBYTE inAlphaBlend);
-	
-	virtual TransferMode	SetPixelTransferMode (TransferMode inMode);
 	
 	// Graphic context storage
 	virtual void	NormalizeContext ();
@@ -193,7 +189,7 @@ public:
 	virtual void	GetTransformToLayer(VAffineTransform &outTransform, sLONG inIndexLayer);
 
 	//return current graphic context native reference
-	virtual VGraphicContextNativeRef GetNativeRef() const
+	virtual VGCNativeRef GetNativeRef() const
 	{
 		return fContext;
 	}
@@ -399,8 +395,8 @@ public:
 	virtual	void	BeginUsingContext (bool inNoDraw = false);
 	virtual	void	EndUsingContext () {};
 
-	virtual	PortRef		_GetParentPort () const { return fQDPort ? fQDPort->GetPort() : NULL; };
-	virtual	ContextRef	_GetParentContext () const { return fContext; };
+	virtual	PortRef		GetParentPort () const { return fQDPort ? fQDPort->GetPort() : NULL; };
+	virtual	ContextRef	GetParentContext () const { return fContext; };
 	
 #if VERSIONMAC	
 	virtual void	GetParentPortBounds( VRect& outBounds);
@@ -410,7 +406,36 @@ public:
 	virtual	Boolean	UseEuclideanAxis ()	{ _UseQuartzAxis(); return true; };
 	virtual	Boolean	UseReversedAxis ()	{ _UseQDAxis(); return true; };
 
-			void	SetQDBounds( const CGRect& inQDBounds);
+
+				/** transform point from QD coordinate space to Quartz2D coordinate space */
+	virtual	void				QDToQuartz2D(VPoint &ioPos)
+			{
+				VRect portBounds;
+				GetParentPortBounds(portBounds);
+				ioPos.SetY(portBounds.GetHeight()-ioPos.GetY());
+			}
+
+			/** transform rect from QD coordinate space to Quartz2D coordinate space */
+	virtual	void				QDToQuartz2D(VRect &ioRect)
+			{
+				VRect portBounds;
+				GetParentPortBounds(portBounds);
+				ioRect.SetY(portBounds.GetHeight()-(ioRect.GetY()+ioRect.GetHeight()));
+			}
+
+			/** transform point from Quartz2D coordinate space to QD coordinate space */
+	virtual	void				Quartz2DToQD(VPoint &ioPos)
+			{
+				QDToQuartz2D(ioPos);
+			}
+
+			/** transform rect from Quartz2D coordinate space to QD coordinate space */
+	virtual	void				Quartz2DToQD(VRect &ioRect)
+			{
+                QDToQuartz2D( ioRect);
+			}
+	
+	void	SetQDBounds( const CGRect& inQDBounds);
 	
 	static PatternRef	_CreateStandardPattern (ContextRef inContext, PatternStyle inStyle);
 	static void	_ReleasePattern (ContextRef inContext, PatternRef inPatternRef);
@@ -431,10 +456,10 @@ public:
 	static CGRect	QDRectToCGRect (const Rect& inQDRect);
 	
 	// Debug utils
-	static void		_RevealUpdate (WindowRef inWindow);
-	static void		_RevealClipping (ContextRef inContext);
-	static void		_RevealBlitting (ContextRef inContext, const RgnRef inRegion);
-	static void		_RevealInval (ContextRef inContext, const RgnRef inRegion);
+	static void		RevealUpdate (WindowRef inWindow);
+	static void		RevealClipping (ContextRef inContext);
+	static void		RevealBlitting (ContextRef inContext, const RgnRef inRegion);
+	static void		RevealInval (ContextRef inContext, const RgnRef inRegion);
 	
 	// Class initialization
 	static Boolean	Init ();
@@ -554,6 +579,9 @@ protected:
 	*/
 	virtual void _UpdateTextLayout( VTextLayout *inTextLayout);
 
+	/** internally called while replacing text in order to update impl-specific stuff */
+	virtual void _PostReplaceText( VTextLayout *inTextLayout);
+
 private:
 	// Initialization
 	void	_Init ();
@@ -602,9 +630,9 @@ public:
 			@remarks
 				NULL if graphic context is not a bitmap graphic context
 			*/
-			NATIVE_BITMAP_REF RetainBitmap() const
+			VBitmapNativeRef RetainBitmap() const
 			{ 
-				return (NATIVE_BITMAP_REF)MAC_RetainCGImage();
+				return (VBitmapNativeRef)MAC_RetainCGImage();
 			}
 
 			VMacQuartzBitmapContext (CGContextRef inSourceContext, Boolean inReversed, const CGRect& inQDBounds);

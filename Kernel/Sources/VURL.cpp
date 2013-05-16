@@ -332,6 +332,13 @@ void VURL::GetAbsoluteURL( VString& outURLString, bool inEncoded) const
 {
 	if (inEncoded)
 	{
+		//JQ 13/12/2012: fixed again ACI0075055
+		if (fURLString.EqualToString("about:blank", true))
+		{
+			outURLString = fURLString;
+			return;
+		}
+
 		outURLString.Clear();
 
 		VString tempstr;
@@ -1074,6 +1081,10 @@ void VURL::Decode (XBOX::VString& ioString)
 				pos = ioString.FindUniChar (CHAR_PERCENT_SIGN, startPos);
 			else
 				pos = 0;
+
+			// YT 02-Oct-2012 - ACI0078536
+			if (savedPos == pos)
+				break;
 		}
 		while (pos > 0);
 
@@ -1150,6 +1161,13 @@ void VURL::_RemoveLastPathComponent()
 
 void VURL::_GetAbsoluteURL(VString& outURLString) const
 {
+	//JQ 13/12/2012: fixed again ACI0075055
+	if (fURLString.EqualToString("about:blank", true))
+	{
+		outURLString = fURLString;
+		return;
+	}
+
 	// Internal use, no escape convertion
 	outURLString.Clear();
 	if (fBaseURL)
@@ -1183,26 +1201,77 @@ bool VURL::HFS_to_POSIX( VString& ioString, bool inRelative)
 {
 	if (!ioString.IsEmpty())
 	{
+		bool done = false;
 		VString lstr( ioString);
 		ioString.Clear();
 		
-		sLONG pos = 0, len = lstr.GetLength(), pendingSeparator = 0;
-		while (pos < len)
+		#if VERSIONMAC
+		if (!inRelative)
 		{
-			// ':' becomes '/', :: sequence becomes /../ and ::: sequence becomes /../../
-			if (lstr[pos] == FOLDER_SEPARATOR)
+			Boolean isFolder = lstr[lstr.GetLength()-1] == ':';
+			
+			CFStringRef cfPath = lstr.MAC_RetainCFStringCopy();
+			CFURLRef cfUrl = (cfPath == NULL) ? NULL : ::CFURLCreateWithFileSystemPath( kCFAllocatorDefault, cfPath, kCFURLHFSPathStyle, isFolder);
+			if (cfPath != NULL)
+				CFRelease( cfPath);
+
+			if (cfUrl != NULL)
 			{
-				++pendingSeparator;
-				++pos;
-				continue;
+				cfPath = ::CFURLCopyFileSystemPath( cfUrl, kCFURLPOSIXPathStyle);
+				if (cfPath != NULL)
+				{
+					ioString.MAC_FromCFString( cfPath);
+					ioString.Compose();
+					if ( isFolder && ioString[ioString.GetLength()-1] != '/')
+						ioString.AppendUniChar( '/');
+					done = true;
+					CFRelease( cfPath);
+				}
+				CFRelease( cfUrl);
 			}
+		}
+		#endif
+
+		if (!done)
+		{
+			sLONG pos = 0, len = lstr.GetLength(), pendingSeparator = 0;
+			while (pos < len)
+			{
+				// ':' becomes '/', :: sequence becomes /../ and ::: sequence becomes /../../
+				if (lstr[pos] == FOLDER_SEPARATOR)
+				{
+					++pendingSeparator;
+					++pos;
+					continue;
+				}
+				
+				if (pendingSeparator > 0)
+				{
+					if (pos != 1)
+						ioString.AppendUniChar( '/');
+					--pendingSeparator;
+		
+					while (pendingSeparator > 0)
+					{
+						ioString.AppendString( kPOSIX_SEP);
+						--pendingSeparator;
+					}
+				}
+				
+				if (lstr[pos]=='/')
+					ioString.AppendUniChar(':');
+				else
+					ioString.AppendUniChar( lstr[pos]);
+
+				++pos;
+			}		
 			
 			if (pendingSeparator > 0)
 			{
 				if (pos != 1)
 					ioString.AppendUniChar( '/');
 				--pendingSeparator;
-	
+				
 				while (pendingSeparator > 0)
 				{
 					ioString.AppendString( kPOSIX_SEP);
@@ -1210,31 +1279,11 @@ bool VURL::HFS_to_POSIX( VString& ioString, bool inRelative)
 				}
 			}
 			
-			if (lstr[pos]=='/')
-				ioString.AppendUniChar(':');
-			else
-				ioString.AppendUniChar( lstr[pos]);
-
-			++pos;
-		}		
-		
-		if (pendingSeparator > 0)
-		{
-			if (pos != 1)
-				ioString.AppendUniChar( '/');
-			--pendingSeparator;
-			
-			while (pendingSeparator > 0)
-			{
-				ioString.AppendString( kPOSIX_SEP);
-				--pendingSeparator;
-			}
+			#if VERSIONMAC
+			if (!inRelative)
+				ioString.Insert( CVSTR("/Volumes/"), 1);
+			#endif
 		}
-		
-		#if VERSIONMAC
-		if (!inRelative)
-			ioString.Insert( CVSTR("/Volumes/"), 1);
-		#endif
 	}
 	return true;
 }

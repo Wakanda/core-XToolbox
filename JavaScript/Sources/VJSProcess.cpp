@@ -48,6 +48,7 @@ void VJSProcess::GetDefinition( ClassDefinition& outDefinition)
 	{
 		{ "version", js_getProperty<_Version>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
 		{ "buildNumber", js_getProperty<_BuildNumber>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
+		{ "userDocuments", js_getProperty<_UserDocumentsFolder>, NULL, JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete },
 		{ 0, 0, 0, 0}
 	};
 
@@ -73,6 +74,13 @@ void VJSProcess::_BuildNumber ( XBOX::VJSParms_getProperty& ioParms, void* )
 	ioParms.ReturnString( s);
 }
 
+void VJSProcess::_UserDocumentsFolder ( XBOX::VJSParms_getProperty& ioParms, void* )
+{
+	VFolder*		fldrUserDocuments = VFolder::RetainSystemFolder ( eFK_UserDocuments, false );
+	ioParms. ReturnFolder ( fldrUserDocuments );
+	ReleaseRefCountable ( &fldrUserDocuments );
+}
+
 void VJSProcess::_getAccessor( XBOX::VJSParms_getProperty& ioParms, XBOX::VJSGlobalObject* inGlobalObject)
 {
 	ioParms.ReturnValue( VJSProcess::CreateInstance( ioParms.GetContextRef(), NULL));
@@ -86,6 +94,7 @@ void VJSOS::GetDefinition( ClassDefinition& outDefinition)
 	{
 		{	"type",					js_callStaticFunction<_Type>,				JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete	},
 		{	"networkInterfaces",	js_callStaticFunction<_NetworkInterfaces>,	JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete	},
+		{	"getProxy",				js_callStaticFunction<_getProxy>,			JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete	},
 		{	0,						0,											0																	},
 	};
 
@@ -196,6 +205,46 @@ void VJSOS::_NetworkInterfaces (XBOX::VJSParms_callStaticFunction &ioParms, void
 
 	}
 	ioParms.ReturnValue(result);
+}
+
+
+void VJSOS::_getProxy(XBOX::VJSParms_callStaticFunction &ioParms, void *)
+{
+	XBOX::VString pUrl;
+    bool resUrl;
+    resUrl=ioParms.GetStringParam(1, pUrl);
+
+	XBOX::VURL url(pUrl, true /*is encoded*/);
+
+	XBOX::VString scheme;
+	url.GetScheme(scheme);
+	scheme.ToUpperCase();
+
+	XBOX::VString host;
+	url.GetHostName(host, false /*want unencoded*/);
+
+	bool needProxy=false;
+
+	if(pUrl.CompareToString("HTTP", false /*not case sensitive*/)==CR_EQUAL)
+		needProxy=true;
+
+	if(!needProxy && scheme.EqualToString("HTTP", false /*not case sensitive*/)
+		&& XBOX::VProxyManager::GetUseProxy()
+		&& !XBOX::VProxyManager::ByPassProxyOnLocalhost(host)
+		&& !XBOX::VProxyManager::MatchProxyException(host))
+		needProxy=true;
+
+	if(needProxy)
+	{
+		XBOX::VJSObject	result(ioParms.GetContext());
+
+		result.MakeEmpty();
+
+		result.SetProperty("host", XBOX::VProxyManager::GetProxyServerAddress());
+		result.SetProperty("port", XBOX::VProxyManager::GetProxyServerPort());
+
+		ioParms.ReturnValue(result);
+	}
 }
 
 void VJSOS::_IsMac (XBOX::VJSParms_getProperty &ioParms, void *)

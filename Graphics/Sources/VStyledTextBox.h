@@ -31,22 +31,39 @@
 #ifndef __VSTYLEDTEXTBOX_H_
 #define __VSTYLEDTEXTBOX_H_
 
-
 BEGIN_TOOLBOX_NAMESPACE
 class VTextStyle;
+#ifndef __VGraphicContext__
+class XTOOLBOX_API VTextLayout;
+#endif
 
 class XTOOLBOX_API VStyledTextBox : public VObject, public IRefCountable
 {
 protected:
-	VStyledTextBox(const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont);
-	void Initialize(const VString& inText, VTreeTextStyle *inStyles, const VColor& inTextColor, VFont *inFont);
+	VStyledTextBox(const VString& inText, const VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont);
+	void Initialize(const VString& inText, const VTreeTextStyle *inStyles, const VColor& inTextColor, VFont *inFont);
 public:
 #if VERSIONWIN
 	typedef std::pair<sLONG,sLONG> TextRange;
 	typedef std::vector<TextRange> VectorOfTextRange;
 #endif
 
-	static VStyledTextBox *CreateImpl(ContextRef inContextRef, const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, const GReal inRefDocDPI = 72.0f, bool inUseNSAttributes = false);
+	static VStyledTextBox *CreateImpl(	ContextRef inContextRef, const VString& inText, const VTreeTextStyle *inStyles, 
+										const VRect& inHwndBounds, 
+										const VColor& inTextColor, VFont *inFont, 
+										const TextRenderingMode inMode = TRM_NORMAL, 
+										const TextLayoutMode inLayoutMode = TLM_NORMAL, 
+										const GReal inRefDocDPI = 72.0f, 
+										const GReal inCharKerning = 0.0f,
+										bool inUseNSAttributes = false);
+
+	static VStyledTextBox *CreateImpl(	ContextRef inContextRef, 
+										const VTextLayout& inTextLayout, 
+										const VRect* inBounds = NULL, 
+										const TextRenderingMode inMode = TRM_NORMAL, 
+										const VColor* inTextColor = NULL, VFont *inFont = NULL, 
+										const GReal inCharKerning = 0.0f,
+										bool inUseNSAttributes = false);
 
 	/** change drawing context 
 	@remarks
@@ -61,40 +78,70 @@ public:
 	virtual void InsertText( sLONG inPos, const VString& inText) {}
 
 	/** delete text range */
-	virtual void DeleteText( sLONG rangeStart, sLONG rangeEnd) {}
+	virtual void DeleteText( sLONG inStart = 0, sLONG inEnd = -1) {}
 
 	/** replace text range */
-	virtual void ReplaceText( sLONG rangeStart, sLONG rangeEnd, const VString& inText) 
+	virtual void ReplaceText( sLONG inStart, sLONG inEnd, const VString& inText) 
 	{
-		DeleteText( rangeStart, rangeEnd);
-		InsertText( rangeStart, inText);
+		DeleteText( inStart, inEnd);
+		InsertText( inStart, inText);
 	}
 	
+	/** set text horizontal alignment (default is AL_DEFAULT) */
+	virtual void SetTextAlign( AlignStyle inHAlign, sLONG inStart = 0, sLONG inEnd = -1);
+
+	/** set text paragraph alignment (default is AL_DEFAULT) */
+	virtual void SetParaAlign( AlignStyle inVAlign) {}
+
+	/** set paragraph line height 
+
+		if positive, it is fixed line height in point
+		if negative, line height is (-value)*normal line height (so -2 is 2*normal line height)
+		if -1, it is normal line height 
+	*/
+	virtual void SetLineHeight( const GReal inLineHeight, sLONG inStart = 0, sLONG inEnd = -1) {}
+
+	virtual void SetRTL(bool inRTL, sLONG inStart = 0, sLONG inEnd = -1) {}
+
+	/** set first line padding offset in point 
+	@remarks
+		might be negative for negative padding (that is second line up to the last line is padded but the first line)
+	*/
+	virtual void SetPaddingFirstLine(const GReal inPadding, sLONG inStart = 0, sLONG inEnd = -1) {}
+
+	/** set tab stop */
+	virtual void SetTabStop(const GReal inOffset, const eTextTabStopType inType, sLONG inStart = 0, sLONG inEnd = -1) {}
+
 	/** apply style (use style range) */
-	virtual void ApplyStyle( VTextStyle* inStyle) {}
+	virtual void ApplyStyle( const VTextStyle* inStyle) {}
 
 	Boolean Draw(const VRect& inBounds);
 	void GetSize(GReal &ioWidth, GReal &outHeight);
 
 	/** get plain text */
-	virtual Boolean GetPlainText( VString& outText) { return false; }
+	virtual Boolean GetPlainText( VString& outText) const { return false; }
+
+	virtual VIndex GetPlainTextLength() const 
+	{  
+		//should be optimized in impl
+		VString text;
+		GetPlainText(text);
+		return text.GetLength();
+	}
 
 	/** get uniform style on the specified range 
 	@remarks
 		return end location of uniform range
 	*/
-	virtual sLONG GetStyle(VTextStyle* ioStyle, sLONG rangeStart, sLONG rangeEnd) { return rangeStart; }
+	virtual sLONG GetStyle(VTextStyle* ioStyle, sLONG rangeStart = 0, sLONG rangeEnd = -1) { return rangeStart; }
 	
 	/** get vector of uniform styles from the specified range */
-	sLONG GetAllStyles(std::vector<VTextStyle*>& outStyles, sLONG inStart, sLONG inEnd);
+	sLONG GetAllStyles(std::vector<VTextStyle*>& outStyles, sLONG inStart = 0, sLONG inEnd = -1);
 
 	virtual Boolean GetRTFText(/*[out, retval]*/ VString& outRTFText) { return false; }
 	virtual Boolean	SetRTFText(/*[in]*/const VString& inRTFText) { return false; }
 
 #if VERSIONMAC	
-	/** set min line height for the specified range */
-	virtual void	SetMinLineHeight( const GReal inMinHeight, sLONG inStart, sLONG inEnd) {}
-	
 	virtual Boolean	SetHTMLText(VHandle inHandleHTML) { return false; }
 	
 	virtual VHandle GetRTFText() { return NULL; }
@@ -104,6 +151,9 @@ public:
 #if VERSIONWIN
 	/** return ranges of hidden text */
 	virtual void GetRangesHidden( VectorOfTextRange& outRanges) {}
+
+	/** set parent frame background color */
+	virtual void SetParentFrameBackColor( const VColor& inColor) {}
 #endif
 
 protected:
@@ -140,13 +190,14 @@ protected:
 	virtual void DoRelease() = 0;
 	virtual Boolean DoDraw(const VRect& inBounds) = 0;
 	virtual void DoGetSize(GReal &ioWidth, GReal &outHeight) = 0;
-	virtual void DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL) = 0;
+	virtual void DoApplyStyle(const VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL) = 0;
+			void _DoApplyStyleRef( const VTextStyle *inStyle);
 	virtual void _SetFont(VFont *font, const VColor &textColor) = 0;
 	virtual void _SetText(const VString& inText) = 0;
 	virtual	void DoOnRefCountZero ();
 	~VStyledTextBox() {};
 
-	void _ApplyAllStyles(XBOX::VTreeTextStyle* inStyles, VTextStyle *inStyleInherit = NULL);
+	void _ApplyAllStyles(const XBOX::VTreeTextStyle* inStyles, VTextStyle *inStyleInherit = NULL);
 	
 	bool fInitialized;
 };

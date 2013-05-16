@@ -30,18 +30,36 @@ public:
 			XMacIntlMgr( const XMacIntlMgr& inOther);
 	virtual	~XMacIntlMgr();
 	
-	bool	ToUpperLowerCase (const UniChar* inSrc, sLONG inSrcLen, UniPtr outDst, sLONG& ioDstLen, bool inIsUpper);
+			bool					ToUpperLowerCase (const UniChar* inSrc, sLONG inSrcLen, UniPtr outDst, sLONG& ioDstLen, bool inIsUpper);
 
 	static	VToUnicodeConverter*	NewToUnicodeConverter (CharSet inCharSet);
 	static	VFromUnicodeConverter*	NewFromUnicodeConverter (CharSet inCharSet);
+
+			void					FormatDate( const VTime& inDate, VString& outDate, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
+			void					FormatTime( const VTime& inTime, VString& outTime, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
+			void					FormatDuration( const VDuration& inTime, VString& outTime, EOSFormats inFormat);
+
+			void					GetMonthName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 1 (january) to 12 (december)
+			void					GetWeekDayName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 0 (sunday) to 6 (saturday)
 	
 			CFLocaleRef				GetCFLocaleRef() const;
 			CFLocaleRef				RetainCFLocaleRef() const;
 	static	CFLocaleRef				CreateCFLocaleRef( DialectCode inDialect);
 
 protected:
+	static	void					FormatVTime( const VTime& inDate, VString& outText, CFDateFormatterRef inFormatter, bool inUseGMTTimeZoneForDisplay);
+			void					FormatVTime( const VTime& inDate, VString& outText, CFDateFormatterStyle inDateStyle, CFDateFormatterStyle inTimeStyle, bool inUseGMTTimeZoneForDisplay);
+			void					FormatVTimeWithTemplate( const VTime& inDate, VString& outText, CFStringRef inTemplate, bool inUseGMTTimeZoneForDisplay);
+			void					FormatVDuration( const VDuration& inTime, VString& outText, CFDateFormatterStyle inDateStyle, CFDateFormatterStyle inTimeStyle);
+
+			bool					LoadCalendarSymbols() const;
+
 			DialectCode				fDialect;
 	mutable	CFLocaleRef				fCFLocaleRef;
+	mutable	CFArrayRef				fWeekdaySymbols;
+	mutable	CFArrayRef				fMonthSymbols;
+	mutable	CFArrayRef				fShortWeekdaySymbols;
+	mutable	CFArrayRef				fShortMonthSymbols;
 };
 
 typedef XMacIntlMgr XIntlMgrImpl;

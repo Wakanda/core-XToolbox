@@ -37,6 +37,10 @@ public:
 
 	static XBOX::VError				DecodeQuotedPrintable (const void *inData, VSize inDataSize, VMemoryBuffer<> *outResult);
 
+	// Decode all encoded words of an 7-bit data stream (usually from a mail header field-body).
+
+	static XBOX::VError				DecodeEncodedWords (const void *inData, VSize inDataSize, XBOX::VString *outResult);
+
 protected:
 	void							_FindFirstBoundary();
 	void							_GuessBoundary();
@@ -77,7 +81,7 @@ protected:
 	
 	virtual XBOX::VError	DoSetPos (sLONG8 inNewPos);
 
-	// DoGetSize() returns the number of byte(s) read or written. 
+	// DoGetSize() returns the total size of all memory buffer(s).
 
 	virtual sLONG8			DoGetSize ();
 

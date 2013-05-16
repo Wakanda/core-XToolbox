@@ -20,69 +20,76 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
+#define VPOLYGON_NATIVE_POINTS_FIXED_SIZE 12  //if more points than this value, native points will be allocated dynamically otherwise stored locally
+
 class XTOOLBOX_API VPolygon : public VObject, public IBoundedShape, public IStreamable
 {
 public:
-				VPolygon ();
-				VPolygon (const VPolygon& inOriginal);
-				VPolygon (const VArrayOf<VPoint*>& inList);
-				VPolygon (const VRect& inRect);
-	virtual	~VPolygon ();
-	void FromVRect(const VRect& inRect);
+	/** platform-independent point vector */
+	typedef std::vector<VPoint> VectorOfPoint;
+
+	/** native point type definition */
+#if VERSIONWIN
+	typedef POINT NativePoint;
+#elif VERSIONMAC
+	typedef CGPoint NativePoint;
+#else
+	//linux ?
+	typedef VPoint NativePoint;
+#endif
+
+						VPolygon ();
+						VPolygon (const VPolygon& inOriginal);
+						VPolygon (const VectorOfPoint& inPoints, bool inClose = true);
+						VPolygon (const VRect& inRect);
+
+	virtual				~VPolygon ();
+			void		FromVRect(const VRect& inRect);
+	
 	// Polygon construction
-	void	AddPoint (const VPoint& inLocalPoint);
-	void	Close ();
-	void	Clear ();
+			void		AddPoint (const VPoint& inLocalPoint);
+			void		Close ();
+			void		Clear ();
 	
 	// IBoundedShape API
-	virtual void	SetPosBy (GReal inHoriz, GReal inVert);
-	virtual void	SetSizeBy (GReal inWidth, GReal inHeight);
+	virtual void		SetPosBy (GReal inHoriz, GReal inVert);
+	virtual void		SetSizeBy (GReal inWidth, GReal inHeight);
 	
-	virtual Boolean	HitTest (const VPoint& inPoint) const;
-	virtual void	Inset (GReal inHoriz, GReal inVert);
+	virtual Boolean		HitTest (const VPoint& inPoint) const;
+	virtual void		Inset (GReal inHoriz, GReal inVert);
 	
 	// Stream API
-	virtual VError	WriteToStream (VStream* ioStream, sLONG inParam) const;
-	virtual VError	ReadFromStream (VStream* ioStream, sLONG inParam);
+	virtual VError		WriteToStream (VStream* ioStream, sLONG inParam) const;
+	virtual VError		ReadFromStream (VStream* ioStream, sLONG inParam);
 	
 	// Accessors
-	sLONG	GetPointCount () const;
-	void	GetNthPoint (sLONG inIndex, VPoint& outPoint) const;
+			sLONG		GetPointCount () const;
+			void		GetNthPoint (sLONG inIndex, VPoint& outPoint) const;
 	
 	// Operators
-	VPolygon&	operator = (const VPolygon& inOriginal);
-	Boolean		operator == (const VPolygon& inPolygon) const;
+			VPolygon&	operator = (const VPolygon& inOriginal);
+			Boolean		operator == (const VPolygon& inPolygon) const;
 
-#if VERSIONMAC
-	operator const CGPoint* () const { return fPolygon.First(); };
-	operator const CGAffineTransform& () const { return fTransform; };
-#endif
-
-#if USE_GDIPLUS
-	Gdiplus::PointF*	WIN_LockPolygon () { return fPolygon.First(); };
-	void	WIN_UnlockPolygon() {};
-#elif VERSIONWIN
-	POINT*	WIN_LockPolygon () { return (POINT*) VMemory::LockHandle(fPolygon); };
-	void	WIN_UnlockPolygon() { VMemory::UnlockHandle(fPolygon); };
-#endif
+			const VPolygon::NativePoint* GetNativePoints() const;
 
 protected:
-	friend class VRegion;
+			void		_ClearNativePoints();
+			void		_ComputeBounds (const VPoint& inLastPoint);
+
+			friend	class	VRegion;
 	
-#if VERSIONMAC
-	CGAffineTransform	fTransform;
-	VArrayOf<CGPoint> 	fPolygon;
-#endif
+	mutable VectorOfPoint	fPoints;
 
-#if USE_GDIPLUS
-	VArrayOf<Gdiplus::PointF> fPolygon;
-#elif VERSIONWIN
-	VHandle	fPolygon;
-	sLONG	fPointCount;
-#endif
+			/** native point table (stored locally to avoid to create it each time it is requested) 
+			@remarks
+				it is created locally on demand i.e. if native platform requests for vector of native points (normally only if polygon is painted)
+			*/
+	mutable	NativePoint*	fPtrNativePoints;
+	mutable	NativePoint		fNativePoints[VPOLYGON_NATIVE_POINTS_FIXED_SIZE];
+	mutable	bool			fNativePointsInitialized;
 
-	void	_ComputeBounds (const VPoint& inLastPoint);
 };
+
 
 END_TOOLBOX_NAMESPACE
 

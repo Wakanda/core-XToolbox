@@ -1902,7 +1902,7 @@ sLONG VICUCollator::FindString( const UniChar* inText, sLONG inTextSize, const U
 	sLONG matchedLength;
 
 	// shortcut for one char searching
-	if ( (inPatternSize == 1) && !inWithDiacritics)
+	if ( (inPatternSize == 1) && !inWithDiacritics && (*inPattern < 256))
 	{
 		UErrorCode status = U_ZERO_ERROR;
 		ucol_setText( fTextElements, inText, inTextSize, &status);

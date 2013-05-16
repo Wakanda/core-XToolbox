@@ -300,7 +300,7 @@ VBitmapData::VBitmapData(Gdiplus::Bitmap& inBitmap,Gdiplus::Bitmap* inMask)
 		inBitmap.UnlockBits(&bmData);
 	}
 }
-#else
+#elif VERSIONMAC
 
 VBitmapData::VBitmapData(CGImageRef inCGImage,CGImageRef inMask)
 {
@@ -822,7 +822,7 @@ Gdiplus::Bitmap* VBitmapData::CreateNativeBitmap()
 	}
 	return result;
 }
-#else
+#elif VERSIONMAC
 CGImageRef VBitmapData::CreateNativeBitmap()
 {
 	CGImageRef result=0;
@@ -962,7 +962,7 @@ VPictureData* VBitmapData::CreatePictureData()
 		{
 			result=new VPictureData_GDIPlus(bm,true);
 		}
-		#else
+		#elif VERSIONMAC
 		CGImageRef bm=CreateNativeBitmap();
 		if(bm)
 		{

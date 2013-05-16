@@ -244,8 +244,11 @@ namespace CW
         ~HttpRequest();
 		
 		bool		SetUserInfos			(const XBOX::VString& inUser, const XBOX::VString& inPasswd, bool inAllowBasic);
+		bool		SetClientCertificate	(const XBOX::VString& inKeyPath, const XBOX::VString& inCertPath);
         void        SetProxy                (const XBOX::VString& inProxy, uLONG inPort=-1);
-        bool        SetRequestHeader        (const XBOX::VString& inKey, const XBOX::VString& inValue);
+		bool        SetRequestHeader        (const XBOX::VString& inKey, const XBOX::VString& inValue);
+		//SetTimeout, inConnectMs : Full second resolution, 2500ms actually waits for 3s
+	    bool		SetTimeout				(uLONG inConnectMs=0 /*Defaults to 300s*/, uLONG inTotalMs=0 /*Forever, should be > to inConnectMs*/);
         //bool        SetData                 (const XBOX::VString& inData);
 		bool        SetData(const XBOX::VString& inData, XBOX::CharSet inCS=XBOX::VTC_UTF_8);
         bool        Perform                 (XBOX::VError* outError);

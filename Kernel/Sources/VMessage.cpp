@@ -148,6 +148,15 @@ void VMessage::DoExecute()
 }
 
 
+bool VMessage::ActivateContext( IMessageable* inTarget)
+{
+	VMessagingContext *context = inTarget->RetainMessagingContext();
+	CopyRefCountable( &fContext, context);
+	ReleaseRefCountable( &context);
+	return fContext != NULL;
+}
+
+
 bool VMessage::SendTo( IMessageable* inTarget, sLONG inTimeoutMilliseconds)
 {
 	// synchronous sending of a message.

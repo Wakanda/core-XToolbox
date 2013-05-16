@@ -136,7 +136,7 @@ VJSFileSystem *VJSLocalFileSystem::RetainTemporaryFileSystem (VSize inQuota)
 	VJSFileSystem	*fileSystem;
 	XBOX::VFilePath	root(fProjectPath, XBOX::VString(name).AppendChar('/'), XBOX::FPS_POSIX);
 
-	if ((fileSystem = new VJSFileSystem(this, name, root, inQuota)) != NULL) {
+	if ((fileSystem = new VJSFileSystem(name, root, inQuota)) != NULL) {
 
 		XBOX::VFolder	folder(root);
 		XBOX::VError	error;
@@ -169,7 +169,7 @@ VJSFileSystem *VJSLocalFileSystem::RetainPersistentFileSystem (VSize inQuota)
 	
 		XBOX::VFilePath	root(fProjectPath, XBOX::VString(sPERSISTENT_NAME).AppendChar('/'), XBOX::FPS_POSIX);
 
-		if ((fileSystem = new VJSFileSystem(this, sPERSISTENT_NAME, root, inQuota)) != NULL) {
+		if ((fileSystem = new VJSFileSystem(sPERSISTENT_NAME, root, inQuota)) != NULL) {
 			
 			XBOX::VFolder	folder(root);
 			XBOX::VError	error;
@@ -218,7 +218,7 @@ VJSFileSystem *VJSLocalFileSystem::RetainRelativeFileSystem (const XBOX::VString
 	
 		XBOX::VFilePath	root(fProjectPath);
 
-		if ((fileSystem = new VJSFileSystem(this, inPath, root, 0)) != NULL) {
+		if ((fileSystem = new VJSFileSystem(inPath, root, 0)) != NULL) {
 
 			fFileSystems[name] = fileSystem;
 
@@ -244,9 +244,35 @@ VJSFileSystem *VJSLocalFileSystem::RetainRelativeFileSystem (const XBOX::VString
 	return fileSystem;
 }
 
+VJSFileSystem *VJSLocalFileSystem::RetainNamedFileSystem (const XBOX::VJSContext &inContext, const XBOX::VString &inFileSystemName)
+{
+	XBOX::IJSRuntimeDelegate	*rtDeleguate	= inContext.GetGlobalObjectPrivateInstance()->GetRuntimeDelegate();
+	VJSFileSystem				*fsPrivateData	= NULL;
+	XBOX::VFileSystemNamespace	*fsNameSpace;
+
+	xbox_assert(rtDeleguate != NULL);
+			
+	if ((fsNameSpace = rtDeleguate->RetainRuntimeFileSystemNamespace()) != NULL) {
+
+		XBOX::VFileSystem	*fileSystem;
+	
+		if ((fileSystem = fsNameSpace->RetainFileSystem(inFileSystemName)) != NULL) {
+
+			fsPrivateData = new VJSFileSystem(fileSystem);
+			XBOX::ReleaseRefCountable<XBOX::VFileSystem>(&fileSystem);
+		
+		}
+
+		XBOX::ReleaseRefCountable<XBOX::VFileSystemNamespace>(&fsNameSpace);
+
+	}
+
+	return fsPrivateData;
+}
+
 void VJSLocalFileSystem::ReleaseFileSystem (VJSFileSystem *inFileSystem)
 {
-	xbox_assert(inFileSystem != NULL);
+	xbox_assert(inFileSystem !=  NULL);
 	xbox_assert(!inFileSystem->GetRefCount());
 
 	// If not already released by ReleaseAllFileSystems(), do actual release.
@@ -310,7 +336,9 @@ void VJSLocalFileSystem::ReleaseAllFileSystems ()
 	fFileSystems.clear();
 }
 
-sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, sLONG inType, VSize inQuota, XBOX::VJSObject *outResult, bool inIsSync)
+sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, 
+	sLONG inType, VSize inQuota, XBOX::VJSObject *outResult, 
+	bool inIsSync, const XBOX::VString &inFileSystemName)
 {
 	xbox_assert(outResult != NULL);
 
@@ -322,9 +350,11 @@ sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, 
 
 		switch (inType) {
 
+			case NAMED_FS:		fileSystem = RetainNamedFileSystem(inContext, inFileSystemName); break;
 			case TEMPORARY:		fileSystem = RetainTemporaryFileSystem(inQuota); break;
 			case PERSISTENT:	fileSystem = RetainPersistentFileSystem(inQuota); break;
 			case DATA:			fileSystem = RetainRelativeFileSystem(fProjectPath.GetPath()); break;
+			
 			default:			xbox_assert(false); break;
 
 		}			
@@ -332,7 +362,7 @@ sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, 
 	
 	} 
 
-	if (error == XBOX::VE_OK) {
+	if (error == XBOX::VE_OK && fileSystem != NULL) {
 
 		xbox_assert(fileSystem != NULL);
 
@@ -349,11 +379,22 @@ sLONG VJSLocalFileSystem::RequestFileSystem (const XBOX::VJSContext &inContext, 
 		return VJSFileErrorClass::OK;
 
 	} else {
+	
+		if (fileSystem == NULL && inType == NAMED_FS) {
 
-		// Error is probably out of memory, but use SECURITY_ERR as there is nothing more specific.
+			// Named file system wasn't found.
 
-		*outResult = VJSFileErrorClass::NewInstance(inContext, VJSFileErrorClass::SECURITY_ERR);
-		return VJSFileErrorClass::SECURITY_ERR;
+			*outResult = VJSFileErrorClass::NewInstance(inContext, VJSFileErrorClass::NOT_FOUND_ERR);
+			return VJSFileErrorClass::NOT_FOUND_ERR;
+
+		} else {
+
+			// Error is probably out of memory, but use SECURITY_ERR as there is nothing more specific.
+
+			*outResult = VJSFileErrorClass::NewInstance(inContext, VJSFileErrorClass::SECURITY_ERR);
+			return VJSFileErrorClass::SECURITY_ERR;
+
+		}
 
 	}
 }
@@ -443,34 +484,61 @@ void VJSLocalFileSystem::_fileSystem (XBOX::VJSParms_callStaticFunction &ioParms
 
 void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &ioParms, bool inIsSync, bool inFromFunction)
 {	
-	sLONG	type;
+	sLONG			type;
+	XBOX::VString	fileSystemName;
+	
+	if (ioParms.IsStringParam(1)) {
 
-	if (!ioParms.IsNumberParam(1) || !ioParms.GetLongParam(1, &type)) {
+		if (!ioParms.GetStringParam(1, fileSystemName)) {
 
-		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
-		return;
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
+			return;
 
-	}
-	if (type < FS_FIRST_TYPE || type > FS_LAST_TYPE) {
+		} else
 
-		XBOX::vThrowError(XBOX::VE_JVSC_FS_WRONG_TYPE, "1");
-		return;
+			type = NAMED_FS;
+
+	} else {
+
+		if (!ioParms.IsNumberParam(1) || !ioParms.GetLongParam(1, &type)) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "1");
+			return;
+
+		}
+		if (type < FS_FIRST_TYPE || type > FS_LAST_TYPE) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_FS_WRONG_TYPE, "1");
+			return;
+
+		}
 
 	}
 	
 	sLONG	size;
 	VSize	quota;
+	sLONG	callbackStartIndex;
 
-	if (!ioParms.IsNumberParam(2) || !ioParms.GetLongParam(2, &size)) {
+	if (type == NAMED_FS) {
+		
+		quota = size = 0;			// Not applicable for named file systems.
+		callbackStartIndex = 2;
 
-		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "2");
-		return;
+	} else {
 
-	}
-	if ((quota = size) < 0) {
+		if (!ioParms.IsNumberParam(2) || !ioParms.GetLongParam(2, &size)) {
 
-		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_NUMBER_ARGUMENT, "2");
-		return;
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_NUMBER, "2");
+			return;
+
+		}
+		if ((quota = size) < 0) {
+
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_NUMBER_ARGUMENT, "2");
+			return;
+
+		}
+		callbackStartIndex = 3;
 
 	}
 
@@ -479,16 +547,20 @@ void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &
 
 	if (!inIsSync && !inFromFunction) {
 
-		if (!ioParms.IsObjectParam(3) || !ioParms.GetParamFunc(3, successCallback)) {
+		XBOX::VString	argumentNumber;
 
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, "3");
+		if (!ioParms.IsObjectParam(callbackStartIndex) || !ioParms.GetParamFunc(callbackStartIndex, successCallback)) {
+
+			argumentNumber.AppendLong(callbackStartIndex);
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, argumentNumber);
 			return;
 
 		}
-		if (ioParms.CountParams() >= 4 
-		&& (!ioParms.IsObjectParam(4) || !ioParms.GetParamFunc(4, errorCallback))) {
+		if (ioParms.CountParams() >= callbackStartIndex + 1 
+		&& (!ioParms.IsObjectParam(callbackStartIndex + 1) || !ioParms.GetParamFunc(callbackStartIndex + 1, errorCallback))) {
 
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, "4");
+			argumentNumber.AppendLong(callbackStartIndex + 1);
+			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_FUNCTION, argumentNumber);
 			return;
 
 		}
@@ -512,9 +584,13 @@ void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &
 
 	if (inIsSync || inFromFunction) {
 
+		sLONG			code;
 		XBOX::VJSObject	resultObject(ioParms.GetContext());
 
-		if (localFileSystem->RequestFileSystem(ioParms.GetContext(), type, quota, &resultObject, inIsSync) == VJSFileErrorClass::OK)
+		code = localFileSystem->RequestFileSystem(ioParms.GetContext(), type, quota, &resultObject, inIsSync, fileSystemName);
+
+
+		if (code == VJSFileErrorClass::OK)
 
 			ioParms.ReturnValue(resultObject);
 
@@ -526,7 +602,7 @@ void VJSLocalFileSystem::_requestFileSystem (XBOX::VJSParms_callStaticFunction &
 
 		VJSW3CFSEvent	*request;
 
-		if ((request = VJSW3CFSEvent::RequestFS(localFileSystem, type, quota, successCallback, errorCallback)) == NULL)
+		if ((request = VJSW3CFSEvent::RequestFS(localFileSystem, type, quota, fileSystemName, successCallback, errorCallback)) == NULL)
 
 			XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
 
@@ -619,171 +695,25 @@ void VJSLocalFileSystem::_addTypeConstants (XBOX::VJSObject &inFileSystemObject)
 	inFileSystemObject.SetProperty("DATA", (sLONG) DATA, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 }
 
-VJSFileSystem::VJSFileSystem (VJSLocalFileSystem *inLocalFileSystem, const XBOX::VString &inName, const XBOX::VFilePath &inRoot, VSize inQuota)
+VJSFileSystem::VJSFileSystem (const XBOX::VString &inName, const XBOX::VFilePath &inRoot, VSize inQuota)
 {
-	fIsValid = true;
-	fLocalFileSystem = XBOX::RetainRefCountable<VJSLocalFileSystem>(inLocalFileSystem);	
-	fName = inName;
-	fRoot = inRoot;
-	fQuota = fAvailable = inQuota;
+	fFileSystem = new XBOX::VFileSystem(inName, inRoot, true, inQuota);
+	xbox_assert(fFileSystem != NULL);
+
+	ClearObjectRefs();
+}
+
+VJSFileSystem::VJSFileSystem (XBOX::VFileSystem *inFileSystem)
+{
+	xbox_assert(inFileSystem != NULL);
+
+	fFileSystem = XBOX::RetainRefCountable<XBOX::VFileSystem>(inFileSystem);
 	ClearObjectRefs();
 }
 
 VJSFileSystem::~VJSFileSystem ()
 {
-	fLocalFileSystem->ReleaseFileSystem(this);
-	XBOX::ReleaseRefCountable<VJSLocalFileSystem>(&fLocalFileSystem);
-}
-
-bool VJSFileSystem::Request (VSize inSize)
-{
-	if (!fQuota) 
-
-		return true;
-
-	else if (inSize <= fAvailable) {
-
-		fAvailable -= inSize;
-		return true;
-
-	} else 
-
-		return false;
-}
-
-void VJSFileSystem::Relinquish (VSize inSize)
-{
-	if (fQuota) {
-
-		fAvailable += inSize;
-		xbox_assert(fAvailable <= fQuota);
-
-	}
-}
-
-sLONG VJSFileSystem::ParseURL (const XBOX::VString &inURL, XBOX::VFilePath *ioPath, bool *outIsFile)
-{
-	xbox_assert(ioPath != NULL && outIsFile != NULL);
-
-	XBOX::VString	posixPath;
-	XBOX::VFilePath	path;
-	
-	XBOX::VURL(inURL, true).GetRelativePath(posixPath);
-	
-// TODO:
-//
-// Allow multiple "file systems" and hence "real" absolute path ?
-// Or always use absolute path refering to a relative path. This is what is done currently.
-
-	if (IsAbsolutePath(posixPath)) {
-
-		if (posixPath.GetLength() == 1)
-
-			posixPath = "";
-
-		else
-	
-			posixPath.SubString(2, posixPath.GetLength() - 1);
-
-	} 
-	path.FromRelativePath(*ioPath, posixPath, FPS_POSIX);
-
-	*ioPath = path;
-
-	sLONG	code	= VJSFileErrorClass::OK;
-	bool	isFile	= false;
-
-	if (!path.IsValid())
-
-		code = VJSFileErrorClass::ENCODING_ERR;
-
-	else if (!IsAuthorized(path))	
-
-		code = VJSFileErrorClass::SECURITY_ERR;
-
-	else {
-
-		// Determine if URL is for a folder or a file.
-
-		if (path.IsFolder()) {
-
-			XBOX::VFolder	folder(path.GetPath());
-
-			if (!folder.Exists()) 
-
-				code = VJSFileErrorClass::NOT_FOUND_ERR;
-			
-		} else {
-		
-			XBOX::VFile	file(path);
-			
-			if (file.Exists())
-
-				isFile = true;
-
-			else {
-
-				// Allow user to specify a folder without a terminating '/' separator.
-
-				XBOX::VString	fullPath;
-
-				fullPath = path.GetPath();
-				fullPath.AppendChar(FOLDER_SEPARATOR);
-
-				XBOX::VFolder	folder(fullPath);
-
-				if (folder.Exists())
-
-					ioPath->FromFullPath(fullPath);
-
-				else 
-
-					code = VJSFileErrorClass::NOT_FOUND_ERR;
-
-			}
-
-		}
-
-	}
-	*outIsFile = isFile;
-
-	return code;
-}
-
-bool VJSFileSystem::IsAuthorized (const XBOX::VFilePath &inPath)
-{
-	// VFilePath::IsChildOf() is another way to do (slower).
-
-	const XBOX::VString	&root	= fRoot.GetPath();
-	const XBOX::VString &path	= inPath.GetPath();
-		
-	return path.BeginsWith(root, true);
-}
-
-bool VJSFileSystem::IsAbsolutePath (const XBOX::VString &inPath)
-{
-	xbox_assert(inPath.GetLength());	// Caller must check for non-emptiness.
-
-	bool	isAbsolute;
-
-#if VERSIONWIN
-
-	if (inPath.GetLength() >= 2
-	&& VIntlMgr::GetDefaultMgr()->IsAlpha(inPath.GetUniChar(1)) && inPath.GetUniChar(2) == ':' && inPath.GetUniChar(3) == '/')
-
-		isAbsolute = true;
-
-	else 
-
-		isAbsolute = inPath.GetUniChar(1) == '/';
-		
-#else	// VERSIONMAC && VERSION_LINUX
-
-	isAbsolute = inPath.GetUniChar(1) == '/';
-
-#endif
-
-	return isAbsolute;
+	XBOX::ReleaseRefCountable<XBOX::VFileSystem>(&fFileSystem);
 }
 
 void VJSFileSystem::ClearObjectRefs (void) 
@@ -792,7 +722,18 @@ void VJSFileSystem::ClearObjectRefs (void)
 	fRootEntryObjectRef = fRootEntrySyncObjectRef = NULL;
 }
 
-void VJSFileSystem::SetRootEntryObjectRef (bool inIsSync, JS4D::ObjectRef inObjectRef)
+void VJSFileSystem::SetFileSystemObjectRef (bool inIsSync, XBOX::JS4D::ObjectRef inObjectRef)
+{
+	if (inIsSync)
+
+		fFileSystemSyncObjectRef = inObjectRef;
+		
+	else
+	
+		fFileSystemObjectRef = inObjectRef;
+}
+
+void VJSFileSystem::SetRootEntryObjectRef (bool inIsSync, XBOX::JS4D::ObjectRef inObjectRef)
 {
 	if (inIsSync)
 
@@ -801,6 +742,47 @@ void VJSFileSystem::SetRootEntryObjectRef (bool inIsSync, JS4D::ObjectRef inObje
 	else 
 
 		fRootEntryObjectRef = inObjectRef;
+}
+
+sLONG VJSFileSystem::ParseURL (const XBOX::VString &inURL, XBOX::VFilePath *ioPath, bool *outIsFile)
+{
+	xbox_assert(ioPath != NULL && outIsFile != NULL);
+
+	XBOX::VURL		url(inURL, true);
+	XBOX::VFilePath	currentFolder(*ioPath);
+	XBOX::VError	error;
+
+	if ((error = fFileSystem->ParseURL(url, currentFolder, ioPath)) == XBOX::VE_OK) {
+
+		*outIsFile = ioPath->IsFile();
+		return VJSFileErrorClass::OK;
+
+	} else
+
+		switch (error) {
+
+			case XBOX::VE_FS_PATH_ENCODING_ERROR:	
+				
+				return VJSFileErrorClass::ENCODING_ERR;
+
+			case XBOX::VE_FS_NOT_AUTHORIZED:
+
+				return VJSFileErrorClass::SECURITY_ERR;
+
+			case XBOX::VE_FS_NOT_FOUND:
+
+				return VJSFileErrorClass::NOT_FOUND_ERR;
+
+			case XBOX::VE_FS_INVALID_STATE_ERROR:
+
+				return VJSFileErrorClass::INVALID_STATE_ERR; 
+
+			default: 
+
+				xbox_assert(false);
+				return VJSFileErrorClass::INVALID_STATE_ERR; 
+
+		}
 }
 
 void VJSFileSystemClass::GetDefinition (ClassDefinition &outDefinition)
@@ -817,9 +799,9 @@ XBOX::VJSObject VJSFileSystemClass::GetInstance (const XBOX::VJSContext &inConte
 
 	// Each FileSystem object is unique.
 
-	if (inFileSystem->fFileSystemObjectRef != NULL)
+	if (inFileSystem->GetFileSystemObjectRef(false) != NULL)
 
-		return XBOX::VJSObject(inContext, inFileSystem->fFileSystemObjectRef);
+		return XBOX::VJSObject(inContext, inFileSystem->GetFileSystemObjectRef(false));
 
 	else
 
@@ -831,7 +813,7 @@ void VJSFileSystemClass::_Initialize (const XBOX::VJSParms_initialize &inParms, 
 	xbox_assert(inFileSystem != NULL);
 
 	inFileSystem->Retain();
-	inFileSystem->fFileSystemObjectRef = inParms.GetObject().GetObjectRef();	// This will prevent recursion when creating root entry.
+	inFileSystem->SetFileSystemObjectRef(false, inParms.GetObject().GetObjectRef());	// This will prevent recursion when creating root entry.
 
 	XBOX::VJSObject	rootObject(inParms.GetContext());
 
@@ -872,9 +854,9 @@ XBOX::VJSObject VJSFileSystemSyncClass::GetInstance (const XBOX::VJSContext &inC
 
 	// Each FileSystemSync object is unique.
 
-	if (inFileSystem->fFileSystemSyncObjectRef != NULL)
+	if (inFileSystem->GetFileSystemObjectRef(true) != NULL)
 
-		return XBOX::VJSObject(inContext, inFileSystem->fFileSystemSyncObjectRef);
+		return XBOX::VJSObject(inContext, inFileSystem->GetFileSystemObjectRef(true));
 
 	else
 
@@ -886,7 +868,7 @@ void VJSFileSystemSyncClass::_Initialize (const XBOX::VJSParms_initialize &inPar
 	xbox_assert(inFileSystem != NULL);
 
 	inFileSystem->Retain();
-	inFileSystem->fFileSystemSyncObjectRef = inParms.GetObject().GetObjectRef();
+	inFileSystem->SetFileSystemObjectRef(true, inParms.GetObject().GetObjectRef());
 
 	XBOX::VJSObject	rootObject(inParms.GetContext());
 
@@ -1634,7 +1616,7 @@ sLONG VJSEntry::GetFile (const XBOX::VJSContext &inContext, const XBOX::VString 
 	sLONG		code;
 	VFilePath	path(GetPath());
 	bool		isFile;
-
+	
 	if ((code = fFileSystem->ParseURL(inURL, &path, &isFile)) == VJSFileErrorClass::OK) {
 
 		// Path alredy exists.
@@ -1867,9 +1849,9 @@ sLONG VJSEntry::Folder (const XBOX::VJSContext &inContext, XBOX::VJSObject *outR
 
 	else {
 
-		XBOX::VFolder *folder;
+		VFolder *folder = new VFolder(fPath, fFileSystem->GetFileSystem());
 
-		if ((folder = new VFolder(fPath)) == NULL) 
+		if (folder == NULL) 
 
 			code = VJSFileErrorClass::SECURITY_ERR;
 				
@@ -1924,9 +1906,9 @@ sLONG VJSEntry::File (const XBOX::VJSContext &inContext, XBOX::VJSObject *outRes
 
 	else {
 
-		XBOX::VFile	*file;
+		XBOX::VFile	*file = new VFile(fPath, fFileSystem->GetFileSystem());
 
-		if ((file = new VFile(fPath)) == NULL) 
+		if (file == NULL) 
 
 			code = VJSFileErrorClass::SECURITY_ERR;
 				

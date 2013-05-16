@@ -25,6 +25,50 @@ USING_TOOLBOX_NAMESPACE
 //--------------------------------------------------------------------------------------------------
 
 
+static
+void _GetRFC1123DateString (const XBOX::VTime& inDate, XBOX::VString& outString)
+{
+	sWORD year, month, day, hour, minute, second, millisecond;
+	inDate.GetUTCTime (year, month, day, hour, minute, second, millisecond);
+
+	outString.Clear();
+
+	switch (inDate.GetWeekDay())
+	{
+	case 0:		outString.AppendCString ("Sun");	break;
+	case 1:		outString.AppendCString ("Mon");	break;
+	case 2:		outString.AppendCString ("Tue");	break;
+	case 3:		outString.AppendCString ("Wed");	break;
+	case 4:		outString.AppendCString ("Thu");	break;
+	case 5:		outString.AppendCString ("Fri");	break;
+	case 6:		outString.AppendCString ("Sat");	break;
+	}
+
+	outString.AppendPrintf (", %02d-", day);
+
+	switch (month)
+	{
+	case 1:		outString.AppendCString ("Jan");	break;
+	case 2:		outString.AppendCString ("Feb");	break;
+	case 3:		outString.AppendCString ("Mar");	break;
+	case 4:		outString.AppendCString ("Apr");	break;
+	case 5:		outString.AppendCString ("May");	break;
+	case 6:		outString.AppendCString ("Jun");	break;
+	case 7:		outString.AppendCString ("Jul");	break;
+	case 8:		outString.AppendCString ("Aug");	break;
+	case 9:		outString.AppendCString ("Sep");	break;
+	case 10:	outString.AppendCString ("Oct");	break;
+	case 11:	outString.AppendCString ("Nov");	break;
+	case 12:	outString.AppendCString ("Dec");	break;
+	}
+
+	outString.AppendPrintf ("-%04d %02d:%02d:%02d GMT", year, hour, minute, second);
+}
+
+
+//--------------------------------------------------------------------------------------------------
+
+
 VHTTPCookie::VHTTPCookie()
 : fVersion (0)
 , fSecure (false)
@@ -107,7 +151,7 @@ bool VHTTPCookie::IsValid() const
 }
 
 
-XBOX::VString VHTTPCookie::ToString() const
+XBOX::VString VHTTPCookie::ToString (bool inAlwaysExpires) const
 {
 	XBOX::VString result;
 
@@ -123,13 +167,13 @@ XBOX::VString VHTTPCookie::ToString() const
 		result.AppendString (fValue);
 		if (!fDomain.IsEmpty())
 		{
-			result.AppendCString ("; domain=");
+			result.AppendCString ("; Domain=");
 			result.AppendString (fDomain);
 		}
 
 		if (!fPath.IsEmpty())
 		{
-			result.AppendCString ("; path=");
+			result.AppendCString ("; Path=");
 			result.AppendString (fPath);
 		}
 
@@ -141,14 +185,14 @@ XBOX::VString VHTTPCookie::ToString() const
 			XBOX::VTime::Now (curTime);
 			
 			curTime.AddSeconds (fMaxAge);
-			curTime.GetRfc822String (timeString);
-			result.AppendCString ("; expires=");
+			_GetRFC1123DateString (curTime, timeString);
+			result.AppendCString ("; Expires=");
 			result.AppendString (timeString);
 		}
 
 		if (fSecure)
 		{
-			result.AppendCString ("; secure");
+			result.AppendCString ("; Secure");
 		}
 
 		if (fHTTPOnly)
@@ -190,6 +234,7 @@ XBOX::VString VHTTPCookie::ToString() const
 			result.AppendLong (fMaxAge);
 
 			/* For Internet Explorer 6, 7 & 8 which does not support 'max-age' */ 
+			if (inAlwaysExpires)
 			{
 				XBOX::VTime		curTime;
 				XBOX::VString	timeString;
@@ -197,8 +242,8 @@ XBOX::VString VHTTPCookie::ToString() const
 				XBOX::VTime::Now (curTime);
 
 				curTime.AddSeconds (fMaxAge);
-				curTime.GetRfc822String (timeString);
-				result.AppendCString ("; expires=");
+				_GetRFC1123DateString (curTime, timeString);
+				result.AppendCString ("; Expires=");
 				result.AppendString (timeString);
 			}
 		}

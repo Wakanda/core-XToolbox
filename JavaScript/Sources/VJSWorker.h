@@ -34,8 +34,31 @@ class XTOOLBOX_API IJSWorkerDelegate
 {
 public:
 
+	enum WorkerDelegateType {
+
+		TYPE_WAKANDA_SERVER,
+		TYPE_WAKANDA_STUDIO,
+		TYPE_4D,
+
+	};
+
+	virtual WorkerDelegateType	GetType () = 0;
 	virtual	VJSGlobalContext	*RetainJSContext (VError& outError, const VJSContext& inParentContext, bool inReusable) = 0;
 	virtual	VError				ReleaseJSContext (VJSGlobalContext* inContext) = 0;
+};
+
+class VJSHasEventMessage : public XBOX::VMessage
+{
+public:
+
+			VJSHasEventMessage (VJSWorker *inWorker);
+	virtual	~VJSHasEventMessage ();
+
+	void	DoExecute ();
+
+private:
+
+	VJSWorker	*fWorker;
 };
 
 // Worker execution.
@@ -54,7 +77,8 @@ public:
 
 	// The caller is responsible for the destruction of the delegate
 
-	static void			SetDelegate (IJSWorkerDelegate *inDelegate);
+	static void					SetDelegate (IJSWorkerDelegate *inDelegate);
+	static IJSWorkerDelegate	*GetDelegate ()	{	return sDelegate;	}
 
 	// Create a dedicated worker.
 
@@ -150,6 +174,10 @@ public:
 
 	static sLONG		GetNumberRunning (sLONG inType);
 
+	// This will call wait WaitFor() and execute pending events.
+
+	void				ExecuteHasEventMessage (VJSHasEventMessage *inMessage);
+
 private:
 
 	static const uLONG						kSpecificKey	= ('J' << 24) | ('S' << 16) | ('W' << 8) | 'W'; 
@@ -162,8 +190,14 @@ private:
 
 	static IJSWorkerDelegate				*sDelegate;
 
-	XBOX::VCriticalSection					fMutex;	
+	XBOX::VCriticalSection					fMutex;
+	XBOX::VCriticalSection					fWaitForMutex;				// Prevent two threads from executing a WaitFor(). 
+																		// However a same thread can still call WaitFor() recursively.
+
 	XBOX::VTask								*fVTask;
+
+	XBOX::VTask								*fRootVTask;				// VTask of the root worker.
+	XBOX::JS4D::GlobalContextRef			fRootGlobalContext;			// Only for root worker.
 
 	XBOX::VJSGlobalContext					*fGlobalContext;			// "Child" (dedicated or shared) workers only. 
 

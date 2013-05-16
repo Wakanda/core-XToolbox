@@ -249,7 +249,7 @@ ContextRef	VWinGDIPlusGraphicContext::BeginUsingParentContext()const
 		//}
 		//else
 		//	fHDCTransform=NULL;
-		_RevealClipping(result);
+		RevealClipping(result);
 	}
 	else
 	{
@@ -1920,12 +1920,6 @@ void VWinGDIPlusGraphicContext::SetPixelBackColor(const VColor& inColor)
 }
 
 
-TransferMode VWinGDIPlusGraphicContext::SetPixelTransferMode(TransferMode inMode)
-{
-	return TM_COPY;
-}
-
-
 #pragma mark-
 
 GReal VWinGDIPlusGraphicContext::GetTextWidth(const VString& inString) const 
@@ -1949,7 +1943,7 @@ GReal VWinGDIPlusGraphicContext::GetTextWidth(const VString& inString) const
 	format.SetLineAlignment(StringAlignmentNear);
 	format.SetAlignment(StringAlignmentNear);
 
-	if(fGDIPlusGraphics->MeasureString((LPCWSTR) inString.GetCPointer(),inString.GetLength(),fTextFont->GetGDIPlusFont(),origin,&format,&boundRect)!=Gdiplus::Ok)
+	if(fGDIPlusGraphics->MeasureString((LPCWSTR) inString.GetCPointer(),inString.GetLength(),fTextFont->GetImpl().GetGDIPlusFont(),origin,&format,&boundRect)!=Gdiplus::Ok)
 		return 0;
 	else
 		return boundRect.Width*fTextScale;
@@ -1973,7 +1967,7 @@ void VWinGDIPlusGraphicContext::GetTextBounds( const VString& inString, VRect& o
 	if(fTextMeasuringMode==TMM_GENERICTYPO)
 		format = Gdiplus::StringFormat::GenericTypographic();
 
-	if(fGDIPlusGraphics->MeasureString((LPCWSTR) inString.GetCPointer(),inString.GetLength(),fTextFont->GetGDIPlusFont(),origin,format,&boundRect)!=Gdiplus::Ok)
+	if(fGDIPlusGraphics->MeasureString((LPCWSTR) inString.GetCPointer(),inString.GetLength(),fTextFont->GetImpl().GetGDIPlusFont(),origin,format,&boundRect)!=Gdiplus::Ok)
 		oRect = VRect(0, 0, 0, 0);
 	else
 		oRect = VRect(0 , 0, boundRect.Width*fTextScale, boundRect.Height*fTextScale);
@@ -2053,7 +2047,7 @@ void VWinGDIPlusGraphicContext::GetTextBoundsTypographic( const VString& inStrin
 	else
 		if (fGDIPlusGraphics->MeasureString((LPCWSTR) inString.GetCPointer(),
 											length,
-											fTextFont->GetGDIPlusFont(),
+											fTextFont->GetImpl().GetGDIPlusFont(),
 											pos,
 											format,
 											&bounds)!=Gdiplus::Ok)
@@ -2233,7 +2227,7 @@ void VWinGDIPlusGraphicContext::DrawTextBox(const VString& inString, AlignStyle 
 		else if (inVAlign == AL_BOTTOM)
 			bounds.Y = bounds.Y+bounds.Height-newHeight;
 		bounds.Height = newHeight;
-		status = fGDIPlusGraphics->DrawString((LPCWSTR) inString.GetCPointer(), length, fTextFont->GetGDIPlusFont(), bounds, &format, _GetTextBrush());
+		status = fGDIPlusGraphics->DrawString((LPCWSTR) inString.GetCPointer(), length, fTextFont->GetImpl().GetGDIPlusFont(), bounds, &format, _GetTextBrush());
 
 		RestoreClip();
 
@@ -2253,7 +2247,7 @@ void VWinGDIPlusGraphicContext::DrawTextBox(const VString& inString, AlignStyle 
 		else if (inVAlign == AL_BOTTOM)
 			bounds.Y = bounds.Y+bounds.Height-newHeight;
 		bounds.Height = newHeight;
-		status = fGDIPlusGraphics->DrawString((LPCWSTR) inString.GetCPointer(), length, fTextFont->GetGDIPlusFont(), bounds, &format, _GetTextBrush());
+		status = fGDIPlusGraphics->DrawString((LPCWSTR) inString.GetCPointer(), length, fTextFont->GetImpl().GetGDIPlusFont(), bounds, &format, _GetTextBrush());
 
 		RestoreClip();
 	}
@@ -2297,7 +2291,7 @@ void VWinGDIPlusGraphicContext::GetTextBoxBounds( const VString& inString, VRect
 	Gdiplus::PointF pointTopLeft(ioHwndBounds.GetLeft(), ioHwndBounds.GetTop());
 	Status status = fGDIPlusGraphics->MeasureString(	(LPCWSTR) inString.GetCPointer(), 
 														inString.GetLength(), 
-														fTextFont->GetGDIPlusFont(), 
+														fTextFont->GetImpl().GetGDIPlusFont(), 
 														bounds,
 														&format,
 														&bounds
@@ -2392,7 +2386,7 @@ void VWinGDIPlusGraphicContext::DrawText(const VString& inString, const VPoint& 
 	//(for vertical layout, we assume vertical baseline is at the middle of the cell size
 	// which is compliant with ideographic or vertically displayed latin characters)
 	Gdiplus::FontFamily *family = new Gdiplus::FontFamily();
-	Gdiplus::Font *fontNative = fTextFont->GetGDIPlusFont();
+	Gdiplus::Font *fontNative = fTextFont->GetImpl().GetGDIPlusFont();
 	Status status = fontNative->GetFamily(family);
 	GReal offset = (inLayoutMode & TLM_VERTICAL) != 0 ? 
 						fontNative->GetSize() * 0.5f 
@@ -2481,7 +2475,7 @@ void VWinGDIPlusGraphicContext::FrameRect(const VRect& inHwndBounds)
 	if (fShapeCrispEdgesEnabled)
 	{
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		status = fGDIPlusGraphics->DrawRectangle(fStrokePen,GDIPLUS_RECT(bounds));
 		return;
@@ -2497,7 +2491,7 @@ void VWinGDIPlusGraphicContext::FrameOval(const VRect& inHwndBounds)
 	if (fShapeCrispEdgesEnabled)
 	{
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		Status	status = fGDIPlusGraphics->DrawEllipse(fStrokePen,GDIPLUS_RECT(bounds));
 		return;
@@ -2517,25 +2511,20 @@ void VWinGDIPlusGraphicContext::FrameRegion(const VRegion& inHwndRegion)
 Gdiplus::PointF *VWinGDIPlusGraphicContext::_BuildPolygonNative( const VPolygon& inPolygon, Gdiplus::PointF *inBuffer, bool inFillOnly)
 {
 	sLONG pc = 0;
+	VPoint pt;
 	Gdiplus::PointF *pf = NULL;
-	POINT *p = const_cast<VPolygon&>(inPolygon).WIN_LockPolygon();
-	if (p != NULL)
+	pc = inPolygon.GetPointCount();
+	pf = inBuffer ? inBuffer : new Gdiplus::PointF[pc];
+	for(VIndex n=0;n<pc;n++) 
 	{
-		pc = inPolygon.GetPointCount();
-		pf = inBuffer ? inBuffer : new Gdiplus::PointF[pc];
-
-		for(VIndex n=0;n<pc;n++) 
+		inPolygon.GetNthPoint( n+1, pt);
+		if (fShapeCrispEdgesEnabled)
 		{
-			if (fShapeCrispEdgesEnabled)
-			{
-				VPoint pt(p[n].x, p[n].y);
-				_CEAdjustPointInTransformedSpace( pt, inFillOnly);
-				pf[n] = Gdiplus::PointF( pt.GetX(), pt.GetY());
-			}
-			else
-				pf[n] = Gdiplus::PointF(p[n].x, p[n].y);	
+			CEAdjustPointInTransformedSpace( pt, inFillOnly);
+			pf[n] = Gdiplus::PointF( pt.GetX(), pt.GetY());
 		}
-		const_cast<VPolygon&>(inPolygon).WIN_UnlockPolygon();
+		else
+			pf[n] = Gdiplus::PointF(pt.x, pt.y);	
 	}
 	return pf;
 }
@@ -2593,7 +2582,7 @@ void VWinGDIPlusGraphicContext::FillRect(const VRect& _inHwndBounds)
 	VRect inHwndBounds(_inHwndBounds);
 
 	if (fShapeCrispEdgesEnabled)
-		_CEAdjustRectInTransformedSpace( inHwndBounds, true);
+		CEAdjustRectInTransformedSpace( inHwndBounds, true);
 
 	if (fDrawingMode == DM_SHADOW)
 	{
@@ -2630,7 +2619,7 @@ void VWinGDIPlusGraphicContext::FillOval(const VRect& _inHwndBounds)
 	VRect inHwndBounds(_inHwndBounds);
 
 	if (fShapeCrispEdgesEnabled)
-		_CEAdjustRectInTransformedSpace( inHwndBounds, true);
+		CEAdjustRectInTransformedSpace( inHwndBounds, true);
 
 	if (fFillBrush->GetType() == BrushTypePathGradient
 		&&
@@ -2773,7 +2762,7 @@ void VWinGDIPlusGraphicContext::DrawRect(const VRect& inHwndBounds)
 		StUseContext_NoRetain	context(this);
 
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		fShapeCrispEdgesEnabled = false;
 		FillRect(bounds);
@@ -2795,7 +2784,7 @@ void VWinGDIPlusGraphicContext::DrawOval(const VRect& inHwndBounds)
 		StUseContext_NoRetain	context(this);
 
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		fShapeCrispEdgesEnabled = false;
 		FillOval(bounds);
@@ -2888,8 +2877,8 @@ void VWinGDIPlusGraphicContext::DrawLine(const VPoint& inHwndStart, const VPoint
 		VPoint _start, _end;
 		_start = inHwndStart;
 		_end = inHwndEnd;
-		_CEAdjustPointInTransformedSpace( _start);
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _start);
+		CEAdjustPointInTransformedSpace( _end);
 
 		if (fDrawingMode == DM_SHADOW)
 		{
@@ -2927,8 +2916,8 @@ void VWinGDIPlusGraphicContext::DrawLine(const GReal inHwndStartX,const GReal in
 	{
 		VPoint _start( inHwndStartX, inHwndStartY);
 		VPoint _end( inHwndEndX, inHwndEndY);
-		_CEAdjustPointInTransformedSpace( _start);
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _start);
+		CEAdjustPointInTransformedSpace( _end);
 
 		if (fDrawingMode == DM_SHADOW)
 		{
@@ -2961,12 +2950,12 @@ void VWinGDIPlusGraphicContext::DrawLines(const GReal* inCoords, sLONG inCoordCo
 		fShapeCrispEdgesEnabled = false;
 
 		VPoint last( inCoords[0], inCoords[1]);
-		_CEAdjustPointInTransformedSpace( last);
+		CEAdjustPointInTransformedSpace( last);
 
 		for(VIndex n=2; n<inCoordCount; n+=2)
 		{
 			VPoint cur( inCoords[n], inCoords[n+1]);
-			_CEAdjustPointInTransformedSpace( cur);
+			CEAdjustPointInTransformedSpace( cur);
 
 			DrawLine( last, cur);
 
@@ -3237,7 +3226,7 @@ void VWinGDIPlusGraphicContext::ClipPath (const VGraphicPath& inPath, Boolean in
 	StUseContext_NoRetain	context(this);
 	fGDIPlusGraphics->SetClip( inPath, inAddToPrevious ? Gdiplus::CombineModeUnion : (inIntersectToPrevious ? Gdiplus::CombineModeIntersect : Gdiplus::CombineModeReplace) );
 
-	_RevealClipping(fGDIPlusGraphics);
+	RevealClipping(fGDIPlusGraphics);
 }
 
 
@@ -3271,7 +3260,7 @@ void VWinGDIPlusGraphicContext::ClipPathOutline (const VGraphicPath& inPath, Boo
 
 	delete pathOutline;
 
-	_RevealClipping(fGDIPlusGraphics);
+	RevealClipping(fGDIPlusGraphics);
 }
 
 
@@ -3314,7 +3303,7 @@ void VWinGDIPlusGraphicContext::ClipRect(const VRect& inHwndBounds, Boolean inAd
 	fGDIPlusGraphics->SetClip(&rgn, inAddToPrevious? CombineModeUnion:CombineModeReplace);
 //	fGDIPlusDirectGraphics->SetClip(&rgn, inAddToPrevious? CombineModeUnion:CombineModeReplace/*:CombineModeIntersect*/);
 #endif
-	_RevealClipping(fGDIPlusGraphics);
+	RevealClipping(fGDIPlusGraphics);
 }
 
 
@@ -3375,7 +3364,7 @@ void VWinGDIPlusGraphicContext::ClipRegion(const VRegion& inHwndRegion, Boolean 
 	fGDIPlusGraphics->SetClip(rgn, inAddToPrevious ? Gdiplus::CombineModeUnion : (inIntersectToPrevious ? Gdiplus::CombineModeIntersect : Gdiplus::CombineModeReplace));
 	
 	delete rgn;
-	_RevealClipping(fGDIPlusGraphics);
+	RevealClipping(fGDIPlusGraphics);
 }
 
 
@@ -3426,7 +3415,7 @@ void VWinGDIPlusGraphicContext::GetClip(VRegion& outHwndRgn) const
 }
 
 
-void VWinGDIPlusGraphicContext::_RevealClipping(ContextRef inContext)
+void VWinGDIPlusGraphicContext::RevealClipping(ContextRef inContext)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealClipping)
@@ -3446,7 +3435,7 @@ void VWinGDIPlusGraphicContext::_RevealClipping(ContextRef inContext)
 	}
 #endif
 }
-void VWinGDIPlusGraphicContext::_RevealClipping(Gdiplus::Graphics* inContext)
+void VWinGDIPlusGraphicContext::RevealClipping(Gdiplus::Graphics* inContext)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealClipping)
@@ -3476,7 +3465,7 @@ void VWinGDIPlusGraphicContext::_RevealClipping(Gdiplus::Graphics* inContext)
 #endif
 }
 
-void VWinGDIPlusGraphicContext::_RevealUpdate(HWND inWindow)
+void VWinGDIPlusGraphicContext::RevealUpdate(HWND inWindow)
 {
 // Please call this BEFORE BeginPaint
 #if VERSIONDEBUG
@@ -3512,12 +3501,12 @@ void VWinGDIPlusGraphicContext::_RevealUpdate(HWND inWindow)
 }
 
 
-void VWinGDIPlusGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRef inHwndRegion)
+void VWinGDIPlusGraphicContext::RevealBlitting(ContextRef inContext, const RgnRef inHwndRegion)
 {
 }
 
 
-void VWinGDIPlusGraphicContext::_RevealInval(ContextRef inContext, const RgnRef inHwndRegion)
+void VWinGDIPlusGraphicContext::RevealInval(ContextRef inContext, const RgnRef inHwndRegion)
 {
 }
 
@@ -4447,7 +4436,7 @@ void VWinGDIPlusGraphicContext::GetTransformToLayer(VAffineTransform &outTransfo
 	GetTransform(outTransform);
 	std::vector<VRect>::const_reverse_iterator itBounds = fStackLayerBounds.rbegin();
 	std::vector<bool>::const_reverse_iterator itOwnBackground = fStackLayerOwnBackground.rbegin();
-	std::vector<VGraphicContextNativeRef>::reverse_iterator itGC = fStackLayerGC.rbegin();
+	std::vector<VGCNativeRef>::reverse_iterator itGC = fStackLayerGC.rbegin();
 	sLONG index = fStackLayerBounds.size()-1;
 	for (;itBounds != fStackLayerBounds.rend(); itBounds++, itOwnBackground++, itGC++, index--)
 	{
@@ -4852,7 +4841,7 @@ Boolean VWinGDIPlusBitmapContext::CreateBitmap(const VRect& inHwndBounds)
 		if(result)
 		{
 			fOffscreen->BeginUsingContext();
-			fRefContext = fOffscreen->_GetParentContext();
+			fRefContext = fOffscreen->GetParentContext();
 		}
 	}
 	return result;

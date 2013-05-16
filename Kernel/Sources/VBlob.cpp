@@ -146,8 +146,6 @@ VError VBlobWithHandle::GetData(void* inBuffer, VSize inNbBytes, VIndex inOffset
 	VSize nbBytes = inNbBytes;
 	if (inOffset + nbBytes > size)
 		nbBytes = size - inOffset;
-	if (nbBytes < 0)
-		nbBytes = 0;
 
 	if (nbBytes > 0) {
 		VPtr p = VMemory::LockHandle(fData);
@@ -480,8 +478,6 @@ VError VBlobWithPtr::GetData( void* inBuffer, VSize inNbBytes, VIndex inOffset, 
 	VSize nbBytes = inNbBytes;
 	if (inOffset + nbBytes > size)
 		nbBytes = size - inOffset;
-	if (nbBytes < 0)
-		nbBytes = 0;
 
 	if (nbBytes > 0)
 	{

@@ -57,6 +57,8 @@
 #include "ServerNet/Sources/VMIMEReader.h"
 #include "ServerNet/Sources/VHTTPMessage.h"
 
+/* Proxy Manager */
+#include "ServerNet/Sources/VProxyManager.h"
 
 #if _WIN32
 	#pragma pack( pop )

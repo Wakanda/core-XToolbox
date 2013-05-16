@@ -17,14 +17,9 @@
 #include "VFile.h"
 #include "VFolder.h"
 #include "VURL.h"
-#include "VFileStream.h"
+#include "VFileSystem.h"
 #include "VErrorContext.h"
-#include "VArrayValue.h"
-#include "VFileTranslator.h"
-#include "VProcess.h"
-#include "VSystem.h"
 #include "VMemory.h"
-#include "VResource.h"
 #include "VValueBag.h"
 #include "VTime.h"
 #include "VTextConverter.h"
@@ -288,6 +283,7 @@ VError VFileDesc::Flush() const
 
 VFile::VFile( const VFile& inSource )
 : fCachedVolumeInfo( NULL)
+, fFileSystem( RetainRefCountable( inSource.fFileSystem))
 {
 	fPath = inSource.GetPath();
 	xbox_assert( fPath.IsFile());
@@ -297,6 +293,7 @@ VFile::VFile( const VFile& inSource )
 
 VFile::VFile( const VURL& inUrl )
 : fCachedVolumeInfo( NULL)
+, fFileSystem( NULL)
 {
 	inUrl.GetFilePath( fPath);
 	xbox_assert( fPath.IsFile());	
@@ -305,14 +302,16 @@ VFile::VFile( const VURL& inUrl )
 
 VFile::VFile( const VString& inFullPath, FilePathStyle inFullPathStyle)
 : fCachedVolumeInfo( NULL)
+, fFileSystem( NULL)
 {
 	fPath.FromFullPath( inFullPath, inFullPathStyle);
 	xbox_assert( fPath.IsFile());
 	fImpl.Init(this);
 }
 
-VFile::VFile( const VFilePath& inPath )
+VFile::VFile( const VFilePath& inPath, VFileSystem* inFileSystem)
 : fCachedVolumeInfo( NULL)
+, fFileSystem( RetainRefCountable( inFileSystem))
 {
 	fPath.FromFilePath( inPath );
 	xbox_assert( fPath.IsFile());
@@ -322,15 +321,28 @@ VFile::VFile( const VFilePath& inPath )
 
 VFile::VFile( const VFolder& inFolder, const VString& inRelativePath, FilePathStyle inRelativePathStyle)
 : fCachedVolumeInfo( NULL)
+, fFileSystem( RetainRefCountable( inFolder.GetFileSystem()))
 {
 	fPath.FromRelativePath( inFolder.GetPath(), inRelativePath, inRelativePathStyle);
 	xbox_assert( fPath.IsFile());
 	fImpl.Init(this);
 }
 
+
+VFile::VFile( const VFilePath& inRootPath, const VString& inRelativePath, FilePathStyle inRelativePathStyle)
+: fCachedVolumeInfo( NULL)
+, fFileSystem( NULL)
+{
+	fPath.FromRelativePath( inRootPath, inRelativePath, inRelativePathStyle);
+	xbox_assert( fPath.IsFile());
+	fImpl.Init( this);
+}
+
+
 #if VERSIONMAC
 VFile::VFile( const FSRef& inRef )
 : fCachedVolumeInfo( NULL)
+, fFileSystem( NULL)
 {
 	VString fullPath;
 	OSErr macErr = XMacFile::FSRefToHFSPath( inRef, fullPath);
@@ -344,6 +356,7 @@ VFile::VFile( const FSRef& inRef )
 VFile::~VFile()
 {
 	ReleaseRefCountable( &fCachedVolumeInfo);
+	ReleaseRefCountable( &fFileSystem);
 }
 
 bool VFile::Init()
@@ -575,12 +588,17 @@ VError VFile::Delete() const
 }
 
 // return parent directory.
-VFolder *VFile::RetainParentFolder() const
+VFolder *VFile::RetainParentFolder( bool inSandBoxed) const
 {
 	VFolder *folder;
 	VFilePath fullPath;
 	if (fPath.GetParent( fullPath ))
-		folder = new VFolder( fullPath);
+	{
+		if ( (fFileSystem == NULL) || !inSandBoxed || (fFileSystem->IsAuthorized( fullPath) == VE_OK) )
+			folder = new VFolder( fullPath, fFileSystem);
+		else
+			folder = NULL;
+	}
 	else
 		folder = NULL;
 

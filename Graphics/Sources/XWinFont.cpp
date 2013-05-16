@@ -31,9 +31,7 @@
 XWinFont::XWinFont (VFont *inFont, const VString& inFontFamilyName, const VFontFace& inFace, GReal inSize):fFont( inFont)
 {
 	fIsTrueType = false;
-#if GRAPHIC_MIXED_GDIPLUS_D2D
 	fGDIPlusFont = NULL;
-#endif
 #if ENABLE_D2D
 	fDWriteFont = NULL;
 	fDWriteTextFormat = NULL;
@@ -50,10 +48,8 @@ XWinFont::XWinFont (VFont *inFont, const VString& inFontFamilyName, const VFontF
 XWinFont::~XWinFont()
 {
 	::DeleteObject(fFontRef);
-#if GRAPHIC_MIXED_GDIPLUS_D2D
 	if (fGDIPlusFont)
 		delete fGDIPlusFont;
-#endif
 #if ENABLE_D2D
 	if (VWinD2DGraphicContext::IsAvailable())
 	{
@@ -396,7 +392,6 @@ FontRef XWinFont::_CreateFontRef (const VString& inFontFamilyName, const VFontFa
 
 	VString sFontFamilyDefault = "Times New Roman";
 
-#if GRAPHIC_MIXED_GDIPLUS_D2D
 	//create GDIPlus native font
 
 	if (fGDIPlusFont)
@@ -461,7 +456,6 @@ FontRef XWinFont::_CreateFontRef (const VString& inFontFamilyName, const VFontFa
 	if (wcscmp( logfont.lfFaceName, logfont2.lfFaceName) == 0)
 		memcpy(&logfont, &logfont2, sizeof(LOGFONTW));
 	}
-#endif
     DeleteDC( hDC );
 
 #if ENABLE_D2D
@@ -595,7 +589,7 @@ FontRef XWinFont::_CreateFontRef (const VString& inFontFamilyName, const VFontFa
 }
 
 #if ENABLE_D2D
-IDWriteTextLayout *XWinFont::_GetCachedTextLayout( const VString& inText, const GReal inWidth, const GReal inHeight, AlignStyle inHoriz, AlignStyle inVert, TextLayoutMode inMode, const bool isAntialiased, const GReal inRefDocDPI)
+IDWriteTextLayout *XWinFont::_GetCachedTextLayout( const VString& inText, const GReal inWidth, const GReal inHeight, AlignStyle inHoriz, AlignStyle inVert, TextLayoutMode inMode, const bool isAntialiased, const GReal inRefDocDPI) const
 {
 	if (fCachedDWriteTextLayout
 		&& 
@@ -622,126 +616,138 @@ IDWriteTextLayout *XWinFont::_GetCachedTextLayout( const VString& inText, const 
 	return NULL;
 }
 
-void XWinFont::_ApplyMultiStyle( ID2D1RenderTarget *inRT, IDWriteTextLayout *inTextLayout, VTreeTextStyle *inStyles, VSize inTextLength, const GReal inRefDocDPI)
+void XWinFont::_ApplyMultiStyle( ID2D1RenderTarget *inRT, IDWriteTextLayout *inTextLayout, VTreeTextStyle *inStyles, VSize inTextLength, const GReal inRefDocDPI) const
 {
 	if (!inStyles)
 		return;
-	VTextStyle *style = inStyles->GetData();
+	const VTextStyle *style = inStyles->GetData();
 	if (!style)
 		return;
 
 	//apply current style
+
 	sLONG start,end;
 	style->GetRange(start, end);
 	DWRITE_TEXT_RANGE textRange = { start, end-start};
 	if (end > start)
 	{
-		if (start == 0 && end >= inTextLength) //text alignment can only be applied on all text
+		do
 		{
-			//set text alignment 
-			DWRITE_READING_DIRECTION readingDirection = inTextLayout->GetReadingDirection();
-			DWRITE_TEXT_ALIGNMENT textAlignment = inTextLayout->GetTextAlignment();
-			switch (style->GetJustification())
+			if (start == 0 && end >= inTextLength) //text alignment can only be applied on all text
 			{
-				case JST_Center:
-					textAlignment = DWRITE_TEXT_ALIGNMENT_CENTER;
-					break;
-					
-				case JST_Right:
-					textAlignment = readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT ? DWRITE_TEXT_ALIGNMENT_LEADING : DWRITE_TEXT_ALIGNMENT_TRAILING;
-					break;
-					
-				case JST_Left:
-					textAlignment = readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT ? DWRITE_TEXT_ALIGNMENT_TRAILING : DWRITE_TEXT_ALIGNMENT_LEADING;
-					break;
+				//set text alignment 
+				DWRITE_READING_DIRECTION readingDirection = inTextLayout->GetReadingDirection();
+				DWRITE_TEXT_ALIGNMENT textAlignment = inTextLayout->GetTextAlignment();
+				switch (style->GetJustification())
+				{
+					case JST_Center:
+						textAlignment = DWRITE_TEXT_ALIGNMENT_CENTER;
+						break;
+						
+					case JST_Right:
+						textAlignment = readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT ? DWRITE_TEXT_ALIGNMENT_LEADING : DWRITE_TEXT_ALIGNMENT_TRAILING;
+						break;
+						
+					case JST_Left:
+						textAlignment = readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT ? DWRITE_TEXT_ALIGNMENT_TRAILING : DWRITE_TEXT_ALIGNMENT_LEADING;
+						break;
 
-				case JST_Default:
-					textAlignment = DWRITE_TEXT_ALIGNMENT_LEADING;
-					break;
+					case JST_Default:
+						textAlignment = DWRITE_TEXT_ALIGNMENT_LEADING;
+						break;
 
-				default:
-					break;
+					default:
+						break;
+				}
+				if (inTextLayout->GetTextAlignment() != textAlignment)
+					inTextLayout->SetTextAlignment( textAlignment);
 			}
-			if (inTextLayout->GetTextAlignment() != textAlignment)
-				inTextLayout->SetTextAlignment( textAlignment);
-		}
 
-		//set font family
-		if (!style->GetFontName().IsEmpty())
-			inTextLayout->SetFontFamilyName( style->GetFontName().GetCPointer(), textRange);
+			//set font family
+			if (!style->GetFontName().IsEmpty())
+				inTextLayout->SetFontFamilyName( style->GetFontName().GetCPointer(), textRange);
 
-		//set color
-		if (style->GetHasForeColor())
-		{
-			RGBAColor color = style->GetColor();
-			ID2D1SolidColorBrush *brushColor = NULL;
-			if (SUCCEEDED(inRT->CreateSolidColorBrush( D2D1::ColorF(color & 0xFFFFFF, (color >> 24)/255.0f), 
-														&brushColor)))
+			//set color
+			if (style->GetHasForeColor())
 			{
-				IUnknown *drawingEffect = NULL;
-				brushColor->QueryInterface( __uuidof(IUnknown), (void **)&drawingEffect);
-				inTextLayout->SetDrawingEffect( drawingEffect, textRange);
-				drawingEffect->Release();
-				brushColor->Release();
+				RGBAColor color = style->GetColor();
+				ID2D1SolidColorBrush *brushColor = NULL;
+				if (SUCCEEDED(inRT->CreateSolidColorBrush( D2D1::ColorF(color & 0xFFFFFF, (color >> 24)/255.0f), 
+															&brushColor)))
+				{
+					IUnknown *drawingEffect = NULL;
+					brushColor->QueryInterface( __uuidof(IUnknown), (void **)&drawingEffect);
+					inTextLayout->SetDrawingEffect( drawingEffect, textRange);
+					drawingEffect->Release();
+					brushColor->Release();
+				}
 			}
-		}
 
-		//set font size
-		Real fontSize = style->GetFontSize();
-		if (fontSize != -1)
-		{
-#if D2D_GDI_COMPATIBLE
-			if (inRefDocDPI == 72.0f)
-				inTextLayout->SetFontSize( fontSize, textRange);
+			//set font size
+			Real fontSize = style->GetFontSize();
+			if (fontSize != -1)
+			{
+	#if D2D_GDI_COMPATIBLE
+				if (inRefDocDPI == 72.0f)
+					inTextLayout->SetFontSize( fontSize, textRange);
+				else
+	#endif
+				{
+	#if ENABLE_D2D
+	#if D2D_GDI_COMPATIBLE
+					fontSize = fontSize * inRefDocDPI / VWinGDIGraphicContext::GetLogPixelsY();
+	#else
+					fontSize = fontSize * inRefDocDPI / 96.0f;
+	#endif
+	#else
+					fontSize = fontSize * inRefDocDPI / VWinGDIGraphicContext::GetLogPixelsY();
+	#endif
+
+					inTextLayout->SetFontSize( D2D_PointToDIP( fontSize), textRange);
+				}
+			}
+
+			//set bold
+			if (style->GetBold() == TRUE)
+				inTextLayout->SetFontWeight( DWRITE_FONT_WEIGHT_BOLD, textRange);
+			else if (style->GetBold() == FALSE)
+				inTextLayout->SetFontWeight( DWRITE_FONT_WEIGHT_NORMAL, textRange);
+
+			//set italic
+			if (style->GetItalic() == TRUE)
+				inTextLayout->SetFontStyle( DWRITE_FONT_STYLE_ITALIC, textRange);
+			else if (style->GetItalic() == FALSE)
+				inTextLayout->SetFontStyle( DWRITE_FONT_STYLE_NORMAL, textRange);
+
+			//set underline
+			if (style->GetUnderline() == TRUE)
+				inTextLayout->SetUnderline( TRUE, textRange);
+			else if (style->GetUnderline() == FALSE)
+				inTextLayout->SetUnderline( FALSE, textRange);
+
+			//set strikeout
+			if (style->GetStrikeout() == TRUE)
+				inTextLayout->SetStrikethrough( TRUE, textRange);
+			else if (style->GetStrikeout() == FALSE)
+				inTextLayout->SetStrikethrough( FALSE, textRange);
+
+			if (style->IsSpanRef())
+				//apply span ref override style
+				style = style->GetSpanRef()->GetStyle();
 			else
-#endif
-			{
-#if ENABLE_D2D
-#if D2D_GDI_COMPATIBLE
-				fontSize = fontSize * inRefDocDPI / VWinGDIGraphicContext::GetLogPixelsY();
-#else
-				fontSize = fontSize * inRefDocDPI / 96.0f;
-#endif
-#else
-				fontSize = fontSize * inRefDocDPI / VWinGDIGraphicContext::GetLogPixelsY();
-#endif
+				style = NULL;
 
-				inTextLayout->SetFontSize( D2D_PointToDIP( fontSize), textRange);
-			}
-		}
-
-		//set bold
-		if (style->GetBold() == TRUE)
-			inTextLayout->SetFontWeight( DWRITE_FONT_WEIGHT_BOLD, textRange);
-		else if (style->GetBold() == FALSE)
-			inTextLayout->SetFontWeight( DWRITE_FONT_WEIGHT_NORMAL, textRange);
-
-		//set italic
-		if (style->GetItalic() == TRUE)
-			inTextLayout->SetFontStyle( DWRITE_FONT_STYLE_ITALIC, textRange);
-		else if (style->GetItalic() == FALSE)
-			inTextLayout->SetFontStyle( DWRITE_FONT_STYLE_NORMAL, textRange);
-
-		//set underline
-		if (style->GetUnderline() == TRUE)
-			inTextLayout->SetUnderline( TRUE, textRange);
-		else if (style->GetUnderline() == FALSE)
-			inTextLayout->SetUnderline( FALSE, textRange);
-
-		//set strikeout
-		if (style->GetStrikeout() == TRUE)
-			inTextLayout->SetStrikethrough( TRUE, textRange);
-		else if (style->GetStrikeout() == FALSE)
-			inTextLayout->SetStrikethrough( FALSE, textRange);
+		} while(style);
 	}
 
 	//apply child styles
 	sLONG numStyle = inStyles->GetChildCount();
 	for (int i = 1; i <= numStyle; i++)
 	{
-		VTreeTextStyle *style = inStyles->GetNthChild( i);
-		_ApplyMultiStyle( inRT, inTextLayout, style, inTextLength, inRefDocDPI);
+		VTreeTextStyle *styles = inStyles->GetNthChild( i);
+		_ApplyMultiStyle( inRT, inTextLayout, styles, inTextLength, inRefDocDPI);
 	}
+
 }
 
 /** do not try to cache text strings longer than the following length */
@@ -760,7 +766,7 @@ IDWriteTextLayout *XWinFont::CreateTextLayout(
 	TextLayoutMode inMode, 
 	VTreeTextStyle *inStyles, 
 	const GReal inRefDocDPI, 
-	const bool inUseCache)
+	const bool inUseCache) const
 {
 	if (VWinD2DGraphicContext::IsAvailable())
 	{
@@ -1267,10 +1273,10 @@ void XWinFontMetrics::GetMetrics(GReal& outAscent, GReal& outDescent, GReal& out
 		//get DWrite metrics
 		VTaskLock lock(&VWinD2DGraphicContext::GetMutexDWriteFactory());
 
-		if (fMetrics->GetFont()->GetDWriteFont())
+		if (fMetrics->GetFont()->GetImpl().GetDWriteFont())
 		{
 			DWRITE_FONT_METRICS fontMetrics;
-			fMetrics->GetFont()->GetDWriteFont()->GetMetrics(&fontMetrics);
+			fMetrics->GetFont()->GetImpl().GetDWriteFont()->GetMetrics(&fontMetrics);
 			
 			GReal fontSizeDIP = fMetrics->GetFont()->GetPixelSize();
 			outAscent = fontMetrics.ascent*fontSizeDIP/fontMetrics.designUnitsPerEm;
@@ -1290,14 +1296,14 @@ void XWinFontMetrics::GetMetrics(GReal& outAscent, GReal& outDescent, GReal& out
 	 
 	StParentContextNoDraw nodraw( fMetrics->GetContext());
 
-	PortRef port = fMetrics->GetContext()->_GetParentPort();
+	PortRef port = fMetrics->GetContext()->GetParentPort();
 	HGDIOBJ oldobj;
 	oldobj = ::SelectObject(port, fMetrics->GetFont()->GetFontRef() );
 	::GetTextMetricsW(port, &tm);
 	::SelectObject(port, oldobj );
 
 //	fTrueTypeFont = (tm.tmPitchAndFamily & TMPF_TRUETYPE)!=0;
-	fMetrics->GetContext()->_ReleaseParentPort(port);
+	fMetrics->GetContext()->ReleaseParentPort(port);
 	outInternalLeading = tm.tmInternalLeading;
 	outExternalLeading = tm.tmExternalLeading;
 	outAscent = tm.tmAscent;
@@ -1310,16 +1316,16 @@ GReal XWinFontMetrics::GetTextWidth(const VString& inText) const
 	if (fMetrics->GetContext() == NULL )
 		return 0.0f;
 #if ENABLE_D2D
-	//blindage: call DoUseLegacyMetrics in order to take account new text rendering mode if it has changed
-	fMetrics->DoUseLegacyMetrics( fMetrics->GetDesiredUseLegacyMetrics());
+	//blindage: call UseLegacyMetrics in order to take account new text rendering mode if it has changed
+	fMetrics->UseLegacyMetrics( fMetrics->GetDesiredUseLegacyMetrics());
 	if (fMetrics->GetContext()->IsD2DImpl() && !fMetrics->UseLegacyMetrics())
 	{
 		//get DWrite metrics
 		VTaskLock lock(&VWinD2DGraphicContext::GetMutexDWriteFactory());
 
-		if (fMetrics->GetFont()->GetDWriteTextFormat())
+		if (fMetrics->GetFont()->GetImpl().GetDWriteTextFormat())
 		{
-			IDWriteTextLayout *textLayout = fMetrics->GetFont()->CreateTextLayout( (ID2D1RenderTarget *)fMetrics->GetContext()->GetNativeRef(), inText, (!(fMetrics->GetContext()->GetTextRenderingMode() & TRM_WITHOUT_ANTIALIASING)) );
+			IDWriteTextLayout *textLayout = fMetrics->GetFont()->GetImpl().CreateTextLayout( (ID2D1RenderTarget *)fMetrics->GetContext()->GetNativeRef(), inText, (!(fMetrics->GetContext()->GetTextRenderingMode() & TRM_WITHOUT_ANTIALIASING)) );
 			DWRITE_TEXT_METRICS textMetrics;
 			textLayout->GetMetrics( &textMetrics);
 			textLayout->Release();
@@ -1335,7 +1341,7 @@ GReal XWinFontMetrics::GetTextWidth(const VString& inText) const
 
 	StParentContextNoDraw nodraw( fMetrics->GetContext());
 
-	PortRef port = fMetrics->GetContext()->_GetParentPort();
+	PortRef port = fMetrics->GetContext()->GetParentPort();
 	HGDIOBJ oldobj;
 	oldobj = ::SelectObject(port, fMetrics->GetFont()->GetFontRef() );
 	
@@ -1346,7 +1352,7 @@ GReal XWinFontMetrics::GetTextWidth(const VString& inText) const
 	if (::GetTextExtentPoint32W(port, (LPCWSTR)inText.GetCPointer(), inText.GetLength(), &sz) == 0)
 		sz.cx = 0;
 	::SelectObject(port, oldobj );
-	fMetrics->GetContext()->_ReleaseParentPort(port);
+	fMetrics->GetContext()->ReleaseParentPort(port);
 	return sz.cx;
 }
 
@@ -1368,16 +1374,16 @@ void XWinFontMetrics::MeasureText( const VString& inText, std::vector<GReal>& ou
 	}
 
 #if ENABLE_D2D
-	//blindage: call DoUseLegacyMetrics in order to take account new text rendering mode if it has changed
-	fMetrics->DoUseLegacyMetrics( fMetrics->GetDesiredUseLegacyMetrics());
+	//blindage: call UseLegacyMetrics in order to take account new text rendering mode if it has changed
+	fMetrics->UseLegacyMetrics( fMetrics->GetDesiredUseLegacyMetrics());
 	if (fMetrics->GetContext()->IsD2DImpl() && !fMetrics->UseLegacyMetrics())
 	{
 		//get DWrite metrics
 		VTaskLock lock(&VWinD2DGraphicContext::GetMutexDWriteFactory());
 
-		if (fMetrics->GetFont()->GetDWriteTextFormat())
+		if (fMetrics->GetFont()->GetImpl().GetDWriteTextFormat())
 		{
-			IDWriteTextLayout *textLayout = fMetrics->GetFont()->CreateTextLayout( (ID2D1RenderTarget *)fMetrics->GetContext()->GetNativeRef(), inText, (!(fMetrics->GetContext()->GetTextRenderingMode() & TRM_WITHOUT_ANTIALIASING)));
+			IDWriteTextLayout *textLayout = fMetrics->GetFont()->GetImpl().CreateTextLayout( (ID2D1RenderTarget *)fMetrics->GetContext()->GetNativeRef(), inText, (!(fMetrics->GetContext()->GetTextRenderingMode() & TRM_WITHOUT_ANTIALIASING)));
 
 			sLONG len = inText.GetLength();
 			FLOAT pointX;
@@ -1410,12 +1416,12 @@ void XWinFontMetrics::MeasureText( const VString& inText, std::vector<GReal>& ou
 	{
 		StParentContextNoDraw nodraw( fMetrics->GetContext());
 		
-		PortRef port = fMetrics->GetContext()->_GetParentPort();
+		PortRef port = fMetrics->GetContext()->GetParentPort();
 		SIZE sz = {0,0};
 		HGDIOBJ oldobj = ::SelectObject(port, fMetrics->GetFont()->GetFontRef()  );
 		::GetTextExtentExPointW(port, (LPCWSTR) inText.GetCPointer(), len, 0, 0, ptArray, &sz);
 		::SelectObject(port, oldobj );
-		fMetrics->GetContext()->_ReleaseParentPort(port);
+		fMetrics->GetContext()->ReleaseParentPort(port);
 		for(long i = 0 ; i < len ; ++i)
 			outOffsets.push_back( ptArray[i]);
 	}

@@ -17,6 +17,8 @@
 #define __CJSW_DEBUGGER_CLIENT__
 
 
+#include "ServerNet/VServerNet.h"
+
 #ifdef JSDEBUGGER_EXPORTS
 	#define JSDEBUGGER_API __declspec(dllexport)
 #else
@@ -27,8 +29,6 @@
 	#endif
 #endif
 
-
-#include "ServerNet/VServerNet.h"
 
 #include <vector>
 #include "JSWDebuggerErrors.h"
@@ -161,7 +161,20 @@ class VDebuggerInnerListener : public XBOX::VObject, public IJSDebuggerListener
 		// _GetScript - waits on a SyncEvent for a script callback
 };
 
-class JSDEBUGGER_API VJSDebugger : public XBOX::VObject, public XBOX::IRefCountable
+class JSDEBUGGER_API IJSDebugger : public XBOX::VObject, public XBOX::IRefCountable
+{
+public:
+		virtual XBOX::VError	Connect( XBOX::VString const & inDNSNameOrIP, short inPort ) = 0;
+
+		virtual bool			IsConnected() = 0;
+
+		virtual XBOX::VError	SetBreakPoint ( XBOX::VString const & inRelativeFilePath, XBOX::VIndex inLineNumber ) = 0;
+
+		virtual XBOX::VError	RemoveBreakPoint ( XBOX::VString const & inRelativeFilePath, XBOX::VIndex inLineNumber ) = 0;
+};
+
+
+class JSDEBUGGER_API VJSDebugger : public IJSDebugger
 {
 	public:
 
@@ -169,6 +182,7 @@ class JSDEBUGGER_API VJSDebugger : public XBOX::VObject, public XBOX::IRefCounta
 		~VJSDebugger ( );
 
 		XBOX::VError Connect ( XBOX::VString const & inDNSNameOrIP, short inPort );
+
 		bool IsConnected ( );
 		XBOX::VError Disconnect ( );
 		XBOX::VError Authenticate ( XBOX::VString const & inUserName, XBOX::VString const & inUserPassword );

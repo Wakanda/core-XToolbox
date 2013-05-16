@@ -28,7 +28,9 @@ class XTOOLBOX_API XLinuxStackCrawl : public XBOX::VObject
 public:
 			XLinuxStackCrawl():fCount(0) {}
 	virtual ~XLinuxStackCrawl() {}
-	
+
+	bool operator < (const XLinuxStackCrawl& other) const;
+
 	// Stack frames support
 	void	LoadFrames( uLONG inStartFrame, uLONG inNumFrames);
 	void	UnloadFrames()	{}

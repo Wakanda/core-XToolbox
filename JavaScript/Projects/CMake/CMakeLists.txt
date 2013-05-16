@@ -7,18 +7,18 @@ set(JavaScriptIncludeDir    ${JavaScriptRoot}/Sources PARENT_SCOPE)
 
 file(GLOB Sources ${JavaScriptRoot}/Sources/*.cpp)
 
-list(REMOVE_ITEM Sources ${JavaScriptRoot}/Sources/VJSRuntime_Image.cpp)
-
 
 add_library(JavaScript SHARED ${Sources})
 
 
 include_directories(${CurlIncludeDir}
+  ${Graphics}
   ${IcuIncludeDir}
   ${JavaScriptRoot}/Sources
   ${JsCoreIncludeDir}
   ${XBoxRoot}
-  ${ServerNet})
+  ${ServerNet}
+  ${JavaScriptRoot}/../../../Components/Main )
 
 
-target_link_libraries(JavaScript Curl JsCore Kernel KernelIPC Xml ZLib ServerNet)
+target_link_libraries(JavaScript Curl Graphics JsCore Kernel KernelIPC ServerNet Xml ZLib)

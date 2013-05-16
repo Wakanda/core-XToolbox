@@ -17,8 +17,10 @@
 
 #if VERSIONMAC
 #include <4DJavaScriptCore/JavaScriptCore.h>
+#include <4DJavaScriptCore/JS4D_Tools.h>
 #else
 #include <JavaScriptCore/JavaScript.h>
+#include <JavaScriptCore/4D/JS4D_Tools.h>
 #endif
 
 #include "VJSValue.h"
@@ -118,7 +120,7 @@ bool VJSValue::GetTime( VTime& outTime, JS4D::ExceptionRef *outException) const
 	if (JS4D::ValueIsInstanceOf( fContext, fValue, CVSTR( "Date"), outException))
 	{
 		JSObjectRef dateObject = JSValueToObject( fContext, fValue, outException);
-		ok = JS4D::DateObjectToVTime( fContext, dateObject, outTime, outException);
+		ok = JS4D::DateObjectToVTime( fContext, dateObject, outTime, outException, false);
 	}
 	else
 	{
@@ -323,26 +325,28 @@ bool VJSObject::GetPropertyAsBool(const VString& inPropertyName, JS4D::Exception
 {
 	VJSValue result(GetProperty(inPropertyName, outException));
 	bool res = false;
-	if (!result.IsNull())
+	bool ok = false;
+	if (!result.IsNull() && !result.IsUndefined())
 	{
-		bool ok = result.GetBool(&res, outException);
-		if (outExists != NULL)
-			*outExists = ok;
+		ok = result.GetBool(&res, outException);
 	}
+	if (outExists != NULL)
+		*outExists = ok;
 	return res;
 }
 
 
 sLONG VJSObject::GetPropertyAsLong(const VString& inPropertyName, JS4D::ExceptionRef *outException, bool* outExists) const
 {
-	VJSValue result(GetProperty(inPropertyName, outException));
+		VJSValue result(GetProperty(inPropertyName, outException));
 	sLONG res = 0;
-	if (!result.IsNull())
+	bool ok = false;
+	if (!result.IsNull() && !result.IsUndefined())
 	{
-		bool ok = result.GetLong(&res, outException);
-		if (outExists != NULL)
-			*outExists = ok;
+		ok = result.GetLong(&res, outException);
 	}
+	if (outExists != NULL)
+		*outExists = ok;
 	return res;
 }
 
@@ -352,7 +356,7 @@ bool VJSObject::GetPropertyAsString(const VString& inPropertyName, JS4D::Excepti
 	bool ok = false;
 	VJSValue result(GetProperty(inPropertyName, outException));
 	outResult.Clear();
-	if (!result.IsNull())
+	if (!result.IsNull() && !result.IsUndefined())
 	{
 		ok = result.GetString(outResult, outException);
 	}
@@ -365,12 +369,13 @@ Real VJSObject::GetPropertyAsReal(const VString& inPropertyName, JS4D::Exception
 {
 	VJSValue result(GetProperty(inPropertyName, outException));
 	Real res = 0.0;
-	if (!result.IsNull())
+	bool ok = false;
+	if (!result.IsNull() && !result.IsUndefined())
 	{
-		bool ok = result.GetReal(&res, outException);
-		if (outExists != NULL)
-			*outExists = ok;
+		ok = result.GetReal(&res, outException);
 	}
+	if (outExists != NULL)
+		*outExists = ok;
 	return res;
 }
 
@@ -416,8 +421,7 @@ bool VJSObject::CallFunction (
 	const VJSObject &inFunctionObject, 
 	const std::vector<VJSValue> *inValues, 
 	VJSValue *outResult, 
-	JS4D::ExceptionRef *outException, 
-	const XBOX::VFilePath *inFullPath)
+	JS4D::ExceptionRef *outException)
 {
 	bool ok = true;
 	
@@ -426,31 +430,6 @@ bool VJSObject::CallFunction (
 
 	if (inFunctionObject.IsFunction())
 	{
-		XBOX::VFilePath	*fullPath;
-		XBOX::VFilePath	previousFullPath;
-
-		if (inFullPath != NULL) {
-
-			XBOX::VJSGlobalObject	*globalObject	= fContext.GetGlobalObjectPrivateInstance();
-
-			xbox_assert(globalObject != NULL);
-			if ((fullPath = (XBOX::VFilePath *) globalObject->GetSpecific(VJSContext::kURLSpecificKey)) == NULL) {
-
-				fullPath = new XBOX::VFilePath();
-				xbox_assert(fullPath != NULL);
-
-				globalObject->SetSpecific(VJSContext::kURLSpecificKey, fullPath, VJSSpecifics::DestructorVObject);
-				previousFullPath.Clear();
-		
-			} else 
-		
-				previousFullPath.FromFilePath(*fullPath);
-
-			fullPath->FromFilePath(*inFullPath);
-
-		}
-
-
 		size_t count = ( (inValues == NULL) || inValues->empty() ) ? 0 : inValues->size();
 		JSValueRef *values = (count == 0) ? NULL : new JSValueRef[count];
 		if (values != NULL)
@@ -464,17 +443,9 @@ bool VJSObject::CallFunction (
 			ok = (count == 0);
 		}
 
-		result = JSObjectCallAsFunction( fContext, inFunctionObject, fObject, count, values, &exception);
+		result = JS4DObjectCallAsFunction( fContext, inFunctionObject, fObject, count, values, &exception);
 
 		delete[] values;
-
-		if (inFullPath != NULL) {
-
-			xbox_assert(fullPath != NULL);
-			fullPath->FromFilePath(previousFullPath);
-
-		}
-
 	}
 	else
 	{
@@ -841,7 +812,7 @@ void VJSArray::_Splice( size_t inWhere, size_t inCount, const std::vector<VJSVal
 				values[j++] = i->GetValueRef();
 		}
 	
-		JSObjectCallAsFunction( fContext, spliceFunction, fObject, j, values, outException);
+		JS4DObjectCallAsFunction( fContext, spliceFunction, fObject, j, values, outException);
 	}
 	delete[] values;
 }
@@ -849,8 +820,6 @@ void VJSArray::_Splice( size_t inWhere, size_t inCount, const std::vector<VJSVal
 
 // -------------------------------------------------------------------
 
-
-#if !VERSION_LINUX  // Postponed Linux Implementation !
 
 VJSPictureContainer::VJSPictureContainer(XBOX::VValueSingle* inPict,/* bool ownsPict,*/ JS4D::ContextRef inContext)
 {
@@ -877,6 +846,8 @@ VJSPictureContainer::~VJSPictureContainer()
 
 void VJSPictureContainer::SetMetaInfo(JS4D::ValueRef inMetaInfo, JS4D::ContextRef inContext)
 {
+#if !VERSION_LINUX
+
 	if (fMetaInfoIsValid)
 	{
 		JS4D::UnprotectValue(fContext, fMetaInfo);
@@ -885,11 +856,21 @@ void VJSPictureContainer::SetMetaInfo(JS4D::ValueRef inMetaInfo, JS4D::ContextRe
 	fMetaInfo = inMetaInfo;
 	fContext = inContext;
 	fMetaInfoIsValid = true;
+
+#else
+
+	// Postponed Linux Implementation !
+	vThrowError(VE_UNIMPLEMENTED);
+	xbox_assert(false);
+
+#endif
 }
 
 
 const XBOX::VValueBag* VJSPictureContainer::RetainMetaBag()
 {
+#if !VERSION_LINUX
+
 	if (fMetaBag == NULL)
 	{
 		if (fPict != NULL)
@@ -903,6 +884,16 @@ const XBOX::VValueBag* VJSPictureContainer::RetainMetaBag()
 		}
 	}
 	return RetainRefCountable(fMetaBag);
+
+#else
+
+	// Postponed Linux Implementation !
+	vThrowError(VE_UNIMPLEMENTED);
+	xbox_assert(false);
+
+	return NULL;
+
+#endif
 }
 
 
@@ -911,9 +902,6 @@ void VJSPictureContainer::SetMetaBag(const XBOX::VValueBag* metaBag)
 	QuickReleaseRefCountable(fMetaBag);
 	fMetaBag = RetainRefCountable(metaBag);
 }
-
-#endif
-
 
 
 // -------------------------------------------------------------------
@@ -933,7 +921,8 @@ void VJSFunction::ClearParamsAndResult()
 	fResult.Unprotect();
 	fResult.SetValueRef( NULL);
 	
-	JS4D::UnprotectValue( fContext, fExcept);
+	JS4D::UnprotectValue( fContext, fException);
+	fException = NULL;
 }
 
 
@@ -973,24 +962,40 @@ void VJSFunction::AddParam( const VString& inVal)
 
 void VJSFunction::AddParam(sLONG inVal)
 {
-	VJSValue val(fContext);
+	VJSValue val( fContext);
 	val.SetNumber(inVal);
 	AddParam( val);
 }
 
 
-void VJSFunction::AddBoolParam(bool inVal)
+void VJSFunction::AddUndefinedParam()
 {
-	VJSValue val(fContext);
-	val.SetBool(inVal);
+	VJSValue val( fContext);
+	val.SetUndefined();
 	AddParam( val);
 }
 
 
-void VJSFunction::AddLong8Param(sLONG8 inVal)
+void VJSFunction::AddNullParam()
 {
-	VJSValue val(fContext);
-	val.SetNumber(inVal);
+	VJSValue val( fContext);
+	val.SetNull();
+	AddParam( val);
+}
+
+
+void VJSFunction::AddBoolParam( bool inVal)
+{
+	VJSValue val( fContext);
+	val.SetBool( inVal);
+	AddParam( val);
+}
+
+
+void VJSFunction::AddLong8Param( sLONG8 inVal)
+{
+	VJSValue val( fContext);
+	val.SetNumber( inVal);
 	AddParam( val);
 }
 
@@ -998,29 +1003,32 @@ void VJSFunction::AddLong8Param(sLONG8 inVal)
 bool VJSFunction::Call()
 {
 	bool called = false;
-	VJSValue result(fContext);
 
-	fContext.EvaluateScript( fFuncName, NULL, &result, NULL, NULL);
-
-	if (result.IsObject())
+	VJSObject functionObject( fFunctionObject);
+	
+	if (!functionObject.IsObject() && !fFunctionName.IsEmpty())
 	{
-		VJSObject funcobj(result.GetObject());
-		if (funcobj.IsFunction())
-		{
-			JS4D::ExceptionRef exception = NULL;
+		VJSValue result( fContext);
+		fContext.EvaluateScript( fFunctionName, NULL, &result, NULL, NULL);
+		functionObject = result.GetObject();
+	}
 
-			fContext.GetGlobalObject().CallFunction( funcobj, &fParams, &result, &fExcept);
+	if (functionObject.IsFunction())
+	{
+		JS4D::ExceptionRef exception = NULL;
 
-			result.Protect();	// protect on stack before storing it in class field
-			JS4D::ProtectValue( fContext, exception);
+		VJSValue result( fContext);
+		fContext.GetGlobalObject().CallFunction( functionObject, &fParams, &result, &exception);
 
-			fResult.Unprotect();	// unprotect previous result we may have if Call() is being called twice.
-			JS4D::UnprotectValue( fContext, fExcept);
-			
-			fExcept = exception;
-			fResult = result;
-			called = fExcept == NULL;
-		}
+		result.Protect();	// protect on stack before storing it in class field
+		JS4D::ProtectValue( fContext, exception);
+
+		fResult.Unprotect();	// unprotect previous result we may have if Call() is being called twice.
+		JS4D::UnprotectValue( fContext, fException);
+		
+		fResult = result;
+		fException = exception;
+		called = fException == NULL;
 	}
 
 	return called;
@@ -1057,7 +1065,12 @@ void VJSFunction::GetResultAsString(VString& outResult) const
 
 bool VJSFunction::GetResultAsJSONValue( VJSONValue& outResult) const
 {
-	return fResult.GetJSONValue( outResult);
+	if (fException != NULL)
+	{
+		outResult.SetUndefined();
+		return false;
+	}
+	return fResult.GetJSONValue( outResult, &fException);
 }
 
 

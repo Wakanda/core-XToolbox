@@ -435,8 +435,6 @@
 		</Configuration>
 		<Configuration
 			Name="Standalone Debug|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="4"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC70.vsprops;..\..\..\XToolbox_Win32_Debug.vsprops;$(SolutionDir)\Xerces_Settings.vsprops"
 			CharacterSet="2"
@@ -462,12 +460,12 @@
 				FavorSizeOrSpeed="0"
 				EnableFiberSafeOptimizations="false"
 				AdditionalIncludeDirectories=""
-				PreprocessorDefinitions="_WINDOWS;_USRDLL;XML_EXPORTS"
+				PreprocessorDefinitions="_WINDOWS;_USRDLL;XTOOLBOX_AS_STANDALONE;XERCES_STATIC_LIBRARY"
 				BasicRuntimeChecks="0"
 				RuntimeLibrary="3"
 				BufferSecurityCheck="true"
 				PrecompiledHeaderThrough="VXMLPrecompiled.h"
-				DebugInformationFormat="0"
+				DebugInformationFormat="3"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -499,8 +497,6 @@
 		</Configuration>
 		<Configuration
 			Name="Standalone Debug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="4"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC70.vsprops;..\..\..\XToolbox_Win64_Debug.vsprops;$(SolutionDir)\Xerces_Settings.vsprops"
 			CharacterSet="2"
@@ -524,7 +520,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories=""
-				PreprocessorDefinitions="_WINDOWS;_USRDLL;XML_EXPORTS"
+				PreprocessorDefinitions="_WINDOWS;_USRDLL;XTOOLBOX_AS_STANDALONE"
 				PrecompiledHeaderThrough="VXMLPrecompiled.h"
 				Detect64BitPortabilityProblems="true"
 			/>
@@ -558,10 +554,8 @@
 		</Configuration>
 		<Configuration
 			Name="Standalone Release|Win32"
-			OutputDirectory="$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC70.vsprops;..\..\..\XToolbox_Win32_Debug.vsprops;$(SolutionDir)\Xerces_Settings.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC70.vsprops;$(SolutionDir)\Xerces_Settings.vsprops;..\..\..\XToolbox_Win32_Release.vsprops"
 			CharacterSet="2"
 			WholeProgramOptimization="1"
 			>
@@ -589,7 +583,7 @@
 				EnableFiberSafeOptimizations="true"
 				WholeProgramOptimization="true"
 				AdditionalIncludeDirectories=""
-				PreprocessorDefinitions="_WINDOWS;_USRDLL;XML_EXPORTS;XERCES_3_0_1;WIN32;_CRT_SECURE_NO_DEPRECATE;_HAS_ITERATOR_DEBUGGING=0;$(NOINHERIT)"
+				PreprocessorDefinitions="_WINDOWS;_USRDLL;XTOOLBOX_AS_STANDALONE;XERCES_STATIC_LIBRARY"
 				BasicRuntimeChecks="0"
 				RuntimeLibrary="2"
 				BufferSecurityCheck="false"
@@ -626,10 +620,8 @@
 		</Configuration>
 		<Configuration
 			Name="Standalone Release|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="4"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC70.vsprops;..\..\..\XToolbox_Win64_Debug.vsprops;$(SolutionDir)\Xerces_Settings.vsprops"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC70.vsprops;$(SolutionDir)\Xerces_Settings.vsprops;..\..\..\XToolbox_Win64_Release.vsprops"
 			CharacterSet="2"
 			>
 			<Tool
@@ -651,7 +643,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories=""
-				PreprocessorDefinitions="_WINDOWS;_USRDLL;XML_EXPORTS"
+				PreprocessorDefinitions="_WINDOWS;_USRDLL;XTOOLBOX_AS_STANDALONE"
 				PrecompiledHeaderThrough="VXMLPrecompiled.h"
 				Detect64BitPortabilityProblems="true"
 			/>
@@ -942,4 +934,6 @@
 			</File>
 		</Filter>
 	</Files>
+	<Globals>
+	</Globals>
 </VisualStudioProject>

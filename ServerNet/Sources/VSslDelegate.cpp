@@ -604,19 +604,21 @@ SSL* VSslDelegate::XConnection::GetConnection()
 
 class VKeyCertChain : public IRefCountable
 {
-	private : 
+  private : 
 	
 	VKeyCertChain(const VKeyCertChain&);	//No copy !
-	
+
+	~VKeyCertChain();						//Release !
+
 	RSA*	fPrivateKey;
 	X509*	fCertificate;
 	
 	std::vector<X509*> fChain;
 	
-	public :
+  public :
+
 	VKeyCertChain() : fPrivateKey(NULL), fCertificate(NULL) {}
-	~VKeyCertChain();
-	
+		
 	VError Init(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
 	
 	VError PushIntermediateCertificate(const VMemoryBuffer<>& inCertBuffer);
@@ -750,8 +752,10 @@ VError VKeyCertChain::LoadIntoConnection(SSL* inConn)
 			
 			for(cit=fChain.begin() ; cit!=fChain.end() && verr==VE_OK ; cit++)
 			{
-				res=SSLSTUB::SSL_ctrl(inConn, SSL_CTRL_EXTRA_CHAIN_CERT, 0, (char*)*cit);
-				
+				//As it turns out, SSL_xxx_client_CA fonctions (mostly undocumented) have nothing to do with client, nor CA
+				//OpenSLL encrypted sens of humour ?
+				res=SSLSTUB::SSL_add_client_CA(inConn, *cit);
+
 				if(res!=1)
 					verr=VE_SSL_FAIL_TO_SET_CERTIFICATE;
 			}
@@ -774,17 +778,14 @@ VKeyCertChain* SslFramework::RetainKeyCertificateChain(const VMemoryBuffer<>& in
 	if(verr!=VE_OK)
 		return NULL;
 	
-	kcc->Retain();
-	
 	return kcc;
 }
 
 
 //namespace
-void SslFramework::ReleaseKeyCertificateChain(VKeyCertChain* inKeyCertChain)
+void SslFramework::ReleaseKeyCertificateChain(VKeyCertChain** inKeyCertChain)
 {
-	if(inKeyCertChain!=NULL)
-		inKeyCertChain->Release();
+	ReleaseRefCountable(inKeyCertChain);
 }
 
 
@@ -801,9 +802,37 @@ VError SslFramework::PushIntermediateCertificate(VKeyCertChain* inKeyCertChain, 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
+// OpenSSL Callback for certificate validation (Static hidden stuff private to VSslDelegate)
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+typedef int (SNET_CDECL *VerifyCallbackPtr)(int inPreverifyOk, X509_STORE_CTX* inX509StoreCtx);
+
+
+//See this example from OpenSSL doc : http://www.openssl.org/docs/ssl/SSL_CTX_set_verify.html#EXAMPLES
+static int SNET_CDECL SLogValidationCallBack(int inPreverifyOk, X509_STORE_CTX* inX509StoreCtx)
+{
+    X509* cert=SSLSTUB::X509_STORE_CTX_get_current_cert(inX509StoreCtx);
+    sLONG err=SSLSTUB::X509_STORE_CTX_get_error(inX509StoreCtx);
+    sLONG depth=SSLSTUB::X509_STORE_CTX_get_error_depth(inX509StoreCtx);
+
+	char name[512];
+    SSLSTUB::X509_NAME_oneline(SSLSTUB::X509_get_subject_name(cert), name, sizeof(name));
+	
+	XBOX::DebugMsg("Validate Certificate - name=%s depth=%d good=%s err=%d\n", name, depth, inPreverifyOk ? "true" : "false", err);
+	
+	return inPreverifyOk;
+ }
+ 
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
 // VSslDelegate
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 VSslDelegate::VSslDelegate() : fConnection(NULL), fKeyCertChain(NULL)
 {
@@ -857,17 +886,31 @@ VSslDelegate* VSslDelegate::NewDelegate(Socket inRawSocket)
 
 
 //static
-VSslDelegate* VSslDelegate::NewClientDelegate(Socket inRawSocket)
+VSslDelegate* VSslDelegate::NewClientDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain)
 {
 	SSLSTUB::ERR_clear_error();
 	
 	VSslDelegate* delegate=NewDelegate(inRawSocket);
+
+	VError verr=VE_OK;
 
 	if(delegate!=NULL)
 	{
 		SSL* conn=delegate->fConnection->GetConnection();
 		
 		SSLSTUB::SSL_set_connect_state(conn);
+
+		if(inKeyCertChain!=NULL)
+		{		
+			verr=inKeyCertChain->LoadIntoConnection(conn);
+			
+			if(verr==VE_OK)
+			{
+				delegate->fKeyCertChain=inKeyCertChain;
+				delegate->fKeyCertChain->Retain();
+			}
+		}
+
 	}
 	
 	return delegate;
@@ -875,7 +918,7 @@ VSslDelegate* VSslDelegate::NewClientDelegate(Socket inRawSocket)
 
 
 //static
-VSslDelegate* VSslDelegate::NewServerDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain)
+VSslDelegate* VSslDelegate::NewServerDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain, bool inAskClientCertificate)
 {
 	SSLSTUB::ERR_clear_error();
 
@@ -899,6 +942,22 @@ VSslDelegate* VSslDelegate::NewServerDelegate(Socket inRawSocket, VKeyCertChain*
 				delegate->fKeyCertChain->Retain();
 			}
 		}
+
+		int mode=0;
+		VerifyCallbackPtr callback=NULL;
+
+		if(inAskClientCertificate)
+		{
+			mode=SSL_VERIFY_PEER|SSL_VERIFY_CLIENT_ONCE;
+			callback=&SLogValidationCallBack;
+		}
+		else
+		{
+			mode=SSL_VERIFY_NONE;
+		}
+
+		SSLSTUB::SSL_set_verify(conn, mode, callback);
+		SSLSTUB::SSL_set_verify(conn, mode, SLogValidationCallBack);
 	}
 	
 	if(verr!=VE_OK)
@@ -1086,10 +1145,19 @@ VError VSslDelegate::Shutdown()
 
 	int res=SSLSTUB::SSL_shutdown(conn);
 	
-	if(res==0 /*unidirectional*/ || res==1 /*bidirectional*/)
+	if(res==0 || res==1)
+		return VE_OK;
+	
+	//jmo - on court-circuite la deuxieme partie du shutdown qui empeche parfois le serveur de s'arreter
+#if 0
+	if(res==0 /*unidirectional*/)
+		res=SSLSTUB::SSL_shutdown(conn);
+	
+	if(res==1 /*bidirectional*/)
 		return VE_OK;
 	
 	//We have an error...
+#endif
 
 	return vThrowThreadErrorStack(VE_SSL_SHUTDOWN_FAILED);
 }

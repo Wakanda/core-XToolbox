@@ -17,7 +17,7 @@
 #ifndef __ImageMeta__
 #define __ImageMeta__
 
-#include "vpoint.h"
+#include "VPoint.h"
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -86,6 +86,8 @@ namespace ImageMeta
 	please use ImageEncoding::stReader and ImageEncoding::stWriter
 	to read or write encoding properties or retain/release the optional metadatas bag
 */
+
+#if !VERSION_LINUX
 namespace ImageEncoding
 {
 	//image quality (0 : worst quality, 1: best quality = lossless if codec support it)
@@ -262,8 +264,8 @@ namespace ImageEncoding
 	protected:
 		VValueBag *fBagWrite;
 	};
-}	
-
+}
+#endif
 
 
 //IPTC metadatas properties (based on IIM v4.1: see http://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf)
@@ -1440,7 +1442,7 @@ public:
 		{
 			VString value;
 			value.FromLong(static_cast<sLONG>(inValue[0]));
-	#if VERSIONMAC		
+	#if VERSIONMAC || VERSION_LINUX		
 			typename std::vector<SLOT_TYPE>::const_iterator it = inValue.begin();
 	#else
 			std::vector<SLOT_TYPE>::const_iterator it = inValue.begin();

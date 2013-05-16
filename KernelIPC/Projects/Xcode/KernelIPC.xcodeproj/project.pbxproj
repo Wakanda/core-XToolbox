@@ -835,7 +835,7 @@
 		0867D690FE84028FC02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0420;
+				LastUpgradeCheck = 0450;
 			};
 			buildConfigurationList = 02FC128F088FC55F00C1F8D4 /* Build configuration list for PBXProject "KernelIPC" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -1068,6 +1068,7 @@
 		020DFAB408AE3ADB005EBBB5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Debug;
 		};
@@ -1088,6 +1089,7 @@
 		02FC1289088FC55F00C1F8D4 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Beta;
 		};
@@ -1112,6 +1114,7 @@
 		126DA0C90A4AC5B100D639DA /* Coverage */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Coverage;
 		};
@@ -1135,6 +1138,7 @@
 		3938483A08C5AA3E000520EB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Release;
 		};
@@ -1155,6 +1159,7 @@
 		39C38FB00C27FA910073EDA8 /* Performance */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEPLOYMENT_POSTPROCESSING = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 			};
@@ -1163,6 +1168,7 @@
 		39C38FB10C27FA910073EDA8 /* Performance */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
 				COPY_PHASE_STRIP = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
@@ -1198,6 +1204,7 @@
 		B54AA6940BEA455D005240A2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -1221,6 +1228,7 @@
 		B54AA6950BEA455D005240A2 /* Coverage */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
 				GCC_PREFIX_HEADER = "$(SYSTEM_LIBRARY_DIR)/Frameworks/Carbon.framework/Headers/Carbon.h";
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -1240,6 +1248,7 @@
 		B54AA6960BEA455D005240A2 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
 				GCC_PREFIX_HEADER = "$(SYSTEM_LIBRARY_DIR)/Frameworks/Carbon.framework/Headers/Carbon.h";
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -1261,6 +1270,7 @@
 		B54AA6970BEA455D005240A2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
 				COPY_PHASE_STRIP = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
@@ -1283,6 +1293,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F46431FE113E7CE000639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Debug;
 		};
@@ -1290,6 +1301,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F46431FE113E7CE000639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Coverage;
 		};
@@ -1297,6 +1309,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F46431FE113E7CE000639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Beta;
 		};
@@ -1304,6 +1317,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F46431FE113E7CE000639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Release;
 		};
@@ -1311,6 +1325,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F46431FE113E7CE000639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEPLOYMENT_POSTPROCESSING = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 			};
@@ -1320,6 +1335,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F9D1B6C712436B9900E98EC6 /* xtoolbox_BSD.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Debug;
 		};
@@ -1327,6 +1343,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F9D1B6C712436B9900E98EC6 /* xtoolbox_BSD.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Coverage;
 		};
@@ -1334,6 +1351,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F9D1B6C712436B9900E98EC6 /* xtoolbox_BSD.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Beta;
 		};
@@ -1341,6 +1359,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F9D1B6C712436B9900E98EC6 /* xtoolbox_BSD.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Release;
 		};
@@ -1348,6 +1367,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F9D1B6C712436B9900E98EC6 /* xtoolbox_BSD.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 			};
 			name = Performance;
 		};

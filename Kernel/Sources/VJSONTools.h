@@ -57,45 +57,77 @@ public:
 			jsonString
 		} JsonToken;
 	
-						VJSONImporter( const VString& inJSONString);
-						~VJSONImporter()		{ }
-	
-	/**@brief	GetNextJSONToken() parses the string until it reaches a token.
-		It fills outString with the content that is between previous token -> this token
-	*/
-	JsonToken			GetNextJSONToken(VString& outString, bool* withQuotes);
+		enum
+		{
+			EJSI_ReturnUndefinedWhenMalformed = 1,	// on maformed json always return json_undefined instead of what has been parsed so far
+			EJSI_QuotesMandatoryForString = 2,	// strings must be surrounded by double quotes (required by standard grammar)
+			EJSI_Default = 0,
+			EJSI_Strict = EJSI_ReturnUndefinedWhenMalformed | EJSI_QuotesMandatoryForString
+		};
+		typedef uLONG	EJSONImporterOptions;
+		
+									VJSONImporter( const VString& inJSONString, EJSONImporterOptions inOptions = EJSI_Default);
+	virtual							~VJSONImporter();
+			
+			/**@brief	GetNextJSONToken() parses the string until it reaches a token.
+				It fills outString with the content that is between previous token -> this token
+			*/
+			JsonToken				GetNextJSONToken( VString& outString, bool* withQuotes, VError *outError = NULL);
 
-	/**@brief	This GetNextJSONToken() is faster, and must be used only if you need to jump until a specific token*/
-	JsonToken			GetNextJSONToken();
+			/**@brief	This GetNextJSONToken() is faster, and must be used only if you need to jump until a specific token*/
+			JsonToken				GetNextJSONToken( VError *outError = NULL);
 
-	// parse json string and produces a json value
-	VError				Parse( VJSONValue& outValue);
-	
-	/**@brief	JSONObjectToBag() fills outBag with the values contained in the string
-	 
-				WARNING: JSONObjectToBag will not work with any JSON string, because it expects the string:
-						-> Starts with {, ends with } (it's a full JSON object)
-						-> Contains names and values, and values are properly assignes to names
-						-> For sub-objects, it creates a sub-bag that has a bool L"____objectunic" set to true
-						-> . . . (see the code)
-	 
-	*/
-	VError				JSONObjectToBag(VValueBag& outBag);
+			// parse json string and produces a json value
+			VError					Parse( VJSONValue& outValue);
+
+			// Parse some string and produces a value.
+	static	VError					ParseString( const VString& inString, VJSONValue& outValue, EJSONImporterOptions inOptions = EJSI_Default);
+
+			// Parse a file contents as string.
+			// default file encoding (if there's no bom) is utf-8
+	static	VError					ParseFile( VFile *inFile, VJSONValue& outValue, EJSONImporterOptions inOptions = EJSI_Default);
+			
+			/**@brief	JSONObjectToBag() fills outBag with the values contained in the string
+			 
+						WARNING: JSONObjectToBag will not work with any JSON string, because it expects the string:
+								-> Starts with {, ends with } (it's a full JSON object)
+								-> Contains names and values, and values are properly assignes to names
+								-> For sub-objects, it creates a sub-bag that has a bool L"____objectunic" set to true
+								-> . . . (see the code)
+			 
+			*/
+			VError					JSONObjectToBag( VValueBag& outBag);
+			
+			void					SetSourceID( const VString& inSourceID)		{ fSourceID = inSourceID;}
+			const VString&			GetSourceID() const							{ return fSourceID;}
 	
 private:
-	UniChar				_GetNextChar(bool& outIsEOF);
-	VError				_StringToValue( const VString& inString, bool inWithQuotes, VJSONValue& outValue);
-	VError				_ParseObject( VJSONValue& outValue);
-	VError				_ParseArray( VJSONValue& outValue);
-	bool				_ParseNumber( const UniChar *inString);
-	VError				_ThrowError();
-	
-	VString				fString;
-	VIndex				fInputLen;
-	const UniChar*		fCurChar;
-	const UniChar*		fStartChar;
+									VJSONImporter( const VJSONImporter&);	// forbidden
+			VJSONImporter&			operator=( const VJSONImporter&);	// forbidden
 
-	uLONG				fRecursiveCallCount;//<<< right now (2009-05-29), only used by JSONObjectToBag
+	static	VString					_TokenToString( JsonToken inToken);
+
+			UniChar					_GetNextChar(bool& outIsEOF);
+			VString					_GetStartTokenFirstChar() const;
+			VError					_StringToValue( const VString& inString, bool inWithQuotes, VJSONValue& outValue, const char *inExpectedString);
+			VError					_ParseObject( VJSONValue& outValue);
+			VError					_ParseArray( VJSONValue& outValue);
+			bool					_ParseNumber( const UniChar *inString);
+			VError					_ThrowErrorMalformed() const;
+			VError					_ThrowErrorInvalidToken( const VString& inFoundToken, const char *inExpectedString) const;
+			VError					_ThrowErrorUnterminated( const char *inExpectedString) const;
+			VError					_ThrowErrorExtraComma( const char *inExpectedString) const;
+			
+			VString					fString;
+			EJSONImporterOptions	fOptions;
+			VIndex					fInputLen;
+			const UniChar*			fCurChar;
+			const UniChar*			fStartChar;
+			const UniChar*			fStartToken;
+			
+			VString					fSourceID;	// for error reporting purpose. Might be an url or a file path of offending json.
+
+			uLONG					fRecursiveCallCount;//<<< right now (2009-05-29), only used by JSONObjectToBag
 	
 };
 

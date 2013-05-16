@@ -147,7 +147,7 @@ void VAffineTransform::FromNativeTransform(const CGAffineTransform& inMat)
 	fMatrix[2][2]=1;
 	#endif
 }
-#else
+#elif VERSIONWIN
 VAffineTransform::VAffineTransform(const Gdiplus::Matrix& inMat)
 {
 	FromNativeTransform(inMat);
@@ -298,7 +298,7 @@ void VAffineTransform::ToNativeMatrix(D2D_MATRIX_REF outMat)const
 	matNative->_32=fMatrix[2][1];
 }
 #endif
-#else
+#elif VERSIONMAC
 void VAffineTransform::ToNativeMatrix( CGAffineTransform &inMat)const
 {
 	inMat.a=fMatrix[0][0];
@@ -496,6 +496,8 @@ VPoint VAffineTransform::TransformVector(const VPoint& inVector) const
 	return VPoint(	(fMatrix[0][0] * inVector.x + fMatrix[1][0] * inVector.y ),
 					(fMatrix[0][1] * inVector.x + fMatrix[1][1] * inVector.y ));
 }
+
+#if !VERSION_LINUX
 VPolygon VAffineTransform::TransformVector(const VPolygon& inVector) const
 {
 	VPolygon result;
@@ -515,6 +517,8 @@ VPolygon VAffineTransform::TransformVector(const VPolygon& inVector) const
 	}
 	return result;
 }
+#endif
+
 VRect VAffineTransform::TransformVector(const VRect& inVector) const
 {
 	if(!IsIdentity())
@@ -533,6 +537,8 @@ VRect VAffineTransform::TransformVector(const VRect& inVector) const
 		return inVector;
 
 }
+
+#if !VERSION_LINUX
 VPolygon		VAffineTransform::operator * (const VPolygon& inVector) const
 {
 	VPolygon result;
@@ -552,6 +558,8 @@ VPolygon		VAffineTransform::operator * (const VPolygon& inVector) const
 	}
 	return result;
 }
+#endif
+
 VPoint		VAffineTransform::operator * (const VPoint& inVector) const
 {
 	return VPoint(	(fMatrix[0][0] * inVector.x + fMatrix[1][0] * inVector.y + fMatrix[2][0]),

@@ -44,6 +44,8 @@ public:
 
 	enum {
 
+		NAMED_FS		= -1,
+
 		FS_FIRST_TYPE	= 0,
 
 		TEMPORARY		= 0,
@@ -91,11 +93,14 @@ public:
 	VJSFileSystem				*RetainTemporaryFileSystem (VSize inQuota);
 	VJSFileSystem				*RetainPersistentFileSystem (VSize inQuota);
 	VJSFileSystem				*RetainRelativeFileSystem (const XBOX::VString &inPath);
+	VJSFileSystem				*RetainNamedFileSystem (const XBOX::VJSContext &inContext, const XBOX::VString &inFileSystemName);
 	void						ReleaseFileSystem (VJSFileSystem *inFileSystem);
 
 	// Only to be used by VJSLocalFileSystem and VJSW3CFSEvent. If inType is DATA, inQuota is just ignored.
 
-	sLONG						RequestFileSystem (const XBOX::VJSContext &inContext, sLONG inType, VSize inQuota, XBOX::VJSObject *outResult, bool inIsSync = true);
+	sLONG						RequestFileSystem (const XBOX::VJSContext &inContext, 
+									sLONG inType, VSize inQuota, XBOX::VJSObject *outResult, 
+									bool inIsSync = true, const XBOX::VString &inFileSystemName = "");
 	sLONG						ResolveURL (const XBOX::VJSContext &inContext, const XBOX::VString &inURL, bool inIsSync, XBOX::VJSObject *outResult);
 
 private: 
@@ -131,82 +136,45 @@ private:
 	static void					_addTypeConstants (XBOX::VJSObject &inFileSystemObject);
 };
 
-// FileSystem (section 5.1) and FileSystemSync (section 6.1) objects. Any file or folder belongs to a "file system" (sandbox).
-
 class XTOOLBOX_API VJSFileSystem : public VObject, public XBOX::IRefCountable
 {
 public:
 
-	// When created a file system is valid by default. 
+							VJSFileSystem (const XBOX::VString &inName, const XBOX::VFilePath &inRoot, VSize inQuota);
 
-							VJSFileSystem (VJSLocalFileSystem *inLocalFileSystem, const XBOX::VString &inName, const XBOX::VFilePath &inRoot, VSize inQuota);
+							VJSFileSystem (XBOX::VFileSystem *inFileSystem);	// Will do a retain on inFileSystem.
+
+	virtual					~VJSFileSystem ();
+
+	const XBOX::VString		&GetName () const			{	return fFileSystem->GetName();		}
+	const XBOX::VFilePath	&GetRoot ()	const			{	return fFileSystem->GetRoot();		}	
+
+	XBOX::VFileSystem*		GetFileSystem() const		{	return fFileSystem;					}
 	
-	const XBOX::VString		&GetName () const		{	return fName;	}
-	const XBOX::VFilePath	&GetRoot () const		{	return fRoot;	}	
+	void					SetValid (bool inIsValid)	{	fFileSystem->SetValid(inIsValid);	}
+	bool					IsValid () const			{	return fFileSystem->IsValid();		}
 
-	// A file system can be set to "not valid", this will disable actions on all entries from it (INVALID_STATE_ERR).
-	
-	void					SetValid (bool inYesNo)	{	fIsValid = inYesNo;	}
-	bool					IsValid () const		{	return fIsValid;	}
+	void					ClearObjectRefs ();
 
-	// If quota is zero, this file system doesn't have limitation.
+	void					SetFileSystemObjectRef (bool inIsSync, XBOX::JS4D::ObjectRef inObjectRef);
+	XBOX::JS4D::ObjectRef	GetFileSystemObjectRef (bool inIsSync)	{	return inIsSync ? fFileSystemSyncObjectRef : fFileSystemObjectRef;	}
 
-	VSize					GetQuota () const		{	return fQuota;		}
-	VSize					GetAvailable () const	{	return fAvailable;	}
-	bool					HasQuota () const		{	return fQuota > 0;	}
+	void					SetRootEntryObjectRef (bool inIsSync, XBOX::JS4D::ObjectRef inObjectRef);
+	XBOX::JS4D::ObjectRef	GetRootEntryObjectRef (bool inIsSync)	{	return inIsSync ? fRootEntrySyncObjectRef : fRootEntryObjectRef;	}
 
-	// Request or relinquish bytes from file system. Request() return true if successful.
+	bool					IsAuthorized (const XBOX::VFilePath &inPath)	{	return fFileSystem->IsAuthorized(inPath) == XBOX::VE_OK;	}
 
-	bool					Request (VSize inSize);
-	void					Relinquish (VSize inSize);
-
-	// Parse URL, determine if it is a folder or file, then check for existence and if access is authorized. Return appropriate 
-	// VJSFileError code. *ioPath on input is the root path for absolute "adressing". *ioPath and *outIsFile are always set on 
-	// output. Returned *ioPath may be invalid (VJSFileErrorClass::ENCODING_ERR). *outIsFile is always correct, as long as returned 
-	// code isn't VJSFileErrorClass::ENCODING_ERR or VJSFileErrorClass::SECURITY_ERR.
-
-	sLONG					ParseURL (const XBOX::VString &inUrl, XBOX::VFilePath *ioPath, bool *outIsFile);
-
-	// Return true if the folder or file with given path is accessible in current file system.
-	// Note that it doesn't check if the folder or file can actually be read (permissions).
-	
-	bool					IsAuthorized (const XBOX::VFilePath &inPath);
-
-	// Return true if it is an absolute POSIX path. On Windows platform, drive letter is accepted.
-
-	static bool				IsAbsolutePath (const XBOX::VString &inPath);
-
-	// Set or get ObjectRef of root entry, it must be unique.
-
-	void					SetRootEntryObjectRef (bool inIsSync, JS4D::ObjectRef inObjectRef);
-	JS4D::ObjectRef			GetRootEntryObjectRef (bool inIsSync) const				{	return inIsSync ? fRootEntrySyncObjectRef : fRootEntryObjectRef;	}
-
-	// If a FileSystem or FileSystemSync object is garbage collected, null the object references.
-	// Note that root entry will be garbage collected a long.
-
-	void					ClearObjectRefs (void);
+	sLONG					ParseURL (const XBOX::VString &inURL, XBOX::VFilePath *ioPath, bool *outIsFile);
 
 private: 
 
-friend class VJSFileSystemClass;
-friend class VJSFileSystemSyncClass;
+	XBOX::VFileSystem		*fFileSystem;
 
-	virtual					~VJSFileSystem ();
-								
-	bool					fIsValid;
-	VJSLocalFileSystem		*fLocalFileSystem;
+	XBOX::JS4D::ObjectRef	fFileSystemObjectRef;
+	XBOX::JS4D::ObjectRef	fFileSystemSyncObjectRef;
 
-	XBOX::VString			fName;
-	XBOX::VFilePath			fRoot;	
-
-	VSize					fQuota;
-	VSize					fAvailable;
-
-	JS4D::ObjectRef			fFileSystemObjectRef;
-	JS4D::ObjectRef			fFileSystemSyncObjectRef;
-
-	JS4D::ObjectRef			fRootEntryObjectRef;
-	JS4D::ObjectRef			fRootEntrySyncObjectRef;
+	XBOX::JS4D::ObjectRef	fRootEntryObjectRef;
+	XBOX::JS4D::ObjectRef	fRootEntrySyncObjectRef;
 };
 
 class XTOOLBOX_API VJSFileSystemClass : public XBOX::VJSClass<VJSFileSystemClass, VJSFileSystem>
@@ -298,45 +266,45 @@ friend class VJSFileEntryClass;
 friend class VJSDirectoryEntrySyncClass;
 friend class VJSFileEntrySyncClass;
 
-	VJSFileSystem	*fFileSystem;
-	XBOX::VFilePath	fPath;
-	bool			fIsFile;
-	bool			fIsSync;
+	VJSFileSystem			*fFileSystem;
+	XBOX::VFilePath			fPath;
+	bool					fIsFile;
+	bool					fIsSync;
 
-					VJSEntry (VJSFileSystem *inFileSystem, const XBOX::VFilePath &inPath, bool inIsFile, bool inIsSync);
-	virtual			~VJSEntry ();
+							VJSEntry (VJSFileSystem *inFileSystem, const XBOX::VFilePath &inPath, bool inIsFile, bool inIsSync);
+	virtual					~VJSEntry ();
 
 	// Entry/EntrySync interface functions.
 		
-	static void		_getMetadata (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-	static void		_moveTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-	static void		_copyTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-	static void		_toURL (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-    static void		_remove (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-	static void		_getParent (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_getMetadata (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_moveTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_copyTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_toURL (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+    static void				_remove (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_getParent (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
 
 	// DirectoryEntry/DirectoryEntrySync interface functions.
 
-	static void		_createReader (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-    static void		_getFile (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-    static void		_getDirectory (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-    static void		_removeRecursively (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_createReader (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+    static void				_getFile (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+    static void				_getDirectory (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+    static void				_removeRecursively (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
 
-	static void		_folder (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_folder (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
 
 	// FileEntry/FileEntrySync interface functions.
 
-	static void		_createWriter (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
-	static void		_file (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_createWriter (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
+	static void				_file (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry);
 
 	// Helper functions.
 
-	static void		_moveOrCopyTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry, bool inIsMoveTo);
-	static void		_getFileOrDirectory (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry, bool inIsGetFile);
+	static void				_moveOrCopyTo (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry, bool inIsMoveTo);
+	static void				_getFileOrDirectory (XBOX::VJSParms_callStaticFunction &ioParms, VJSEntry *inEntry, bool inIsGetFile);
 
-	bool			_IsRoot ()	{	return fPath.GetPath().EqualToString(fFileSystem->GetRoot().GetPath());	}
+	bool					_IsRoot ()	{	return fPath.GetPath().EqualToString(fFileSystem->GetRoot().GetPath());	}
 
-	bool			_IsNameCorrect (const XBOX::VString &inName);
+	bool					_IsNameCorrect (const XBOX::VString &inName);
 };
 
 // DirectoryEntry (section 5.3) and DirectoryEntrySync (section 6.3) objects.
@@ -467,7 +435,7 @@ public:
 
 private:
 
-	static bool	_HasInstance (const VJSParms_hasInstance &inParms);
+	static bool				_HasInstance (const VJSParms_hasInstance &inParms);
 };
 
 // FileError exception object, see section 7.

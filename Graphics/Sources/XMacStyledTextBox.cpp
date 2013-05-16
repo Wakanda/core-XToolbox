@@ -25,7 +25,7 @@
 #import <Cocoa/Cocoa.h> 
 #endif
 
-XMacStyledTextBox::XMacStyledTextBox(ContextRef inContextRef, const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, TextRenderingMode inMode, TextLayoutMode inLayoutMode, GReal inCharKerning, const GReal inRefDocDPI, bool inUseNSAttributes)
+XMacStyledTextBox::XMacStyledTextBox(ContextRef inContextRef, const VString& inText, const VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, const TextRenderingMode inMode, const TextLayoutMode inLayoutMode, const GReal inCharKerning, const GReal inRefDocDPI, bool inUseNSAttributes)
 : fContextRef(inContextRef), VStyledTextBox(inText, inStyles, inHwndBounds, inTextColor, inFont)
 {
 	fCurLayoutMode = inLayoutMode;
@@ -61,7 +61,7 @@ XMacStyledTextBox::XMacStyledTextBox(ContextRef inContextRef, const VString& inT
 	if (CTHelper::UseCocoaAttributes())
 	{
 		NSMutableAttributedString *nsAttString = (NSMutableAttributedString *)fAttributedString;
-		NSRange nsRange = { range.location, range.length };
+		NSRange nsRange = { static_cast<NSUInteger>(range.location), static_cast<NSUInteger>(range.length) };
 		[nsAttString setAttributes:(NSDictionary *)dictAttributes range:nsRange];
 	}
 	else
@@ -307,7 +307,7 @@ Boolean	XMacStyledTextBox::SetRTFText(VHandle inHandleRTF)
 }
 
 /** get plain text */
-Boolean XMacStyledTextBox::GetPlainText( VString& outText)
+Boolean XMacStyledTextBox::GetPlainText( VString& outText) const
 {
 	if (!fAttributedString)
 		return FALSE;
@@ -349,8 +349,8 @@ sLONG XMacStyledTextBox::GetStyle(VTextStyle* ioStyle, sLONG rangeStart, sLONG r
 {
 	if (!fAttributedString)
 	{
-		ioStyle->SetRange(rangeStart, rangeEnd);
-		return rangeEnd;
+		ioStyle->SetRange(0, 0);
+		return 0;
 	}
 	
 	xbox_assert(ioStyle);
@@ -359,6 +359,9 @@ sLONG XMacStyledTextBox::GetStyle(VTextStyle* ioStyle, sLONG rangeStart, sLONG r
 	
 	//check param consistency to avoid nasty exception with CFAttributedStringGetAttributesAndLongestEffectiveRange
 	CFIndex length = CFAttributedStringGetLength( fAttributedString);
+	if (rangeEnd == -1)
+		rangeEnd = length;
+
 	if (rangeStart > length)
 		rangeStart = length;
 	if (rangeEnd > length)
@@ -383,8 +386,8 @@ sLONG XMacStyledTextBox::GetStyle(VTextStyle* ioStyle, sLONG rangeStart, sLONG r
 	{
 		innerPool = [[NSAutoreleasePool alloc] init]; //local autorelease pool
 		
-		NSRange rangeLimit = { rangeStart, rangeEnd-rangeStart };
-		NSRange rangeOut = { rangeStart, 0 };
+		NSRange rangeLimit = { static_cast<NSUInteger>(rangeStart), static_cast<NSUInteger>(rangeEnd-rangeStart) };
+		NSRange rangeOut = { static_cast<NSUInteger>(rangeStart), 0 };
 		NSMutableAttributedString *nsAttString = (NSMutableAttributedString *)fAttributedString;
 		NSDictionary *nsDict = [nsAttString attributesAtIndex:(NSUInteger)rangeStart longestEffectiveRange:(NSRangePointer)&rangeOut inRange:rangeLimit];
 		range.location = rangeOut.location;
@@ -563,7 +566,13 @@ void XMacStyledTextBox::DoRelease()
 
 void XMacStyledTextBox::_ComputeCurFrame2(GReal inMaxWidth, GReal inMaxHeight, bool inForceComputeStrikeoutLines)
 {
-	if (fCurLayoutFrame)
+    if (inMaxHeight != 100000.0f)
+    {
+        inMaxHeight += 100; //workaround to avoid CoreText to crop last line if max height is too small: as text is clipped while drawing, it is ok
+                            //(the only drawback is that CoreText might format more text that is actually visible but it is better than to have invisible lines...)
+        fCurLayoutOffset.SetPosTo(0, -100);
+	}
+    if (fCurLayoutFrame)
 	{
 		CFRelease(fCurLayoutFrame);
 		fCurLayoutFrame = NULL;
@@ -622,7 +631,7 @@ void XMacStyledTextBox::_ComputeCurFrame2(GReal inMaxWidth, GReal inMaxHeight, b
 
 		//store typo bounds & adjust for discrepancies
 		fCurTypoWidth = std::ceil(maxWidth); 
-		fCurTypoHeight = maxHeight + 1;
+		fCurTypoHeight = std::ceil(maxHeight)+1; //FIXME: i guess ceil should be enough (no need to add 1) - need to make some tests to check it
 		fCurLayoutIsDirty = fCurLayoutFrame == NULL;
 		
 		//compute strikeout lines 
@@ -634,7 +643,8 @@ void XMacStyledTextBox::_ComputeCurFrame2(GReal inMaxWidth, GReal inMaxHeight, b
 		bool doComputeStrikeoutLines = fCurLayoutFrame;
 #endif		
 		fCurLayoutStrikeoutLines.clear();
-		bool widthIsValid = (fCurLayoutMode & TLM_DONT_WRAP) || inForceComputeStrikeoutLines || inMaxWidth <= 8.0f || fCurTypoWidth <= fCurLayoutWidth;
+        bool widthIsValid = true;
+		//bool widthIsValid = (fCurLayoutMode & TLM_DONT_WRAP) || inForceComputeStrikeoutLines || inMaxWidth <= 8.0f || fCurTypoWidth <= fCurLayoutWidth;
 		if (widthIsValid && doComputeStrikeoutLines)
 		{
 			bool isFirstColor = true;
@@ -838,56 +848,8 @@ void XMacStyledTextBox::_ComputeCurFrame(GReal inMaxWidth, GReal inMaxHeight)
 	if (!fCurLayoutIsDirty && fCurLayoutFrame)
 		return;
 
-	//workaround for CoreText max width bug:
-	//sometimes Coretext returns formatted text with width greater than the specified max width (very nasty indeed)
-	//so we make sure here formatted width never overflow max width
-	bool doContinue = false;
-	GReal maxWidth = fCurLayoutWidth;
-	GReal maxHeight = fCurLayoutHeight;
-#if VERSIONDEBUG
-	int loopCounter = 0;
-#endif
-	do
-	{
-#if VERSIONDEBUG
-		loopCounter++;
-#endif
-		doContinue = false;
-		_ComputeCurFrame2( maxWidth, maxHeight);
-		if ((!(fCurLayoutMode & TLM_DONT_WRAP)) && !fCurLayoutIsDirty && maxWidth > 8.0f && fCurTypoWidth > fCurLayoutWidth)
-		{
-			maxWidth -= 4.0f;
-			if (maxWidth < 8.0f)
-			{
-				//we can still fall here if design layout width is too small: we have no choice than let CoreText use design layout width
-#if VERSIONDEBUG
-				loopCounter++;
-#endif
-				maxWidth = fCurLayoutWidth;
-				_ComputeCurFrame2( maxWidth, maxHeight, true);
-				break;
-			}
-			doContinue = true;
-		}
-	}
-	while (doContinue);
-#if VERSIONDEBUG
-//	if (loopCounter > 1)
-//		xbox::DebugMsg("XMacStyledTextBox::_ComputeCurFrame2 call count = %d\n", loopCounter);
-#endif
-	
-	fCurLayoutActualWidth = maxWidth;
-	
-	//we need to decal layout origin if actual layout width is not equal to the design layout width
-	GReal x = 0.0f;
-	if (fCurLayoutWidth != fCurLayoutActualWidth)
-	{
-		if (fCurJustUniform == JST_Right)
-			x = fCurLayoutWidth-fCurLayoutActualWidth;
-		else if (fCurJustUniform == JST_Center)
-			x = (fCurLayoutWidth-fCurLayoutActualWidth)*0.5f;
-	}	
-	fCurLayoutOffset.SetPosTo(x,0.0f);
+    fCurLayoutOffset.SetPosTo(0, 0);
+    _ComputeCurFrame2( fCurLayoutWidth, fCurLayoutHeight);
 }
 
 /** return adjusted layout origin 
@@ -911,17 +873,22 @@ Boolean XMacStyledTextBox::DoDraw(const VRect& inBounds)
 		//translate frame according to text box origin (frame is already computed according to inBounds width & height)
 		//(note: we do not save/restore context here because it is caller responsibility to do that while using VStyledTextBox::Draw)
 		
+        CGContextSaveGState(fContextRef);
+        CGContextClipToRect(fContextRef, inBounds);
+
 		CGAffineTransform trans = { 1, 0, 0, 1, inBounds.GetX()+fCurLayoutOffset.GetX(), inBounds.GetY()+fCurLayoutOffset.GetY() };
 		CGContextConcatCTM( fContextRef, trans);
 
-		CGContextSaveGState(fContextRef);
+        CGContextSetTextMatrix( fContextRef, CGAffineTransformIdentity);
+        CGContextSetTextPosition(fContextRef, 0, 0);
+		
+        CGContextSaveGState(fContextRef);
 		CTFrameDraw( fCurLayoutFrame, fContextRef);
 		CGContextRestoreGState(fContextRef);
 		
 		//custom draw for strikeout style
 		if (!fCurLayoutStrikeoutLines.empty())
 		{
-			CGContextSaveGState(fContextRef);
 			CGContextSetLineCap(fContextRef, kCGLineCapSquare);
 			CGContextSetLineDash(fContextRef, 0, NULL, 0);
 			
@@ -941,8 +908,8 @@ Boolean XMacStyledTextBox::DoDraw(const VRect& inBounds)
 				CGContextAddLineToPoint(fContextRef, it->fEnd.GetX(), it->fEnd.GetY());
 				CGContextStrokePath(fContextRef);
 			}
-			CGContextRestoreGState(fContextRef);
 		}
+        CGContextRestoreGState(fContextRef);
 		
 		return true;
 	}	
@@ -974,7 +941,7 @@ void XMacStyledTextBox::_SetFont(VFont *font, const VColor &textColor)
 		
 		NSColor *color = (NSColor *)CTHelper::CreateNSColor(textColor);
 		NSMutableAttributedString *nsAttString = (NSMutableAttributedString *)fAttributedString;
-		NSRange nsRange = { range.location, range.length };
+		NSRange nsRange = { static_cast<NSUInteger>(range.location), static_cast<NSUInteger>(range.length) };
 		[nsAttString addAttribute:(NSString *)NSForegroundColorAttributeName value:color range:nsRange];
 		[color release];
 	}
@@ -1035,6 +1002,8 @@ void XMacStyledTextBox::InsertText( sLONG inPos, const VString& inText)
 void XMacStyledTextBox::DeleteText( sLONG rangeStart, sLONG rangeEnd)
 {
 	CFIndex length = CFAttributedStringGetLength(fAttributedString);
+	if (rangeEnd == -1)
+		rangeEnd = length;
 	if (rangeStart > length)
 		rangeStart = length;
 	if (rangeEnd > length)
@@ -1052,6 +1021,9 @@ void XMacStyledTextBox::DeleteText( sLONG rangeStart, sLONG rangeEnd)
 void XMacStyledTextBox::ReplaceText( sLONG rangeStart, sLONG rangeEnd, const VString& inText)
 {
 	CFIndex length = CFAttributedStringGetLength(fAttributedString);
+	if (rangeEnd == -1)
+		rangeEnd = length;
+
 	if (rangeStart > length)
 		rangeStart = length;
 	if (rangeEnd > length)
@@ -1066,13 +1038,13 @@ void XMacStyledTextBox::ReplaceText( sLONG rangeStart, sLONG rangeEnd, const VSt
 
 
 /** apply style (use style range) */
-void XMacStyledTextBox::ApplyStyle( VTextStyle* inStyle)
+void XMacStyledTextBox::ApplyStyle( const VTextStyle* inStyle)
 {
 	DoApplyStyle(inStyle, NULL);
 }
 
 
-bool XMacStyledTextBox::CFDictionaryFromVTextStyle(CFDictionaryRef inActualAttributes, CFMutableDictionaryRef inNewAttributes, VTextStyle* inStyle, VTextStyle *inStyleInherit)
+bool XMacStyledTextBox::CFDictionaryFromVTextStyle(CFDictionaryRef inActualAttributes, CFMutableDictionaryRef inNewAttributes, const VTextStyle* inStyle, VTextStyle *inStyleInherit)
 {
 	if (!inStyle)
 	{
@@ -1282,94 +1254,7 @@ bool XMacStyledTextBox::CFDictionaryFromVTextStyle(CFDictionaryRef inActualAttri
 }
 
 
-/** set min line height for the specified range */
-void XMacStyledTextBox::SetMinLineHeight( const GReal inMinHeight, sLONG inStart, sLONG inEnd)
-{
-#if CT_USE_COCOA
-	if (CTHelper::UseCocoaAttributes())
-		//it is used only with CoreFoundation attributed string to prevent line height to change dynamically with IME compositing
-		return;
-#endif
-	
-	CFIndex length = CFAttributedStringGetLength(fAttributedString);
-	if (inStart > length)
-		inStart = length;
-	if (inEnd > length)
-		inEnd = length;
-	
-	CTParagraphStyleRef vparagraph = NULL;
-	CTParagraphStyleRef paraActual = (CTParagraphStyleRef)CFAttributedStringGetAttribute( fAttributedString, inStart, kCTParagraphStyleAttributeName, NULL);
-
-	CTParagraphStyleSetting settings[5];
-	int count = 0;
-	CTParagraphStyleSetting *setting = &(settings[0]);
-	
-	//set min line height
-	CGFloat lineHeightMin = (CGFloat) inMinHeight;
-	{   
-		setting->spec = kCTParagraphStyleSpecifierMinimumLineHeight;
-		setting->value = &lineHeightMin;
-		setting->valueSize = sizeof(CGFloat);
-		count++;setting++;
-	}
-	
-	if (paraActual)
-	{
-		//merge with actual para settings
-		
-		CTTextAlignment textAlign = kCTNaturalTextAlignment;
-		CGFloat lineHeight = (CGFloat) 0.0;
-		CTLineBreakMode lineBreakMode = kCTLineBreakByWordWrapping; //by default, break line on word 
-		CTWritingDirection writingDirection = kCTWritingDirectionNatural; //by default, use bidirectional default algorithm 
-		
-		//inherit other settings 
-		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierAlignment, sizeof(CTTextAlignment), &textAlign))
-		{   
-			setting->spec = kCTParagraphStyleSpecifierAlignment;
-			setting->value = &textAlign;
-			setting->valueSize = sizeof(CTTextAlignment);
-			count++;setting++;
-		}
-		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierMaximumLineHeight, sizeof(CGFloat), &lineHeight))
-		{
-			setting->spec = kCTParagraphStyleSpecifierMaximumLineHeight;
-			setting->value = &lineHeight;
-			setting->valueSize = sizeof(CGFloat);
-			count++;setting++;
-		}
-		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierLineBreakMode, sizeof(CTLineBreakMode), &lineBreakMode))
-		{
-			setting->spec = kCTParagraphStyleSpecifierLineBreakMode;
-			setting->value = &lineBreakMode;
-			setting->valueSize = sizeof(CTLineBreakMode);
-			count++;setting++;
-		}
-		if (CTParagraphStyleGetValueForSpecifier(paraActual, kCTParagraphStyleSpecifierBaseWritingDirection, sizeof(CTWritingDirection), &writingDirection))
-		{
-			setting->spec = kCTParagraphStyleSpecifierBaseWritingDirection;
-			setting->value = &writingDirection;
-			setting->valueSize = sizeof(CTWritingDirection);
-			count++;setting++;
-		}
-		xbox_assert(count <= 5);
-		if (count)
-			vparagraph = CTParagraphStyleCreate(&(settings[0]), count);
-	}
-	else if (count)
-		//init para settings from scratch
-		vparagraph = CTParagraphStyleCreate(&(settings[0]), count);
-
-	if (vparagraph)
-	{
-		CFRange range = { inStart, inEnd-inStart };
-		CFAttributedStringSetAttribute (fAttributedString, range, kCTParagraphStyleAttributeName, vparagraph);
-		CFRelease(vparagraph);
-	
-		fCurLayoutIsDirty = true;
-	}
-}
-
-void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInherit)
+void XMacStyledTextBox::DoApplyStyle(const VTextStyle* inStyle, VTextStyle *inStyleInherit)
 {
 	Real fontsize;
 	XBOX::VColor forecolor, backcolor;
@@ -1401,7 +1286,7 @@ void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInh
 #endif
 		CFAttributedStringBeginEditing(fAttributedString);		
 	
-	justificationStyle justisset = inStyle->GetJustification();
+	eStyleJust justisset = inStyle->GetJustification();
 	if (justisset != JST_Notset && begin <= 0 && end >= textLength)
 	{
 		fCurJustUniform = justisset;
@@ -1413,7 +1298,7 @@ void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInh
 			{
 				//CTParagraphStyle & NSParagraphStyle are not toll-free bridged
 				
-				NSRange nsRange = { 0, textLength };
+				NSRange nsRange = { 0, static_cast<NSUInteger>(textLength) };
 				
 				CTTextAlignment valign = kCTNaturalTextAlignment;
 				if(justisset == JST_Left)
@@ -1522,7 +1407,7 @@ void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInh
 	curend = end;
 	
 	CFDictionaryRef actualAttributes = NULL;
-	do //iterate on uniform styles 
+	do //iterate on uniform styles
 	{
 		
 	//JQ 10/08/2011: we must iterate on actual uniform styles 
@@ -1531,8 +1416,8 @@ void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInh
 #if CT_USE_COCOA
 	if (CTHelper::UseCocoaAttributes())
 	{
-		NSRange rangeLimit = { curbegin, end-curbegin };
-		NSRange rangeOut = { curbegin, 0 };
+		NSRange rangeLimit = { static_cast<NSUInteger>(curbegin), static_cast<NSUInteger>(end-curbegin) };
+		NSRange rangeOut = { static_cast<NSUInteger>(curbegin), 0 };
 		NSDictionary *nsDict = [nsAttString attributesAtIndex:(NSUInteger)curbegin longestEffectiveRange:(NSRangePointer)&rangeOut inRange:rangeLimit];
 		range.location = rangeOut.location;
 		range.length = rangeOut.length;
@@ -1562,7 +1447,7 @@ void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInh
 #if CT_USE_COCOA
 		if (CTHelper::UseCocoaAttributes())
 		{
-			NSRange nsRange = { range.location, range.length };
+			NSRange nsRange = { static_cast<NSUInteger>(range.location), static_cast<NSUInteger>(range.length) };
 			[nsAttString setAttributes:(NSDictionary *)nsNewAttributes range:nsRange];
 		}
 		else
@@ -1585,5 +1470,7 @@ void XMacStyledTextBox::DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInh
 		CFAttributedStringEndEditing(fAttributedString);
 
 	fCurLayoutIsDirty = true;
+
+	_DoApplyStyleRef( inStyle);
 }
 

@@ -78,7 +78,20 @@ public:
 	~VArchiveStream();
 
 			VError AddFileDesc( VFileDesc* inFileDesc, const VString &inExtra );
-			VError	AddFile( VFile* inFile );
+				
+			/**
+			 * \brief adds a file to the archive
+			 * \param inFile the file to be added
+			 * \param inPreserveParentFolder if true, then @c inFile will be restored
+			 * underneath its current parent folder
+			 * e.g. if @c InFile is "/users/images/TerryTate.png" and @c inPreserveParentFolder is set
+			 * then when the archive is later restored to "/var/nekochimpo/", the image will be found
+			 * under "/var/nekochimpo/images/TerryTate.png".
+			 * If @c inPreserveParentFolder is false, the image wound be found under 
+			 * "/var/nekochimpo/TerryTate.png".
+			 */
+			VError	AddFile( VFile* inFile,bool inPreserveParentFolder = false);
+
 			VError	AddFile( VFile* inFile, const VString &inExtra );
 			VError	AddFile( VFilePath &inFilePath );
 
@@ -88,7 +101,7 @@ public:
 
 			bool	ContainsFile( const VFile* inFile) const;
 
-			void	SetRelativeFolderSource( VFilePath &inFolderPath );
+			void	SetRelativeFolderSource(const VFilePath &inFolderPath );
 			void	SetDestinationFile( VFile* inFile );
 			void	SetStreamer( VStream* inStream );
 			void	SetProgressCallBack( CB_VArchiveStream inProgressCallBack );
@@ -97,8 +110,10 @@ public:
 
 protected:
 
-	VError			_AddOneFolder(VFolder& inFolder,const VString& inExtraInfo);
-	virtual VError	_WriteCatalog( const VFile* inFile, const VString &inExtraInfo, uLONG8 &ioTotalByteCount );
+	VError			_AddFile(VFile& inFile,const VFilePath& inSourceFolder,const VString& inExtraInfo);
+	VError			_AddOneFolder(VFolder& inFolder,const VFilePath& inSourceFolder,const VString& inExtraInfo);
+	
+	virtual VError	_WriteCatalog( const VFile* inFile,const VFilePath& inStorageFolder, const VString &inExtraInfo, uLONG8 &ioTotalByteCount );
 	virtual VError	_WriteFile( const VFileDesc* inFileDesc, char* buffToUse, VSize buffSize, uLONG8 &ioPartialByteCount, uLONG8 inTotalByteCount );
 
 	VFile				*fDestinationFile;	/* file archive */
@@ -106,12 +121,15 @@ protected:
 
 	VectorOfVFile		fFileList;			/* list of file to be stored */
 	VectorOfVString		fFileExtra;			/* extra information for each file */
+	VectorOfPaths		fSourceFolderForFiles;	/* abs path of folder to compute relative storage path of item in archive */
 
 	VectorOfFileDesc	fFileDescList;		/* list of filedesc to be saved */
 	VectorOfVString		fFileDescExtra;		/* extra information about this filedesc */
+	VectorOfPaths		fSourceFolderForFileDescs;	/* abs path of folder to compute relative storage path of item in archive */
 
 	VectorOfPaths		fFolderPathList;	/* List of folder paths to be stored (with all files and sub-folders) */
 	VectorOfVString		fFolderExtra;		/* extra information about entries in the folder list */
+	VectorOfPaths		fSourceFolderForFolders;	/* abs path of folder to compute relative storage path of item in archive */
 
 
 	SetOfVFilePath		*fUniqueFilesCollection; /* collection of unique file paths that will be processed */

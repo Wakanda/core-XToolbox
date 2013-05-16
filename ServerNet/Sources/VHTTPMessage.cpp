@@ -45,7 +45,7 @@ char *memstr (const char *mem, size_t mem_size, const char *sub, size_t sub_size
 }
 
 
-bool _ExtractHeaderValuePair (const char *inStartLinePtr, const char *inEndLinePtr, XBOX::VString& outHeader, XBOX::VString& outValue)
+bool _ExtractHeaderValuePair (const char *inStartLinePtr, const char *inEndLinePtr, XBOX::VString& outHeader, XBOX::VString& outValue, const XBOX::CharSet inDefaultCharSet)
 {
 	if (NULL == inStartLinePtr)
 		return false;
@@ -61,7 +61,10 @@ bool _ExtractHeaderValuePair (const char *inStartLinePtr, const char *inEndLineP
 			while (isspace (*colonPtr))
 				++colonPtr;
 
-			outValue.FromBlock (colonPtr, (inEndLinePtr - colonPtr), XBOX::VTC_DefaultTextExport);
+			if (XBOX::VTC_UNKNOWN != inDefaultCharSet)
+				outValue.FromBlock (colonPtr, (inEndLinePtr - colonPtr), inDefaultCharSet);
+			else
+				outValue.FromBlock (colonPtr, (inEndLinePtr - colonPtr), XBOX::VTC_ISO_8859_1);
 
 			if (((inEndLinePtr - colonPtr) > 0) && outValue.IsEmpty())	// YT 01-Feb-2012 - ACI0075472 - Something was going wrong at conversion... Let's try in UTF-8
 				outValue.FromBlock (colonPtr, (inEndLinePtr - colonPtr), XBOX::VTC_UTF_8);
@@ -165,6 +168,7 @@ XBOX::VError VHTTPMessage::ReadFromStream (XBOX::VStream& inStream, const XBOX::
 	XBOX::VString		boundaryEnd;
 	char *				boundary = NULL;
 	bool				stopReadingStream = false;
+	XBOX::CharSet		bodyCharSet = (XBOX::VTC_UNKNOWN != inStream.GetCharSet()) ? inStream.GetCharSet() : XBOX::VTC_UTF_8;
 
 	if (!inBoundary.IsEmpty())
 	{
@@ -219,7 +223,7 @@ XBOX::VError VHTTPMessage::ReadFromStream (XBOX::VStream& inStream, const XBOX::
 					{
 						if (startLinePtr != (endHeaderPtr + endLineSize))
 						{
-							if (_ExtractHeaderValuePair (startLinePtr, endLinePtr, header, value))
+							if (_ExtractHeaderValuePair (startLinePtr, endLinePtr, header, value, bodyCharSet))
 							{
 								GetHeaders().SetHeaderValue (header, value, false);
 							}

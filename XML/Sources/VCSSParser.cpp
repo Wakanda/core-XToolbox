@@ -2147,6 +2147,7 @@ const VString kCSS_RGB					= CVSTR("rgb");
 
 const VString kCSS_INHERIT				= CVSTR("inherit");	
 const VString kCSS_LENGTH_AUTO			= CVSTR("auto");
+const VString kCSS_LENGTH_NORMAL		= CVSTR("normal");
 const VString kCSS_TRANSPARENT			= CVSTR("transparent");	
 const VString kCSS_INVERT				= CVSTR("invert");	
 
@@ -2203,6 +2204,9 @@ const VString kCSS_TEXTPROP_ANCHOR_START		= CVSTR("start");
 const VString kCSS_TEXTPROP_ANCHOR_MIDDLE		= CVSTR("middle");	
 const VString kCSS_TEXTPROP_ANCHOR_END			= CVSTR("end");	
 
+const VString kCSS_DIRECTION_LTR			= CVSTR("ltr");	
+const VString kCSS_DIRECTION_RTL			= CVSTR("rtl");	
+
 const VString kCSS_WRITING_MODE_LR			= CVSTR("lr");	
 const VString kCSS_WRITING_MODE_LR_TB		= CVSTR("lr-tb");	
 const VString kCSS_WRITING_MODE_RL			= CVSTR("rl");	
@@ -2214,16 +2218,33 @@ const VString kCSS_TEXT_ALIGN_START		= CVSTR("start");
 const VString kCSS_TEXT_ALIGN_CENTER	= CVSTR("center");	
 const VString kCSS_TEXT_ALIGN_END		= CVSTR("end");	
 const VString kCSS_TEXT_ALIGN_JUSTIFY	= CVSTR("justify");	
+const VString kCSS_TEXT_ALIGN_LEFT		= CVSTR("left");	
+const VString kCSS_TEXT_ALIGN_RIGHT		= CVSTR("right");	
 
 const VString kCSS_TEXT_ALIGN_AUTO		= CVSTR("auto");	
 const VString kCSS_TEXT_ALIGN_BEFORE	= CVSTR("before");	
 const VString kCSS_TEXT_ALIGN_AFTER		= CVSTR("after");	
+
+const VString kCSS_TEXT_ALIGN_BASELINE	= CVSTR("baseline");	
+const VString kCSS_TEXT_ALIGN_SUB		= CVSTR("sub");	
+const VString kCSS_TEXT_ALIGN_SUPER		= CVSTR("super");	
+const VString kCSS_TEXT_ALIGN_TOP		= CVSTR("top");	
+const VString kCSS_TEXT_ALIGN_TEXT_TOP	= CVSTR("text-top");	
+const VString kCSS_TEXT_ALIGN_MIDDLE	= CVSTR("middle");	
+const VString kCSS_TEXT_ALIGN_BOTTOM	= CVSTR("bottom");	
+const VString kCSS_TEXT_ALIGN_TEXT_BOTTOM = CVSTR("text-bottom");	
 
 const VString kCSS_RENDER_AUTO					= CVSTR("auto");	
 const VString kCSS_RENDER_OPTIMIZE_SPEED		= CVSTR("optimizeSpeed");	
 const VString kCSS_RENDER_CRISP_EDGES			= CVSTR("crispEdges");	
 const VString kCSS_RENDER_GEOMETRIC_PRECISION	= CVSTR("geometricPrecision");	
 const VString kCSS_RENDER_OPTIMIZE_LEGIBILITY	= CVSTR("optimizeLegibility");	
+
+const VString kCSS_TAB_STOP_TYPE_LEFT			= CVSTR("left");	
+const VString kCSS_TAB_STOP_TYPE_CENTER			= CVSTR("center");	
+const VString kCSS_TAB_STOP_TYPE_RIGHT			= CVSTR("right");	
+const VString kCSS_TAB_STOP_TYPE_DECIMAL		= CVSTR("decimal");	
+const VString kCSS_TAB_STOP_TYPE_BAR			= CVSTR("bar");	
 
 /** parse SVG URI */
 bool VCSSParser::ParseSVGURI( VCSSLexParser *inLexParser, VString& outURI, VString *ioValue)
@@ -2370,7 +2391,7 @@ bool VCSSParser::ParseRGBFunc( VCSSLexParser *inLexParser, uLONG& outColor, VStr
 
 
 /** parse value according to the specified value type */ 
-CSSProperty::Value *VCSSParser::ParseValue( VCSSLexParser *inLexParser, CSSProperty::eType inType, VString* ioValue)
+CSSProperty::Value *VCSSParser::ParseValue( VCSSLexParser *inLexParser, CSSProperty::eType inType, VString* ioValue, bool inIgnoreSVG)
 {
 	CSSProperty::Value *value = new CSSProperty::Value();
 	value->fType = inType;
@@ -2379,321 +2400,399 @@ CSSProperty::Value *VCSSParser::ParseValue( VCSSLexParser *inLexParser, CSSPrope
 	if (ioValue)
 		ioValue->SetEmpty();
 	bool done = false;
-	switch( inType)
-	{
-	case CSSProperty::SVGLENGTH:
-	case CSSProperty::SVGCOORD:
-	case CSSProperty::SVGFONTSIZE:
-	case CSSProperty::LENGTH:
-	case CSSProperty::COORD:
-	case CSSProperty::FONTSIZE:
-	{
-		//@remark: note that because of union v.svg.fLength = v.css.fLength
-		//		   so we can factorize code for CSS2 & SVG LENGTH+COORD+FONTSIZE types
-
-		bool isLength = inType != CSSProperty::COORD && inType != CSSProperty::SVGCOORD;
-		bool isFontSize = inType == CSSProperty::FONTSIZE || inType == CSSProperty::SVGFONTSIZE;
-		bool isSVG = inType > CSSProperty::COORD;
-
-		value->v.svg.fLength.fAuto = false;
-		value->v.svg.fLength.fNumber = 0.0;
-		value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PX;
-
-		while (inLexParser->GetCurToken() != CSSToken::END)
+	if (!inIgnoreSVG)
+		switch( inType)
 		{
-			switch( inLexParser->GetCurToken())
+		case CSSProperty::SVGLENGTH:
+		case CSSProperty::SVGCOORD:
+		case CSSProperty::SVGFONTSIZE:
+		{
+			bool isLength = inType != CSSProperty::SVGCOORD;
+			bool isFontSize = inType == CSSProperty::SVGFONTSIZE;
+
+			value->v.svg.fLength.fAuto = false;
+			value->v.svg.fLength.fNumber = 0.0;
+			value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PX;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
 			{
-			case CSSToken::NUMBER:
-				if (!isSVG)
+				switch( inLexParser->GetCurToken())
 				{
-					//only DIMENSION or PERCENTAGE is allowed for strict CSS2 LENGTH or COORD
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else if (!done)
-				{
-					value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
-					if (isLength && value->v.svg.fLength.fNumber < 0.0)
-						value->v.svg.fLength.fNumber = 0.0;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::PERCENTAGE:
-				if (!done)
-				{
-					value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber()*0.01;
-					value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PERCENT;
-					if (isLength && value->v.svg.fLength.fNumber < 0.0)
-						value->v.svg.fLength.fNumber = 0.0;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::DIMENSION:
-				if (!done)
-				{
-					value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
-					if (isLength && value->v.svg.fLength.fNumber < 0.0)
-						value->v.svg.fLength.fNumber = 0.0;
-
-					if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PX, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PX;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PT, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PT;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_EM, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_EM;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_EX, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_EX;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_IN, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_IN;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_CM, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_CM;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_MM, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_MM;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PC, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PC;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PERCENT, false))
+				case CSSToken::NUMBER:
+					if (!done)
 					{
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PERCENT;
-						value->v.svg.fLength.fNumber *= 0.01;
-					}
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::IDENT:
-				{
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-					value->fInherit = true;
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_LENGTH_AUTO, false))
-				{
-					if (!isFontSize)
-						value->v.svg.fLength.fAuto = true;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-				}
-				else if (isFontSize)
-				{
-					value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PT;
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_MEDIUM, false))
-						value->v.svg.fLength.fNumber = kFONT_SIZE_MEDIUM;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_XX_SMALL, false))
-						value->v.svg.fLength.fNumber = kFONT_SIZE_XX_SMALL;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_X_SMALL, false))
-						value->v.svg.fLength.fNumber = kFONT_SIZE_X_SMALL;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_SMALL, false))
-						value->v.svg.fLength.fNumber = kFONT_SIZE_SMALL;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_LARGE, false))
-						value->v.svg.fLength.fNumber = kFONT_SIZE_LARGE;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_X_LARGE, false))
-						value->v.svg.fLength.fNumber = kFONT_SIZE_X_LARGE;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_XX_LARGE, false))
-						value->v.svg.fLength.fNumber = kFONT_SIZE_XX_LARGE;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_LARGER, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_FONTSIZE_LARGER;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_SMALLER, false))
-						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_FONTSIZE_SMALLER;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-
-					if (value->v.svg.fLength.fNumber < 0.0)
-						value->v.svg.fLength.fNumber = 0.0;
-				}
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-
-				done = true;
-				if (ioValue)
-					*ioValue = inLexParser->GetCurTokenValue();
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
-
-	case CSSProperty::SVGNUMBER:
-	case CSSProperty::SVGOPACITY:
-	case CSSProperty::SVGOFFSET:
-	case CSSProperty::SVGANGLE:
-		{
-		value->v.svg.fNumber.fAuto = false;
-		value->v.svg.fNumber.fNumber = 0.0;
-
-		bool isAngle = inType == CSSProperty::SVGANGLE;
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::NUMBER:
-			case CSSToken::PERCENTAGE:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurToken() == CSSToken::PERCENTAGE)
-						value->v.svg.fNumber.fNumber = inLexParser->GetCurTokenValueNumber()*0.01;
-					else
-						value->v.svg.fNumber.fNumber = inLexParser->GetCurTokenValueNumber();
-
-					if (inType == CSSProperty::SVGOPACITY || inType == CSSProperty::SVGOFFSET)
-					{
-						if (value->v.svg.fNumber.fNumber < 0.0)
-							value->v.svg.fNumber.fNumber = 0.0;
-						else if (value->v.svg.fNumber.fNumber > 1.0)
-							value->v.svg.fNumber.fNumber = 1.0;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::DIMENSION:
-				if (done || (!isAngle))
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
-
-					if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_RAD, false))
-						value->v.svg.fLength.fNumber = value->v.svg.fLength.fNumber*180.0/XBOX::PI;
-					else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_GRAD, false))
-						value->v.svg.fLength.fNumber = value->v.svg.fLength.fNumber*360.0/400.0;
-					else if (!inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_DEG, false))
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-				{
-					value->fInherit = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				else if (isAngle
-						 &&
-						 inLexParser->GetCurTokenValue().EqualToString( kCSS_ANGLE_AUTO, false))
-				{
-					value->v.svg.fNumber.fAuto = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
-
-	case CSSProperty::SVGPAINT:
-	case CSSProperty::SVGCOLOR:
-		{
-		bool isSVGPAINT = inType == CSSProperty::SVGPAINT;
-
-		//reset to BLACK
-		value->v.svg.fPaint.fURI = NULL;
-		value->v.svg.fPaint.fNone = false;
-		value->v.svg.fPaint.fCurrentColor = false;
-		value->v.svg.fPaint.fColor = 0;
-
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::HASH:
-				if (!done)
-				{
-					//check first if it is a hexadecimal color
-					if (VCSSUtil::ParseColorHexa( inLexParser->GetCurTokenValue(), &value->v.svg.fPaint.fColor))
-					{
+						value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
+						if (isLength && value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
 						if (ioValue)
 							*ioValue = inLexParser->GetCurTokenDumpValue();
 						done = true;
 					}
-					else if (isSVGPAINT)
+					break;
+				case CSSToken::PERCENTAGE:
+					if (!done)
 					{
-						//otherwise it is probably a URI
-						value->v.svg.fPaint.fURI = new VString();
-						if (VCSSParser::ParseSVGURI( inLexParser, *(value->v.svg.fPaint.fURI), ioValue))
+						value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber()*0.01;
+						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PERCENT;
+						if (isLength && value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::DIMENSION:
+					if (!done)
+					{
+						value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
+						if (isLength && value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
+
+						if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PX, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PX;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PT, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PT;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_EM, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_EM;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_EX, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_EX;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_IN, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_IN;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_CM, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_CM;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_MM, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_MM;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PC, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PC;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PERCENT, false))
+						{
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PERCENT;
+							value->v.svg.fLength.fNumber *= 0.01;
+						}
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::IDENT:
+					{
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+						value->fInherit = true;
+					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_LENGTH_AUTO, false))
+					{
+						if (!isFontSize)
+							value->v.svg.fLength.fAuto = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+					}
+					else if (isFontSize)
+					{
+						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PT;
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_MEDIUM, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_MEDIUM;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_XX_SMALL, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_XX_SMALL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_X_SMALL, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_X_SMALL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_SMALL, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_SMALL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_LARGE, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_LARGE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_X_LARGE, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_X_LARGE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_XX_LARGE, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_XX_LARGE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_LARGER, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_FONTSIZE_LARGER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_SMALLER, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_FONTSIZE_SMALLER;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+
+						if (value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
+					}
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+
+					done = true;
+					if (ioValue)
+						*ioValue = inLexParser->GetCurTokenValue();
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+		case CSSProperty::SVGNUMBER:
+		case CSSProperty::SVGOPACITY:
+		case CSSProperty::SVGOFFSET:
+		case CSSProperty::SVGANGLE:
+			{
+			value->v.svg.fNumber.fAuto = false;
+			value->v.svg.fNumber.fNumber = 0.0;
+
+			bool isAngle = inType == CSSProperty::SVGANGLE;
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::NUMBER:
+				case CSSToken::PERCENTAGE:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurToken() == CSSToken::PERCENTAGE)
+							value->v.svg.fNumber.fNumber = inLexParser->GetCurTokenValueNumber()*0.01;
+						else
+							value->v.svg.fNumber.fNumber = inLexParser->GetCurTokenValueNumber();
+
+						if (inType == CSSProperty::SVGOPACITY || inType == CSSProperty::SVGOFFSET)
+						{
+							if (value->v.svg.fNumber.fNumber < 0.0)
+								value->v.svg.fNumber.fNumber = 0.0;
+							else if (value->v.svg.fNumber.fNumber > 1.0)
+								value->v.svg.fNumber.fNumber = 1.0;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::DIMENSION:
+					if (done || (!isAngle))
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
+
+						if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_RAD, false))
+							value->v.svg.fLength.fNumber = value->v.svg.fLength.fNumber*180.0/XBOX::PI;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_GRAD, false))
+							value->v.svg.fLength.fNumber = value->v.svg.fLength.fNumber*360.0/400.0;
+						else if (!inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_DEG, false))
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+					{
+						value->fInherit = true;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					else if (isAngle
+							 &&
+							 inLexParser->GetCurTokenValue().EqualToString( kCSS_ANGLE_AUTO, false))
+					{
+						value->v.svg.fNumber.fAuto = true;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+		case CSSProperty::SVGPAINT:
+		case CSSProperty::SVGCOLOR:
+			{
+			bool isSVGPAINT = inType == CSSProperty::SVGPAINT;
+
+			//reset to BLACK
+			value->v.svg.fPaint.fURI = NULL;
+			value->v.svg.fPaint.fNone = false;
+			value->v.svg.fPaint.fCurrentColor = false;
+			value->v.svg.fPaint.fColor = 0;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::HASH:
+					if (!done)
+					{
+						//check first if it is a hexadecimal color
+						if (VCSSUtil::ParseColorHexa( inLexParser->GetCurTokenValue(), &value->v.svg.fPaint.fColor))
+						{
+							if (ioValue)
+								*ioValue = inLexParser->GetCurTokenDumpValue();
+							done = true;
+						}
+						else if (isSVGPAINT)
+						{
+							//otherwise it is probably a URI
+							value->v.svg.fPaint.fURI = new VString();
+							if (VCSSParser::ParseSVGURI( inLexParser, *(value->v.svg.fPaint.fURI), ioValue))
+								done = true;
+							else
+							{
+								XBOX::ReleaseRefCountable(&value);
+								return NULL;
+							}
+						}
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+					}
+					break;
+				case CSSToken::IDENT:
+					if (!done)
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+						{
+							value->fInherit = true;
+							if (ioValue)
+								*ioValue = inLexParser->GetCurTokenValue();
+							done = true;
+							break;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_NONE, false))
+						{
+							value->v.svg.fPaint.fNone = true;
+							if (ioValue)
+								*ioValue = inLexParser->GetCurTokenValue();
+							done = true;
+							break;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_CURRENT_COLOR, false))
+						{
+							value->v.svg.fPaint.fCurrentColor = true;
+							if (ioValue)
+								*ioValue = inLexParser->GetCurTokenValue();
+							done = true;
+							break;
+						}
+						else if (VCSSUtil::ParseColorIdent( inLexParser->GetCurTokenValue(), &value->v.svg.fPaint.fColor))
+						{
+							if (ioValue)
+								*ioValue = inLexParser->GetCurTokenValue();
+							done = true;
+							break;
+						}
+						else 
+						{
+							value->v.svg.fPaint.fURI = new VString( inLexParser->GetCurTokenValue());
+							done = true;
+							break;
+						}
+					}
+					break;
+				case CSSToken::FUNCTION:
+					/** parse 'rgb(red,green,blue)' color */
+					{
+						uLONG color = 0;
+						if (!VCSSParser::ParseRGBFunc( inLexParser, color, done ? NULL : ioValue))
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (!done)
+							value->v.svg.fPaint.fColor = color;
+						done = true;
+					}
+					break;
+				case CSSToken::URI:
+					if (!isSVGPAINT)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else 
+					{
+						bool success;
+						if (done)
+						{
+							VString dummy;
+							success = VCSSParser::ParseSVGURI( inLexParser, dummy, NULL);
+						}
+						else
+						{
+							value->v.svg.fPaint.fURI = new VString();
+							success = VCSSParser::ParseSVGURI( inLexParser, *(value->v.svg.fPaint.fURI), ioValue);
+						}
+						if (success)
 							done = true;
 						else
 						{
@@ -2701,147 +2800,728 @@ CSSProperty::Value *VCSSParser::ParseValue( VCSSLexParser *inLexParser, CSSPrope
 							return NULL;
 						}
 					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
 					else
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
 				}
-				break;
-			case CSSToken::IDENT:
-				if (!done)
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+		case CSSProperty::SVGURI:
+			{
+			value->v.svg.fURI.fNone = false;
+			value->v.svg.fURI.fURI = NULL;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
 				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
 					{
 						value->fInherit = true;
 						if (ioValue)
 							*ioValue = inLexParser->GetCurTokenValue();
 						done = true;
-						break;
 					}
 					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_NONE, false))
 					{
-						value->v.svg.fPaint.fNone = true;
+						value->v.svg.fURI.fNone = true;
 						if (ioValue)
 							*ioValue = inLexParser->GetCurTokenValue();
 						done = true;
-						break;
-					}
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_CURRENT_COLOR, false))
-					{
-						value->v.svg.fPaint.fCurrentColor = true;
-						if (ioValue)
-							*ioValue = inLexParser->GetCurTokenValue();
-						done = true;
-						break;
-					}
-					else if (VCSSUtil::ParseColorIdent( inLexParser->GetCurTokenValue(), &value->v.svg.fPaint.fColor))
-					{
-						if (ioValue)
-							*ioValue = inLexParser->GetCurTokenValue();
-						done = true;
-						break;
 					}
 					else 
 					{
-						value->v.svg.fPaint.fURI = new VString( inLexParser->GetCurTokenValue());
+						value->v.svg.fURI.fURI = new VString( inLexParser->GetCurTokenValue());
 						done = true;
-						break;
 					}
-				}
-				break;
-			case CSSToken::FUNCTION:
-				/** parse 'rgb(red,green,blue)' color */
-				{
-					uLONG color = 0;
-					if (!VCSSParser::ParseRGBFunc( inLexParser, color, done ? NULL : ioValue))
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (!done)
-						value->v.svg.fPaint.fColor = color;
-					done = true;
-				}
-				break;
-			case CSSToken::URI:
-				if (!isSVGPAINT)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else 
-				{
-					bool success;
+					break;
+				case CSSToken::URI:
+				case CSSToken::HASH:
 					if (done)
 					{
-						VString dummy;
-						success = VCSSParser::ParseSVGURI( inLexParser, dummy, NULL);
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
 					}
 					else
 					{
-						value->v.svg.fPaint.fURI = new VString();
-						success = VCSSParser::ParseSVGURI( inLexParser, *(value->v.svg.fPaint.fURI), ioValue);
+						value->v.svg.fURI.fURI = new VString();
+						if (VCSSParser::ParseSVGURI( inLexParser, *(value->v.svg.fURI.fURI), ioValue))
+							done = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
 					}
-					if (success)
-						done = true;
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
 					else
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
+					break;
+				default:
 					XBOX::ReleaseRefCountable(&value);
 					return NULL;
+					break;
 				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
+				inLexParser->Next( true); 
+			} 
 			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
+			break;
 
-	case CSSProperty::FONTFAMILY:
-		{
-		value->v.css.fFontFamily = NULL;
-		VString fontFamily;
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
+		case CSSProperty::SVGTEXTANCHOR:
+			while (inLexParser->GetCurToken() != CSSToken::END)
 			{
-			case CSSToken::STRING:
-			case CSSToken::IDENT:
+				switch( inLexParser->GetCurToken())
 				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+				case CSSToken::IDENT:
+					{
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXTPROP_ANCHOR_START, false))
+							value->v.svg.fTextAnchor = CSSProperty::kTEXT_ANCHOR_START;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXTPROP_ANCHOR_MIDDLE, false))
+							value->v.svg.fTextAnchor = CSSProperty::kTEXT_ANCHOR_MIDDLE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXTPROP_ANCHOR_END, false))
+							value->v.svg.fTextAnchor = CSSProperty::kTEXT_ANCHOR_END;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::SVGTEXTALIGN:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					{
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_AUTO, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_START;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_START, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_START;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_CENTER, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_CENTER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_END, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_END;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_JUSTIFY, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_JUSTIFY;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value); 
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::DISPLAYALIGN:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					{
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_AUTO, false))
+							value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_START;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_BEFORE, false))
+							value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_START;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_CENTER, false))
+							value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_CENTER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_AFTER, false))
+							value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_END;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::SVGFILLRULE:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FILLRULE_NONZERO, false))
+							value->v.svg.fFillRuleEvenOdd = false;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FILLRULE_EVENODD, false))
+							value->v.svg.fFillRuleEvenOdd = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::SVGSTROKELINECAP:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_CAP_BUTT, false))
+							value->v.svg.fStrokeLineCap = CSSProperty::kStrokeLineCapButt;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_CAP_ROUND, false))
+							value->v.svg.fStrokeLineCap = CSSProperty::kStrokeLineCapRound;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_CAP_SQUARE, false))
+							value->v.svg.fStrokeLineCap = CSSProperty::kStrokeLineCapSquare;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::SVGSTROKELINEJOIN:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_JOIN_MITER, false))
+							value->v.svg.fStrokeLineJoin = CSSProperty::kStrokeLineJoinMiter;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_JOIN_ROUND, false))
+							value->v.svg.fStrokeLineJoin = CSSProperty::kStrokeLineJoinRound;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_JOIN_BEVEL, false))
+							value->v.svg.fStrokeLineJoin = CSSProperty::kStrokeLineJoinBevel;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::SVGTEXTRENDERING:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_AUTO, false))
+							value->v.svg.fTextRenderingMode = CSSProperty::kTRM_AUTO;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_OPTIMIZE_SPEED, false))
+							value->v.svg.fTextRenderingMode = CSSProperty::kTRM_OPTIMIZE_SPEED;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_OPTIMIZE_LEGIBILITY, false))
+							value->v.svg.fTextRenderingMode = CSSProperty::kTRM_OPTIMIZE_LEGIBILITY;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_GEOMETRIC_PRECISION, false))
+							value->v.svg.fTextRenderingMode = CSSProperty::kTRM_GEOMETRIC_PRECISION;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::SVGSHAPERENDERING:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_AUTO, false))
+							value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_AUTO;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_OPTIMIZE_SPEED, false))
+							value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_OPTIMIZE_SPEED;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_CRISP_EDGES, false))
+							value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_CRISP_EDGES;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_GEOMETRIC_PRECISION, false))
+							value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_GEOMETRIC_PRECISION;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		default:
+			break;
+		}
+
+	if (!done)
+		switch( inType)
+		{
+		case CSSProperty::LENGTH:
+		case CSSProperty::COORD:
+		case CSSProperty::FONTSIZE:
+		case CSSProperty::LINEHEIGHT:
+		{
+			//@remark: note that because of union v.svg.fLength = v.css.fLength
+			//		   so we can factorize code for CSS2 & SVG LENGTH+COORD+FONTSIZE types
+
+			bool isLength = inType != CSSProperty::COORD;
+			bool isFontSize = inType == CSSProperty::FONTSIZE;
+			bool isLineHeight = inType == CSSProperty::LINEHEIGHT;
+
+			value->v.svg.fLength.fAuto = false;
+			value->v.svg.fLength.fNumber = 0.0;
+			value->v.svg.fLength.fUnit = isLineHeight ?  CSSProperty::LENGTH_TYPE_PERCENT : CSSProperty::LENGTH_TYPE_PX;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::NUMBER:
+					if (!done)
+					{
+						value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
+						if (isLength && value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::PERCENTAGE:
+					if (!done)
+					{
+						value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber()*0.01;
+						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PERCENT;
+						if (isLength && value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::DIMENSION:
+					if (!done)
+					{
+						value->v.svg.fLength.fNumber = inLexParser->GetCurTokenValueNumber();
+						if (isLength && value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
+
+						if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PX, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PX;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PT, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PT;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_EM, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_EM;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_EX, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_EX;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_IN, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_IN;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_CM, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_CM;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_MM, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_MM;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PC, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PC;
+						else if (inLexParser->GetCurTokenValueIdent().EqualToString( kCSS_PERCENT, false))
+						{
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PERCENT;
+							value->v.svg.fLength.fNumber *= 0.01;
+						}
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::IDENT:
+					{
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
 						value->fInherit = true;
-					else 
+					else if (!isFontSize && !isLineHeight && inLexParser->GetCurTokenValue().EqualToString( kCSS_LENGTH_AUTO, false))
+						value->v.svg.fLength.fAuto = true;
+					else if (isLineHeight && inLexParser->GetCurTokenValue().EqualToString( kCSS_LENGTH_NORMAL, false))
+						value->v.svg.fLength.fAuto = true;
+					else if (isFontSize)
+					{
+						value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_PT;
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_MEDIUM, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_MEDIUM;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_XX_SMALL, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_XX_SMALL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_X_SMALL, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_X_SMALL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_SMALL, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_SMALL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_LARGE, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_LARGE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_X_LARGE, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_X_LARGE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_XX_LARGE, false))
+							value->v.svg.fLength.fNumber = kFONT_SIZE_XX_LARGE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_LARGER, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_FONTSIZE_LARGER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_SIZE_SMALLER, false))
+							value->v.svg.fLength.fUnit = CSSProperty::LENGTH_TYPE_FONTSIZE_SMALLER;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+
+						if (value->v.svg.fLength.fNumber < 0.0)
+							value->v.svg.fLength.fNumber = 0.0;
+					}
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+
+					done = true;
+					if (ioValue)
+						*ioValue = inLexParser->GetCurTokenValue();
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+	
+		case CSSProperty::FONTFAMILY:
+			{
+			value->v.css.fFontFamily = NULL;
+			VString fontFamily;
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::STRING:
+				case CSSToken::IDENT:
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else 
+						{
+							if (!fontFamily.IsEmpty())
+								fontFamily.AppendUniChar(' ');
+							fontFamily.AppendString(inLexParser->GetCurTokenValue());
+						}
+						if (ioValue)
+							inLexParser->ConcatCurTokenDumpValue( *ioValue);
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
 					{
 						if (!fontFamily.IsEmpty())
-							fontFamily.AppendUniChar(' ');
-						fontFamily.AppendString(inLexParser->GetCurTokenValue());
+						{
+							if (value->v.css.fFontFamily == NULL)
+								value->v.css.fFontFamily = new VectorOfVString();
+							value->v.css.fFontFamily->push_back( fontFamily);
+							fontFamily.SetEmpty();
+						}
+						
+						return value;
 					}
-					if (ioValue)
-						inLexParser->ConcatCurTokenDumpValue( *ioValue);
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-				{
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				case CSSToken::COMMA:
+					{
 					if (!fontFamily.IsEmpty())
 					{
 						if (value->v.css.fFontFamily == NULL)
@@ -2849,88 +3529,229 @@ CSSProperty::Value *VCSSParser::ParseValue( VCSSLexParser *inLexParser, CSSPrope
 						value->v.css.fFontFamily->push_back( fontFamily);
 						fontFamily.SetEmpty();
 					}
-					
-					return value;
-				}
-				else
-				{
+					if (ioValue)
+						inLexParser->ConcatCurTokenDumpValue( *ioValue);
+					}
+					break;
+				default:
 					XBOX::ReleaseRefCountable(&value);
 					return NULL;
+					break;
 				}
-				break;
-			case CSSToken::COMMA:
-				{
+				inLexParser->Next( true); 
+			} 
+			if (done)
+			{
 				if (!fontFamily.IsEmpty())
 				{
 					if (value->v.css.fFontFamily == NULL)
 						value->v.css.fFontFamily = new VectorOfVString();
 					value->v.css.fFontFamily->push_back( fontFamily);
-					fontFamily.SetEmpty();
 				}
-				if (ioValue)
-					inLexParser->ConcatCurTokenDumpValue( *ioValue);
-				}
-				break;
-			default:
+				
+				return value;
+			}
+			else
+			{
 				XBOX::ReleaseRefCountable(&value);
 				return NULL;
-				break;
 			}
-			inLexParser->Next( true); 
-		} 
-		if (done)
-		{
-			if (!fontFamily.IsEmpty())
-			{
-				if (value->v.css.fFontFamily == NULL)
-					value->v.css.fFontFamily = new VectorOfVString();
-				value->v.css.fFontFamily->push_back( fontFamily);
 			}
-			
-			return value;
-		}
-		else
-		{
-			XBOX::ReleaseRefCountable(&value);
-			return NULL;
-		}
-		}
-		break;
+			break;
 
-	case CSSProperty::FONTWEIGHT:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
+		case CSSProperty::FONTWEIGHT:
+			while (inLexParser->GetCurToken() != CSSToken::END)
 			{
-			case CSSToken::IDENT:
+				switch( inLexParser->GetCurToken())
 				{
+				case CSSToken::IDENT:
+					{
+						if (done)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_NORMAL, false))
+							value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_NORMAL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_BOLD, false))
+							value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_BOLD;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_BOLDER, false))
+							value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_BOLDER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_LIGHTER, false))
+							value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_LIGHTER;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::NUMBER:
+					{
+						if (done)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else
+						{
+							int weight = (int)inLexParser->GetCurTokenValueNumber();
+							if (((weight % 100) == 0)
+								&&
+								(weight >= CSSProperty::kFONT_WEIGHT_MIN)
+								&&
+								(weight <= CSSProperty::kFONT_WEIGHT_MAX))
+							{
+								value->v.css.fFontWeight = (CSSProperty::eFontWeight)weight;
+								done = true;
+							}
+							else
+							{
+								XBOX::ReleaseRefCountable(&value);
+								return NULL;
+							}
+						}
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
 					if (done)
+						return value;
+					else
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_NORMAL, false))
-						value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_NORMAL;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_BOLD, false))
-						value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_BOLD;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_BOLDER, false))
-						value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_BOLDER;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_WEIGHT_LIGHTER, false))
-						value->v.css.fFontWeight = CSSProperty::kFONT_WEIGHT_LIGHTER;
-					else 
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
 				}
-				break;
-			case CSSToken::NUMBER:
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::FONTSTYLE:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
 				{
+				case CSSToken::IDENT:
+					{
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_NORMAL, false))
+							value->v.css.fFontStyle = CSSProperty::kFONT_STYLE_NORMAL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_ITALIC, false))
+							value->v.css.fFontStyle = CSSProperty::kFONT_STYLE_ITALIC;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_OBLIQUE, false))
+							value->v.css.fFontStyle = CSSProperty::kFONT_STYLE_OBLIQUE;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::TEXTDECORATION:
+			{
+			value->v.css.fTextDecoration = 0;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_NONE, false))
+							value->v.css.fTextDecoration = 0;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_UNDERLINE, false))
+							value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_UNDERLINE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_OVERLINE, false))
+							value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_OVERLINE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_LINE_THROUGH, false))
+							value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_LINETHROUGH;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_BLINK, false))
+							value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_BLINK;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							inLexParser->ConcatCurTokenDumpValue( *ioValue);
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				case CSSToken::COMMA:
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+		case CSSProperty::STRING:
+			{
+			value->v.css.fString = NULL;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::STRING:
 					if (done)
 					{
 						XBOX::ReleaseRefCountable(&value);
@@ -2938,14 +3759,627 @@ CSSProperty::Value *VCSSParser::ParseValue( VCSSLexParser *inLexParser, CSSPrope
 					}
 					else
 					{
-						int weight = (int)inLexParser->GetCurTokenValueNumber();
-						if (((weight % 100) == 0)
-							&&
-							(weight >= CSSProperty::kFONT_WEIGHT_MIN)
-							&&
-							(weight <= CSSProperty::kFONT_WEIGHT_MAX))
+						value->v.css.fString = new VString( inLexParser->GetCurTokenValue());
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+		case CSSProperty::DIRECTION:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					{
+						if (done == true)
 						{
-							value->v.css.fFontWeight = (CSSProperty::eFontWeight)weight;
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_DIRECTION_LTR, false))
+							value->v.css.fDirection = CSSProperty::kDIRECTION_LTR;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_DIRECTION_RTL, false))
+							value->v.css.fDirection = CSSProperty::kDIRECTION_RTL;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::WRITINGMODE:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					{
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_LR, false))
+							value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_LR;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_LR_TB, false))
+							value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_LR;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_RL, false))
+							value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_RL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_RL_TB, false))
+							value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_RL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_TB, false))
+							value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_TB;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_TB_RL, false))
+							value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_TB;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::TEXTALIGN:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					{
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_LEFT, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_LEFT;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_CENTER, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_CENTER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_RIGHT, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_RIGHT;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_JUSTIFY, false))
+							value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_JUSTIFY;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value); 
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::VERTICALALIGN:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					{
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_BASELINE, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_BASELINE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_SUB, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_SUB;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_SUPER, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_SUPER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_TOP, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_TOP;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_TEXT_TOP, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_TEXT_TOP;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_MIDDLE, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_MIDDLE;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_BOTTOM, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_BOTTOM;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_TEXT_BOTTOM, false))
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_TEXT_BOTTOM;
+						else 
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::NUMBER:
+				case CSSToken::DIMENSION:
+				case CSSToken::PERCENTAGE:
+					{
+						//not supported: we set to default CSS alignment (baseline)
+						if (done == true)
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						else
+							value->v.css.fVerticalAlign = CSSProperty::kTEXT_ALIGN_BASELINE;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::NUMBER:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::NUMBER:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						value->v.css.fNumber = inLexParser->GetCurTokenValueNumber();
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::URI:
+			{
+			value->v.css.fURI = NULL;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::URI:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						value->v.css.fURI = new VString( inLexParser->GetCurTokenValue());
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+		case CSSProperty::DIMENSION:
+			{
+			value->v.css.fDimension.fIdent = NULL;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::DIMENSION:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						value->v.css.fDimension.fNumber = inLexParser->GetCurTokenValueNumber();
+						value->v.css.fDimension.fIdent = new VString( inLexParser->GetCurTokenValueIdent());
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			}
+			break;
+
+		case CSSProperty::PERCENTAGE:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::PERCENTAGE:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						value->v.css.fPercentage = inLexParser->GetCurTokenValueNumber()*0.01;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::DISPLAY:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_NONE, false))
+							value->v.css.fDisplay = false;
+						else
+							value->v.css.fDisplay = true;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::VISIBILITY:
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::IDENT:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_HIDDEN, false))
+							value->v.css.fVisibility = false;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_COLLAPSE, false))
+							value->v.css.fVisibility = false;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_VISIBLE, false))
+							value->v.css.fVisibility = true;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenDumpValue();
+						done = true;
+					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
+					else
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					break;
+				default:
+					XBOX::ReleaseRefCountable(&value);
+					return NULL;
+					break;
+				}
+				inLexParser->Next( true); 
+			} 
+			break;
+
+		case CSSProperty::COLOR:
+			{
+			value->v.css.fColor.fTransparent = false;
+			value->v.css.fColor.fInvert = false;
+
+			while (inLexParser->GetCurToken() != CSSToken::END)
+			{
+				switch( inLexParser->GetCurToken())
+				{
+				case CSSToken::HASH:
+					if (done)
+					{
+						XBOX::ReleaseRefCountable(&value);
+						return NULL;
+					}
+					else
+					{
+						if (VCSSUtil::ParseColorHexa( inLexParser->GetCurTokenValue(), &value->v.css.fColor.fColor))
+						{
+							if (ioValue)
+								*ioValue = inLexParser->GetCurTokenDumpValue();
 							done = true;
 						}
 						else
@@ -2954,1130 +4388,147 @@ CSSProperty::Value *VCSSParser::ParseValue( VCSSLexParser *inLexParser, CSSPrope
 							return NULL;
 						}
 					}
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::FONTSTYLE:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				{
-					if (done == true)
+					break;
+				case CSSToken::IDENT:
+					if (done)
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
 					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_NORMAL, false))
-						value->v.css.fFontStyle = CSSProperty::kFONT_STYLE_NORMAL;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_ITALIC, false))
-						value->v.css.fFontStyle = CSSProperty::kFONT_STYLE_ITALIC;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_OBLIQUE, false))
-						value->v.css.fFontStyle = CSSProperty::kFONT_STYLE_OBLIQUE;
-					else 
 					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::TEXTDECORATION:
-		{
-		value->v.css.fTextDecoration = 0;
-
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
 						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_NONE, false))
-						value->v.css.fTextDecoration = 0;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_UNDERLINE, false))
-						value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_UNDERLINE;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_OVERLINE, false))
-						value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_OVERLINE;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_LINE_THROUGH, false))
-						value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_LINETHROUGH;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FONT_STYLE_BLINK, false))
-						value->v.css.fTextDecoration |= CSSProperty::kFONT_STYLE_BLINK;
-					else 
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						inLexParser->ConcatCurTokenDumpValue( *ioValue);
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			case CSSToken::COMMA:
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
-
-	case CSSProperty::SVGURI:
-		{
-		value->v.svg.fURI.fNone = false;
-		value->v.svg.fURI.fURI = NULL;
-
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-				{
-					value->fInherit = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_NONE, false))
-				{
-					value->v.svg.fURI.fNone = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				else 
-				{
-					value->v.svg.fURI.fURI = new VString( inLexParser->GetCurTokenValue());
-					done = true;
-				}
-				break;
-			case CSSToken::URI:
-			case CSSToken::HASH:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					value->v.svg.fURI.fURI = new VString();
-					if (VCSSParser::ParseSVGURI( inLexParser, *(value->v.svg.fURI.fURI), ioValue))
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
 						done = true;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
 					}
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
-
-	case CSSProperty::SVGTEXTANCHOR:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				{
-					if (done == true)
+					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TRANSPARENT, false))
 					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
+						value->v.css.fColor.fTransparent = true;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
 					}
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXTPROP_ANCHOR_START, false))
-						value->v.svg.fTextAnchor = CSSProperty::kTEXT_ANCHOR_START;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXTPROP_ANCHOR_MIDDLE, false))
-						value->v.svg.fTextAnchor = CSSProperty::kTEXT_ANCHOR_MIDDLE;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXTPROP_ANCHOR_END, false))
-						value->v.svg.fTextAnchor = CSSProperty::kTEXT_ANCHOR_END;
+					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INVERT, false))
+					{
+						value->v.css.fColor.fInvert = true;
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
+					else if (VCSSUtil::ParseColorIdent( inLexParser->GetCurTokenValue(), &(value->v.css.fColor.fColor)))
+					{
+						if (ioValue)
+							*ioValue = inLexParser->GetCurTokenValue();
+						done = true;
+					}
 					else 
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::WRITINGMODE:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				{
-					if (done == true)
+					break;
+				case CSSToken::FUNCTION:
+					/** parse 'rgb(red,green,blue)' color */
+					if (done)
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_LR, false))
-						value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_LR;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_LR_TB, false))
-						value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_LR;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_RL, false))
-						value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_RL;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_RL_TB, false))
-						value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_RL;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_TB, false))
-						value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_TB;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_WRITING_MODE_TB_RL, false))
-						value->v.css.fWritingMode = CSSProperty::kWRITING_MODE_TB;
-					else 
+					else
 					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
+						uLONG color = 0;
+						if (!VCSSParser::ParseRGBFunc( inLexParser, color, ioValue))
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
+						value->v.css.fColor.fColor = color;
+						done = true;
 					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::TEXTALIGN:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				{
-					if (done == true)
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_AUTO, false))
-						value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_START;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_START, false))
-						value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_START;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_CENTER, false))
-						value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_CENTER;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_END, false))
-						value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_END;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_JUSTIFY, false))
-						value->v.css.fTextAlign = CSSProperty::kTEXT_ALIGN_JUSTIFY;
-					else 
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value); 
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::DISPLAYALIGN:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				{
-					if (done == true)
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_AUTO, false))
-						value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_START;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_BEFORE, false))
-						value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_START;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_CENTER, false))
-						value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_CENTER;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TEXT_ALIGN_AFTER, false))
-						value->v.css.fDisplayAlign = CSSProperty::kTEXT_ALIGN_END;
-					else 
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::SVGFILLRULE:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FILLRULE_NONZERO, false))
-						value->v.svg.fFillRuleEvenOdd = false;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_FILLRULE_EVENODD, false))
-						value->v.svg.fFillRuleEvenOdd = true;
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
 					else
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
+					break;
+				default:
 					XBOX::ReleaseRefCountable(&value);
 					return NULL;
+					break;
 				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
+				inLexParser->Next( true); 
+			} 
 			}
-			inLexParser->Next( true); 
-		} 
-		break;
+			break;
 
-	case CSSProperty::SVGSTROKELINECAP:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
+		//4D CSS reserved 
+		case CSSProperty::TABSTOPTYPE:
+			while (inLexParser->GetCurToken() != CSSToken::END)
 			{
-			case CSSToken::IDENT:
-				if (done)
+				switch( inLexParser->GetCurToken())
 				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_CAP_BUTT, false))
-						value->v.svg.fStrokeLineCap = CSSProperty::kStrokeLineCapButt;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_CAP_ROUND, false))
-						value->v.svg.fStrokeLineCap = CSSProperty::kStrokeLineCapRound;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_CAP_SQUARE, false))
-						value->v.svg.fStrokeLineCap = CSSProperty::kStrokeLineCapSquare;
-					else
+				case CSSToken::IDENT:
+					if (done)
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::SVGSTROKELINEJOIN:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_JOIN_MITER, false))
-						value->v.svg.fStrokeLineJoin = CSSProperty::kStrokeLineJoinMiter;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_JOIN_ROUND, false))
-						value->v.svg.fStrokeLineJoin = CSSProperty::kStrokeLineJoinRound;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_STROKE_LINE_JOIN_BEVEL, false))
-						value->v.svg.fStrokeLineJoin = CSSProperty::kStrokeLineJoinBevel;
 					else
 					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::SVGTEXTRENDERING:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_AUTO, false))
-						value->v.svg.fTextRenderingMode = CSSProperty::kTRM_AUTO;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_OPTIMIZE_SPEED, false))
-						value->v.svg.fTextRenderingMode = CSSProperty::kTRM_OPTIMIZE_SPEED;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_OPTIMIZE_LEGIBILITY, false))
-						value->v.svg.fTextRenderingMode = CSSProperty::kTRM_OPTIMIZE_LEGIBILITY;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_GEOMETRIC_PRECISION, false))
-						value->v.svg.fTextRenderingMode = CSSProperty::kTRM_GEOMETRIC_PRECISION;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::SVGSHAPERENDERING:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_AUTO, false))
-						value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_AUTO;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_OPTIMIZE_SPEED, false))
-						value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_OPTIMIZE_SPEED;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_CRISP_EDGES, false))
-						value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_CRISP_EDGES;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_RENDER_GEOMETRIC_PRECISION, false))
-						value->v.svg.fShapeRenderingMode = CSSProperty::kSRM_GEOMETRIC_PRECISION;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::NUMBER:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::NUMBER:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					value->v.css.fNumber = inLexParser->GetCurTokenValueNumber();
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::URI:
-		{
-		value->v.css.fURI = NULL;
-
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::URI:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					value->v.css.fURI = new VString( inLexParser->GetCurTokenValue());
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
-
-	case CSSProperty::DIMENSION:
-		{
-		value->v.css.fDimension.fIdent = NULL;
-
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::DIMENSION:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					value->v.css.fDimension.fNumber = inLexParser->GetCurTokenValueNumber();
-					value->v.css.fDimension.fIdent = new VString( inLexParser->GetCurTokenValueIdent());
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
-
-	case CSSProperty::PERCENTAGE:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::PERCENTAGE:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					value->v.css.fPercentage = inLexParser->GetCurTokenValueNumber()*0.01;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::DISPLAY:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_NONE, false))
-						value->v.css.fDisplay = false;
-					else
-						value->v.css.fDisplay = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::VISIBILITY:
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::IDENT:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-						value->fInherit = true;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_HIDDEN, false))
-						value->v.css.fVisibility = false;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_COLLAPSE, false))
-						value->v.css.fVisibility = false;
-					else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_VISIBLE, false))
-						value->v.css.fVisibility = true;
-					else
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenDumpValue();
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		break;
-
-	case CSSProperty::COLOR:
-		{
-		value->v.css.fColor.fTransparent = false;
-		value->v.css.fColor.fInvert = false;
-
-		while (inLexParser->GetCurToken() != CSSToken::END)
-		{
-			switch( inLexParser->GetCurToken())
-			{
-			case CSSToken::HASH:
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					if (VCSSUtil::ParseColorHexa( inLexParser->GetCurTokenValue(), &value->v.css.fColor.fColor))
-					{
+						if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
+							value->fInherit = true;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TAB_STOP_TYPE_LEFT, false))
+							value->v.css.fTabStopType = CSSProperty::kTST_LEFT;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TAB_STOP_TYPE_RIGHT, false))
+							value->v.css.fTabStopType = CSSProperty::kTST_RIGHT;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TAB_STOP_TYPE_CENTER, false))
+							value->v.css.fTabStopType = CSSProperty::kTST_CENTER;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TAB_STOP_TYPE_DECIMAL, false))
+							value->v.css.fTabStopType = CSSProperty::kTST_DECIMAL;
+						else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TAB_STOP_TYPE_BAR, false))
+							value->v.css.fTabStopType = CSSProperty::kTST_BAR;
+						else
+						{
+							XBOX::ReleaseRefCountable(&value);
+							return NULL;
+						}
 						if (ioValue)
 							*ioValue = inLexParser->GetCurTokenDumpValue();
 						done = true;
 					}
+					break;
+				case CSSToken::SEMI_COLON:
+				case CSSToken::RIGHT_CURLY_BRACE:
+				case CSSToken::IMPORTANT_SYMBOL:
+					if (done)
+						return value;
 					else
 					{
 						XBOX::ReleaseRefCountable(&value);
 						return NULL;
 					}
-				}
-				break;
-			case CSSToken::IDENT:
-				if (done)
-				{
+					break;
+				default:
 					XBOX::ReleaseRefCountable(&value);
 					return NULL;
+					break;
 				}
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INHERIT, false))
-				{
-					value->fInherit = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_TRANSPARENT, false))
-				{
-					value->v.css.fColor.fTransparent = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				else if (inLexParser->GetCurTokenValue().EqualToString( kCSS_INVERT, false))
-				{
-					value->v.css.fColor.fInvert = true;
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				else if (VCSSUtil::ParseColorIdent( inLexParser->GetCurTokenValue(), &(value->v.css.fColor.fColor)))
-				{
-					if (ioValue)
-						*ioValue = inLexParser->GetCurTokenValue();
-					done = true;
-				}
-				else 
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			case CSSToken::FUNCTION:
-				/** parse 'rgb(red,green,blue)' color */
-				if (done)
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				else
-				{
-					uLONG color = 0;
-					if (!VCSSParser::ParseRGBFunc( inLexParser, color, ioValue))
-					{
-						XBOX::ReleaseRefCountable(&value);
-						return NULL;
-					}
-					value->v.css.fColor.fColor = color;
-					done = true;
-				}
-				break;
-			case CSSToken::SEMI_COLON:
-			case CSSToken::RIGHT_CURLY_BRACE:
-			case CSSToken::IMPORTANT_SYMBOL:
-				if (done)
-					return value;
-				else
-				{
-					XBOX::ReleaseRefCountable(&value);
-					return NULL;
-				}
-				break;
-			default:
-				XBOX::ReleaseRefCountable(&value);
-				return NULL;
-				break;
-			}
-			inLexParser->Next( true); 
-		} 
-		}
-		break;
+				inLexParser->Next( true); 
+			} 
+			break;
 
-	default:
-		xbox_assert(false);
-		break;
-	}
+		default:
+			xbox_assert(false);
+			break;
+		}
+
 	if (done)
 		return value;
 	else
@@ -4840,8 +5291,11 @@ void VCSSParserInlineDeclarations::Start( const VString& inDeclarations)
 	}
 	catch( VCSSException e)
 	{
-		delete lexParser;
-		throw;
+		if (!fSilentCSSExceptions)
+		{
+			delete lexParser;
+			throw;
+		}
 	}
 	delete lexParser;
 }

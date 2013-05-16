@@ -159,7 +159,9 @@ typedef enum SystemVersion
 	WIN_SERVER_2003,
 	WIN_SERVER_2008,
 	WIN_SERVER_2008R2,
-	WIN_SEVEN
+	WIN_SEVEN,
+	WIN_EIGHT,
+	WIN_SERVER_2012
 } SystemVersion;
 
 #endif	// VERSIONWIN
@@ -304,6 +306,7 @@ typedef uLONG FileCopyOptions;	// options for VFile::Copy and VFile::Move
 enum {
 	FCP_Overwrite			= 4,	// overwrite destination file
 	FCP_ContinueOnError		= 8,	// while copying multiple files, tells one should continue copying remaining files.
+	FCP_SkipInvisibles		= 16,	// don't copy invisible files
 	FCP_Default				= 0
 };
 
@@ -476,6 +479,15 @@ enum
 	EML_Fatal			// Severe errors that cause premature termination. Expect these to be immediately visible on a status console.
 };
 
+#define kDOC_VERSION_XHTML11		0		//XHTML 1.1 format (default if not 4D SPAN or 4D XHTML text): W3C CSS inheriting rules compliancy for background-color & text-decoration		
+
+#define kDOC_VERSION_SPAN4D_1		1		//v13 span format (4D SPAN text): all span CSS styles are inherited & on Windows point font-size value is equal to point font size*72/screen dpi
+
+#define kDOC_VERSION_XHTML4D		2		//V15 XHMTL 4D document format: full support for new XHTML4D document format (should be fully implemented only for v15+) - span CSS properties are all inherited
+
+#define kDOC_VERSION_MAX			kDOC_VERSION_XHTML4D		
+
+#define kDOC_VERSION_MAX_SUPPORTED	kDOC_VERSION_SPAN4D_1 //for now we support only SPAN4D compatible format with references extension (we do not support extended paragraph styles yet - will be available only in v15)
 
 END_TOOLBOX_NAMESPACE
 

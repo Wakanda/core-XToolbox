@@ -157,8 +157,6 @@ public:
 	virtual void	SetPixelBackColor (const VColor& inColor);
 	virtual void	SetPixelForeColor (const VColor& inColor);
 	
-	virtual TransferMode	SetPixelTransferMode (TransferMode inMode);
-	
 	// Graphic context storage
 	virtual void	NormalizeContext ();
 	virtual void	SaveContext ();
@@ -217,9 +215,9 @@ public:
 	virtual void	GetTransformToLayer(VAffineTransform &outTransform, sLONG inIndexLayer);
 
 	//return current graphic context native reference
-	virtual VGraphicContextNativeRef GetNativeRef() const
+	virtual VGCNativeRef GetNativeRef() const
 	{
-		return (VGraphicContextNativeRef)fGDIPlusGraphics;
+		return (VGCNativeRef)fGDIPlusGraphics;
 	}
 	
 	// Text measurement
@@ -379,7 +377,7 @@ public:
 	virtual	void	BeginUsingContext (bool inNoDraw = false);
 	virtual	void	EndUsingContext ();
 
-	// pp same as _GetParentPort/_ReleaseParentPort but special case for gdi+/gdi 
+	// pp same as GetParentPort/ReleaseParentPort but special case for gdi+/gdi 
 	// hdc clipregion is not sync with gdi+ clip region, to sync clip use this function
 	virtual	ContextRef	BeginUsingParentContext()const;
 	virtual	void	EndUsingParentContext(ContextRef inContextRef)const;
@@ -388,11 +386,11 @@ public:
 	virtual	void	EndUsingParentPort(PortRef inPortRef)const{EndUsingParentContext(inPortRef);};
 
 
-	virtual	PortRef		_GetParentPort () const { return _GetHDC(); };
-	virtual	ContextRef	_GetParentContext () const { return _GetHDC(); };
+	virtual	PortRef		GetParentPort () const { return _GetHDC(); };
+	virtual	ContextRef	GetParentContext () const { return _GetHDC(); };
 	
-	virtual	void	_ReleaseParentPort (PortRef inPortRef) const {return _ReleaseHDC(inPortRef);};
-	virtual	void	_ReleaseParentContext (ContextRef inContextRef) const {return _ReleaseHDC(inContextRef);};
+	virtual	void	ReleaseParentPort (PortRef inPortRef) const {return _ReleaseHDC(inPortRef);};
+	virtual	void	ReleaseParentContext (ContextRef inContextRef) const {return _ReleaseHDC(inContextRef);};
 	
 	// Utilities
 	virtual	Boolean	UseEuclideanAxis () { return false; };
@@ -403,11 +401,11 @@ public:
 	void	SetTextCursorInfo (VString& inFont, sLONG inSize, Boolean inBold, Boolean inItalic, sLONG inX, sLONG inY);
 
 	// Debug Utils
-	static void	_RevealUpdate (HWND inHwnd);
-	static void	_RevealClipping (ContextRef inContext);
-	static void	_RevealClipping (Gdiplus::Graphics* inContext);
-	static void	_RevealBlitting (ContextRef inContext, const RgnRef inHwndRegion);
-	static void	_RevealInval (ContextRef inContext, const RgnRef inHwndRegion);
+	static void	RevealUpdate (HWND inHwnd);
+	static void	RevealClipping (ContextRef inContext);
+	static void	RevealClipping (Gdiplus::Graphics* inContext);
+	static void	RevealBlitting (ContextRef inContext, const RgnRef inHwndRegion);
+	static void	RevealInval (ContextRef inContext, const RgnRef inHwndRegion);
 	
 	// Class initialization
 	static Boolean	Init ();

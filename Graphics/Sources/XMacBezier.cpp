@@ -143,7 +143,7 @@ VGraphicPath *VGraphicPath::CloneWithCrispEdges( VGraphicContext *inGC, bool inF
 			{
 			VPoint pt(*(it->GetPoints()));
 			inGC->UseReversedAxis();
-			inGC->_CEAdjustPointInTransformedSpace( pt, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( pt, inFillOnly);
 			path->BeginSubPathAt( pt);
 			}
 			break;
@@ -151,7 +151,7 @@ VGraphicPath *VGraphicPath::CloneWithCrispEdges( VGraphicContext *inGC, bool inF
 			{
 			VPoint pt(*(it->GetPoints()));
 			inGC->UseReversedAxis();
-			inGC->_CEAdjustPointInTransformedSpace( pt, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( pt, inFillOnly);
 			path->AddLineTo( pt);
 			}
 			break;
@@ -162,9 +162,9 @@ VGraphicPath *VGraphicPath::CloneWithCrispEdges( VGraphicContext *inGC, bool inF
 			VPoint c2(*(it->GetPoints()+2));
 
 			inGC->UseReversedAxis();
-			inGC->_CEAdjustPointInTransformedSpace( c1, inFillOnly);
-			inGC->_CEAdjustPointInTransformedSpace( d, inFillOnly);
-			inGC->_CEAdjustPointInTransformedSpace( c2, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( c1, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( d, inFillOnly);
+			inGC->CEAdjustPointInTransformedSpace( c2, inFillOnly);
 			path->AddBezierTo( c1, d, c2);
 			}
 			break;
@@ -175,7 +175,7 @@ VGraphicPath *VGraphicPath::CloneWithCrispEdges( VGraphicContext *inGC, bool inF
 			{
 			VRect rect(it->GetRect());
 			inGC->UseReversedAxis();
-			inGC->_CEAdjustRectInTransformedSpace( rect, inFillOnly);
+			inGC->CEAdjustRectInTransformedSpace( rect, inFillOnly);
 			path->AddOval( rect);
 			}
 			break;

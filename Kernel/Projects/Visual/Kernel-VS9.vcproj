@@ -899,6 +899,14 @@
 					>
 				</File>
 				<File
+					RelativePath="..\..\Sources\VFileSystem.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VFileSystem.h"
+					>
+				</File>
+				<File
 					RelativePath="..\..\Sources\VFileSystemObject.cpp"
 					>
 				</File>
@@ -4467,11 +4475,27 @@
 					>
 				</File>
 				<File
+					RelativePath="..\..\Sources\VLog4jMsgFile.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VLog4jMsgFile.h"
+					>
+				</File>
+				<File
 					RelativePath="..\..\Sources\VLogger.cpp"
 					>
 				</File>
 				<File
 					RelativePath="..\..\Sources\VLogger.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VSplitableLogFile.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VSplitableLogFile.h"
 					>
 				</File>
 			</Filter>
@@ -7604,6 +7628,42 @@
 				</File>
 				<File
 					RelativePath="..\..\Sources\XWinLibrary.h"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="Text Document"
+				>
+				<File
+					RelativePath="..\..\Sources\VDocImage.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VDocImage.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VDocParagraph.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VDocParagraph.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VDocTable.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VDocTable.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VDocText.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\Sources\VDocText.h"
 					>
 				</File>
 			</Filter>

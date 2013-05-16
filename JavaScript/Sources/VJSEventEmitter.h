@@ -22,6 +22,7 @@
 
 #include "VJSClass.h"
 #include "VJSValue.h"
+#include "VJSWorker.h"
 
 // The 'newListener' event (each time addListener() is called) is not handled.
 
@@ -29,9 +30,11 @@ BEGIN_TOOLBOX_NAMESPACE
 
 class XTOOLBOX_API VJSEventEmitter : public XBOX::VObject, public XBOX::IRefCountable
 {
+friend class VJSEventEmitterClass;
+
 public:
 
-	void				AddListener (const XBOX::VString &inEventName, XBOX::VJSObject inCallback, bool inOnce);
+	void				AddListener (VJSWorker *inWorker, const XBOX::VString &inEventName, XBOX::VJSObject inCallback, bool inOnce);
 	bool				HasListener (const XBOX::VString &inEventName);
 	void				Emit (XBOX::VJSContext inContext, const XBOX::VString &inEventName, std::vector<XBOX::VJSValue> *inArguments);
 
@@ -91,6 +94,22 @@ private:
 	
 	sLONG				_getCallbacks (const XBOX::VString &inEventName, std::list<XBOX::JS4D::ObjectRef> *outList, bool inRemoveOnce);
 
+};
+
+class XTOOLBOX_API VJSEventEmitterClass : public XBOX::VJSClass<VJSEventEmitterClass, VJSEventEmitter>
+{
+public:
+
+	static void				GetDefinition (ClassDefinition &outDefinition);
+	static XBOX::VJSObject	MakeModuleObject (const XBOX::VJSContext &inContext);
+
+private:
+
+	static void				_Construct (XBOX::VJSParms_callAsConstructor &ioParms);
+	static void				_Initialize (const XBOX::VJSParms_initialize &inParms, VJSEventEmitter *inEventEmitter);
+	static void				_Finalize (const XBOX::VJSParms_finalize &inParms, VJSEventEmitter *inEventEmitter);
+
+	static XBOX::VJSObject	_NewInstance (const XBOX::VJSContext &inContext);
 };
 
 END_TOOLBOX_NAMESPACE

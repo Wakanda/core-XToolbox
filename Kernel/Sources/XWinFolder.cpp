@@ -261,8 +261,7 @@ VError XWinFolder::GetTimeAttributes( VTime* outLastModification, VTime* outCrea
 
 VError XWinFolder::GetVolumeCapacity (sLONG8 *outTotalBytes ) const
 {
-VFilePath filePath( fOwner->GetPath() );
-	filePath.ToParent();
+	VFilePath filePath( fOwner->GetPath() );
 	
 	XWinFullPath path( filePath);
 		
@@ -279,7 +278,6 @@ VFilePath filePath( fOwner->GetPath() );
 VError XWinFolder::GetVolumeFreeSpace(sLONG8 *outFreeBytes, bool inWithQuotas ) const
 {
 	VFilePath filePath( fOwner->GetPath() );
-	filePath.ToParent();
 	
 	XWinFullPath path( filePath);
 		
@@ -428,6 +426,7 @@ VError XWinFolder::RetainSystemFolder( ESystemFolderKind inFolderKind, bool inCr
 					case eFK_UserApplicationData:	type = CSIDL_APPDATA; break;
 					case eFK_CommonCache:			type = CSIDL_COMMON_APPDATA; break;
 					case eFK_UserCache:				type = CSIDL_LOCAL_APPDATA; break;
+					case eFK_StartupItemsFolder:	type = CSIDL_COMMON_STARTUP; break;
 					default: xbox_assert( false);	type = CSIDL_APPDATA; break;
 				}
 				HRESULT result = ::SHGetFolderPathW( NULL, type, NULL, SHGFP_TYPE_CURRENT, path);

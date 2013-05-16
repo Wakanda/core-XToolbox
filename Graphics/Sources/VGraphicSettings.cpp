@@ -38,7 +38,6 @@ VGraphicSettings::VGraphicSettings(const VGraphicSettings& inOriginal)
 	fTextDrawingMode = inOriginal.fTextDrawingMode;
 	fTextRenderingMode = inOriginal.fTextRenderingMode;
 	fTextMeasuringMode = inOriginal.fTextMeasuringMode;
-	fPixelTransferMode = inOriginal.fPixelTransferMode;
 	fSpaceExtra = inOriginal.fSpaceExtra;
 	fCharExtra = inOriginal.fCharExtra;
 	fTextPos = inOriginal.fTextPos;
@@ -65,7 +64,6 @@ void VGraphicSettings::_Init()
 	fTextDrawingMode = DM_PLAIN;
 	fTextRenderingMode = TRM_NORMAL;
 	fTextMeasuringMode = TMM_NORMAL;
-	fPixelTransferMode = TM_OR;
 	fSpaceExtra = (GReal) 0.0;
 	fCharExtra = (GReal) 0.0;
 	fTextAngle = (GReal) 0.0;
@@ -323,13 +321,6 @@ void VGraphicSettings::NormalizeTextState()
 
 #pragma mark -
 
-TransferMode VGraphicSettings::SetPixelTransferMode(TransferMode inMode)
-{
-	TransferMode	oldMode = fPixelTransferMode;
-	fPixelTransferMode = inMode;
-	return oldMode;
-}
-
 
 uBYTE VGraphicSettings::SetAlphaBlend(uBYTE inAlphaBlend)
 {
@@ -342,7 +333,6 @@ uBYTE VGraphicSettings::SetAlphaBlend(uBYTE inAlphaBlend)
 void VGraphicSettings::NormalizePixelState()
 {
 	fAlphaBlend = 0;
-	fPixelTransferMode = TM_OR;
 }
 
 
@@ -355,7 +345,7 @@ void VGraphicSettings::SavePixelState()
 	{
 		fPixelState->OpenWriting();
 		fPixelState->PutByte(fAlphaBlend);
-		fPixelState->PutLong(fPixelTransferMode);
+		fPixelState->PutLong(TM_COPY);
 		fPixelState->CloseWriting();
 		
 		xbox_assert(fPixelState->GetLastError() == VE_OK);
@@ -369,7 +359,6 @@ void VGraphicSettings::RestorePixelState()
 	{
 		fPixelState->OpenReading();
 		fAlphaBlend = fPixelState->GetByte();
-		fPixelTransferMode = (TransferMode) fPixelState->GetLong();
 		fPixelState->CloseReading();
 		
 		xbox_assert(fPixelState->GetLastError() == VE_OK);
@@ -566,7 +555,10 @@ VError VGraphicSettings::WriteToStream(VStream* ioStream, sLONG /*inParam*/) con
 	ioStream->PutLong(fTextDrawingMode);
 	ioStream->PutLong(fTextRenderingMode);
 	//ioStream->PutLong(fTextMeasuringMode);
-	ioStream->PutLong(fPixelTransferMode);
+	
+	//obsolete transfer mode
+	ioStream->PutLong(0);
+	
 	ioStream->PutByte(fAlphaBlend);
 	
 	return ioStream->GetLastError();
@@ -597,7 +589,10 @@ VError VGraphicSettings::ReadFromStream(VStream* ioStream, sLONG /*inParam*/)
 	fTextDrawingMode = (DrawingMode) ioStream->GetLong();
 	fTextRenderingMode = (TextRenderingMode) ioStream->GetLong();
 	//fTextMeasuringMode = (TextMeasuringMode) ioStream->GetLong();
-	fPixelTransferMode = (TransferMode) ioStream->GetLong();
+	
+	//for compat with obsolete transfer mode
+	sLONG dummy = ioStream->GetLong();
+
 	fAlphaBlend = ioStream->GetByte();
 	
 	return ioStream->GetLastError();

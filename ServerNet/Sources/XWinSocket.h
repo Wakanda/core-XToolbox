@@ -36,13 +36,13 @@ class XTOOLBOX_API XWinTCPSocket : public VObject
 	static XWinTCPSocket* NewClientConnectedSock(const VString& inDnsName, PortNumber inPort, sLONG inMsTimeout);
 
 #if WITH_DEPRECATED_IPV4_API
-	static XWinTCPSocket* NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock=kBAD_SOCKET);
+	static XWinTCPSocket* NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);
 #else
 	//jmo - TODO : Mettre une VString pour l'adresse.
-	static XWinTCPSocket* NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock=kBAD_SOCKET);
+	static XWinTCPSocket* NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);
 #endif
 
-	static XWinTCPSocket* NewServerListeningSock(PortNumber inPort, Socket inBoundSock=kBAD_SOCKET);
+	static XWinTCPSocket* NewServerListeningSock(PortNumber inPort, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true);
 
 	virtual ~XWinTCPSocket();
 
@@ -86,11 +86,14 @@ class XTOOLBOX_API XWinTCPSocket : public VObject
 	XWinTCPSocket(Socket inSock) :
 		fSock(inSock), fServicePort(kBAD_PORT), fProfile(NewSock), fSslDelegate(NULL) {}
 
+	//Reads and discard data on Close with receive loop. Helps prevent TCP RST flag.
+	static void TrashWithTimeout(Socket inFd, sLONG inMsTimeout, sLONG* outMsSpent=NULL);
+
 	int GetAddrFamilySize();
 	PortNumber GetSockAddrPort() const;
 
 	VError Connect(const VNetAddress& inAddr, sLONG inMsTimeout);			//Client specific !
-	VError Listen(const VNetAddress& inAddr, bool inAlreadyBound=false);	//Server specific !
+	VError Listen(const VNetAddress& inAddr, bool inAlreadyBound=false, bool inReuseAddress=true);	//Server specific !
 
 	VError SetServicePort(PortNumber inServicePort);
 	
@@ -126,11 +129,15 @@ class XWinAcceptIterator : public VObject
 public :
 
 	XWinAcceptIterator();
+	~XWinAcceptIterator();
+
 	VError AddServiceSocket(XWinTCPSocket* inSock);
 	VError ClearServiceSockets();
 	VError GetNewConnectedSocket(XWinTCPSocket** outSock, sLONG inMsTimeout);
 	
 private :
+
+	XWinAcceptIterator(const XWinAcceptIterator&);	//Copy doesn't make sense !
 
 	//Needs special error handling, done in the corresponding public method
 	VError GetNewConnectedSocket(XWinTCPSocket** outSock, sLONG inMsTimeout, bool* outShouldRetry);
@@ -140,8 +147,8 @@ private :
 	
 	SockPtrColl::const_iterator fSockIt;
 
-	fd_set fReadSet;
-	
+	//Dynamic alloc to make sure we use ServerNet FD_SETSIZE
+	fd_set* fReadSet;
 };
 
 

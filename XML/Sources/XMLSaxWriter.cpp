@@ -116,7 +116,8 @@ VStreamSaxWriter::VStreamSaxWriter(VStream *inStream)
 
 VStreamSaxWriter::~VStreamSaxWriter()
 {
-	;
+	delete fFormatTarget;
+	delete fFormatter;
 }
 
 void VStreamSaxWriter::_Write(const VString &XMLStr)

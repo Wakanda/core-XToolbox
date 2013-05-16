@@ -14,15 +14,11 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VKernelPrecompiled.h"
+
 #include "VFile.h"
 #include "VFolder.h"
-// #include "VErrorContext.h"
-// #include "VTime.h"
-// #include "VIntlMgr.h"
-// #include "VMemory.h"
-// #include "VArrayValue.h"
-// #include "VFileStream.h"
-// #include "VURL.h"
+#include "VProcess.h"
+
 #include "XLinuxFolder.h"
 
 
@@ -259,7 +255,6 @@ VError XLinuxFolder::IsHidden(bool& outIsHidden)
 VError XLinuxFolder::RetainSystemFolder(ESystemFolderKind inFolderKind, bool inCreateFolder, VFolder **outFolder)
 {
 	// See http://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard
-	// (Hum... This is how we should do !)
 
 	VFolder* sysFolder=NULL;
 	VError	 verr=VE_OK;
@@ -286,6 +281,7 @@ VError XLinuxFolder::RetainSystemFolder(ESystemFolderKind inFolderKind, bool inC
 
 	case eFK_Temporary:
 		{
+			//Temporary stuff goes to /tmp/<uniq dir identifier>/
 			PathBuffer path;
 
 			VError verr=path.InitWithUniqTmpDir();
@@ -303,97 +299,166 @@ VError XLinuxFolder::RetainSystemFolder(ESystemFolderKind inFolderKind, bool inC
 		}
 		break;
 
-	case eFK_UserPreferences:	// Todo : tmp stuff - find something clever !
+	case eFK_UserPreferences:
 		{
+			//Build some path like this : /home/toto/.Wakanda Linux/UserPref/
+			//                       or : /var/tmp/toto/.Wakanda Linux/UserPref/
+			//The second (not very standard) is used when user doesn´t have a $HOME
+
 			PathBuffer path;
 
-			VError verr=path.InitWithExe();
+			VError verr=path.InitWithUserDir();
 			xbox_assert(verr==VE_OK);
 
-			VFilePath folderPath;
-
-			path.ToPath(&folderPath);
-			xbox_assert(verr==VE_OK);
-
-			folderPath.ToParent().ToSubFolder(VString("UserPreferences"));
-
-			sysFolder=new VFolder(folderPath);
-
-			//On force la creation si besoin (car ce n'est pas un rep. standard !)
-			inCreateFolder=true;
-		}
-		break;
-
-	case eFK_UserApplicationData:	// Todo : tmp stuff - find something clever !
-		{
-			PathBuffer path;
-
-			VError verr=path.InitWithExe();
-			xbox_assert(verr==VE_OK);
-
-			VFilePath folderPath;
-
-			path.ToPath(&folderPath);
-			xbox_assert(verr==VE_OK);
-
-			folderPath.ToParent().ToSubFolder(VString("UserAppData"));
-
-			sysFolder=new VFolder(folderPath);
-
-			//On force la creation si besoin (car ce n'est pas un rep. standard !)
-			inCreateFolder=true;
-		}
-		break;
-
-	case eFK_CommonApplicationData:	// Todo : tmp stuff - find something clever !
-		{
-			PathBuffer path;
-
-			VError verr=path.InitWithExe();
-			xbox_assert(verr==VE_OK);
-
-			VFilePath folderPath;
-
-			path.ToPath(&folderPath);
-			xbox_assert(verr==VE_OK);
-
-			folderPath.ToParent().ToSubFolder(VString("Data"));
-
-			sysFolder=new VFolder(folderPath);
-
-			//On force la creation si besoin (car ce n'est pas un rep. standard !)
-			inCreateFolder=true;
-		}
-		break;
-
-		//Unimplemented, might make sense for server
-	case eFK_CommonPreferences:
-	case eFK_CommonCache:
-
-		//Unimplemented, doesn't really make sense for server
-	case eFK_UserDocuments:
-		break;
-
-
-	case eFK_UserCache:
-		{
-			PathBuffer path;
-			path.Init( L"/tmp", PathBuffer::withRealPath);
-	
 			//VFolder CTOR complains if it can't find a '/' at the end of the folder name.
 			path.Folderify();
 
 			VFilePath folderPath;
-			path.ToPath( &folderPath);
 
-			sysFolder = new VFolder( folderPath);
+			path.ToPath(&folderPath);
+			xbox_assert(verr==VE_OK);
+
+			VString product;
+			VProcess::Get()->GetProductName(product);
+			
+			VString dotProduct(".");
+			dotProduct.AppendString(product);
+
+			folderPath.ToSubFolder(dotProduct).ToSubFolder(VString("UserPref"));
+
+			sysFolder=new VFolder(folderPath);
+
+			inCreateFolder=true;
 		}
 		break;
 
+	case eFK_UserApplicationData:
+		{
+			//Build some path like this : /home/toto/.Wakanda Linux/UserData/
+			//                       or : /var/tmp/toto/.Wakanda Linux/UserData/
+			//The second (not very standard) is used when user doesn´t have a $HOME
+
+			PathBuffer path;
+
+			VError verr=path.InitWithUserDir();
+			xbox_assert(verr==VE_OK);
+
+			//VFolder CTOR complains if it can't find a '/' at the end of the folder name.
+			path.Folderify();
+
+			VFilePath folderPath;
+
+			path.ToPath(&folderPath);
+			xbox_assert(verr==VE_OK);
+
+			VString product;
+			VProcess::Get()->GetProductName(product);
+			
+			VString dotProduct(".");
+			dotProduct.AppendString(product);
+
+			folderPath.ToSubFolder(dotProduct).ToSubFolder(VString("UserData"));
+
+			sysFolder=new VFolder(folderPath);
+
+			inCreateFolder=true;
+		}
+		break;
+
+	case eFK_CommonApplicationData:
+		{
+			//CommonApplicationData is a Windows/Mac concept that Linux doesn't have...
+			//(Different places could do the job in different situations.)
+			//Let's go for a 'minimalist' approach with /var/tmp, which is a persistent
+			//(preserved between reboots) tmp dir, where two processes can meet.
+
+			PathBuffer path;
+
+			VError verr=path.InitWithPersistentTmpDir();
+			xbox_assert(verr==VE_OK);
+
+			//VFolder CTOR complains if it can't find a '/' at the end of the folder name.
+			path.Folderify();
+
+			VFilePath folderPath;
+
+			path.ToPath(&folderPath);
+			xbox_assert(verr==VE_OK);
+
+			sysFolder=new VFolder(folderPath);
+
+			inCreateFolder=true;
+		}
+		break;
+
+	case eFK_CommonCache:
+		{
+			//Stuff to cache goes into /var/cache/
+			
+			PathBuffer path;
+
+			VError verr=path.InitWithSysCacheDir();
+			xbox_assert(verr==VE_OK);
+
+			//VFolder CTOR complains if it can't find a '/' at the end of the folder name.
+			path.Folderify();
+
+			VFilePath folderPath;
+
+			path.ToPath(&folderPath);
+			xbox_assert(verr==VE_OK);
+
+			sysFolder=new VFolder(folderPath);
+
+			inCreateFolder=true;
+		}
+		break;
+
+	case eFK_UserCache:
+		{
+			//Build some path like this : /home/toto/.Wakanda Linux/UserCache/
+			//                       or : /var/tmp/toto/.Wakanda Linux/UserCache/
+			//The second (not very standard) is used when user doesn´t have a $HOME
+
+			PathBuffer path;
+
+			VError verr=path.InitWithUserDir();
+			xbox_assert(verr==VE_OK);
+
+			//VFolder CTOR complains if it can't find a '/' at the end of the folder name.
+			path.Folderify();
+
+			VFilePath folderPath;
+
+			path.ToPath(&folderPath);
+			xbox_assert(verr==VE_OK);
+
+			VString product;
+			VProcess::Get()->GetProductName(product);
+			
+			VString dotProduct(".");
+			dotProduct.AppendString(product);
+
+			folderPath.ToSubFolder(dotProduct).ToSubFolder(VString("UserCache"));
+
+			sysFolder = new VFolder(folderPath);
+
+			inCreateFolder=true;
+		}
+		break;
+
+	case eFK_CommonPreferences:
+	case eFK_UserDocuments:
 	default:
 		verr=VE_UNIMPLEMENTED;
 		xbox_assert(false);
 	}
+
+#if VERSIONDEBUG
+	//VString tmpPath=sysFolder->GetPath().GetPath();
+	//DebugMsg ("[%d] XLinuxFolder::RetainSystemFolder kind=%d path=%S\n",
+	//		  VTask::GetCurrentID(), inFolderKind, &tmpPath);
+#endif
 
 	if ((sysFolder!=NULL) && !sysFolder->Exists())
 	{
@@ -410,7 +475,7 @@ VError XLinuxFolder::RetainSystemFolder(ESystemFolderKind inFolderKind, bool inC
 
 	*outFolder = sysFolder;
 
-	return VE_OK;	//jmo - mettre qqchose d'intelligent ici !
+	return verr;
 }
 
 

@@ -572,7 +572,7 @@
 		8536EC020F8C981200B7B827 /* VJSValue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VJSValue.h; sourceTree = "<group>"; };
 		85E6A0D21100574400DDC245 /* Graphics.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Graphics.xcodeproj; path = ../../../Graphics/Projects/Xcode/Graphics.xcodeproj; sourceTree = SOURCE_ROOT; };
 		8D07F2C70486CC7A007CD1D0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		8D07F2C80486CC7A007CD1D0 /* 4DJavaScriptDebug.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = 4DJavaScriptDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D07F2C80486CC7A007CD1D0 /* 4DJavaScript.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = 4DJavaScript.framework; path = 4DJavaScriptDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD69CB5114A229FC002D73C7 /* VJSNetServer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VJSNetServer.cpp; sourceTree = "<group>"; };
 		CD69CB5214A229FC002D73C7 /* VJSNetServer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VJSNetServer.h; sourceTree = "<group>"; };
 		CD69CB5314A229FC002D73C7 /* VJSNetSocket.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VJSNetSocket.cpp; sourceTree = "<group>"; };
@@ -592,7 +592,7 @@
 		D207E98B0B7CA76300C1FA30 /* xtoolbox_coverage.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_coverage.xcconfig; path = ../../../xtoolbox_coverage.xcconfig; sourceTree = SOURCE_ROOT; };
 		D207E98C0B7CA76300C1FA30 /* xtoolbox_release.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; name = xtoolbox_release.xcconfig; path = ../../../xtoolbox_release.xcconfig; sourceTree = SOURCE_ROOT; };
 		F1847CA0110DE2540038DA99 /* XML.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = XML.xcodeproj; path = ../../../XML/Projects/Xcode/XML.xcodeproj; sourceTree = SOURCE_ROOT; };
-		F4643803113E9F6000639653 /* 4DJavaScriptDebug.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = 4DJavaScriptDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		F4643803113E9F6000639653 /* 4DJavaScript.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = 4DJavaScript.framework; path = 4DJavaScriptDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F464391C113EA7E700639653 /* xtoolbox_x64.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = xtoolbox_x64.xcconfig; path = ../../../xtoolbox_x64.xcconfig; sourceTree = SOURCE_ROOT; };
 		F4AF370315249A9C005DE836 /* JavaScriptCore.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = JavaScriptCore.xcodeproj; path = ../../../../../webkit/534.53/JavaScriptCore/JavaScriptCore.xcodeproj; sourceTree = SOURCE_ROOT; };
 		F90688C51517A9300000308B /* OpenSSL.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = OpenSSL.xcodeproj; path = ../../../../../openssl/1.0.0d/Projects/XCode/OpenSSL.xcodeproj; sourceTree = SOURCE_ROOT; };
@@ -645,8 +645,8 @@
 		034768DDFF38A45A11DB9C8B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				8D07F2C80486CC7A007CD1D0 /* 4DJavaScriptDebug.framework */,
-				F4643803113E9F6000639653 /* 4DJavaScriptDebug.framework */,
+				8D07F2C80486CC7A007CD1D0 /* 4DJavaScript.framework */,
+				F4643803113E9F6000639653 /* 4DJavaScript.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1033,7 +1033,7 @@
 			name = 4DJavaScript;
 			productInstallPath = "$(HOME)/Library/Frameworks";
 			productName = XML;
-			productReference = 8D07F2C80486CC7A007CD1D0 /* 4DJavaScriptDebug.framework */;
+			productReference = 8D07F2C80486CC7A007CD1D0 /* 4DJavaScript.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 		F46437CB113E9F6000639653 /* 4DJavaScript x64 */ = {
@@ -1061,7 +1061,7 @@
 			name = "4DJavaScript x64";
 			productInstallPath = "$(HOME)/Library/Frameworks";
 			productName = XML;
-			productReference = F4643803113E9F6000639653 /* 4DJavaScriptDebug.framework */;
+			productReference = F4643803113E9F6000639653 /* 4DJavaScript.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
@@ -1593,6 +1593,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=1";
 				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS_COMPONENTS}",
 					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
@@ -1627,6 +1628,7 @@
 					"WITH_ASSERT=1",
 				);
 				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS_COMPONENTS}",
 					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
@@ -1668,6 +1670,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=1";
 				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS_COMPONENTS}",
 					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
@@ -1692,6 +1695,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=0";
 				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS_COMPONENTS}",
 					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",
@@ -1723,6 +1727,7 @@
 				GCC_PREFIX_HEADER = JavaScript_Prefix.pch;
 				GCC_PREPROCESSOR_DEFINITIONS = "VERSIONDEBUG=0";
 				HEADER_SEARCH_PATHS = (
+					"${HEADER_SEARCH_PATHS_COMPONENTS}",
 					"$(HEADER_SEARCH_PATHS_JSC)",
 					"${SRCROOT}/../../..",
 					"${SRCROOT}/../../Sources",

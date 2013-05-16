@@ -67,17 +67,23 @@ class XTOOLBOX_API VPictureDataProvider :public VObject, public IRefCountable
 	static VPictureDataProvider* Create(const VBlobWithPtr* inBlob,uBOOL inOwnData,VSize inNbBytes=0, VIndex inOffset=0);
 	
 	static VPictureDataProvider* Create(const VPtr inPtr,uBOOL inOwnData,VSize inNbBytes, VIndex inOffset=0);
+
+#if WITH_VMemoryMgr
 	static VPictureDataProvider* Create(const VHandle inHandle,uBOOL inOwnData,VSize inNbBytes=0, VIndex inOffset=0);
-	
+#endif
+
+#if !VERSION_LINUX
+//TODO - jmo :  Verifier si pon garde ou pas
 	static VPictureDataProvider* Create(const xMacHandle inHandle,uBOOL inOwnData,VSize inNbBytes=0, VIndex inOffset=0);
-	
+#endif
+
 	static VPictureDataProvider* Create(VPictureDataProvider* inDs,VSize inNbBytes=0, VIndex inOffset=0);
 	
 	static VPictureDataProvider* Create(const VFile& inFile,uBOOL inKeepInMem=true);
 	
 	static VPictureDataProvider* Create(const VFilePath& inFilePath,const VBlob& inBlob);
 	
-	static void InitStatic(VMacPictureAllocatorBase *inAlloc);
+	static void InitMemoryAllocator(VMacHandleAllocatorBase *inAlloc);
 	static void DeinitStatic();
 	
 	virtual ~VPictureDataProvider()
@@ -183,7 +189,7 @@ class XTOOLBOX_API VPictureDataProvider :public VObject, public IRefCountable
 	virtual bool GetFilePath(VFilePath& outPath){outPath.Clear();return false;}
 	protected:
 	
-	static VMacPictureAllocatorBase* sMacAllocator;
+	static VMacHandleAllocatorBase* sMacAllocator;
 	
 	inline sLONG _Lock()
 	{
@@ -279,6 +285,7 @@ class XTOOLBOX_API VPictureDataProvider_SequentialAccess : public VPictureDataPr
 	VPtr fDirectAccesCache;
 };
 
+#if WITH_VMemoryMgr
 class XTOOLBOX_API VPictureDataProvider_VHandle : public VPictureDataProvider_DirectAccess
 {
 	friend class VPictureDataProvider;
@@ -302,7 +309,9 @@ class XTOOLBOX_API VPictureDataProvider_VHandle : public VPictureDataProvider_Di
 	VPtr	fPtr;
 	uBOOL	fOwned;
 };
+#endif
 
+#if !VERSION_LINUX
 class XTOOLBOX_API VPictureDataProvider_MacHandle : public VPictureDataProvider_DirectAccess
 {
 	friend class VPictureDataProvider;
@@ -323,6 +332,7 @@ class XTOOLBOX_API VPictureDataProvider_MacHandle : public VPictureDataProvider_
 	xMacHandle	fHandle;
 	VPtr		fPtr;
 };
+#endif
 
 class XTOOLBOX_API VPictureDataProvider_VPtr : public VPictureDataProvider_DirectAccess
 {
@@ -532,9 +542,7 @@ class VPictureDataProvider_Stream : public IStream
      HRESULT STDMETHODCALLTYPE Clone(IStream **ppstm);
      
  };
-#else
-
-
+#elif VERSIONMAC
 
 class xV4DPicture_MemoryDataProvider : public VObject
 {

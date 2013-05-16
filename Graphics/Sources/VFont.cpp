@@ -26,11 +26,15 @@
 VFontMgr*	VFont::sManager;
 
 
+VFont::VFont(const VString& inFontFamilyName, const VFontFace& inFace, GReal inSize, StdFont inStdFont, 
 #if VERSIONWIN
-VFont::VFont(const VString& inFontFamilyName, const VFontFace& inFace, GReal inSize, StdFont inStdFont, GReal inPixelSize):
-	fPixelSize(inPixelSize),
+			 GReal inPixelSize
 #else
-VFont::VFont(const VString& inFontFamilyName, const VFontFace& inFace, GReal inSize, StdFont inStdFont):
+			 GReal
+#endif
+			 ):
+#if VERSIONWIN
+	fPixelSize(inPixelSize),
 #endif
 	fFont(this, inFontFamilyName, inFace, Abs(inSize))
 {
@@ -39,7 +43,7 @@ VFont::VFont(const VString& inFontFamilyName, const VFontFace& inFace, GReal inS
 	fFace = inFace;
 	fSize = Abs(inSize);
 
-	fFontIDValid=false;
+	fFontIDValid=false;   
 	fFontID=0;
 }
 
@@ -173,19 +177,19 @@ bool VFont::FontExists(const VString& inFontFamilyName, const VFontFace& inFace,
 
 			VTaskLock lock(&VWinD2DGraphicContext::GetMutexDWriteFactory());
 			exists = false;
-			if (font->GetDWriteTextFormat() != NULL)
+			if (font->GetImpl().GetDWriteTextFormat() != NULL)
 			{
-				UINT32 nameLength = font->GetDWriteTextFormat()->GetFontFamilyNameLength();
+				UINT32 nameLength = font->GetImpl().GetDWriteTextFormat()->GetFontFamilyNameLength();
 				if (nameLength+1 <= 80)
 				{
 					WCHAR familyName[80];
-					HRESULT hr = font->GetDWriteTextFormat()->GetFontFamilyName( familyName, nameLength+1);
+					HRESULT hr = font->GetImpl().GetDWriteTextFormat()->GetFontFamilyName( familyName, nameLength+1);
 					exists = wcscmp( inFontFamilyName.GetCPointer(), familyName) == 0;
 				}
 				else
 				{
 					WCHAR *familyName = new WCHAR[nameLength+1];
-					font->GetDWriteTextFormat()->GetFontFamilyName( familyName, nameLength+1);
+					font->GetImpl().GetDWriteTextFormat()->GetFontFamilyName( familyName, nameLength+1);
 					exists = wcscmp( inFontFamilyName.GetCPointer(), familyName) == 0;
 					delete [] familyName;
 				}
@@ -198,7 +202,7 @@ bool VFont::FontExists(const VString& inFontFamilyName, const VFontFace& inFace,
 		//gdiplus has returned a compatible font 
 		//so return true only if gdiplus font family name matches inFontFamilyName
 		Gdiplus::FontFamily *family = new Gdiplus::FontFamily();
-		Gdiplus::Status status = font->GetGDIPlusFont()->GetFamily(family);
+		Gdiplus::Status status = font->GetImpl().GetGDIPlusFont()->GetFamily(family);
 		WCHAR familyName[LF_FACESIZE];
 		family->GetFamilyName( familyName);
 		exists = wcscmp( inFontFamilyName.GetCPointer(), familyName) == 0;
@@ -228,9 +232,9 @@ bool VFont::FontExists(const VString& inFontFamilyName, const VFontFace& inFace,
 }
 
 
-#if VERSIONWIN
 GReal	VFont::GetPixelSize () const
 {
+#if VERSIONWIN
 	if (fPixelSize != 0.0f)
 		return fPixelSize;
 
@@ -240,94 +244,10 @@ GReal	VFont::GetPixelSize () const
 	fPixelSize = PointsToPixels( fSize);
 #endif
 	return fPixelSize;
-}
-#endif
 
-/**	create text style from the current font
-@remarks
-	range is not set
-*/
-VTextStyle *VFont::CreateTextStyle(const GReal inDPI) const			
-{
-	VTextStyle *style = new VTextStyle();
-	style->SetFontName( fFamilyName);
-	//here we must pass pixel font size because VTextStyle stores 4D form 72 dpi font size where 1px = 1pt so actually it is real pixel font size
-	//(size is scaled automatically later to 72/device dpi to be compliant with 4D form dpi)
-	style->SetFontSize( GetPixelSize()*72.0f/inDPI);
-	if (fFace & KFS_ITALIC)
-		style->SetItalic( TRUE);
-	else
-		style->SetItalic( FALSE);
-	if (fFace & KFS_BOLD)
-		style->SetBold( TRUE);
-	else
-		style->SetBold( FALSE);
-	if (fFace & KFS_UNDERLINE)
-		style->SetUnderline( TRUE);
-	else
-		style->SetUnderline( FALSE);
-	if (fFace & KFS_STRIKEOUT)
-		style->SetStrikeout( TRUE);
-	else
-		style->SetStrikeout( FALSE);
-	return style;
-}
-
-
-/**	create text style from the specified font name, font size & font face
-@remarks
-	if font name is empty, returned style inherits font name from parent
-	if font face is equal to UNDEFINED_STYLE, returned style inherits style from parent
-	if font size is equal to UNDEFINED_STYLE, returned style inherits font size from parent
-*/
-VTextStyle *VFont::CreateTextStyle(const VString& inFontFamilyName, const VFontFace& inFace, GReal inFontSize, const GReal inDPI)
-{
-	VTextStyle *style = new VTextStyle();
-	style->SetFontName( inFontFamilyName);
-
-	if (inFontSize != UNDEFINED_STYLE)
-	{
-#if VERSIONWIN
-		if (inDPI == 72)
-			style->SetFontSize( inFontSize);
-		else
-#endif
-		{
-#if VERSIONWIN
-#if D2D_GDI_COMPATIBLE
-			GReal dpi = inDPI ? inDPI : VWinGDIGraphicContext::GetLogPixelsY();
 #else
-			GReal dpi = inDPI ? inDPI : 96.0f;
+	return fSize;
 #endif
-#else
-			GReal dpi = inDPI ? inDPI : 72.0f;
-#endif
-			//here we must pass pixel font size because VTextStyle stores 4D form 72 dpi font size where 1px = 1pt so actually it is real pixel font size
-			//(size is scaled automatically later to 72/device dpi to be compliant with 4D form dpi)
-			style->SetFontSize( inFontSize*dpi/72.0f);
-		}
-	}
-
-	if (inFace != UNDEFINED_STYLE)
-	{
-		if (inFace & KFS_ITALIC)
-			style->SetItalic( TRUE);
-		else
-			style->SetItalic( FALSE);
-		if (inFace & KFS_BOLD)
-			style->SetBold( TRUE);
-		else
-			style->SetBold( FALSE);
-		if (inFace & KFS_UNDERLINE)
-			style->SetUnderline( TRUE);
-		else
-			style->SetUnderline( FALSE);
-		if (inFace & KFS_STRIKEOUT)
-			style->SetStrikeout( TRUE);
-		else
-			style->SetStrikeout( FALSE);
-	}
-	return style;
 }
 
 
@@ -454,12 +374,88 @@ VFontMetrics::VFontMetrics( VFont* inFont, const VGraphicContext* inContext)
 	fUseLegacyMetrics = true;
 	fDesiredUseLegacyMetrics = true;
 #endif
-	fMetrics.GetMetrics( fAscent, fDescent, fInternalLeading, fExternalLeading);
+
+	_GetMetrics( fAscent, fDescent, fInternalLeading, fExternalLeading);
 
 #if VERSIONMAC
 	if ( inContext )
 		fMetrics.GetTextFactory()->SetRenderingMode( inContext->GetTextRenderingMode());
 #endif
+}
+
+
+void VFontMetrics::_GetMetrics( GReal &outAscent, GReal &outDescent, GReal &outInternalLeading, GReal &outExternalLeading)
+{
+#if VERSIONWIN
+	sLONG dpi = fContext ? (sLONG)fContext->GetDpiX() : (sLONG)VWinGDIGraphicContext::GetLogPixelsX();
+	bool useLegacy = fUseLegacyMetrics || !fContext || !fContext->IsD2DImpl();
+#elif VERSIONMAC
+	sLONG dpi = fContext ? (sLONG)fContext->GetDpiX() : 72;
+#else
+	sLONG dpi = fContext ? (sLONG)fContext->GetDpiX() : 96; //use 96 as default on Linux ?
+#endif
+
+	VFont::MapOfCachedFontMetricsPerDPI::iterator itMetrics = fFont->fMapOfCachedFontMetrics.find(dpi);
+	if (itMetrics != fFont->fMapOfCachedFontMetrics.end())
+	{
+		//there is a cached metrics entry for this dpi: check first if legacy or standard metrics are effectively stored yet
+#if VERSIONWIN
+#if ENABLE_D2D
+		if (useLegacy)
+#else
+		if (true)
+#endif
+		{
+			if (itMetrics->second.IsLegacyInitialized())
+			{
+				itMetrics->second.GetLegacy( outAscent, outDescent, outInternalLeading, outExternalLeading);
+				return;
+			}
+		}
+		else
+#endif
+			if (itMetrics->second.IsInitialized())
+			{
+				itMetrics->second.Get( outAscent, outDescent, outInternalLeading, outExternalLeading);
+				return;
+			}
+
+		//if not, compute it
+		fMetrics.GetMetrics( outAscent, outDescent, outInternalLeading, outExternalLeading);
+
+		//and store metrics in the cached metrics entry
+#if VERSIONWIN
+#if ENABLE_D2D
+		if (useLegacy)
+#else
+		if (true)
+#endif
+			itMetrics->second.SetLegacy( outAscent, outDescent, outInternalLeading, outExternalLeading);
+		else
+#endif
+			itMetrics->second.Set( outAscent, outDescent, outInternalLeading, outExternalLeading);
+
+		return;
+	}
+
+	//there is none cached metrics for this dpi: compute metrics & store new entry in VFont internal map
+
+	fMetrics.GetMetrics( outAscent, outDescent, outInternalLeading, outExternalLeading);
+
+	VCachedFontMetrics thisCachedmetrics;
+
+#if VERSIONWIN
+#if ENABLE_D2D
+	if (useLegacy)
+#else
+	if (true)
+#endif
+		thisCachedmetrics.SetLegacy( outAscent, outDescent, outInternalLeading, outExternalLeading);
+	else
+#endif
+		thisCachedmetrics.Set( outAscent, outDescent, outInternalLeading, outExternalLeading);
+
+	fFont->fMapOfCachedFontMetrics[dpi] = thisCachedmetrics;
 }
 
 
@@ -490,7 +486,7 @@ VFontMetrics::VFontMetrics( const VFontMetrics& inFontMetrics):fMetrics( this)
 	if context text rendering mode has TRM_LEGACY_OFF, inUseLegacyMetrics is replaced by false
 	(so context text rendering mode overrides this setting)
 */
-void VFontMetrics::DoUseLegacyMetrics( bool inUseLegacyMetrics)
+void VFontMetrics::UseLegacyMetrics( bool inUseLegacyMetrics)
 {
 #if VERSIONWIN
 	fDesiredUseLegacyMetrics = inUseLegacyMetrics;
@@ -500,7 +496,7 @@ void VFontMetrics::DoUseLegacyMetrics( bool inUseLegacyMetrics)
 		if (!fUseLegacyMetrics)
 		{
 			fUseLegacyMetrics = true;
-			fMetrics.GetMetrics( fAscent, fDescent, fInternalLeading, fExternalLeading);
+			_GetMetrics( fAscent, fDescent, fInternalLeading, fExternalLeading);
 		}
 		return;
 	}
@@ -514,7 +510,7 @@ void VFontMetrics::DoUseLegacyMetrics( bool inUseLegacyMetrics)
 		return;
 
 	fUseLegacyMetrics = inUseLegacyMetrics;
-	fMetrics.GetMetrics( fAscent, fDescent, fInternalLeading, fExternalLeading);
+	_GetMetrics( fAscent, fDescent, fInternalLeading, fExternalLeading);
 #endif
 }
 
@@ -569,5 +565,87 @@ sLONG VFontMetrics::GetNormalizedTextHeight() const
 sLONG VFontMetrics::GetNormalizedLineHeight() const			
 { 
 	return _round(fAscent) + _round(fDescent) + _round(fExternalLeading);
+}
+
+
+VCachedFontMetrics::VCachedFontMetrics(const VCachedFontMetrics& inMetrics)
+{
+#if VERSIONWIN
+	fLegacyInitialized = inMetrics.fLegacyInitialized;
+	if (fLegacyInitialized)
+	{
+		fLegacyMetrics.fAscent				= inMetrics.fLegacyMetrics.fAscent;
+		fLegacyMetrics.fDescent				= inMetrics.fLegacyMetrics.fDescent;
+		fLegacyMetrics.fInternalLeading 	= inMetrics.fLegacyMetrics.fInternalLeading;
+		fLegacyMetrics.fExternalLeading 	= inMetrics.fLegacyMetrics.fExternalLeading;
+	}
+#endif				
+	fInitialized = inMetrics.fInitialized;
+	if (fInitialized)
+	{
+		fMetrics.fAscent			= inMetrics.fMetrics.fAscent;
+		fMetrics.fDescent			= inMetrics.fMetrics.fDescent;
+		fMetrics.fInternalLeading	= inMetrics.fMetrics.fInternalLeading;
+		fMetrics.fExternalLeading	= inMetrics.fMetrics.fExternalLeading;
+	}
+}
+
+VCachedFontMetrics& VCachedFontMetrics::operator =(const VCachedFontMetrics& inMetrics)
+{
+	if (this == &inMetrics)
+		return *this;
+#if VERSIONWIN
+	fLegacyInitialized = inMetrics.fLegacyInitialized;
+	if (fLegacyInitialized)
+	{
+		fLegacyMetrics.fAscent				= inMetrics.fLegacyMetrics.fAscent;
+		fLegacyMetrics.fDescent				= inMetrics.fLegacyMetrics.fDescent;
+		fLegacyMetrics.fInternalLeading 	= inMetrics.fLegacyMetrics.fInternalLeading;
+		fLegacyMetrics.fExternalLeading 	= inMetrics.fLegacyMetrics.fExternalLeading;
+	}
+#endif				
+	fInitialized = inMetrics.fInitialized;
+	if (fInitialized)
+	{
+		fMetrics.fAscent			= inMetrics.fMetrics.fAscent;
+		fMetrics.fDescent			= inMetrics.fMetrics.fDescent;
+		fMetrics.fInternalLeading	= inMetrics.fMetrics.fInternalLeading;
+		fMetrics.fExternalLeading	= inMetrics.fMetrics.fExternalLeading;
+	}
+	return *this;
+}
+
+#if VERSIONWIN
+void VCachedFontMetrics::SetLegacy( const GReal inAscent, const GReal inDescent, const GReal inInternalLeading, const GReal inExternalLeading)
+{	
+	fLegacyMetrics.fAscent			= inAscent;
+	fLegacyMetrics.fDescent			= inDescent;
+	fLegacyMetrics.fInternalLeading = inInternalLeading;
+	fLegacyMetrics.fExternalLeading = inExternalLeading;
+	fLegacyInitialized = true;
+}
+void VCachedFontMetrics::GetLegacy( GReal &outAscent, GReal &outDescent, GReal &outInternalLeading, GReal &outExternalLeading) const
+{
+	outAscent						= fLegacyMetrics.fAscent;
+	outDescent						= fLegacyMetrics.fDescent;
+	outInternalLeading				= fLegacyMetrics.fInternalLeading;
+	outExternalLeading				= fLegacyMetrics.fExternalLeading;
+}
+#endif
+
+void VCachedFontMetrics::Set( const GReal inAscent, const GReal inDescent, const GReal inInternalLeading, const GReal inExternalLeading)
+{	
+	fMetrics.fAscent			= inAscent;
+	fMetrics.fDescent			= inDescent;
+	fMetrics.fInternalLeading	= inInternalLeading;
+	fMetrics.fExternalLeading	= inExternalLeading;
+	fInitialized = true;
+}
+void VCachedFontMetrics::Get( GReal &outAscent, GReal &outDescent, GReal &outInternalLeading, GReal &outExternalLeading) const
+{
+	outAscent						= fMetrics.fAscent;
+	outDescent						= fMetrics.fDescent;
+	outInternalLeading				= fMetrics.fInternalLeading;
+	outExternalLeading				= fMetrics.fExternalLeading;
 }
 

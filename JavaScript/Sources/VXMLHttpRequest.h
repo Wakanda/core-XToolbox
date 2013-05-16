@@ -32,6 +32,7 @@ const XBOX::VError VE_XHRQ_SEND_ERROR               = MAKE_VERROR(kXHR_SIGNATURE
 const XBOX::VError VE_XHRQ_NO_HEADER_ERROR          = MAKE_VERROR(kXHR_SIGNATURE, 1006);    //not thrown
 const XBOX::VError VE_XHRQ_NO_RESPONSE_CODE_ERROR   = MAKE_VERROR(kXHR_SIGNATURE, 1007);    //not thrown
 const XBOX::VError VE_XHRQ_IMPL_FAIL_ERROR          = MAKE_VERROR(kXHR_SIGNATURE, 1008);    //thrown
+const XBOX::VError VE_XHRQ_UNSUPPORTED_PARAMETER    = MAKE_VERROR(kXHR_SIGNATURE, 1009);    //thrown
 
 
 
@@ -60,6 +61,7 @@ class XTOOLBOX_API XMLHttpRequest
 
 
     typedef enum {UNSENT=0, OPENED, HEADERS_RECEIVED, LOADING, DONE} ReadyState;
+	typedef const char* BinaryPtr;
 
 
     //XMLHttpRequest(const XBOX::VString& inProxy="", uLONG inProxyPort=-1);
@@ -69,7 +71,9 @@ class XTOOLBOX_API XMLHttpRequest
     XBOX::VError    Open                    (const XBOX::VString& inMethod, const XBOX::VString& inUrl, bool inAsync=true);
     XBOX::VError    SetProxy                (const XBOX::VString& inProxy, const uLONG inPort);
 	XBOX::VError    SetUserInfos            (const XBOX::VString& inUser, const XBOX::VString& inPasswd, bool inAllowBasic);
+	XBOX::VError	SetClientCertificate	(const XBOX::VString& inKeyPath, const XBOX::VString& inCertPath);
     XBOX::VError    SetRequestHeader        (const XBOX::VString& inKey, const XBOX::VString& inValue);
+	XBOX::VError    SetTimeout		        (XBOX::VLong inConnectMs=XBOX::VLong(0) /*defaults to 3000ms*/, XBOX::VLong inTotalMs=XBOX::VLong(0) /*defaults to forever*/);
     XBOX::VError    OnReadyStateChange      (XBOX::VJSObject inReceiver, const XBOX::VJSObject& inFunction);
     XBOX::VError    Send                    (const XBOX::VString& inData="", XBOX::VError* outImplErr=NULL);
     XBOX::VError    Abort                   ();
@@ -78,17 +82,26 @@ class XTOOLBOX_API XMLHttpRequest
     XBOX::VError    GetStatusText           (XBOX::VString* outValue) const;
     XBOX::VError    GetResponseHeader       (const XBOX::VString& inKey, XBOX::VString* outValue) const;
     XBOX::VError    GetAllResponseHeaders   (XBOX::VString* outValue) const;
+	XBOX::VError	SetResponseType			(const XBOX::VString& inValue);
+	XBOX::VError	GetResponseType			(XBOX::VString* outValue);
     XBOX::VError    GetResponseText         (XBOX::VString* outValue) const;
+	XBOX::VError	GetResponse				(XBOX::VJSValue& outValue) const;
+	XBOX::VError	GetResponseBinary		(BinaryPtr& outPtr, XBOX::VSize& outLen) const;
 
 
  private :
 
-    XBOX::CharSet   GetCharSetFromHeaders     () const;
+	typedef enum {TEXT, BLOB} ResponseType;
+
+    XBOX::CharSet   GetCharSetFromHeaders		() const;
+	XBOX::VString	GetContentType				(const XBOX::VString inDefaultType=XBOX::VString("application/octet-stream")) const;
+
     const bool      fAsync;
     ReadyState      fReadyState;
     unsigned short  fStatus;
     XBOX::VString   fStatusText;
     XBOX::VString   fResponseText;
+	ResponseType	fResponseType;
     XBOX::VString   fResponseXML;
     bool            fSendFlag;
     bool            fErrorFlag;
@@ -121,8 +134,10 @@ class XTOOLBOX_API VJSXMLHttpRequest : public XBOX::VJSClass<VJSXMLHttpRequest, 
     //static void CallAsConstructor     (XBOX::VJSParms_callAsConstructor& ioParms);
 
     static void _Open                   (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
-    //static void _SetProxy               (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
+    //static void _SetProxy             (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
+	static void _SetClientCertificate   (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
     static void _SetRequestHeader       (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
+	static void _SetTimeout		        (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
     static bool _OnReadyStateChange     (XBOX::VJSParms_setProperty& ioParms, XMLHttpRequest* inXhr);
     static void _Send                   (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
     static void _Abort                  (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
@@ -132,6 +147,9 @@ class XTOOLBOX_API VJSXMLHttpRequest : public XBOX::VJSClass<VJSXMLHttpRequest, 
     static void _GetResponseHeader      (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
     static void _GetAllResponseHeaders  (XBOX::VJSParms_callStaticFunction& ioParms, XMLHttpRequest* inXhr);
     static void _GetResponseText        (XBOX::VJSParms_getProperty& ioParms, XMLHttpRequest* inXhr);
+    static bool _SetResponseType        (XBOX::VJSParms_setProperty& ioParms, XMLHttpRequest* inXhr);
+    static void _GetResponseType        (XBOX::VJSParms_getProperty& ioParms, XMLHttpRequest* inXhr);
+    static void _GetResponse	        (XBOX::VJSParms_getProperty& ioParms, XMLHttpRequest* inXhr);
 };
 
 

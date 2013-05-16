@@ -181,12 +181,8 @@ XMacTask_preemptive::XMacTask_preemptive( VTask *inOwner, bool /* for main task 
 		_FiberData::Current()->SetTask( inOwner);
 	}
 	
-	// the main thread will wait on this semaphore
+	// the main thread will wait on this semaphore for Wait & SLeep
 	kern_return_t kr = semaphore_create( mach_task_self(), &fSema, SYNC_POLICY_FIFO, 0);
-	if (kr == KERN_SUCCESS)
-	{
-		kr = semaphore_signal( fSema);
-	}
 	xbox_assert(kr == KERN_SUCCESS);
 }
 

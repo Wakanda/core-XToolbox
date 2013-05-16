@@ -243,9 +243,9 @@ xV4DPicture_DataProvider_DataSource::~xV4DPicture_DataProvider_DataSource()
 	
 #endif
 // static ctor for datasource
-VMacPictureAllocatorBase* VPictureDataProvider::sMacAllocator=0;
+VMacHandleAllocatorBase* VPictureDataProvider::sMacAllocator=0;
 
-void VPictureDataProvider::InitStatic(VMacPictureAllocatorBase *inAlloc)
+void VPictureDataProvider::InitMemoryAllocator(VMacHandleAllocatorBase *inAlloc)
 {
 	sMacAllocator=inAlloc;
 	if(sMacAllocator)
@@ -332,10 +332,19 @@ VPictureDataProvider* VPictureDataProvider::Create(const VBlobWithPtr* inBlob,uB
 
 VPictureDataProvider* VPictureDataProvider::Create(const VPtr inPtr,uBOOL inOwnData,VSize inNbBytes, VIndex inOffset)
 {
-	VPictureDataProvider* result;
+	VPictureDataProvider* result=NULL;
+	assert(inNbBytes);
 	if(!inOwnData)
 	{
-		result = new VPictureDataProvider_VHandle((void*)inPtr,inNbBytes,inOffset);
+		if(inNbBytes>0)
+		{
+			VPtr copie = VMemory::NewPtr(inNbBytes,'pict');
+			if(copie!=NULL)
+			{
+				memcpy(copie,inPtr + inOffset , inNbBytes);
+				result = new VPictureDataProvider_VPtr(copie,inNbBytes,0);
+			}
+		}
 	}
 	else
 	{
@@ -349,6 +358,8 @@ VPictureDataProvider* VPictureDataProvider::Create(const VPtr inPtr,uBOOL inOwnD
 	}
 	return result;
 }
+
+#if WITH_VMemoryMgr
 VPictureDataProvider* VPictureDataProvider::Create(const VHandle inHandle,uBOOL inOwnData,VSize inNbBytes, VIndex inOffset)
 {
 	VPictureDataProvider* result;
@@ -368,7 +379,11 @@ VPictureDataProvider* VPictureDataProvider::Create(const VHandle inHandle,uBOOL 
 		result=0;
 	}
 	return result;
-}	
+}
+#endif
+
+#if !VERSION_LINUX
+//TODO - jmo :  Verifier si pon garde ou pas
 VPictureDataProvider* VPictureDataProvider::Create(const xMacHandle inHandle,uBOOL inOwnData,VSize inNbBytes, VIndex inOffset)
 {
 	VPictureDataProvider* result;
@@ -399,7 +414,9 @@ VPictureDataProvider* VPictureDataProvider::Create(const xMacHandle inHandle,uBO
 		result=0;
 	}
 	return result;
-}	
+}
+#endif
+	
 VPictureDataProvider* VPictureDataProvider::Create(VPictureDataProvider* inDs,VSize inNbBytes, VIndex inOffset)
 {
 
@@ -662,7 +679,7 @@ VError VPictureDataProvider_DS::WriteToBlob(VBlob& inBlob,VIndex inOffset)
 }
 
 // VHANDLE
-
+#if WITH_VMemoryMgr
 VPictureDataProvider_VHandle::VPictureDataProvider_VHandle(VHandle inHandle,VSize inNbBytes, VIndex inOffset)
 :VPictureDataProvider_DirectAccess(kVHandle)
 {
@@ -677,6 +694,7 @@ VPictureDataProvider_VHandle::VPictureDataProvider_VHandle(sWORD inKind)
 	
 	_SetValid(VE_UNKNOWN_ERROR);
 }
+
 VPictureDataProvider_VHandle::VPictureDataProvider_VHandle(VStream& inStream,VSize inNbBytes,VIndex inOffset)
 :VPictureDataProvider_DirectAccess(kVHandle)
 {
@@ -883,9 +901,11 @@ VError VPictureDataProvider_VHandle::DoEndDirectAccess()
 	_LeaveCritical();	
 	return SetLastError(result);
 }
+#endif //WITH_VMemoryMgr
+
 
 // MACHANDLE
-
+#if !VERSION_LINUX
 VPictureDataProvider_MacHandle::VPictureDataProvider_MacHandle(xMacHandle inHandle,VSize inNbBytes, VIndex inOffset)
 :VPictureDataProvider_DirectAccess(kMacHandle)
 {
@@ -1098,6 +1118,7 @@ VError VPictureDataProvider_MacHandle::DoEndDirectAccess()
 	_LeaveCritical();	
 	return SetLastError(result);
 }
+#endif //VERSION_LINUX
 
 
 // VPTR

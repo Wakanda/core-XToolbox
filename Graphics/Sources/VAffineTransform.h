@@ -66,21 +66,21 @@ public:
 		Translation=0x04
 			
 	}MatrixKind;
-	#if VERSIONMAC
+#if VERSIONMAC
 	VAffineTransform(const CGAffineTransform& inMat);
 	void FromNativeTransform(const CGAffineTransform& inMat);
-	#else
+#elif VERSIONWIN
 	VAffineTransform(const Gdiplus::Matrix& inMat);
 	VAffineTransform(const XFORM& inMat);
-#if ENABLE_D2D
+	#if ENABLE_D2D
 	VAffineTransform(const D2D_MATRIX_REF inMat);
-#endif
+	#endif
 	void FromNativeTransform(const XFORM& inMat);
 	void FromNativeTransform(const Gdiplus::Matrix& inMat);
-#if ENABLE_D2D
+	#if ENABLE_D2D
 	void FromNativeTransform(const D2D_MATRIX_REF inMat);
-#endif
 	#endif
+#endif
 	VAffineTransform(float m11,float m12,float m13,float m21,float m22,float m23);
 	VAffineTransform();
 	VAffineTransform(const VAffineTransform& inMat);
@@ -114,17 +114,27 @@ public:
 	}
 	VPoint TransformVector(const VPoint& inVector) const;
 	VRect TransformVector(const VRect& inVector) const;
+
+#if !VERSION_LINUX
 	VPolygon TransformVector(const VPolygon& inVector) const;
-	
+#endif	
+
 	VPoint		operator * (const VPoint& inVector) const;
 	VRect	operator * (const VRect& inRect) const;
+
+#if !VERSION_LINUX
 	VPolygon	operator * (const VPolygon& inRect) const;
+#endif
+
 	void Multiply(const VAffineTransform& inMat,MatrixOrder inOrder=MatrixOrderPrepend);
 
+#if !VERSION_LINUX
 	VPolygon	TransformPolygon(const VPolygon& inPoly) const
 	{
 		return operator*(inPoly);
 	}
+#endif
+
 	VPoint	TransformPoint(const VPoint& inPoint) const
 	{
 		return operator*(inPoint);
@@ -143,15 +153,15 @@ public:
 	{
 		*this = operator/(inValue);
 	}
-	#if VERSIONWIN
+#if VERSIONWIN
 	void ToNativeMatrix(Gdiplus::Matrix& inMat)const;
-#if ENABLE_D2D
+	#if ENABLE_D2D
 	void ToNativeMatrix(D2D_MATRIX_REF outMat)const;
-#endif
-	void ToNativeMatrix(XFORM& inMat)const;
-	#else
-	void ToNativeMatrix( CGAffineTransform &inMat)const;
 	#endif
+	void ToNativeMatrix(XFORM& inMat)const;
+#elif VERSIONMAC
+	void ToNativeMatrix( CGAffineTransform &inMat)const;
+#endif
 	void xDebugDump(VString& inInfo)const;
 	void Reset();
 	void MakeIdentity();

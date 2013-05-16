@@ -598,6 +598,26 @@ namespace CW
 	}
 	
 	
+	bool HttpRequest::SetClientCertificate(const XBOX::VString& inKeyPath, const XBOX::VString& inCertPath)
+	{
+		if(!fHandle)
+            return false;
+		
+		//tmp buffer for path conversion
+        char buf[2048];
+		
+		int len=inKeyPath.ToBlock(buf, sizeof(buf), XBOX::VTC_UTF_8, true, false);
+		
+		curl_easy_setopt(fHandle, CURLOPT_SSLKEY, buf);
+				
+		len=inCertPath.ToBlock(buf, sizeof(buf), XBOX::VTC_UTF_8, true, false);
+
+		curl_easy_setopt(fHandle, CURLOPT_SSLCERT, buf);
+		
+		return true;
+	}
+	
+	
     void HttpRequest::SetProxy(const XBOX::VString& inHost, uLONG inPort)
     {
         if(!fHandle)
@@ -624,6 +644,19 @@ namespace CW
         return true;
     }
 
+    bool HttpRequest::SetTimeout(uLONG inConnectMs, uLONG inTotalMs)
+    {
+		if(!fHandle)
+			return false;
+
+		//Don't use signals ; won't honor timeout if blocked in DNS resolution
+
+		curl_easy_setopt (fHandle, CURLOPT_NOSIGNAL, 1);
+		curl_easy_setopt (fHandle, CURLOPT_CONNECTTIMEOUT_MS, inConnectMs);
+		curl_easy_setopt (fHandle, CURLOPT_TIMEOUT_MS, inTotalMs);
+
+		return true;
+    }
 
     bool HttpRequest::SetData(const XBOX::VString& inData, XBOX::CharSet inCS)
     {
@@ -752,6 +785,7 @@ namespace CW
         curl_easy_setopt(fHandle, CURLOPT_WRITEDATA, fContent.GetWriteData());
         curl_easy_setopt(fHandle, CURLOPT_HEADERFUNCTION, fRespHdrs.GetWriteFunction());
         curl_easy_setopt(fHandle, CURLOPT_HEADERDATA, fRespHdrs.GetWriteData());
+		curl_easy_setopt(fHandle, CURLOPT_TCP_NODELAY, 1L);
 		
 		//jmo - Meme comportement que la webview webkit sous Windows : Pas de verification des certificats !
 		curl_easy_setopt(fHandle, CURLOPT_SSL_VERIFYPEER, 0);

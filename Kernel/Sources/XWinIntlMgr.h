@@ -25,6 +25,8 @@ BEGIN_TOOLBOX_NAMESPACE
 class VToUnicodeConverter;
 class VFromUnicodeConverter;
 class VIntlMgr;
+class VTime;
+class VString;
 
 class XWinIntlMgr
 {
@@ -33,10 +35,22 @@ public:
 			XWinIntlMgr( const XWinIntlMgr& inOther);
 	virtual	~XWinIntlMgr();
 	
-	bool	ToUpperLowerCase (const UniChar *inSrc, sLONG inSrcLen, UniPtr outDst, sLONG& ioDstLen, bool inIsUpper);
+			bool						ToUpperLowerCase (const UniChar *inSrc, sLONG inSrcLen, UniPtr outDst, sLONG& ioDstLen, bool inIsUpper);
 
-	static	VToUnicodeConverter*	NewToUnicodeConverter (CharSet inCharSet);
-	static	VFromUnicodeConverter*	NewFromUnicodeConverter (CharSet inCharSet);
+			void						FormatDate( const VTime& inDate, VString& outDate, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
+			void						FormatTime( const VTime& inTime, VString& outTime, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay);
+			void						FormatDuration( const VDuration& inTime, VString& outTime, EOSFormats inFormat);
+
+	static	VToUnicodeConverter*		NewToUnicodeConverter (CharSet inCharSet);
+	static	VFromUnicodeConverter*		NewFromUnicodeConverter (CharSet inCharSet);
+
+			bool						GetLocaleInfo( LCTYPE inType, VString& outInfo) const;
+
+			void						GetMonthName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 1 (january) to 12 (december)
+			void						GetWeekDayName( sLONG inIndex, bool inAbbreviated, VString& outName) const;	// 0 (sunday) to 6 (saturday)
+
+			void						GetDayNames( VectorOfVString& outNames, bool inAbbreviated) const;
+			void						GetMonthNames( VectorOfVString& outNames, bool inAbbreviated) const;
 	
 protected:
 	static	struct IMultiLanguage2*		RetainMultiLanguage();

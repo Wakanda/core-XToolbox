@@ -51,6 +51,9 @@ namespace ILoggerBagKeys
 	CREATE_BAGKEY_NO_DEFAULT( peer_addr, VString);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( task_id, VLong, sLONG);
 	CREATE_BAGKEY_NO_DEFAULT_SCALAR( exchange_id, VBoolean, bool);
+	CREATE_BAGKEY_NO_DEFAULT_SCALAR( debug_context, VLong8, sLONG8);
+	CREATE_BAGKEY_NO_DEFAULT_SCALAR( job_id, VLong, sLONG);
+	CREATE_BAGKEY_NO_DEFAULT_SCALAR( job_state, VLong, sLONG);
 };
 
 

@@ -248,7 +248,7 @@ VString XLinuxIntlMgr::GetDateOrTimePattern(Pattern inPatternType) const
 
 				if(symbols!=NULL)
 				{
-					sLONG count=0;
+					int count=0;
 					const UnicodeString* amPmStringArray=symbols->getAmPmStrings(count);
 
 					xbox_assert(count==2);
@@ -636,7 +636,7 @@ void XLinuxIntlMgr::FormatNumber(const VValueSingle& inValue, VString& outNumber
 
 
 //If it doesn't format as expected, try to use time format, as Pierre suggests...
-void XLinuxIntlMgr::FormatDuration(const VDuration& inDuration, VString& outDuration) const
+void XLinuxIntlMgr::FormatDuration(const VDuration& inDuration, VString& outDuration, EOSFormats inFormat) const
 {
 	double val=inDuration.GetReal()/1000;	//We want sec, not ms
 
@@ -649,6 +649,16 @@ void XLinuxIntlMgr::FormatDuration(const VDuration& inDuration, VString& outDura
 	durationFmt.format(val, tmpDuration);
 
 	outDuration=VString(tmpDuration.getTerminatedBuffer());
+}
+
+
+void XLinuxIntlMgr::GetMonthName( sLONG inIndex, bool inAbbreviated, VString& outName) const
+{
+}
+
+
+void XLinuxIntlMgr::GetWeekDayName( sLONG inIndex, bool inAbbreviated, VString& outName) const
+{
 }
 
 // void XLinuxIntlMgr::FormatDuration(const VDuration& inTime, VString& outTime, EOSFormats inFormat) const

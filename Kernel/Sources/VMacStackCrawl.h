@@ -27,7 +27,9 @@ class XTOOLBOX_API XMacStackCrawl
 public:
 			XMacStackCrawl():fCount(0) {}
 	virtual ~XMacStackCrawl() {}
-	
+
+	bool operator < (const XMacStackCrawl& other) const;
+
 	// Stack frames support
 	void	LoadFrames( uLONG inStartFrame, uLONG inNumFrames);
 	void	UnloadFrames()	{}

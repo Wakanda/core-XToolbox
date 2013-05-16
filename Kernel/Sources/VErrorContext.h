@@ -88,8 +88,8 @@ public:
 			VError					LoadFromBag( const VValueBag& inBag);
 			VError					SaveToBag( VValueBag& ioBag) const;
 
-			/** @brief saving errors into JSON array **/
-			VError					SaveToJSONArray( VJSONArrayWriter& ioWriter, JSONOption inModifier = JSON_Default) const;
+			/** @brief saving errors into JSON array or json_undefined if no error **/
+			void					SaveToJSONArray( VJSONValue& outArray) const;
 
 			/** @brief context parameters are replicated into any error pushed inside the context **/
 			VValueBag*				GetParametersForPushedErrors( bool inAllocateIfNecessary);
@@ -112,6 +112,8 @@ typedef std::vector<VRefPtr<VErrorContext> >	VectorOfVErrorContext;
 	@abstract Task related error context stack
 	@discussion
 */
+
+class VValueBag;
 
 class XTOOLBOX_API VErrorTaskContext : public VObject, public IRefCountable
 { 
@@ -155,6 +157,8 @@ public:
 
 			// optim: to avoid new/delete of VErrorContext, we try to keep popped contexts for reuse
 			void					RecycleContext( VErrorContext *inContext);
+
+	static	void					BuildErrorStack(VValueBag& outBag);
 	
 private:
 			VErrorTaskContext( const VErrorTaskContext& /*inContext*/) {};

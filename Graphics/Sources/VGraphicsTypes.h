@@ -42,16 +42,6 @@
 
 #endif
 
-//set to 1 in order to support both D2D & GDIPlus graphic contexts (default for best compatibility)
-//(in that case for instance VGraphicPath & VFont will contain impl for both GDIPlus & D2D)
-//set to 0 to support only D2D graphic contexts
-//(caution: should be set to 0 if and only if ALL 4D graphic contexts are D2D graphic contexts)
-#if ENABLE_D2D
-#define GRAPHIC_MIXED_GDIPLUS_D2D 1
-#else
-#define GRAPHIC_MIXED_GDIPLUS_D2D 1 //if ENABLE_D2D is 0, please do not modify this constant
-#endif
-
 #ifndef _D2D1_H_
 //Direct2D forward references:
 //NDJQ: d2d1.h is included only while building Graphics 
@@ -315,8 +305,7 @@ typedef enum CursorStyle {
 	CURS_THIN_CROSS,
 	CURS_THICK_CROSS,
 	CURS_WATCH,
-	CUSR_LAST_STDCURSOR = CURS_WATCH,
-	CURS_CLIC		= 9000,	// If not in system, is stored as resource (using this ID)
+	CURS_CLIC,
 	CURS_MOVE,
 	CURS_MOVE_KNOB,
 	CURS_SIZE_H,
@@ -328,7 +317,7 @@ typedef enum CursorStyle {
 	CURS_SIZE_COL_H,
 	CURS_SIZE_COLUMN = CURS_SIZE_COL_V,
 	CURS_SIZE_ROW = CURS_SIZE_COL_H,
-	CURS_SPLIT_V,	// 9010
+	CURS_SPLIT_V,
 	CURS_SPLIT_H,
 	CURS_ERASER,
 	CURS_OPENED_HAND,
@@ -337,7 +326,19 @@ typedef enum CursorStyle {
 	CURS_COPY,
 	CURS_ALIAS,
 	CURS_HELP,
-	CURS_FORBIDDEN
+	CURS_FORBIDDEN,
+	CURS_ORIENTED_TO_RIGHT_ARROW,
+	CURS_AUTO,
+	CURS_ZOOM_IN,
+	CURS_ZOOM_OUT,
+	CURS_INACTIVE_WINDOW,
+	CURS_LAYOUT_GOOD_REORDER,
+	CURS_LAYOUT_BAD_REORDER,
+	CURS_OLD_DRAG,
+	CURS_RESIZE_LEFT,
+	CURS_RESIZE_RIGHT,
+	CURS_RESIZE_UP,
+	CURS_RESIZE_DOWN
 } CursorStyle;
 
 
@@ -509,6 +510,17 @@ enum {
 };
 #define TLM_PARAGRAPH_STYLE_ALIGN_MASK	(TLM_ALIGN_LEFT|TLM_ALIGN_RIGHT|TLM_ALIGN_CENTER|TLM_ALIGN_JUSTIFY)
 #define TLM_PARAGRAPH_STYLE_MASK		(TLM_DONT_WRAP|TLM_TRUNCATE_MIDDLE_IF_NECESSARY|TLM_TRUNCATE_END_IF_NECESSARY|TLM_LEFT_TO_RIGHT|TLM_RIGHT_TO_LEFT|TLM_PARAGRAPH_STYLE_ALIGN_MASK)		
+
+/** tab stop type (alias for eDocPropTabStopType) */
+typedef enum eTextTabStopType
+{
+	TTST_LEFT,
+	TTST_RIGHT,
+	TTST_CENTER,
+	TTST_DECIMAL,
+	TTST_BAR
+} eTextTabStopType;
+
 
 // Options for VFontMetrics
 typedef uLONG	TextRenderingMode;

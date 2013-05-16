@@ -154,9 +154,18 @@ void VJSNetClass::CreateServer (XBOX::VJSParms_callStaticFunction &ioParms, bool
 
 	// If the object is ServerSync, the "connection" event listener, if any, is silently ignored.
 
-	if (!inIsSync && listener.IsFunction())
+	if (!inIsSync && listener.IsFunction()) {
 
-		serverObject->AddListener(inIsSSL ? "secureConnection" : "connection", listener, false);
+		VJSWorker	*worker;
+
+		worker = VJSWorker::RetainWorker(ioParms.GetContext());
+		xbox_assert(worker != NULL);
+
+		serverObject->AddListener(worker, inIsSSL ? "secureConnection" : "connection", listener, false);
+
+		XBOX::ReleaseRefCountable<VJSWorker>(&worker);
+
+	}
 	
 	ioParms.ReturnValue(createdObject);
 }
@@ -300,7 +309,7 @@ uLONG VJSNetClass::_isIPAddress (XBOX::VJSParms_callStaticFunction &ioParms)
 		StErrorContextInstaller	context(false, true);
 		XBOX::VNetAddress			addr(ipAddress, 1234);
 
-		if (context.GetLastError() == XBOX::VE_OK)
+		if (context.GetLastError() != XBOX::VE_OK)
 
 			return 0;
 

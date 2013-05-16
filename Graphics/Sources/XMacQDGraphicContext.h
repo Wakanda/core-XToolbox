@@ -88,8 +88,6 @@ public:
 	virtual void	SetPixelBackColor (const VColor& inColor);
 	virtual void	SetPixelForeColor (const VColor& inColor);
 	
-	virtual TransferMode	SetPixelTransferMode (TransferMode inMode);
-	
 	// Graphic context storage
 	virtual void	NormalizeContext ();
 	virtual void	SaveContext ();
@@ -184,8 +182,8 @@ public:
 	virtual	void	BeginUsingContext (bool inNoDraw = false);
 	virtual	void	EndUsingContext ();
 
-	virtual	PortRef		_GetParentPort () const { return fContext; };
-	virtual	ContextRef	_GetParentContext () const { return NULL; };
+	virtual	PortRef		GetParentPort () const { return fContext; };
+	virtual	ContextRef	GetParentContext () const { return NULL; };
 	
 	// Utilities
 	virtual	Boolean	UseEuclideanAxis () { return false; };
@@ -196,10 +194,10 @@ public:
 	static Boolean	_GetStdPattern (PatternStyle inStyle, void* ioPattern);
 	
 	// Debug Utilities
-	static void	_RevealUpdate (WindowRef inWindow);
-	static void	_RevealClipping (PortRef inPort);
-	static void	_RevealBlitting (PortRef inPort, const RgnRef inRegion);
-	static void	_RevealInval (PortRef inPort, const RgnRef inRegion);
+	static void	RevealUpdate (WindowRef inWindow);
+	static void	RevealClipping (PortRef inPort);
+	static void	RevealBlitting (PortRef inPort, const RgnRef inRegion);
+	static void	RevealInval (PortRef inPort, const RgnRef inRegion);
 
 	// Class initialization
 	static Boolean	Init ();

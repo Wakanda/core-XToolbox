@@ -22,49 +22,25 @@ extern VLogHandler*			sPrivateLogHandler;
 
 const XBOX::VString			K_CHR_DBG_ROOT("/devtools");
 
-VRemoteDebugPilot::PageDescriptor_t*			VRemoteDebugPilot::sPages = NULL;
-
-XBOX::VError VRemoteDebugPilot::Check(WAKDebuggerContext_t inContext)
-{
-	bool l_res = false;
-	unsigned long long	l_min = (unsigned long long)0;
-	unsigned long long	l_max = (unsigned long long)(K_NB_MAX_CTXS-1);
-	unsigned long long	l_pos = (unsigned long long)inContext;
-	l_res = ( (l_pos >= l_min) && (l_pos <= l_max));
-
-	if (!testAssert(l_res))
-	{
-		DebugMsg("VRemoteDebugPilot::Check bad ctx !!!!\n");
-		xbox_assert(false);
-	}
-	return l_res;
-}
+sLONG						VRemoteDebugPilot::sRemoteDebugPilotContextId=1;
 
 
+static bool VRemoteDebugPilotIsInit = false;
 VRemoteDebugPilot::VRemoteDebugPilot(
-						CHTTPServer*			inHTTPServer,
-						const XBOX::VString		inIP,
-						sLONG					inPort) : fCompletedSem(0), fPipeInSem(0), fPipeOutSem(0)
+				CHTTPServer*			inHTTPServer) :
+		fUniqueClientConnexionSemaphore(1),
+		fClientCompletedSemaphore(0),
+		fPipeInSem(0), 
+		fPipeOutSem(0), 
+		fTmpData(NULL), 
+		fPendingContextsNumberSem(0,1000000),
+		fDebuggingEventsTimeStamp(1)
 {
-	VString l_port_str = CVSTR(":");
-	l_port_str.AppendLong(inPort);
-	VString l_rel_url;
 	
-	if (!sPages)
+	fHTTPServer = inHTTPServer;
+	if (!VRemoteDebugPilotIsInit)
 	{
-		sPages = new PageDescriptor_t[K_NB_MAX_PAGES];
-		for( sLONG l_i=0; l_i<K_NB_MAX_PAGES; l_i++ )
-		{
-			sPages[l_i].used = false;
-			l_rel_url = CVSTR("/wka_dbg");
-			l_rel_url += K_CHR_DBG_ROOT;
-			l_rel_url += CVSTR("/devtools.html?host=");
-			l_rel_url += inIP;
-			l_rel_url += l_port_str;
-			l_rel_url += CVSTR("&page=");
-			l_rel_url.AppendLong(l_i);
-			sPages[l_i].value.Init((uLONG)l_i,inHTTPServer,l_rel_url);
-		}
+		VRemoteDebugPilotIsInit = true;
 	}
 	fWS = NULL;
 	fTask = new XBOX::VTask(this, 64000, XBOX::eTaskStylePreemptive, &VRemoteDebugPilot::InnerTaskProc);
@@ -76,416 +52,888 @@ VRemoteDebugPilot::VRemoteDebugPilot(
 }
 
 
-#define K_DBG_PROTOCOL_CONNECT_STR	"{\"method\":\"connect\",\"id\":\""
-#define K_DBG_PROTOCOL_GET_URL_STR	"{\"method\":\"getURL\",\"id\":\""
+#define K_DBG_PROTOCOL_CONNECT_STR		"{\"method\":\"connect\",\"id\":\""
+#define K_DBG_PROTOCOL_GET_URL_STR		"{\"method\":\"getURL\",\"id\":\""
+#define K_DBG_PROTOCOL_DISCONNECT_STR	"{\"method\":\"disconnect\",\"id\":\""
+#define K_DBG_PROTOCOL_ABORT_STR		"{\"method\":\"abort\",\"id\":\""
+
+void VRemoteDebugPilot::AbortContexts(bool inOnlyDebuggedOnes)
+{
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator ctxIt = fContextArray.begin();
+
+	while( ctxIt != fContextArray.end() )
+	{
+		if (fState == STARTED_STATE)
+		{
+			if ((*ctxIt).second->fSem)
+			{
+				(*ctxIt).second->fSem->Unlock();
+				ReleaseRefCountable(&(*ctxIt).second->fSem);
+			}
+		}
+		else
+		{
+			if (!(*ctxIt).second->fPage)
+			{
+				if ((*ctxIt).second->fSem)
+				{
+					if (!inOnlyDebuggedOnes)
+					{
+						(*ctxIt).second->fSem->Unlock();
+						ReleaseRefCountable(&(*ctxIt).second->fSem);
+					}
+				}
+				ctxIt++;
+				continue;
+			}
+			VChromeDbgHdlPage*	page = (*ctxIt).second->fPage;
+			testAssert(page->Abort() == VE_OK);
+		}
+		ctxIt->second->Release();
+		ctxIt++;
+	}
+	//if (fState == STARTED_STATE)
+	{
+		fContextArray.clear();
+	}
+}
+
+void VRemoteDebugPilot::TreatStartMsg(RemoteDebugPilotMsg_t& ioMsg,VPilotLogListener* inLogListener)
+{
+	switch(fState)
+	{
+	case STOPPED_STATE:
+		fState = STARTED_STATE;
+		VProcess::Get()->GetLogger()->AddLogListener(inLogListener);
+	case STARTED_STATE:
+		break;
+	case CONNECTED_STATE:
+	case CONNECTING_STATE:
+	case DISCONNECTING_STATE:
+		// should not happen
+		break;
+	}
+	fPipeStatus = VE_OK;
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::TreatAbortAllMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	switch(fState)
+	{
+	case STOPPED_STATE:
+		break;
+	case CONNECTED_STATE:
+	case CONNECTING_STATE:
+	case STARTED_STATE:
+		AbortContexts(false);
+	}
+	fPipeStatus = VE_OK;
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::TreatStopMsg(RemoteDebugPilotMsg_t& ioMsg,VPilotLogListener* inLogListener)
+{
+	XBOX::VError	err;
+	switch(fState)
+	{
+	case STOPPED_STATE:
+		break;
+	case CONNECTED_STATE:
+	case CONNECTING_STATE:
+	case DISCONNECTING_STATE:
+		VProcess::Get()->GetLogger()->RemoveLogListener(inLogListener);
+		VRemoteDebugPilot::AbortContexts(false);
+		err = fWS->Close();
+		fState = STOPPED_STATE;
+		fClientCompletedSemaphore.Unlock();// there is only a caller to unlock on thyese states
+		break;
+	case STARTED_STATE:
+		VProcess::Get()->GetLogger()->RemoveLogListener(inLogListener);
+		VRemoteDebugPilot::AbortContexts(false);
+		fState = STOPPED_STATE;
+		break;
+	}
+	fPipeStatus = VE_OK;
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::TreatNewClientMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	XBOX::VError			err;
+	
+	switch(fState)
+	{
+	case STARTED_STATE:
+		err = fWS->TreatNewConnection(ioMsg.response);
+		if (!err)
+		{
+			fNeedsAuthentication = ioMsg.needsAuthentication;
+			fState = CONNECTING_STATE;
+			fClientId = VString("");
+			fPipeStatus = VE_OK;
+		}
+		else
+		{
+			fClientCompletedSemaphore.Unlock();
+		}
+		break;
+	case STOPPED_STATE:
+		DebugMsg("VRemoteDebugPilot::TreatNewClientMsg NEW_CLIENT SHOULD NOT HAPPEN in state=%d !!!\n",fState);
+		fClientCompletedSemaphore.Unlock();
+		break;
+	case CONNECTED_STATE:
+	case DISCONNECTING_STATE:
+	case CONNECTING_STATE:
+		DebugMsg("VRemoteDebugPilot::TreatNewClientMsg NEW_CLIENT SHOULD NOT HAPPEN in state=%d !!!\n",fState);
+		xbox_assert(false);
+		break;
+	}
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::TreatNewContextMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	XBOX::VError			err;
+	XBOX::VString			resp;
+
+	if (fState != STOPPED_STATE)
+	{
+		if ( testAssert(fContextArray.size() < K_NB_MAX_CTXS) )
+		{
+
+			VContextDescriptor*		newCtx = new VContextDescriptor();
+			*(ioMsg.outctx) = (OpaqueDebuggerContext)sRemoteDebugPilotContextId;
+			sRemoteDebugPilotContextId++;
+			std::pair< OpaqueDebuggerContext, VContextDescriptor* >	l_pair( *(ioMsg.outctx), newCtx);
+			std::pair< std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator, bool >	newElt =
+					fContextArray.insert( l_pair );
+
+			if (testAssert(newElt.second))
+			{
+				if (fState == CONNECTED_STATE)
+				{
+					resp = CVSTR("{\"method\":\"newContext\",\"contextId\":\"");
+					resp.AppendLong8((sLONG8)(*(ioMsg.outctx)));
+					resp += CVSTR("\",\"id\":\"");
+					resp += fClientId;
+					resp += CVSTR("\"}");
+
+					err = SendToBrowser( resp );
+					if (err)
+					{
+						fWS->Close();
+						fState = DISCONNECTING_STATE;
+					}
+				}
+				else
+				{
+					err = VE_OK;
+				}
+				if (!err)
+				{
+					fPipeStatus = VE_OK;
+				}
+			}
+		}
+	}
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::RemoveContext(std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator& inCtxIt)
+{
+	XBOX::VError			err;
+	XBOX::VString			resp;
+
+	if (fState != STOPPED_STATE)
+	{
+		// ctx could already have been removed by ABORT
+		if (inCtxIt != fContextArray.end())
+		{
+			if ((*inCtxIt).second->fPage)
+			{
+				ReleaseRefCountable(&(*inCtxIt).second->fPage);
+			}
+
+			if (fState == CONNECTED_STATE)
+			{
+				resp = CVSTR("{\"method\":\"removeContext\",\"contextId\":\"");
+				resp.AppendLong8((sLONG8)((*inCtxIt).first));
+				resp += CVSTR("\",\"id\":\"");
+				resp += fClientId;
+				resp += CVSTR("\"}");
+				err = SendToBrowser( resp );
+				if (err)
+				{
+					fWS->Close();
+					fState = DISCONNECTING_STATE;
+				}
+			}
+			inCtxIt->second->Release();
+			fContextArray.erase(inCtxIt);
+		}
+	}
+}
+
+void VRemoteDebugPilot::TreatDeactivateContextMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator ctxIt = fContextArray.find(ioMsg.ctx);
+	XBOX::VError			err;
+	XBOX::VString			resp;
+
+	if (fState != STOPPED_STATE)
+	{
+		if (ctxIt != fContextArray.end())
+		{
+			if (!ioMsg.hideOnly)
+			{
+				VChromeDbgHdlPage*	page = (*ctxIt).second->fPage;
+				if (page)
+				{
+					page->Stop();
+					ReleaseRefCountable(&(*ctxIt).second->fPage);
+				}
+			}
+			fPipeStatus = VE_OK;
+
+			if ( (fState == CONNECTED_STATE) && ((*ctxIt).second->fUpdated) )
+			{
+				resp = CVSTR("{\"method\":\"hideContext\",\"contextId\":\"");
+				resp.AppendLong8((sLONG8)((*ctxIt).first));
+				resp += CVSTR("\",\"id\":\"");
+				resp += fClientId;
+				resp += CVSTR("\"}");
+				err = SendToBrowser( resp );
+				if (err)
+				{
+					fWS->Close();
+					fState = DISCONNECTING_STATE;
+				}
+			}
+			(*ctxIt).second->fUpdated = false;
+		}
+	}
+	fPipeOutSem.Unlock();
+}
+void VRemoteDebugPilot::TreatRemoveContextMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator ctxIt = fContextArray.find(ioMsg.ctx);
+	RemoveContext(ctxIt);
+	fPipeStatus = VE_OK;
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::DisconnectBrowser()
+{
+	fWS->Close();
+	if (fState > STARTED_STATE)
+	{
+		fClientCompletedSemaphore.Unlock();
+	}
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.begin();
+	while( ctxIt != fContextArray.end()) 
+	{
+		VChromeDbgHdlPage*	page = (*ctxIt).second->fPage;
+		if (page)
+		{
+			page->Stop();
+			ReleaseRefCountable(&(*ctxIt).second->fPage);
+		}
+		ctxIt++;
+	}
+	fState = STARTED_STATE;
+
+}
+
+void VRemoteDebugPilot::TreatUpdateContextMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	XBOX::VError			err;
+	XBOX::VString			resp;
+
+	*ioMsg.outsem = NULL;
+
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find(ioMsg.ctx);
+
+	if ( ctxIt != fContextArray.end())
+	{
+		(*ctxIt).second->fUpdated = true;
+
+		switch(fState)
+		{
+		case STOPPED_STATE:
+			xbox_assert(false);
+			break;
+
+		case CONNECTING_STATE:
+		case DISCONNECTING_STATE:
+		case STARTED_STATE:
+			(*ctxIt).second->fDebugInfos = ioMsg.debugInfos;
+			testAssert( (*ctxIt).second->fSem == NULL );
+			(*ctxIt).second->fSem = new XBOX::VSemaphore(0);
+			(*ctxIt).second->fSem->Retain();
+			*ioMsg.outsem = (*ctxIt).second->fSem;
+			fPipeStatus = VE_OK;
+			break;
+
+		case CONNECTED_STATE:
+			if ( !(*ctxIt).second->fPage )
+			{
+				(*ctxIt).second->fDebugInfos = ioMsg.debugInfos;
+				testAssert((*ctxIt).second->fSem == NULL);
+				err = SendContextToBrowser(ctxIt);
+
+				if (err)
+				{
+					fWS->Close();
+					fState = DISCONNECTING_STATE;
+				}
+				(*ctxIt).second->fSem = new XBOX::VSemaphore(0);
+				(*ctxIt).second->fSem->Retain();
+				*ioMsg.outsem = (*ctxIt).second->fSem;
+				fPipeStatus = VE_OK;
+			}
+			else
+			{
+				testAssert( (*ctxIt).second->fSem == NULL );
+				(*ctxIt).second->fDebugInfos = ioMsg.debugInfos;
+				err = SendContextToBrowser(ctxIt);
+				if (err)
+				{
+					fWS->Close();
+					fState = DISCONNECTING_STATE;
+				}
+				fPipeStatus = VE_OK;
+			}
+			break;
+		}
+	}
+	fPipeOutSem.Unlock();
+	//DisplayContexts();	
+}
+
+
+void VRemoteDebugPilot::TreatTreatWSMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	if (fState == CONNECTED_STATE)
+	{
+		std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.begin();
+		while( ctxIt != fContextArray.end() )
+		{
+			if ((*ctxIt).second->fPage)
+			{
+				if ((*ctxIt).second->fPage->GetPageNb() == ioMsg.pagenb)
+				{
+					fPipeStatus = VE_OK;
+					(*ctxIt).second->fPage->Retain();
+					*ioMsg.outpage = (*ctxIt).second->fPage;
+					*ioMsg.outsem = (*ctxIt).second->fSem;
+					(*ctxIt).second->fSem = NULL;
+					break;
+				}
+			}
+			ctxIt++;
+		}
+	}
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::TreatBreakpointReachedMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find(ioMsg.ctx);
+
+	if (testAssert(ctxIt != fContextArray.end()))
+	{
+		if (fState == CONNECTED_STATE)
+		{
+			if ( testAssert((*ctxIt).second->fPage) )
+			{
+				VChromeDbgHdlPage*	page = (*ctxIt).second->fPage;
+				{
+					fPipeStatus = page->BreakpointReached(ioMsg.linenb,ioMsg.datavectstr,ioMsg.urlstr,ioMsg.datastr);
+				}
+			}
+		}
+		//testAssert(fPipeStatus == VE_OK);
+	}
+	fPipeOutSem.Unlock();
+}
+
+
+void VRemoteDebugPilot::TreatWaitFromMsg(RemoteDebugPilotMsg_t& ioMsg)
+{
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find(ioMsg.ctx);
+
+	if (testAssert(ctxIt != fContextArray.end()))
+	{
+		if (fState == CONNECTED_STATE)
+		{
+			if ( (*ctxIt).second->fPage )
+			{
+				fPipeStatus = VE_OK;
+				*ioMsg.outpage = (*ctxIt).second->fPage;
+				(*ctxIt).second->fPage->Retain();
+			}
+		}
+	}
+	fPipeOutSem.Unlock();
+}
+
+void VRemoteDebugPilot::TreatTraces()
+{
+	fTracesLock.Lock();
+	if (fState == STOPPED_STATE)
+	{
+		for( std::vector<const VValueBag*>::size_type idx = 0; idx < fTraces.size(); idx++ )
+		{
+			fTraces[idx]->Release();
+		}
+	}
+	else
+	{
+		VChromeDbgHdlPage*	page = NULL;
+
+		//std::map< VChromeDbgHdlPage*, std::vector<const VValueBag*> >	tracesMap;
+		for( std::vector<const VValueBag*>::size_type idx = 0; idx < fTraces.size(); idx++ )
+		{
+			sLONG8	debugContext;
+			if (ILoggerBagKeys::debug_context.Get( fTraces[idx], debugContext) )
+			{
+				std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find((OpaqueDebuggerContext)debugContext);
+				if (ctxIt != fContextArray.end())
+				{
+					/*page = (*ctxIt).second->fPage;
+					if (page)
+					{
+						std::map< VChromeDbgHdlPage*, std::vector<const VValueBag*> >::iterator itContext = tracesMap.find(page);
+						if (itContext == tracesMap.end())
+						{
+							tracesMap.insert(std::pair< VChromeDbgHdlPage*, std::vector<const VValueBag*> >( page, std::vector<const VValueBag*>() ) );
+							itContext = tracesMap.find(page);
+						}
+						if (testAssert(itContext != tracesMap.end()))
+						{
+							//(*ioMsg.values)[idx]->Retain();
+							(*itContext).second.push_back(fTraces[idx]);
+							fTraces[idx] = NULL;
+						}
+					}*/
+					(*ctxIt).second->fTraceContainer->Put(fTraces[idx]);
+					fTraces[idx] = NULL;
+				}
+			}
+			if (fTraces[idx])
+			{
+				fTraces[idx]->Release();
+			}
+		}
+		/*std::map< VChromeDbgHdlPage*, std::vector<const VValueBag*> >::iterator itDebugContexts = tracesMap.begin();
+		while(itDebugContexts != tracesMap.end() )
+		{
+			(*itDebugContexts).first->SendTraces((*itDebugContexts).second);
+			itDebugContexts++;
+		}*/
+	
+	}
+	fTraces.clear();
+	fTracesLock.Unlock();
+}
+
+void VRemoteDebugPilot::HandleDisconnectingState()
+{
+	XBOX::VError			err;
+	VSize					msgLen;
+	bool					isMsgTerminated;
+	sBYTE*					tmpStr;
+
+	msgLen = K_MAX_SIZE;
+	tmpStr = NULL;
+
+	err = fWS->ReadMessage((void*)fTmpData,msgLen,isMsgTerminated);
+	if (err)
+	{
+		DebugMsg("VRemoteDebugPilot::HandleDisconnectingState fWS->ReadMessage pb\n");
+		//AbortContexts(true);
+		DisconnectBrowser();
+		return;
+	}
+	if (msgLen)
+	{
+		if (msgLen < K_MAX_SIZE)
+		{
+			fTmpData[msgLen] = 0;
+		}
+		else
+		{
+			fTmpData[K_MAX_SIZE-1] = 0;
+		}
+		DebugMsg("VRemoteDebugPilot::HandleDisconnectingState received msg(len=%d)='%s'\n",msgLen,fTmpData);
+		tmpStr = (sBYTE*)strstr((const char*)fTmpData,K_DBG_PROTOCOL_DISCONNECT_STR);
+	}
+	else
+	{
+		XBOX::VTime			curtTime;
+		XBOX::VDuration		disconnectDuration;
+		curtTime.Substract(fDisconnectTime,disconnectDuration);
+		if (disconnectDuration.ConvertToSeconds() > 2)
+		{
+			tmpStr = fTmpData;
+		}
+	}
+	if (tmpStr)
+	{
+		//AbortContexts(true);
+		DisconnectBrowser();
+		return;
+	}
+}
+
+void VRemoteDebugPilot::HandleConnectingState()
+{
+	XBOX::VError			err;
+	VSize					msgLen;
+	bool					isMsgTerminated;
+	sBYTE*					tmpStr;
+	sBYTE*					endStr;
+	unsigned long long		id;
+	XBOX::VString			resp;
+
+	msgLen = K_MAX_SIZE;
+	err = fWS->ReadMessage((void*)fTmpData,msgLen,isMsgTerminated);
+	if (err)
+	{
+		DebugMsg("VRemoteDebugPilot::HandleConnectingState fWS->ReadMessage pb\n");
+	}
+
+	if (!err && msgLen)
+	{
+		if (msgLen < K_MAX_SIZE)
+		{
+			fTmpData[msgLen] = 0;
+		}
+		else
+		{
+			fTmpData[K_MAX_SIZE-1] = 0;
+		}
+		DebugMsg("VRemoteDebugPilot::HandleConnectingState received msg(len=%d)='%s'\n",msgLen,fTmpData);
+		tmpStr = (sBYTE*)strstr((const char*)fTmpData,K_DBG_PROTOCOL_CONNECT_STR);
+		if (tmpStr && !fClientId.GetLength())
+		{
+			tmpStr += strlen(K_DBG_PROTOCOL_CONNECT_STR);
+			endStr = (sBYTE*)strchr((const char*)tmpStr,'"');
+			if (endStr)
+			{
+				*endStr = 0;
+				resp = CVSTR("{\"result\":\"ok\",\"solution\":\"");
+				resp += fSolutionName;
+				resp += ("\",\"needsAuthentication\":");
+				resp += ( fNeedsAuthentication ? CVSTR("true") : CVSTR("false") );
+				resp += (",\"id\":\"");
+				fClientId = VString(tmpStr);
+				resp += fClientId;
+				resp += CVSTR("\"}");
+				err = SendToBrowser( resp );
+				if (!err)
+				{
+					if (fNeedsAuthentication)
+					{
+						fState = DISCONNECTING_STATE;
+						fDisconnectTime.FromSystemTime();
+						return;
+					}
+					else
+					{
+						//DisplayContexts();
+
+						// here the client connection has been accepted without need of authentication
+						// we send the already existing contexts
+						std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.begin();
+						while( !err && (ctxIt != fContextArray.end()) )
+						{
+							resp = CVSTR("{\"method\":\"newContext\",\"contextId\":\"");
+							resp.AppendLong8((sLONG8)((*ctxIt).first));
+							resp += CVSTR("\",\"id\":\"");
+							resp += fClientId;
+							resp += CVSTR("\"}");
+							err = SendToBrowser( resp );
+
+							if ( !err && (*ctxIt).second->fUpdated )
+							{
+								if ((*ctxIt).second->fSem == NULL)
+								{
+									(*ctxIt).second->fSem = new XBOX::VSemaphore(0);
+									(*ctxIt).second->fSem->Retain();
+								}
+								err = SendContextToBrowser(ctxIt);
+							}
+							ctxIt++;
+						}
+						if (!err)
+						{
+							fState = CONNECTED_STATE;
+						}
+					}
+				}
+			}
+			else
+			{
+				err = VE_INVALID_PARAMETER;
+			}
+		}
+		else
+		{
+			DebugMsg("VRemoteDebugPilot::HandleConnectingState first message shoud be 'connect'\n");
+			err = VE_INVALID_PARAMETER;
+		}
+	}
+
+	if (err)
+	{
+		DebugMsg("VRemoteDebugPilot::HandleConnectingState fWS->ReadMessage pb\n");
+		fWS->Close();
+		fState = DISCONNECTING_STATE;
+	}
+}
+
+void VRemoteDebugPilot::HandleConnectedState()
+{
+	XBOX::VError			err;
+	VSize					msgLen;
+	bool					isMsgTerminated;
+	sBYTE*					tmpStr;
+	sBYTE*					endStr;
+	unsigned long long		id;
+	XBOX::VString			resp;
+
+	msgLen = K_MAX_SIZE;
+	err = fWS->ReadMessage((void*)fTmpData,msgLen,isMsgTerminated);
+	if (err)
+	{
+		DebugMsg("VRemoteDebugPilot::HandleConnectedState fWS->ReadMessage pb\n");
+		fWS->Close();
+		fState = DISCONNECTING_STATE;
+		return;
+	}
+	if (msgLen)
+	{
+		if (msgLen < K_MAX_SIZE)
+		{
+			fTmpData[msgLen] = 0;
+		}
+		else
+		{
+			fTmpData[K_MAX_SIZE-1] = 0;
+		}
+		DebugMsg("VRemoteDebugPilot::HandleConnectedState received msg(len=%d)='%s'\n",msgLen,fTmpData);
+
+		{
+			tmpStr = strstr(fTmpData,K_DBG_PROTOCOL_ABORT_STR);
+			if (tmpStr && fClientId.GetLength())
+			{
+				tmpStr += strlen(K_DBG_PROTOCOL_ABORT_STR);
+				endStr = strchr(tmpStr,'"');
+				*endStr = 0;
+				id = atoi(tmpStr);
+				std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find((OpaqueDebuggerContext)id);
+				if ( testAssert(ctxIt != fContextArray.end()) )
+				{
+					if (!(*ctxIt).second->fPage)
+					{
+						if ((*ctxIt).second->fSem)
+						{
+							(*ctxIt).second->fSem->Unlock();
+							ReleaseRefCountable(&(*ctxIt).second->fSem);
+						}
+						RemoveContext(ctxIt);
+					}
+					else
+					{
+						VChromeDbgHdlPage*	l_page = (*ctxIt).second->fPage;
+						testAssert(l_page->Abort() == VE_OK);
+					}
+					//RemoveContext(id);
+				}
+			}
+			else
+			{
+				tmpStr = strstr(fTmpData,K_DBG_PROTOCOL_GET_URL_STR);
+				if (tmpStr && fClientId.GetLength())
+				{
+					tmpStr += strlen(K_DBG_PROTOCOL_GET_URL_STR);
+					endStr = strchr(tmpStr,'"');
+					*endStr = 0;
+					id = atoi(tmpStr);
+					std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find((OpaqueDebuggerContext)id);
+					if ( testAssert(ctxIt != fContextArray.end()) )
+					{
+						// test if a a page has already been attributed to this context
+						if (testAssert(!(*ctxIt).second->fPage))
+						{
+							xbox_assert((*ctxIt).second->fTraceContainer);
+							(*ctxIt).second->fPage = new VChromeDbgHdlPage((*ctxIt).second->fTraceContainer);
+							(*ctxIt).second->fPage->Init(id,fHTTPServer,NULL);
+							err = (*ctxIt).second->fPage->Start((OpaqueDebuggerContext)id);
+							/*sPages[l_i].value.fFifo.Reset();
+							sPages[l_i].value.fOutFifo.Reset();*/
+						}
+						if (!err)
+						{
+							resp = CVSTR("{\"method\":\"setURLContext\",\"contextId\":\"");
+							resp.AppendLong8(id);
+							resp += CVSTR("\",\"url\":\"");
+							resp.AppendLong8((*ctxIt).second->fPage->GetPageNb());
+							resp += CVSTR("\",\"id\":\"");
+							resp += fClientId;
+							resp += CVSTR("\"}");
+							err = SendToBrowser( resp );
+						}
+
+						if (err)
+						{
+							fWS->Close();
+							fState = DISCONNECTING_STATE;
+							return;
+						}
+					}
+					else
+					{
+						DebugMsg("VRemoteDebugPilot::HandleConnectedState unknown context = %d\n",id);
+					}
+				}
+				else
+				{
+					DebugMsg("VRemoteDebugPilot::HandleConnectedState received msg2(len=%d)='%s'\n",msgLen,fTmpData);
+				}
+			}
+		}
+	}
+}
+
+VRemoteDebugPilot::VPilotLogListener::VPilotLogListener(VRemoteDebugPilot* inPilot)
+{
+	fPilot = inPilot;
+}
+
+void VRemoteDebugPilot::VPilotLogListener::Put( std::vector<const VValueBag*>& inValuesVector )
+{
+	RemoteDebugPilotMsg_t	msg;
+	if (inValuesVector.size() > 0)
+	{
+		fPilot->fTracesLock.Lock();
+		//msg.values = new std::vector<const VValueBag*>;
+		for( std::vector<const VValueBag*>::size_type idx = 0; idx < inValuesVector.size(); idx++ )
+		{
+			inValuesVector[idx]->Retain();
+			fPilot->fTraces.push_back(inValuesVector[idx]);
+			//msg.values->push_back(inValuesVector[idx]);
+		}
+		fPilot->fTracesLock.Unlock();
+		//msg.type = PUT_TRACES_MSG;
+		//fPilot->Send(msg);
+	}
+}
 
 
 sLONG VRemoteDebugPilot::InnerTaskProc(XBOX::VTask* inTask)
 {
-	unsigned long long						l_id;
-	VRemoteDebugPilot*						l_this = (VRemoteDebugPilot*)inTask->GetKindData();
-	XBOX::VString							l_client_id;
-	typedef struct ContextDesc_st {
-		bool				used;
-		XBOX::VSemaphore*	sem;
-		PageDescriptor_t*	page;
-	} ContextDesc_t;
-	//std::map<unsigned int,PageDescriptor_t*>	l_hash;
-	ContextDesc_t*		l_ctxs;
+	bool					msgFound;
+	RemoteDebugPilotMsg_t	msg;
 
-	XBOX::VError	l_err;
-	XBOX::VString	l_resp;
-	RemoteDebugPilotMsg_t	l_msg;
-	bool		l_msg_found;
-	uLONG		l_msg_len;
-	bool		l_is_msg_terminated;
-	sBYTE*		l_tmp;
-	sBYTE*		l_end;
-	VSize		l_size;
+	VRemoteDebugPilot*		l_this = (VRemoteDebugPilot*)inTask->GetKindData();
 
-	l_ctxs = new ContextDesc_t[K_NB_MAX_CTXS];
-	for( int l_i=0; l_i<K_NB_MAX_CTXS; l_i++ )
-	{
-		l_ctxs[l_i].used = false;
-		l_ctxs[l_i].sem = NULL;
-		l_ctxs[l_i].page = NULL;
-	}
+	VPilotLogListener		logListener(l_this);
+
+	l_this->fTmpData = new sBYTE[K_MAX_SIZE];
+	l_this->fState = STOPPED_STATE;
 
 wait_connection:
-	l_this->fState = STARTED_STATE;
-	// clean the pipe
-	l_this->Get(&l_msg,&l_msg_found,100);
-	while(!l_this->Get(&l_msg,&l_msg_found,500))
+
+	while(!l_this->Get(msg,msgFound,500))
 	{
-		if (l_msg_found)
+		if (msgFound)
 		{
+			l_this->fLock.Lock();
+
 			l_this->fPipeStatus = VE_INVALID_PARAMETER;
 
-			switch(l_msg.type)
+			switch(msg.type)
 			{
-			
-			case TREAT_CLIENT_MSG:
-				switch(l_this->fState)
-				{
-				case STARTED_STATE:
-					l_err = l_this->fWS->TreatNewConnection(l_msg.response);
-					if (!l_err)
-					{
-						l_this->fState = WORKING_STATE;
-						l_client_id = VString("");
-						l_this->fPipeStatus = VE_OK;
-					}
-					else
-					{
-						l_this->fCompletedSem.Unlock();
-					}
-					break;
-				case STOPPED_STATE:
-					l_this->fCompletedSem.Unlock();
-					break;
-				case WORKING_STATE:
-					DebugMsg("VRemoteDebugPilot::InnerTaskProc NEW_CLIENT SHOULD NOT HAPPEN in state=%d !!!\n",l_this->fState);
-					xbox_assert(false);
-					break;
-				}
-				l_this->fPipeOutSem.Unlock();
+
+			case START_MSG:
+				l_this->TreatStartMsg(msg,&logListener);
 				break;
+
+			case ABORT_ALL_MSG:
+				l_this->TreatAbortAllMsg(msg);
+				break;
+
+			case STOP_MSG:
+				l_this->TreatStopMsg(msg,&logListener);
+				break;
+
+			case TREAT_NEW_CLIENT_MSG:
+				l_this->TreatNewClientMsg(msg);
+				break;
+
 			case NEW_CONTEXT_MSG:
-					l_id = K_NB_MAX_CTXS+1;
-					for( unsigned int l_i=0; l_i<K_NB_MAX_CTXS; l_i++ )
-					{
-						//const std::map<unsigned int,PageDescriptor_t*>::const_iterator l_it = l_hash.find((unsigned int)l_i);
-						//if (l_it == l_hash.end())
-						if (!l_ctxs[l_i].used)
-						{
-							l_ctxs[l_i].used = true;
-							l_ctxs[l_i].page = NULL;
-							l_id = l_i;
-							l_this->fPipeStatus = VE_OK;
-							break;
-						}
-					}
-					if (l_this->fState == WORKING_STATE)
-					{
-						if (l_id < K_NB_MAX_CTXS)
-						{
-							l_resp = CVSTR("{\"method\":\"newContext\",\"contextId\":\"");
-							l_resp.AppendLong8(l_id);
-							l_resp += CVSTR("\",\"id\":\"");
-							l_resp += l_client_id;
-							l_resp += CVSTR("\"}");
-
-							*l_msg.outctx = (WAKDebuggerContext_t)l_id;
-							VRemoteDebugPilot::SendToBrowser( l_this, l_resp );
-						}
-					}
-					l_this->fPipeOutSem.Unlock();
+				l_this->TreatNewContextMsg(msg);
 				break;
+
 			case REMOVE_CONTEXT_MSG:
-				{
-				//const std::map<unsigned int,PageDescriptor_t*>::const_iterator l_it = l_hash.find((unsigned int)l_msg.ctx);
-				//if (l_it != l_hash.end())
-				{
-					l_id = (unsigned long long)l_msg.ctx;
-					if ( l_id < K_NB_MAX_PAGES)
-					{
-						sPages[(unsigned long long)l_msg.ctx].used = false;
-						if (l_ctxs[l_id].page)
-						{
-							l_ctxs[l_id].page->value.fFifo.Reset();
-							l_ctxs[l_id].page->value.fOutFifo.Reset();
-							l_ctxs[l_id].page->used = false;
-							l_ctxs[l_id].page = NULL;
-						}
-						/*if (!l_hash.erase((unsigned int)l_msg.ctx))
-						{
-							DebugMsg("VRemoteDebugPilot::InnerTaskProc map erase pb for ctxid=%d\n",(unsigned int)l_msg.ctx);
-						}*/
-						l_ctxs[l_id].used = false;
-						l_this->fPipeStatus = VE_OK;
-					}
-					if (l_this->fState == WORKING_STATE)
-					{
-						l_resp = CVSTR("{\"method\":\"removeContext\",\"contextId\":\"");
-						l_resp.AppendLong8(l_id);
-						l_resp += CVSTR("\",\"id\":\"");
-						l_resp += l_client_id;
-						l_resp += CVSTR("\"}");
-						VRemoteDebugPilot::SendToBrowser( l_this, l_resp );
-					}
-				}
-				l_this->fPipeOutSem.Unlock();
-				}
+				l_this->TreatRemoveContextMsg(msg);
 				break;
+
+			case DEACTIVATE_CONTEXT_MSG:
+				l_this->TreatDeactivateContextMsg(msg);
+				break;
+
 			case UPDATE_CONTEXT_MSG:
-				*l_msg.outwait = false;
-				if (l_this->fState == WORKING_STATE)
-				{
-					l_id = (unsigned long long)l_msg.ctx;
-					if (!l_ctxs[l_id].used)
-					{
-						xbox_assert(false);
-					}
-					if (!l_ctxs[l_id].page)
-					{
-						l_resp = CVSTR("{\"method\":\"updateContext\",\"contextId\":\"");
-						l_resp.AppendULong8(l_id);
-						l_resp += CVSTR("\",\"id\":\"");
-						l_resp += l_client_id;
-						l_resp += CVSTR("\"}");
-						l_ctxs[l_id].sem = l_msg.sem;
-						VRemoteDebugPilot::SendToBrowser( l_this, l_resp );
-						*l_msg.outwait = true;
-						l_this->fPipeStatus = VE_OK;
-					}
-					else
-					{
-						if (!l_ctxs[l_id].page->used || !l_ctxs[l_id].page->value.fEnabled)
-						{
-							xbox_assert(false);
-						}
-						else
-						{
-							l_this->fPipeStatus = VE_OK;
-						}
-					}
-				}
-				l_this->fPipeOutSem.Unlock();
+				l_this->fDebuggingEventsTimeStamp++;
+				l_this->TreatUpdateContextMsg(msg);
 				break;
-			case SET_STATE_MSG:
-				{
-					//const std::map<unsigned int,PageDescriptor_t*>::const_iterator l_it = l_hash.find((unsigned int)l_msg.ctx);
-					//if (l_it != l_hash.end())
-					l_id = (unsigned long long)l_msg.ctx;
-					{
-						if ( (l_ctxs[l_id].page) && (l_ctxs[l_id].page->used) )
-						{
-							VChromeDbgHdlPage*	l_page = &l_ctxs[l_id].page->value;
-							l_page->fState = l_msg.state;
-							l_page->fFifo.Reset();
-							l_page->fOutFifo.Reset();
-						}
-						l_this->fPipeStatus = VE_OK;
-					}
-					l_this->fPipeOutSem.Unlock();
-				}
-				break;
-			case SEND_EVAL_MSG:
-				l_id = (unsigned long long)l_msg.ctx;
-				if (l_id < K_NB_MAX_PAGES)
-				{
-					VChromeDbgHdlPage*	l_page = &l_ctxs[l_id].page->value;
-					ChrmDbgMsg_t		l_page_msg;
 
-					l_page_msg.type = EVAL_MSG;
-					l_page_msg.data._dataStr = l_msg.datastr;
-
-					bool l_res = (l_page->fFifo.Put(l_page_msg) == VE_OK);
-					VString l_trace = VString("VRemoteDebugPilot::InnerTaskProc (SEND_EVAL_MSG) fFifo.put status=");
-					l_trace += (l_res ? "1" : "0" );
-					sPrivateLogHandler->Put( (!l_res ? WAKDBG_ERROR_LEVEL : WAKDBG_INFO_LEVEL),l_trace);
-					l_this->fPipeStatus = VE_OK;
-				}
-				l_this->fPipeOutSem.Unlock();
-				break;
-			case SEND_LOOKUP_MSG:
-				l_id = (unsigned long long)l_msg.ctx;
-				if (l_id < K_NB_MAX_PAGES)
-				{
-					VChromeDbgHdlPage*	l_page = &l_ctxs[l_id].page->value;
-					ChrmDbgMsg_t		l_page_msg;
-
-					l_page_msg.type = LOOKUP_MSG;
-					l_page_msg.data._dataStr = l_msg.datastr;
-
-					bool l_res = (l_page->fFifo.Put(l_page_msg) == VE_OK);
-					VString l_trace = VString("VRemoteDebugPilot::InnerTaskProc (SEND_LOOKUP_MSG) fFifo.put status=");
-					l_trace += (l_res ? "1" : "0" );
-					sPrivateLogHandler->Put( (!l_res ? WAKDBG_ERROR_LEVEL : WAKDBG_INFO_LEVEL),l_trace);
-					l_this->fPipeStatus = VE_OK;
-				}
-				l_this->fPipeOutSem.Unlock();
-				break;
-			case SEND_CALLSTACK_MSG:
-				l_id = (unsigned long long)l_msg.ctx;
-				if (l_id < K_NB_MAX_PAGES)
-				{
-					VChromeDbgHdlPage*	l_page = &l_ctxs[l_id].page->value;
-					ChrmDbgMsg_t		l_page_msg;
-
-					l_page_msg.type = CALLSTACK_MSG;
-					l_page_msg.data._dataStr = l_msg.datastr;
-
-					bool l_res = (l_page->fFifo.Put(l_page_msg) == VE_OK);
-					VString l_trace = VString("VRemoteDebugPilot::InnerTaskProc (SEND_CALLSTACK_MSG) fFifo.put status=");
-					l_trace += (l_res ? "1" : "0" );
-					sPrivateLogHandler->Put( (!l_res ? WAKDBG_ERROR_LEVEL : WAKDBG_INFO_LEVEL),l_trace);
-					l_this->fPipeStatus = VE_OK;
-				}
-				l_this->fPipeOutSem.Unlock();
-				break;
 			case TREAT_WS_MSG:
-				l_id = K_NB_MAX_CTXS+1;
-				for( int l_i=0; l_i<K_NB_MAX_CTXS; l_i++ )
-				{
-					if (l_ctxs[l_i].used && l_ctxs[l_i].page)
-					{
-						if (l_ctxs[l_i].page->value.GetPageNb() == l_msg.pagenb)
-						{
-							l_id = l_i;
-							l_this->fPipeStatus = VE_OK;
-							*l_msg.outpage = &l_ctxs[l_id].page->value;
-							*l_msg.outsem = l_ctxs[l_id].sem;
-							break;
-						}
-					}
-				}
-				l_this->fPipeOutSem.Unlock();
+				l_this->TreatTreatWSMsg(msg);
 				break;
+
 			case BREAKPOINT_REACHED_MSG:
-				l_id = (unsigned long long)l_msg.ctx;
-				if (l_id < K_NB_MAX_PAGES)
-				{
-					VChromeDbgHdlPage*	l_page = &l_ctxs[l_id].page->value;
-					ChrmDbgMsg_t		l_page_msg;
-
-					l_page_msg.type = BRKPT_REACHED_MSG;
-					l_page_msg.data.Msg.fLineNumber = l_msg.linenb;
-					l_page_msg.data.Msg.fSrcId = l_msg.srcid;
-					l_page_msg.data._dataStr = l_msg.datastr;
-					l_page_msg.data._urlStr = l_msg.urlstr;
-					l_page_msg.type = BRKPT_REACHED_MSG;
-
-					l_page->fState = PAUSE_STATE;
-					bool l_res = (l_page->fFifo.Put(l_page_msg) == VE_OK);
-					VString l_trace = VString("VRemoteDebugPilot::InnerTaskProc (BREAKPOINT_REACHED_MSG) fFifo.put status=");
-					l_trace += (l_res ? "1" : "0" );
-					sPrivateLogHandler->Put( (!l_res ? WAKDBG_ERROR_LEVEL : WAKDBG_INFO_LEVEL),l_trace);
-					l_this->fPipeStatus = VE_OK;
-				}
-				l_this->fPipeOutSem.Unlock();
+				l_this->TreatBreakpointReachedMsg(msg);
 				break;
+
 			case WAIT_FROM_MSG:
-				l_id = (unsigned long long)l_msg.ctx;
-				if (l_id < K_NB_MAX_PAGES)
-				{
-					if (l_ctxs[l_id].used && l_ctxs[l_id].page)
-					{
-						{
-							l_this->fPipeStatus = VE_OK;
-							*l_msg.outpage = &l_ctxs[l_id].page->value;
-						}
-					}
-				}
+				l_this->TreatWaitFromMsg(msg);
+				break;
+
+			//case PUT_TRACES_MSG:
+			//	l_this->TreatTracesMsg(msg);
+			//	break;
+
+			default:
+				DebugMsg("VRemoteDebugPilot::InnerTaskProc  unknown msg type=%d\n",msg.type);
+				xbox_assert(false);
 				l_this->fPipeOutSem.Unlock();
 				break;
-			default:
-				DebugMsg("VRemoteDebugPilot::InnerTaskProc  unknown msg type=%d\n",l_msg.type);
-				xbox_assert(false);
-				break;
 			}
+			l_this->TreatTraces();
+			l_this->fLock.Unlock();
 		}
-		if (l_this->fState == WORKING_STATE)
+
+		if (l_this->fState == DISCONNECTING_STATE)
 		{
-			l_msg_len = K_MAX_SIZE;
-			l_err = l_this->fWS->ReadMessage((void*)l_this->fData,&l_msg_len,&l_is_msg_terminated);
-			if (l_err)
-			{
-				DebugMsg("VRemoteDebugPilot::InnerTaskProc fWS->ReadMessage pb\n");
-				xbox_assert(false);
-				l_this->fCompletedSem.Unlock();
-				l_this->fState = STARTED_STATE;
-				goto wait_connection;
-			}
-			if (l_msg_len)
-			{
-				if (l_msg_len < K_MAX_SIZE)
-				{
-					l_this->fData[l_msg_len] = 0;
-				}
-				else
-				{
-					l_this->fData[K_MAX_SIZE-1] = 0;
-				}
-				DebugMsg("VRemoteDebugPilot::InnerTaskProc received msg='%s'\n",l_this->fData);
-				l_tmp = (sBYTE*)strstr((const char*)l_this->fData,K_DBG_PROTOCOL_CONNECT_STR);
-				if (l_tmp && !l_client_id.GetLength())
-				{
-					l_tmp += strlen(K_DBG_PROTOCOL_CONNECT_STR);
-					l_end = (sBYTE*)strchr((const char*)l_tmp,'"');
-					*l_end = 0;
-					l_resp = CVSTR("{\"result\":\"ok\",\"id\":\"");
-					l_tmp[K_MAX_SIZE] = 0;
-					l_client_id = VString(l_tmp);
-					l_resp += l_client_id;
-					l_resp += CVSTR("\"}");
-					/*l_size = l_resp.GetLength() * 3; // overhead between VString's UTF_16 to CHAR* UTF_8 
-					if (l_size >= K_MAX_SIZE)
-					{
-						l_size = K_MAX_SIZE;
-						xbox_assert(false);
-					}
-					l_size = l_resp.ToBlock(l_this->fData,l_size,VTC_UTF_8,false,false);
-					l_err = l_this->fWS->WriteMessage(l_this->fData,l_size,true);*/
-					l_err = VRemoteDebugPilot::SendToBrowser( l_this, l_resp );
-					if (l_err)
-					{
-						l_this->fCompletedSem.Unlock();
-						l_this->fState = STARTED_STATE;
-						continue;
-					}
-				}
-				else
-				{
-					l_tmp = strstr(l_this->fData,K_DBG_PROTOCOL_GET_URL_STR);
-					if (l_tmp && l_client_id.GetLength())
-					{
-						l_tmp += strlen(K_DBG_PROTOCOL_GET_URL_STR);
-						l_end = strchr(l_tmp,'"');
-						*l_end = 0;
-						l_id = atoi(l_tmp);
-						//std::map<unsigned int,PageDescriptor_t*>::iterator l_it = l_hash.find(l_tmp_id);
-						if (l_ctxs[l_id].used)
-						{
-							if (l_ctxs[l_id].page)
-							{
-								xbox_assert(false);
-							}
-							else
-							{
-								for( int l_i=0; l_i<K_NB_MAX_PAGES; l_i++ )
-								{
-									if (!sPages[l_i].used)
-									{
-										sPages[l_i].used = true;
-										l_ctxs[l_id].page = sPages + l_i;
-										sPages[l_i].value.fFifo.Reset();
-										sPages[l_i].value.fOutFifo.Reset();
-										l_resp = CVSTR("{\"method\":\"setURLContext\",\"contextId\":\"");
-										l_resp.AppendULong8(l_id);
-										l_resp += CVSTR("\",\"url\":\"");//http://");
-										l_resp += sPages[l_i].value.fRelURL;
-										l_resp += CVSTR("\",\"id\":\"");
-										l_resp += l_client_id;
-										l_resp += CVSTR("\"}");
-										VRemoteDebugPilot::SendToBrowser( l_this, l_resp );
-										break;
-									}
-								}
-							}
-						}
-						else
-						{
-							DebugMsg("VRemoteDebugPilot::InnerTaskProc  unknwon context\n");
-							xbox_assert(false);
-						}
-					}
-					else
-					{
-						DebugMsg("VRemoteDebugPilot::InnerTaskProc received msg='%s'\n",l_this->fData);
-					}
-				}
-			}
+			l_this->fLock.Lock();
+			l_this->HandleDisconnectingState();
+			l_this->fLock.Unlock();
+		}
+		if (l_this->fState == CONNECTING_STATE)
+		{
+			l_this->fLock.Lock();
+			l_this->HandleConnectingState();
+			l_this->fLock.Unlock();
+		}
+		if (l_this->fState == CONNECTED_STATE)
+		{
+			l_this->fLock.Lock();
+			l_this->HandleConnectedState();
+			l_this->fLock.Unlock();
 		}
 	}
 	DebugMsg("VRemoteDebugPilot::InnerTaskProc fifo pb\n");
@@ -493,253 +941,410 @@ wait_connection:
 	return 0;
 }
 
-XBOX::VError VRemoteDebugPilot::TreatRemoteDbg(IHTTPResponse* ioResponse)
+XBOX::VError VRemoteDebugPilot::TreatRemoteDbg(IHTTPResponse* ioResponse, bool inNeedsAuthentication)
 {
-	RemoteDebugPilotMsg_t	l_msg;
+	RemoteDebugPilotMsg_t	msg;
 
-	if (!fSem.TryToLock())
+	if (!fUniqueClientConnexionSemaphore.TryToLock())
 	{
 		DebugMsg("VRemoteDebugPilot::TreatRemoteDbg already in use\n"); 
 		return VE_UNKNOWN_ERROR;
 	}
 
-	l_msg.type = TREAT_CLIENT_MSG;
-	l_msg.response = ioResponse;
-	if (!Send(l_msg))
+	IAuthenticationInfos*	authInfos = ioResponse->GetRequest().GetAuthenticationInfos();
+	VString					userName;
+	authInfos->GetUserName(userName);
+	msg.type = TREAT_NEW_CLIENT_MSG;
+	msg.response = ioResponse;
+	msg.needsAuthentication = inNeedsAuthentication;
+	if (!Send(msg))
 	{
-		fCompletedSem.Lock();
+		fClientCompletedSemaphore.Lock();
+		DebugMsg("VRemoteDebugPilot::TreatRemoteDbg ended!!!\n");
 	}
-	fSem.Unlock();
+	fUniqueClientConnexionSemaphore.Unlock();
 	return XBOX::VE_OK;
 }
 
 
-WAKDebuggerServerMessage* VRemoteDebugPilot::WaitFrom(WAKDebuggerContext_t inContext)
+WAKDebuggerServerMessage* VRemoteDebugPilot::WaitFrom(OpaqueDebuggerContext inContext)
 {
-	//VTask::Sleep(2000);
-	WAKDebuggerServerMessage*	l_res = NULL;
-	RemoteDebugPilotMsg_t		l_msg;
-	VChromeDbgHdlPage*			l_page;	
+	WAKDebuggerServerMessage*	res = NULL;
+	RemoteDebugPilotMsg_t		msg;
+	VChromeDbgHdlPage*			page = NULL;	
+
+	msg.type = WAIT_FROM_MSG;
+	msg.ctx = inContext;
+	msg.outpage = &page;
+
+	VError	err = Send(msg);
+
+	if (!err && page)
+	{
+		fPendingContextsNumberSem.Unlock();
+		res = page->WaitFrom();
+		fLock.Lock();
+		if (res->fType == WAKDebuggerServerMessage::SRV_CONNEXION_INTERRUPTED)
+		{
+			std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find(inContext);
+			if (ctxIt != fContextArray.end())
+			{
+				ReleaseRefCountable(&(*ctxIt).second->fPage);
+			}
+		}
+		ReleaseRefCountable(&page);
+		fLock.Unlock();
+		fPendingContextsNumberSem.Lock();
+	}
+	else
+	{
+		//int a=1;
+	}
+	return res;
+}
+
+XBOX::VError VRemoteDebugPilot::SendEval( OpaqueDebuggerContext inContext, const XBOX::VString& inEvaluationResult, const XBOX::VString& inRequestId )
+{
+	VError	err = VE_INVALID_PARAMETER;
+
+	fLock.Lock();
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find(inContext);
 	
-
-	//memset(&l_msg,0,sizeof(l_msg));
-	l_msg.type = WAIT_FROM_MSG;
-	l_msg.ctx = inContext;
-	l_msg.outpage = &l_page;
-
-	VError	l_err = Send(l_msg);
-
-	if (!l_err)
+	if (testAssert(ctxIt != fContextArray.end()))
 	{
-		while (!l_page->fEnabled)
+		VChromeDbgHdlPage*	page = (*ctxIt).second->fPage;
+		if ( page  )
 		{
-			VTask::Sleep(200);
-		}
-
-		ChrmDbgMsg_t					l_page_msg;
-		bool							l_msg_found;
-
-		l_res = (WAKDebuggerServerMessage*)malloc(sizeof(WAKDebuggerServerMessage));
-
-		if (testAssert( l_res != NULL ))
-		{
-			memset(l_res,0,sizeof(*l_res));
-			l_res->fType = WAKDebuggerServerMessage::NO_MSG;
-		}
-		else
-		{
-			return NULL;
-		}
-
-#if 1
-		//xbox_assert(l_page->fActive);
-		if (l_page && l_page->fState == PAUSE_STATE)
-		{
-			l_page->fOutFifo.Get(&l_page_msg,&l_msg_found,0);
-			if (!l_msg_found)
-			{
-				l_page_msg.type = NO_MSG;
-			}
-			if (l_page_msg.type == SEND_CMD_MSG)
-			{
-				memcpy( l_res, &l_page_msg.data.Msg, sizeof(*l_res) );
-			}
-			else
-			{
-				xbox_assert(false);
-			}
-
-		}
-		else
-		{
-			//xbox_assert(false);
+			err = page->Eval(inEvaluationResult,inRequestId);
 		}
 	}
-#endif
-	return l_res;
+
+	fLock.Unlock();
+	return err;
 }
 
-XBOX::VError VRemoteDebugPilot::SendEval( WAKDebuggerContext_t inContext, void* inVars )
+
+XBOX::VError VRemoteDebugPilot::SendLookup( OpaqueDebuggerContext inContext, const XBOX::VString& inLookupResult )
 {
-	VError	l_err = VRemoteDebugPilot::Check(inContext);
-	if (!l_err)
+	VError	err = VE_INVALID_PARAMETER;
+
+	fLock.Lock();
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find(inContext);
+
+	if (ctxIt != fContextArray.end())
 	{
-		return l_err;
+		VChromeDbgHdlPage*	page = (*ctxIt).second->fPage;
+		if ( page )
+		{
+			err = page->Lookup(inLookupResult);
+		}
 	}
-	RemoteDebugPilotMsg_t	l_msg;
-	l_msg.type = SEND_EVAL_MSG;
-	l_msg.ctx = inContext;
-	l_msg.datastr = *(VString*)(inVars);
+	fLock.Unlock();
 
-	delete (VString*)(inVars);
-
-	l_err = Send( l_msg );
-	return l_err;
+	return err;
 }
 
-XBOX::VError VRemoteDebugPilot::SendSource(		WAKDebuggerContext_t inContext,
-												intptr_t inSrcId,
-												const char *inData,
-												int inLength,
-												const char* inUrl,
-												unsigned int inUrlLen )
+XBOX::VError VRemoteDebugPilot::SendCallStack(
+											OpaqueDebuggerContext				inContext,
+											const XBOX::VString&				inCallstackStr,
+											const XBOX::VString&				inExceptionInfosStr,
+											const CallstackDescriptionMap&		inCallstackDesc )
 {
+	VError	err = VE_INVALID_PARAMETER;
 
-	VError	l_err;
-	xbox_assert(false);// should not pass here
-	return l_err;
-}
+	fLock.Lock();
+	std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.find(inContext);
 
-XBOX::VError VRemoteDebugPilot::SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize )
-{
-	VError	l_err = VRemoteDebugPilot::Check(inContext);
-	if (!l_err)
+	if (testAssert(ctxIt != fContextArray.end()))
 	{
-		return l_err;
+		VChromeDbgHdlPage*	page = (*ctxIt).second->fPage;
+		if ( page )
+		{
+			err = page->Callstack(inCallstackStr,inExceptionInfosStr,inCallstackDesc);
+		}
 	}
-	RemoteDebugPilotMsg_t	l_msg;
-	l_msg.type = SEND_LOOKUP_MSG;
-	l_msg.ctx = inContext;
-
-	l_msg.datastr = *((VString*)inVars);
-	delete (VString*)(inVars);
-	l_err = Send( l_msg );
-	return l_err;
+	fLock.Unlock();
+	return err;
 }
 
-XBOX::VError VRemoteDebugPilot::SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength )
-{
-	VError	l_err = VRemoteDebugPilot::Check(inContext);
-	if (!l_err)
-	{
-		return l_err;
-	}
-	RemoteDebugPilotMsg_t	l_msg;
-	l_msg.type = SEND_CALLSTACK_MSG;
-	l_msg.ctx = inContext;
-
-	l_msg.datastr = VString( inData, inLength*2,  VTC_UTF_16 );
-	l_err = Send( l_msg );
-	return l_err;
-}
-
-
-XBOX::VError VRemoteDebugPilot::SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state)
-{
-	VError	l_err = VRemoteDebugPilot::Check(inContext);
-	if (!l_err)
-	{
-		return l_err;
-	}
-	RemoteDebugPilotMsg_t	l_msg;
-	l_msg.type = SET_STATE_MSG;
-	l_msg.ctx = inContext;
-	l_msg.state = state;
-	l_err = Send( l_msg );
-	return l_err;
-}
 
 XBOX::VError VRemoteDebugPilot::BreakpointReached(
-											WAKDebuggerContext_t	inContext,
-											int						inLineNumber,
-											int						inExceptionHandle,
-											char*					inURL,
-											int						inURLLength,
-											char*					inFunction,
-											int 					inFunctionLength,
-											char*					inMessage,
-											int 					inMessageLength,
-											char* 					inName,
-											int 					inNameLength,
-											long 					inBeginOffset,
-											long 					inEndOffset )
+											OpaqueDebuggerContext		inContext,
+											int							inLineNumber,
+											RemoteDebuggerPauseReason	inDebugReason,
+											XBOX::VString&				inException,
+											XBOX::VString&				inSourceUrl,
+											XBOX::VectorOfVString&		inSourceData)
 {
 
-	VError	l_err = VRemoteDebugPilot::Check(inContext);
-	if (!l_err)
+	VError	err = VE_INVALID_PARAMETER;
+
+	XBOX::VSemaphore*	sem = NULL;
+	VContextDebugInfos	debugInfos;
+	
+	debugInfos.fFileName = inSourceUrl;
+
+	VURL::Decode( debugInfos.fFileName );
+	VIndex				idx = debugInfos.fFileName.FindUniChar( L'/', debugInfos.fFileName.GetLength(), true );
+	if (idx  > 1)
 	{
-		return l_err;
+		VString			tmpStr;
+		debugInfos.fFileName.GetSubString(idx+1,debugInfos.fFileName.GetLength()-idx,tmpStr);
+		debugInfos.fFileName = tmpStr;
 	}
 
-	bool	l_wait;
-	XBOX::VSemaphore*	l_sem = new VSemaphore(0);
+	debugInfos.fLineNb = inLineNumber+1;
+	debugInfos.fReason = ( inDebugReason == EXCEPTION_RSN ? "exception" : (inDebugReason == BREAKPOINT_RSN ? "breakpoint" : "dbg statement" ) );
+	debugInfos.fComment = "To Be Completed";
+	debugInfos.fSourceLine = ( inLineNumber < inSourceData.size() ? inSourceData[inLineNumber] : " NO SOURCE AVAILABLE  " );
+	err = ContextUpdated(inContext,debugInfos,&sem);
 
-	l_err = ContextUpdated(inContext,l_sem,&l_wait);
-	if (!l_err)
+	if (err == VE_OK)
 	{
-		if (l_wait)
+		fPendingContextsNumberSem.Unlock();
+		// if sem not NULL then wait for a browser page granted for debug
+		if (sem)
 		{
-			l_sem->Lock();
-			VTask::Sleep(2500);
-			delete l_sem;
+			sem->Lock();
+			ReleaseRefCountable(&sem);
 		}
-		RemoteDebugPilotMsg_t	l_msg;
-		l_msg.type = BREAKPOINT_REACHED_MSG;
-		l_msg.ctx = inContext;
-		l_msg.linenb = inLineNumber;
-		l_msg.srcid = *(intptr_t *)inURL;// we use the URL param to pass sourceId (to not modify interface of server)
-		l_msg.datastr = VString( inFunction, inFunctionLength*2,  VTC_UTF_16 );
-		l_msg.urlstr = VString( inMessage, inMessageLength*2,  VTC_UTF_16 );
-		l_err = Send( l_msg );
-	}
-	VString l_trace = VString("VRemoteDebugPilot::BreakpointReached ctx activation pb for ctxid=");
-	l_trace.AppendLong8((unsigned long long)inContext);
-	l_trace += " ,ok=";
-	l_trace += (!l_err ? "1" : "0" );
-	sPrivateLogHandler->Put( (l_err ? WAKDBG_ERROR_LEVEL : WAKDBG_INFO_LEVEL),l_trace);
 
-	return l_err;
+		RemoteDebugPilotMsg_t	msg;
+		msg.type = BREAKPOINT_REACHED_MSG;
+		msg.ctx = inContext;
+		msg.linenb = inLineNumber;
+		msg.datavectstr = inSourceData;
+		msg.datastr = inException;
+		msg.urlstr = inSourceUrl;
+		err = Send( msg );
+		//testAssert(err == VE_OK);
+		fPendingContextsNumberSem.Lock();
+	}
+	VString trace = VString("VRemoteDebugPilot::BreakpointReached ctx activation pb for ctxid=");
+	trace.AppendLong8((unsigned long long)inContext);
+	trace += " ,ok=";
+	trace += (!err ? "1" : "0" );
+	sPrivateLogHandler->Put( (err ? WAKDBG_ERROR_LEVEL : WAKDBG_INFO_LEVEL),trace);
+
+	return err;
 }
 
 XBOX::VError VRemoteDebugPilot::TreatWS(IHTTPResponse* ioResponse, uLONG inPageNb )
 {
-
-	if (inPageNb >= K_NB_MAX_PAGES)
-	{
-		xbox_assert(false);
-		return VE_INVALID_PARAMETER;
-	}
 	
-	VError					l_err;
-	RemoteDebugPilotMsg_t	l_msg;
-	VChromeDbgHdlPage*		l_page;
-	XBOX::VSemaphore*		l_sem = NULL;
-	//memset(&l_msg,0,sizeof(l_msg));
-	l_msg.type = TREAT_WS_MSG;
-	l_msg.pagenb = inPageNb;
-	l_msg.outpage = &l_page;
-	l_msg.outsem = &l_sem;
-	l_err = Send( l_msg );
-	if (!l_err)
+	VError					err;
+	RemoteDebugPilotMsg_t	msg;
+	VChromeDbgHdlPage*		page = NULL;
+	XBOX::VSemaphore*		sem = NULL;
+
+	msg.type = TREAT_WS_MSG;
+	msg.pagenb = inPageNb;
+	msg.outpage = &page;
+	msg.outsem = &sem;
+	err = Send( msg );
+	if (testAssert(err == VE_OK))
 	{
-		// attention : debloquer aussi si err
-		l_sem->Unlock();
-		l_page->TreatWS(ioResponse);
-	}
-	else
-	{
-		xbox_assert(false);
+		if (testAssert(sem && page))
+		{
+			// page and sem are already retained
+			// the debugging page WebSocket is handled thanks to the (HTTP server) calling thread
+			if (page->TreatWS(ioResponse,sem))
+			{
+				
+			}
+			//fLock.Lock();
+			ReleaseRefCountable(&sem);
+			ReleaseRefCountable(&page);
+			//fLock.Unlock();
+		}
 	}
 
 	return VE_OK;
+}
+
+XBOX::VError VRemoteDebugPilot::NewContext(OpaqueDebuggerContext* outContext) {
+	RemoteDebugPilotMsg_t	msg;
+	msg.type = NEW_CONTEXT_MSG;
+	msg.outctx = outContext;
+	XBOX::VError l_err = Send( msg );
+	if (!l_err)
+	{
+		return l_err;
+	}
+	xbox_assert(false);//TBC
+	return l_err;
+}
+
+XBOX::VError VRemoteDebugPilot::ContextUpdated(	OpaqueDebuggerContext		inContext,
+												const VContextDebugInfos&	inDebugInfos,
+												XBOX::VSemaphore**			outSem)
+{
+	RemoteDebugPilotMsg_t	msg;
+	msg.type = UPDATE_CONTEXT_MSG;
+	msg.ctx = inContext;
+	msg.outsem = outSem;
+	msg.debugInfos = inDebugInfos;
+	return Send( msg );
+}
+XBOX::VError VRemoteDebugPilot::ContextRemoved(OpaqueDebuggerContext inContext)
+{
+	RemoteDebugPilotMsg_t	msg;
+	msg.type = REMOVE_CONTEXT_MSG;
+	msg.ctx = inContext;
+	return Send( msg );
+}
+XBOX::VError VRemoteDebugPilot::DeactivateContext( OpaqueDebuggerContext inContext, bool inHideOnly )
+{
+	RemoteDebugPilotMsg_t	msg;
+	msg.type = DEACTIVATE_CONTEXT_MSG;
+	msg.ctx = inContext;
+	msg.hideOnly = inHideOnly;
+	return Send( msg );
+}
+XBOX::VError VRemoteDebugPilot::Start()
+{
+	RemoteDebugPilotMsg_t		msg;
+	msg.type = START_MSG;
+	return Send( msg );
+}
+
+XBOX::VError VRemoteDebugPilot::Stop()
+{
+	RemoteDebugPilotMsg_t	msg;
+	msg.type = STOP_MSG;
+	return Send( msg );
+}
+
+XBOX::VError VRemoteDebugPilot::AbortAll() {
+	RemoteDebugPilotMsg_t	msg;
+	msg.type = ABORT_ALL_MSG;
+	return Send( msg );
+}
+
+VRemoteDebugPilot::VStatusHysteresis::VStatusHysteresis()
+{
+	fLastConnectedTime.FromSystemTime();
+	XBOX::VDuration		tenSecs(10000);
+	fLastConnectedTime.Substract(tenSecs);
+}
+
+void VRemoteDebugPilot::VStatusHysteresis::Get(bool& ioConnected)
+{
+	XBOX::VTime			curtTime;
+
+	curtTime.FromSystemTime();
+	fLock.Lock();
+	if (ioConnected)
+	{
+		fLastConnectedTime = curtTime;
+	}
+	else
+	{
+		XBOX::VDuration		disconnectedDuration;
+		curtTime.Substract(fLastConnectedTime,disconnectedDuration);
+		// if disconnection quite recent (< approx 1 s) consider it always connected
+		if (disconnectedDuration.ConvertToMilliseconds() < 1100)
+		{
+			ioConnected = true;
+		}
+	}
+	fLock.Unlock();
+	
+}
+
+void VRemoteDebugPilot::GetStatus(bool&	outPendingContexts,bool& outConnected,sLONG& outDebuggingEventsTimeStamp)
+{
+
+	outConnected = (fState == CONNECTED_STATE);
+	
+	fStatusHysteresis.Get(outConnected);
+
+	outPendingContexts = fPendingContextsNumberSem.TryToLock();
+	outDebuggingEventsTimeStamp = fDebuggingEventsTimeStamp;
+	if (outPendingContexts)
+	{
+		fPendingContextsNumberSem.Unlock();
+	}
+}
+
+XBOX::VError VRemoteDebugPilot::Send( const RemoteDebugPilotMsg_t& inMsg ) {
+	XBOX::VError	err;
+	
+	fPipeLock.Lock();
+	fPipeStatus = VE_INVALID_PARAMETER;
+	fPipeMsg = inMsg;
+	fPipeInSem.Unlock();
+	fPipeOutSem.Lock();
+	err = fPipeStatus;
+	//xbox_assert( l_err == XBOX::VE_OK );
+	fPipeLock.Unlock();
+	return err;
+}
+
+XBOX::VError VRemoteDebugPilot::Get(RemoteDebugPilotMsg_t& outMsg, bool& outFound, uLONG inTimeoutMs) {
+	bool			ok;
+	XBOX::VError	err;
+
+	outFound = false;
+	err = XBOX::VE_UNKNOWN_ERROR;
+
+	if (!inTimeoutMs)
+	{
+		ok = fPipeInSem.Lock();
+	}
+	else
+	{
+		ok = fPipeInSem.Lock((sLONG)inTimeoutMs);
+	}
+	if (ok)
+	{
+		outMsg = fPipeMsg;
+		outFound = true;
+		err = XBOX::VE_OK;
+	}
+	else
+	{
+		if (inTimeoutMs)
+		{
+			err = XBOX::VE_OK;
+		}
+	}
+	return err;
+}
+
+XBOX::VError VRemoteDebugPilot::SendToBrowser( const XBOX::VString& inResp )
+{
+	XBOX::VStringConvertBuffer		buffer(inResp,XBOX::VTC_UTF_8);
+	XBOX::VSize						size = buffer.GetSize();
+	//DebugMsg("SendToBrowser -> msg='%S'\n",&inResp);
+	XBOX::VError					err = fWS->WriteMessage((void*)buffer.GetCPointer(),size,true);
+	return err;
+}
+
+XBOX::VError VRemoteDebugPilot::SendContextToBrowser(
+												std::map< OpaqueDebuggerContext,VContextDescriptor* >::iterator& inCtxIt)
+{
+	XBOX::VString				resp;
+	XBOX::VString				brkptsStr;
+
+	VChromeDebugHandler::GetJSONBreakpoints(brkptsStr);
+
+	resp = CVSTR("{\"method\":\"updateContext\",\"contextId\":\"");
+	resp.AppendLong8((sLONG8)(*inCtxIt).first);
+	resp += CVSTR("\",\"debugLineNb\":");
+	resp.AppendLong((*inCtxIt).second->fDebugInfos.fLineNb);
+	resp += CVSTR(",\"debugFileName\":\"");
+	resp += (*inCtxIt).second->fDebugInfos.fFileName;
+	resp += CVSTR("\",\"debugReason\":\"");
+	resp += (*inCtxIt).second->fDebugInfos.fReason;
+	resp += CVSTR("\",\"debugComment\":\"");
+	resp += (*inCtxIt).second->fDebugInfos.fComment;
+	resp += CVSTR("\",\"sourceLine\":\"");
+	resp += (*inCtxIt).second->fDebugInfos.fSourceLine;
+	resp += CVSTR("\",\"id\":\"");
+	resp += fClientId;
+	resp += "\",\"breakpoints\":";
+	resp += brkptsStr;
+	resp += CVSTR("}");
+	return SendToBrowser( resp );
 }

@@ -280,28 +280,22 @@ void VFilePath::GetPosixPath( VString& outFullPath) const
 		// on windows: c:\dfdfsdf\dd.fgg
 		// on mac: macintosh hd:system:folder:dd
 		// on unix: /user/bin/dd.fgg
-
+#if VERSIONWIN
 		UniChar *p = outFullPath.GetCPointerForWrite();
 		for(sLONG i = outFullPath.GetLength() - 1 ;  i >= 0 ; --i)
 		{
-#if VERSIONMAC
-			// HFS filenames allow "/", they need to be converted into ":" in Posix
-			if(p[i] == '/')
-				p[i] = ':';
-			else
-#endif
 			if (p[i] == FOLDER_SEPARATOR)
 				p[i] = CHAR_SOLIDUS;
 		}
-
-		#if VERSIONWIN
 		// do not prepend with a '/' if a drive or a UNC server name is specified
 		if ((outFullPath.GetLength()) < 2 
 			|| ((outFullPath[1] != CHAR_COLON) && (outFullPath[0] != CHAR_SOLIDUS || outFullPath[1] != CHAR_SOLIDUS)) )
 			outFullPath.Insert(CHAR_SOLIDUS, 1);
-		#elif VERSIONMAC
-		outFullPath.Insert(CVSTR("/Volumes/"), 1); // CR 23/04/07 : "/volumes/" --> "/Volumes" (capital "V" on MacOSX)
-		#endif
+#elif VERSIONMAC
+		//OR 10/10/2012 ACI0076393: do not assume all HFS paths are rooted in /Volumes/, let OS figure out where the path root/mount point is
+		//Folder separator conversions between HFS and posix are also handled in VURL::Convert()
+		VURL::Convert(outFullPath,XBOX::eURL_HFS_STYLE,XBOX::eURL_POSIX_STYLE,false);
+#endif
 	}
 }
 

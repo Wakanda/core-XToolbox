@@ -21,6 +21,31 @@
 #include <stdio.h>
 
 
+bool XMacStackCrawl::operator < (const XMacStackCrawl& other) const
+{
+	bool res;
+	if (fCount == other.fCount)
+	{
+		res = false;
+		for (int i = 0; i < fCount; ++i)
+		{
+			if (fFrames[i] < other.fFrames[i])
+			{
+				res = true;
+				break;
+			}
+		}
+	}
+	else
+	{
+		if (fCount <= 0 && other.fCount <= 0)
+			res = false;
+		else
+			res = (fCount < other.fCount);
+	}
+	return res;
+}
+
 void XMacStackCrawl::LoadFrames( uLONG inStartFrame, uLONG inNumFrames)
 {
 	xbox_assert( inStartFrame < 10);

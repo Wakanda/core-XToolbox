@@ -1524,12 +1524,17 @@ VError VValueBag::_GetJSONString(VString& outJSONString, sLONG& curlevel, bool p
 
 	VIndex nbatt = GetAttributesCount();
 	VIndex nbelem = GetElementNamesCount();
+	bool first = true;
 	for (VIndex i = 1; i <= nbatt; i++)
 	{
 		VString s;
 		const VValueSingle* val = GetNthAttribute(i, &s);
 		if ((s != L"____objectunic") && (s != L"____property_name_in_jsarray"))
 		{
+			if (first)
+				first = false;
+			else
+				outJSONString.AppendUniChar(',');
 			if(s=="<>")
 				s = "__CDATA";
 			AppendJSONPropertyName(outJSONString, curlevel, prettyformat, s);
@@ -1540,19 +1545,16 @@ VError VValueBag::_GetJSONString(VString& outJSONString, sLONG& curlevel, bool p
 				val->GetJSONString(s, JSON_WithQuotesIfNecessary);
 				outJSONString += s;
 			}
-
-			if (i == nbatt)
-			{
-				if (nbelem > 0)
-					outJSONString.AppendUniChar(',');
-			}
-			else
-				outJSONString.AppendUniChar(',');
 		}
 	}
 
 	for (VIndex i = 1; i <= nbelem; i++)
 	{
+		if (first)
+			first = false;
+		else
+			outJSONString.AppendUniChar(',');
+
 		VString s;
 		const VBagArray* subelems = GetNthElementName(i, &s);
 		AppendJSONPropertyName(outJSONString, curlevel, prettyformat, s);
@@ -1568,8 +1570,6 @@ VError VValueBag::_GetJSONString(VString& outJSONString, sLONG& curlevel, bool p
 		else
 			subelems->_GetJSONString(outJSONString, curlevel, prettyformat, inModifier);
 
-		if (i != nbelem)
-			outJSONString.AppendUniChar(',');
 	}
 
 	AppendEndJSONObject(outJSONString, curlevel, prettyformat);

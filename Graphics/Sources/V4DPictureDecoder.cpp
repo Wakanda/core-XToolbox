@@ -20,7 +20,7 @@
 
 #if VERSIONMAC
 #import <ApplicationServices/ApplicationServices.h>
-#else
+#elif VERSIONWIN
 #include <wincodec.h>
 #endif
 
@@ -165,7 +165,6 @@ class XTOOLBOX_API xTempPictureDataProvider_VPtr : public VPictureDataProvider_V
 VPictureCodecFactory* VPictureCodecFactory::sDecoderFactory = NULL;
 VPictureCodecFactory::VPictureCodecFactory()
 {
-	//fLastBuiltIn=0;
 	
 	_AppendRetained_BuiltIn(new VPictureCodec_InMemBitmap());
 	_AppendRetained_BuiltIn(new VPictureCodec_InMemVector());
@@ -188,8 +187,10 @@ VPictureCodecFactory::VPictureCodecFactory()
 
 #if VERSIONMAC
 	_AppendImageIOCodecs();	
-#else
+#elif VERSIONWIN
 	_AppendWICCodecs();
+#elif VERSION_LINUX
+	_AppendRetained_BuiltIn(new VPictureCodec_SVG());
 #endif
 	
 	_UpdateDisplayNameWithSystemInformation();
@@ -550,7 +551,7 @@ VError VPictureCodecFactory::Encode(const VPicture& inPict,const VString& inID,V
 	{
 		// on a pas trouver le type demander, on le cree sans transformation
 		VPicture tmpPict;
-		tmpPict.FromVPicture_Retain(inPict);
+		tmpPict.FromVPicture_Retain(inPict,false);
 		tmpPict.ResetMatrix();
 		
 		data=Encode(tmpPict,inID,inEncoderParameter);
@@ -622,6 +623,14 @@ void VPictureCodecFactory::RegisterQuicktimeDecoder(VPictureCodec* inCodec)
 	}
 }
 
+void VPictureCodecFactory::UnRegisterQuicktimeDecoder()
+{
+	for(sLONG i=0;i<fQTCodec.size();i++)
+	{
+		fQTCodec[i]->Release();
+	}
+	fQTCodec.clear();
+}
 
 #if VERSIONMAC
 /** append ImageIO codecs */
@@ -677,7 +686,7 @@ void VPictureCodecFactory::_AppendImageIOCodecs()
 	
 	ImageMeta::stReader::InitializeGlobals();
 }
-#else
+#elif VERSIONWIN
 /** append WIC codecs */
 void VPictureCodecFactory::_AppendWICCodecs()
 {
@@ -1428,9 +1437,9 @@ VPictureCodec::VPictureCodec()
 
 #if VERSIONMAC
 	SetScrapKind(SCRAP_KIND_PICTURE_PICT,"");
-	#else
+#else
 	SetScrapKind(SCRAP_KIND_PICTURE_BITMAP,"");
-	#endif
+#endif
 };
 VPictureCodec::~VPictureCodec()
 {
@@ -1655,12 +1664,14 @@ bool VPictureCodec::NeedReEncode(const VPictureData& inData,const VValueBag* inC
 		if(inSet && !inSet->IsIdentityMatrix())
 			result = true;
 
+		#if !VERSION_LINUX
 		//if some settings are modified, we need to reencode
 		if ((!result) && inCompressionSettings)
 		{
 			ImageEncoding::stReader reader( inCompressionSettings);
 			result = reader.NeedReEncode();
 		}
+		#endif
 	}
 	return result;
 }
@@ -1849,9 +1860,32 @@ VError VPictureCodec::_GDIPLUS_Encode(const VString& inMimeType,const VPictureDa
 	inData.Release();
 	return result;
 }
-#else
-
 #endif
+
+VError VPictureCodec::_GenericEncodeUnknownData(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	XBOX::VError err=VE_UNIMPLEMENTED;
+	if(IsEncodedByMe(inData))
+	{
+		VSize outsize;
+		err=inData.Save(&outBlob,0,outsize);
+	}
+	return err;
+}
+VError VPictureCodec::_GenericEncodeUnknownData(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
+{
+	XBOX::VError err=VE_UNIMPLEMENTED;
+	if(IsEncodedByMe(inData))
+	{
+		VBlobWithPtr blob;
+		err=Encode(inData,inSettings,blob,inSet);
+		if(err==VE_OK)
+		{
+			err=CreateFileWithBlob(blob,inFile);
+		}
+	}
+	return err;
+}
 
 bool VPictureCodec::CheckMacType(sLONG inExt) const
 {
@@ -2109,8 +2143,10 @@ VPictureData* VPictureCodec_InMemBitmap::_CreatePictData(VPictureDataProvider& i
 {
 	#if VERSIONMAC
 	return new VPictureData_CGImage(&inDataProvider,inRecorder);
-	#else
+	#elif VERSIONWIN
 	return new VPictureData_GDIPlus(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
 	#endif
 }
 
@@ -2134,8 +2170,10 @@ VPictureData* VPictureCodec_InMemVector::_CreatePictData(VPictureDataProvider& i
 {
 	#if VERSIONMAC
 	return new VPictureData_CGImage(&inDataProvider,inRecorder);
-	#else
+	#elif VERSIONWIN
 	return new VPictureData_GDIPlus_Vector(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
 	#endif
 }
 
@@ -2165,10 +2203,13 @@ VPictureData* VPictureCodec_PDF::_CreatePictData(VPictureDataProvider& inDataPro
 {
 	#if VERSIONMAC
 	return new VPictureData_PDF(&inDataProvider,inRecorder);
-	#else
+	#elif VERSIONWIN
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
 	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
 	#endif
 }
+
 #if VERSIONMAC
 VError VPictureCodec_PDF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
@@ -2210,13 +2251,13 @@ VError VPictureCodec_PDF::DoEncode(const VPictureData& inData,const VValueBag* i
 	return result;
 }
 #else
-VError VPictureCodec_PDF::DoEncode(const VPictureData& /*inData*/,const VValueBag* /*inSettings*/,VBlob& /*outBlob*/,VPictureDrawSettings* /*inSet*/) const
+VError VPictureCodec_PDF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
-	return VE_UNIMPLEMENTED;
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
 }
-VError VPictureCodec_PDF::DoEncode(const VPictureData& /*inData*/,const VValueBag* /*inSettings*/,VFile& /*inFile*/,VPictureDrawSettings* /*inSet*/) const
+VError VPictureCodec_PDF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
 {
-	return VE_UNIMPLEMENTED;
+	return _GenericEncodeUnknownData(inData,inSettings,inFile,inSet);
 }
 #endif
 
@@ -2271,6 +2312,20 @@ VPictureCodec_JPEG::VPictureCodec_JPEG()
 	SetPrivateScrapKind(SCRAP_KIND_PICTURE_JFIF);
 	
 }
+
+#if VERSION_LINUX
+
+VError VPictureCodec_JPEG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+VError VPictureCodec_JPEG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,inFile,inSet);
+}
+
+#else
+
 VError VPictureCodec_JPEG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
 	VError result=VE_OK;
@@ -2306,6 +2361,7 @@ VError VPictureCodec_JPEG::DoEncode(const VPictureData& inData,const VValueBag* 
 	}
 	return result;
 }
+#endif
 
 bool VPictureCodec_JPEG::NeedReEncode(const VPictureData& inData,const VValueBag* inCompressionSettings,VPictureDrawSettings* inSet)const
 {
@@ -2317,8 +2373,10 @@ VPictureData* VPictureCodec_JPEG::_CreatePictData(VPictureDataProvider& inDataPr
 {
 	#if VERSIONMAC
 	return new VPictureData_CGImage(&inDataProvider,inRecorder);
-	#else
+	#elif VERSIONWIN
 	return new VPictureData_GDIPlus(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
 	#endif
 }
 
@@ -2346,10 +2404,26 @@ VPictureData* VPictureCodec_PNG::_CreatePictData(VPictureDataProvider& inDataPro
 {
 	#if VERSIONMAC
 	return new VPictureData_CGImage(&inDataProvider,inRecorder);
-	#else
+	#elif VERSIONWIN
 	return new VPictureData_GDIPlus(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);	
 	#endif
 }
+
+#if VERSION_LINUX
+
+VError VPictureCodec_PNG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+
+VError VPictureCodec_PNG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+
+#else
 
 VError VPictureCodec_PNG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
@@ -2367,68 +2441,12 @@ VError VPictureCodec_PNG::DoEncode(const VPictureData& inData,const VValueBag* i
 	// and do not try to encode further)
 	if (result != VE_OK && result != VE_INVALID_PARAMETER)
 		result=_GDIPLUS_Encode("image/png",inData,inSettings,outBlob,inSet);
-#if 0
-	short err;
-	QTIME::GraphicsExportComponent ge = 0;
-	err=QTIME::OpenADefaultComponent(QTIME::GraphicsExporterComponentType,'PNGf',&ge);
-	if(err==0)
-	{
-		Gdiplus::BitmapData bmdata;
-		Gdiplus::Rect gr(0,0,inData.GetWidth(),inData.GetHeight());
-		Gdiplus::Bitmap* bm=inData.CreateGDIPlus_Bitmap(inSet);
-		bm->LockBits(&gr,Gdiplus::ImageLockModeRead ,PixelFormat32bppARGB,&bmdata); 
-		QTIME::GWorldPtr gw = 0;
-		
-		QTIME::Rect bounds={0,0,inData.GetHeight(),inData.GetWidth()};
-		//err = QTIME::QTNewGWorld(&gw,QTIME::k32RGBAPixelFormat,&bounds,NULL,NULL,NULL);
-		
-		QTNewGWorldFromPtr(&gw,QTIME::k32BGRAPixelFormat,&bounds,NULL,NULL,NULL,bmdata.Scan0,bmdata.Stride );
-
-		if(err==0)
-		{
-			HDC dc=(HDC)QTIME::GetPortHDC((QTIME::GrafPtr)gw); 
-			if(dc)
-			{
-				if(0){
-					VRect r(0,0,inData.GetWidth(),inData.GetHeight());
-					Gdiplus::Graphics graph(dc);
-					graph.Clear(Gdiplus::Color(0,255,255,255));
-					graph.Clear(Gdiplus::Color(125,255,0,0));
-					//inData.Draw(&graph,r,inSet);
-				}
-				
-				err=QTIME::GraphicsExportSetInputGWorld(ge,gw);
-				if(err==0)
-				{
-					QTIME::Handle h=QTIME::NewHandle(0);
-					err=QTIME::GraphicsExportSetOutputHandle(ge,h);
-					if(err==0)
-					{
-						err=QTIME::GraphicsExportSetDepth(ge, QTIME::k32RGBAPixelFormat);
-
-						err=QTIME::GraphicsExportDoExport (ge,0);
-						if(err!=0)
-							QTIME::DisposeHandle(h);
-						else
-						{
-							QTIME::HLock(h);
-							result=outBlob.PutData(*h,QTIME::GetHandleSize(h),0);
-							QTIME::HUnlock(h);
-							QTIME::DisposeHandle(h);
-						}
-					}
-				}
-			}
-			QTIME::DisposeGWorld(gw);
-		}
-		QTIME::CloseComponent(ge);	
-	}	
-#endif
 #else
 	result=VPictureCodec_ImageIO::_Encode(fUTI,inData,inSettings,outBlob,inSet);
 #endif
 	return result;
 }
+
 VError VPictureCodec_PNG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
 {
 	VError result=VE_OK;
@@ -2440,6 +2458,8 @@ VError VPictureCodec_PNG::DoEncode(const VPictureData& inData,const VValueBag* i
 	}
 	return result;
 }
+
+#endif
 
 VPictureCodec_BMP::VPictureCodec_BMP()
 {
@@ -2467,10 +2487,26 @@ VPictureData* VPictureCodec_BMP::_CreatePictData(VPictureDataProvider& inDataPro
 {
 	#if VERSIONMAC
 	return new VPictureData_CGImage(&inDataProvider,inRecorder);
-	#else
+	#elif VERSIONWIN
 	return new VPictureData_GDIPlus(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);		
 	#endif
 }
+
+#if VERSION_LINUX
+
+VError VPictureCodec_BMP::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+
+VError VPictureCodec_BMP::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+
+#else
 
 VError VPictureCodec_BMP::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
@@ -2496,6 +2532,7 @@ VError VPictureCodec_BMP::DoEncode(const VPictureData& inData,const VValueBag* i
 	#endif
 	return result;
 }
+
 VError VPictureCodec_BMP::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
 {
 	VError result=VE_OK;
@@ -2507,6 +2544,8 @@ VError VPictureCodec_BMP::DoEncode(const VPictureData& inData,const VValueBag* i
 	}
 	return result;
 }
+
+#endif
 
 VPictureCodec_PICT::VPictureCodec_PICT()
 {
@@ -2532,10 +2571,10 @@ VPictureCodec_PICT::VPictureCodec_PICT()
 }
 VPictureData* VPictureCodec_PICT::_CreatePictData(VPictureDataProvider& inDataProvider,_VPictureAccumulator* inRecorder) const
 {
-#if VERSIONMAC && !WITH_QUICKDRAW
-	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
-#else
+#if VERSIONWIN || WITH_QUICKDRAW
 	return new VPictureData_MacPicture(&inDataProvider,inRecorder);
+#else
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
 #endif
 }
 VPictureData* VPictureCodec_PICT::CreatePictDataFromVFile(VFile& inFile) const
@@ -2677,6 +2716,20 @@ void VPictureCodec_PICT::ByteSwapPictHeader(xMacPictureHeaderPtr inHeader)const
 	ByteSwapWord(&inHeader->version.v1.headerVersion);
 }
 
+#if VERSION_LINUX
+
+VError VPictureCodec_PICT::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+
+VError VPictureCodec_PICT::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+
+#else
+
 VError VPictureCodec_PICT::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
 	VError result=VE_UNKNOWN_ERROR;
@@ -2741,6 +2794,7 @@ VError VPictureCodec_PICT::DoEncode(const VPictureData& inData,const VValueBag* 
 	return result;
 }
 
+#endif
 
 VPictureCodec_GIF::VPictureCodec_GIF()
 {
@@ -2766,8 +2820,25 @@ VPictureCodec_GIF::VPictureCodec_GIF()
 
 VPictureData* VPictureCodec_GIF::_CreatePictData(VPictureDataProvider& inDataProvider,_VPictureAccumulator* inRecorder) const
 {
+#if VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);	
+#else
 	return new VPictureData_GIF(&inDataProvider,inRecorder);
+#endif
 }
+
+#if VERSION_LINUX
+
+VError VPictureCodec_GIF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+VError VPictureCodec_GIF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,inFile,inSet);
+}
+
+#else
 
 VError VPictureCodec_GIF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
@@ -2935,6 +3006,8 @@ VError VPictureCodec_GIF::DoEncode(const VPictureData& inData,const VValueBag* i
 	return result;
 }
 
+#endif
+
 bool VPictureCodec_GIF::ValidatePattern(const uBYTE* inPattern, const uBYTE* inData, sWORD /*inLen*/)const
 {
 	bool result=false;
@@ -2976,10 +3049,26 @@ VPictureData* VPictureCodec_TIFF::_CreatePictData(VPictureDataProvider& inDataPr
 {
 	#if VERSIONMAC
 	return new VPictureData_CGImage(&inDataProvider);
-	#else
+	#elif VERSIONWIN
 	return new VPictureData_GDIPlus(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);	
 	#endif
 }
+
+#if VERSION_LINUX
+
+VError VPictureCodec_TIFF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+VError VPictureCodec_TIFF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,inFile,inSet);
+}
+
+#else
+
 VError VPictureCodec_TIFF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
 	VError result=VE_OK;
@@ -3013,6 +3102,8 @@ VError VPictureCodec_TIFF::DoEncode(const VPictureData& inData,const VValueBag* 
 	return result;
 }
 
+#endif
+
 VPictureCodec_ICO::VPictureCodec_ICO()
 {
 	SetUTI("com.microsoft.ico");
@@ -3042,11 +3133,25 @@ VPictureData* VPictureCodec_EMF::_CreatePictData(VPictureDataProvider& inDataPro
 {
 	#if VERSIONMAC
 	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);
-	#else
-	//return new VPictureData_EMF(&inDataProvider,inRecorder);
+	#elif VERSIONWIN
 	return new VPictureData_GDIPlus_Vector(&inDataProvider,inRecorder);
+	#elif VERSION_LINUX
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);	
 	#endif
 }
+
+#if VERSION_LINUX
+
+VError VPictureCodec_EMF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+VError VPictureCodec_EMF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,inFile,inSet);
+}
+
+#else
 
 VError VPictureCodec_EMF::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
@@ -3106,6 +3211,7 @@ VError VPictureCodec_EMF::DoEncode(const VPictureData& inData,const VValueBag* i
 	#endif
 	return result;
 }
+#endif
 
 bool VPictureCodec_EMF::ValidateData(VFile& inFile)const
 {
@@ -3455,31 +3561,10 @@ HENHMETAFILE VPictureCodec::_CreateMetafile(VPictureDataProvider& inDataProvider
 		inDataProvider.ThrowLastError();
 	return result;
 }
-#else
+#elif VERSIONMAC
 CGImageRef VPictureCodec::_CreateCGImageRef(VPictureDataProvider& inDataProvider)const
 {
 	return VPictureCodec_ImageIO::Decode( inDataProvider);
-	/*
-	CGImageRef result=0;
-	::GraphicsImportComponent importer = 0;
-		
-	xQTPointerDataRef dataref(&inDataProvider);
-				
-	::GetGraphicsImporterForDataRef(dataref,dataref.GetKind(),&importer);
-		
-	if(importer)
-	{
-		GraphicsImportSetFlags(importer,kGraphicsImporterDontDoGammaCorrection | kGraphicsImporterDontUseColorMatching);
-		OSErr err = GraphicsImportCreateCGImage( importer, &result, kGraphicsImportCreateCGImageUsingCurrentSettings );
-			
-		if(err!=0)
-		{
-			result=0;			
-		}
-		CloseComponent( importer );
-	}
-	return result;
-	*/
 }
 	
 #endif
@@ -3608,27 +3693,11 @@ VPictureData* VPictureCodec_UnknownData::_CreatePictData(VPictureDataProvider& i
 
 VError VPictureCodec_UnknownData::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
 {
-	XBOX::VError err=VE_UNIMPLEMENTED;
-	if(IsEncodedByMe(inData))
-	{
-		VSize outsize;
-		err=inData.Save(&outBlob,0,outsize);
-	}
-	return err;
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
 }
 VError VPictureCodec_UnknownData::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
 {
-	XBOX::VError err=VE_UNIMPLEMENTED;
-	if(IsEncodedByMe(inData))
-	{
-		VBlobWithPtr blob;
-		err=Encode(inData,inSettings,blob,inSet);
-		if(err==VE_OK)
-		{
-			err=CreateFileWithBlob(blob,inFile);
-		}
-	}
-	return err;
+	return _GenericEncodeUnknownData(inData,inSettings,inFile,inSet);
 }
 
 /******************************************************************/
@@ -3701,6 +3770,175 @@ VError VPictureCodec_ITKBlobPict::DoEncode(const VPictureData& inData,const VVal
 	return err;
 }
 
+#if VERSION_LINUX
+
+// fake SVG codec
+
+VPictureCodec_SVG::VPictureCodec_SVG()
+{
+	SetEncode(true);    
+	SetDisplayName("Scalable Vector Graphics");
+	AppendExtension("svg");
+	AppendExtension("svgz");
+	AppendMimeType("image/svg+xml");
+	#if VERSIONMAC
+	SetScrapKind(SCRAP_KIND_PICTURE_PDF,SCRAP_KIND_PICTURE_SVG);
+	#else
+	SetScrapKind(SCRAP_KIND_PICTURE_EMF,SCRAP_KIND_PICTURE_SVG);
+	#endif
+}
+
+VPictureCodec_SVG::~VPictureCodec_SVG()
+{
+}
+
+void VPictureCodec_SVG::_RegisterCodec()
+{
+	VPictureCodecFactoryRef fact;
+	VPictureCodec_SVG* codec = new VPictureCodec_SVG();
+	fact->RegisterCodec(codec);
+	codec->Release();
+}
+
+void VPictureCodec_SVG::_UnRegisterCodec()
+{
+}
+
+VPictureData* VPictureCodec_SVG::_CreatePictData(VPictureDataProvider& inDataProvider,_VPictureAccumulator* inRecorder) const
+{
+	return new VPictureData_NonRenderable(&inDataProvider,inRecorder);	
+}
+
+VError VPictureCodec_SVG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,outBlob,inSet);
+}
+
+VError VPictureCodec_SVG::DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet) const
+{
+	return _GenericEncodeUnknownData(inData,inSettings,inFile,inSet);
+}
+
+bool VPictureCodec_SVG::ValidateData(VFile& inFile)const
+{
+	XBOX::VString sExt;
+	inFile.GetExtension( sExt);
+	if (sExt.EqualToString(CVSTR("svg"), false)
+		||
+		sExt.EqualToString(CVSTR("svgz"), false))
+		return true;
+	else
+		return false;
+}
+
+bool VPictureCodec_SVG::NeedReEncode(const VPictureData& inData,const VValueBag* inCompressionSettings,VPictureDrawSettings* inSet)const
+{
+	return false;
+}
+
+void VPictureCodec_SVG::RetainFileKind(VectorOfVFileKind &outFileKind) const
+{
+	VFileKind *fileKind = NULL;
+	outFileKind.clear();
+	VStr63 id,tid;
+	#if VERSIONMAC
+	VString extlist[2]={"svg",""}; // pp temo ACI0064499
+	#else
+	VString extlist[3]={"svg","svgz",""};
+	#endif
+	sLONG i=0;
+	
+	while(!extlist[i].IsEmpty())
+	{
+		if (fileKind == NULL)
+		{
+			// no public file kind is available, let's build a private one
+
+			tid = "com.4d.";
+			if(!GetDisplayName().IsEmpty())
+			{			
+				tid += GetDisplayName();
+				tid += ".";
+			}
+			
+			id = tid + extlist[i];
+
+			// if an id is already registered, take it, else create a new one and register it
+			fileKind = VFileKind::RetainFileKind( id);
+			
+			if (fileKind == NULL)
+			{
+				VectorOfFileExtension extensions;
+				extensions.push_back( extlist[i]);
+				VFileKindManager::Get()->RegisterPrivateFileKind( id, GetDisplayName(), extensions, VectorOfFileKind(0));
+				fileKind = VFileKind::RetainFileKind( id);
+			}
+			
+			if(fileKind)
+				outFileKind.push_back(fileKind);
+			
+			ReleaseRefCountable( &fileKind);
+		}
+		else
+		{
+			outFileKind.push_back(fileKind);
+			ReleaseRefCountable( &fileKind);
+		}
+		i++;
+	}
+}
+
+/** return true if buffer has XML data embedded */
+bool VPictureCodec_SVG::IsDataXML(const void *inBuffer, VSize inSize)
+{
+	if (inSize < 20)
+		return false;
+
+	char rootXML_Ansi_UTF8[5] = {'<','?','x','m','l'};
+	char rootXML_UTF16[10] = {'<',0,'?',0,'x',0,'m',0,'l',0};
+
+	const char *pCar = (const char *)inBuffer;
+	for (int i = 0; i < 10; i++, pCar++)
+	{
+		if (strncmp(pCar, rootXML_Ansi_UTF8, sizeof(rootXML_Ansi_UTF8)) == 0)
+			return true;
+		else if (strncmp(pCar, rootXML_UTF16, sizeof(rootXML_UTF16)) == 0)
+			return true;
+	}
+	return false;
+}
+
+/** return true if buffer has GZIP data embedded */
+bool VPictureCodec_SVG::IsDataGZIP(const void *inBuffer, VSize inSize)
+{
+	unsigned char GZIP_MAGIC_NUMBER[2] = { 0x1F, 0x8B};
+
+	if (inSize < 2)
+		return false;
+
+	unsigned char *buf = (unsigned char *)inBuffer;
+	return (buf[0] == GZIP_MAGIC_NUMBER[0]
+			&&
+			buf[1] == GZIP_MAGIC_NUMBER[1]);
+}
+
+
+bool VPictureCodec_SVG::ValidateData(VPictureDataProvider& inDataProvider)const
+{
+	//xml or gzip data source ?
+	char sBuffer[20];
+	if (inDataProvider.GetDataSize() >= 20)
+	{
+		if (inDataProvider.GetData(&sBuffer[0],0,20)==VE_OK)
+		{
+			return IsDataXML( sBuffer, 20) || IsDataGZIP( sBuffer, 20);
+		}
+	}
+	return false;
+}
+
+#endif
+
 /*************************************************************************************************/
 // helper interface. 
 /*************************************************************************************************/
@@ -3721,7 +3959,7 @@ VError VPictureCodecFactory::_BuildVPictureFromValue(const VValue& inValue,VPict
 	
 	if(inValue.GetValueKind()==VK_IMAGE)
 	{
-		outPicture.FromVPicture_Retain(dynamic_cast<const VPicture&>(inValue));
+		outPicture.FromVPicture_Retain(dynamic_cast<const VPicture&>(inValue),false);
 		err=VE_OK;
 	}
 	else if (inValue.GetValueKind()==VK_BLOB)
@@ -4166,28 +4404,7 @@ VError VPictureCodecFactory::IPictureHelper_ReadPictureFromStream(VValue& inValu
 	if(inValue.GetValueKind()==VK_IMAGE)
 	{
 		VPicture& ioPicture=dynamic_cast<VPicture&>(inValue);
-		VPictureDataProvider* dataprovider=VPictureDataProvider::Create(inStream);
-		if(!dataprovider)
-		{
-			err=VTask::GetCurrent()->GetLastError();
-		}
-		else
-		{
-			VPictureCodecFactoryRef fact;
-			VPictureData* data=fact->CreatePictureData(*dataprovider,NULL);
-			if(data)
-			{
-				ioPicture.FromVPictureData(data);
-				data->Release();
-				err=VE_OK;
-			}
-			else
-			{
-				err=VE_INVALID_PARAMETER; // not pa picture
-			}
-			dataprovider->Release();
-			
-		}
+		err = ioPicture.ImportFromStream(inStream);
 	}
 	return err;
 }

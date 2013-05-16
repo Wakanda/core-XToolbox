@@ -92,10 +92,10 @@ VJSValue VJSParms_withArguments::GetParamValue( size_t inIndex) const
 }
 
 
-VValueSingle *VJSParms_withArguments::CreateParamVValue( size_t inIndex) const
+VValueSingle *VJSParms_withArguments::CreateParamVValue( size_t inIndex, bool simpleDate) const
 {
 	if (inIndex >= 0 && inIndex <= fArgumentCount)
-		return JS4D::ValueToVValue( GetContextRef(), fArguments[inIndex-1], fException);
+		return JS4D::ValueToVValue( GetContextRef(), fArguments[inIndex-1], fException, simpleDate);
 
 	return NULL;
 }
@@ -114,6 +114,24 @@ bool VJSParms_withArguments::GetParamObject( size_t inIndex, VJSObject& outObjec
 		outObject.SetObjectRef( NULL);
 	
 	return okobj;
+}
+
+
+bool VJSParms_withArguments::GetParamJSONValue( size_t inIndex, VJSONValue& outValue) const
+{
+	bool ok;
+	
+	if (inIndex >= 0 && inIndex <= fArgumentCount)
+	{
+		ok = JS4D::ValueToVJSONValue( GetContextRef(), fArguments[inIndex-1], outValue, fException);
+	}
+	else
+	{
+		outValue.SetUndefined();
+		ok = false;
+	}
+	
+	return ok;
 }
 
 
@@ -189,6 +207,12 @@ bool VJSParms_withArguments::IsStringParam( size_t inIndex) const
 bool VJSParms_withArguments::IsObjectParam( size_t inIndex) const
 {
 	return !IsNullParam(inIndex) && ((inIndex >= 0 && inIndex <= fArgumentCount) ? JSValueIsObject( GetContextRef(), fArguments[inIndex-1]) : false);
+}
+
+
+bool VJSParms_withArguments::IsFunctionParam( size_t inIndex) const
+{
+	return IsObjectParam( inIndex) && JSObjectIsFunction( GetContextRef(), JSValueToObject( GetContextRef(), fArguments[inIndex-1], NULL));
 }
 
 

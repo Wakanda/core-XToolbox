@@ -30,83 +30,6 @@ BEGIN_TOOLBOX_NAMESPACE
 class VFolder;
 
 
-/** @brief	Splitable log file management (no thread-safe)
-
-			Each log file is named "BaseName_LogNumber.txt".
-			Once the file has reached the maximum size (actually 10Mo), the log number is increased and a new log file is created.
-			Use AppendFormattedString() or call CheckLogSize() before adding any data in the file.
-*/
-
-class XTOOLBOX_API VSplitableLogFile : public VObject
-{
-public:
-			class IDelegate
-			{
-			public:
-				virtual	void	DoCreateNewLogFile( const VString& inFilePath) = 0;
-			};
-
-			VSplitableLogFile( const VFolder& inBasePath, const VString& inBaseName, sLONG inStartNumber = 1);
-	virtual ~VSplitableLogFile();
-
-			/**	@brief	Open the log file using current log number.
-						if inCreateEmptyFile is true, the content of an existing file is erased. */
-			bool		Open( bool inCreateEmptyFile);
-			
-			/**	@brief	Open the log file using inLogNumber.
-						if inCreateEmptyFile is true, the content of an existing file is erased. */
-			bool		Open( sLONG inLogNumber, bool inCreateEmptyFile);
-
-			/**	@brief	Standard output redirection. */
-			void		OpenStdOut();
-
-			void		Close();
-			void		Flush();
-			bool		IsOpen() const {return fFile != NULL;}
-
-			/**	@brief	Change the current log file number.
-						if inCreateEmptyFile is true, the content of an existing file is erased. */
-			void		SetLogNumber( sLONG inLogNumber, bool inCreateEmptyFile);
-			sLONG		GetLogNumber() const {return fLogNumber;}
-
-			/** @brief	CheckLogSize() should be called before adding any data in the file.
-						Returns 0 if the current log file has not reached the maximum size or returns the log number of the newly created log file. */
-			sLONG		CheckLogSize();
-
-			/** @brief	Returns the amount of bytes remaining before a split occurs. This lets the caller to finish
-						writting some entries, then call SetLogNumber( GetLogNumber() + 1 ) to start a new log.
-						Typically : when writting xml and you want the xml to be properly closed before a new log is started.
-						Note that the returned value may be < 0 (next call to CheckLogSize() will split the file)
-						*/
-			sLONG		CheckRemainingBytes() const;
-
-
-			/** @brief	Same as printf.
-						CheckLogSize() method is called before append the string so a new log file may be created. */
-			void		AppendFormattedString( const char* inFormat, ...);
-			void		AppendString( const char* inString);
-
-			// Accessors
-			FILE*		GetFile() {return fFile;}
-			void		GetCurrentFileName( VString& outName) const;
-			void		GetCurrentFilePath( VString& outPath) const {_BuildFilePath( outPath); }
-			void		GetFolderPath( VFilePath& outPath) const {outPath = fFolderPath;}
-
-			/**	@brief	The splitable log file never owns the delegate. */
-			void		SetDelegate( IDelegate *inDelegate);
-
-	static	void		BuildLogFileName( const VString& inBaseName, sLONG inLogNumber, VString& outName);
-
-private:
-			void		_BuildFilePath( VString& outPath) const;
-
-			FILE		*fFile;
-			VFilePath	fFolderPath;
-			VString		fLogName;
-			sLONG		fLogNumber;
-			IDelegate	*fDelegate;
-};
-
 
 
 /** @brief	Very simple implementation of Log4j format logger using a file as log output. */
@@ -123,24 +46,21 @@ enum
 typedef EMessageLevel ELog4jMessageLevel;
 
 
-class XTOOLBOX_API VLog4jMsgFileLogger : public VObject, public ILogger, private VSplitableLogFile::IDelegate
+
+class XTOOLBOX_API VLogger : public VObject, public ILogger
 {
 public:
-			class IReader
-			{
-			public:
-				virtual	void	DoStart( const VString& inFilePath) = 0;
-			};
 
-			VLog4jMsgFileLogger( const VFolder& inLogFolder, const VString& inLogName);
-	virtual ~VLog4jMsgFileLogger();
+
+			VLogger();// const VFolder& inLogFolder, const VString& inLogName);
+	virtual ~VLogger();
+
 
 			/** @brief	Start message logging using the highest log number. Call Start() to continue the logging using last used log file. */
 			// inherited from ILogger
 	virtual	void					Start();
 			/** @brief	Start message logging using the file "LogName_LogNumber.txt".
 						Once the file has reached the maximum size, the log number is increased and a new log file is created. */
-			void					Start( sLONG inLogNumber);
 
 			// inherited from ILogger
 	virtual	void					Stop();
@@ -149,14 +69,12 @@ public:
 			// but remember that the log can be opened or closed from another thread while you are calling IsStarted().
 			// inherited from ILogger
 	virtual	bool					IsStarted() const;
-			void					Flush();
-
-			void					Log( const VString& inLoggerID, EMessageLevel inLevel, const VString& inMessage, VString* outFormattedMessage);
-			void					Log( const char* inLoggerID, EMessageLevel inLevel, const char* inMessage, VString* outFormattedMessage);
 
 			// inherited from ILogger
 	virtual	void					LogBag( const VValueBag *inMessage);
+
 	virtual	bool					ShouldLog( EMessageLevel inMessageLevel) const;
+
 	virtual bool					WithTrace	(bool inWithTag);
 	virtual bool					WithDump	(bool inWithTag);
 	virtual bool					WithDebug	(bool inWithTag);
@@ -166,66 +84,37 @@ public:
 	virtual bool					WithAssert	(bool inWithTag);
 	virtual bool					WithInfo	(bool inWithTag);
 
-			VTime					GetStartTime() const { return fStartTime; }
-			void					GetLogFolderPath( VFilePath& outPath) const;
-			void					GetLogName( VString& outName) const;
-			
-	static	void					BuildLogFileName( const VString& inLogName, sLONG inLogNumber, VString& outName);
-
-			/** @brief	The logger never owns its readers. */
-			void					AttachReader( IReader *inReader);
-			void					DetachReader( IReader *inReader);
-
-			void					SetLevelFilter( uLONG inFilter)			{ fFilter = inFilter;}
 			uLONG					GetLevelFilter() const					{ return fFilter;}
+			void					SetLevelFilter( uLONG inFilter)			{ fFilter = inFilter;}
+
+	virtual void					Flush();
+			bool					AddLogListener(ILogListener* inLogListener);
+			bool					RemoveLogListener(ILogListener* inLogListener);
 
 private:
-
-			// Inherited from VSplitableLogFile::IDelegate
-	virtual	void					DoCreateNewLogFile( const VString& inFilePath);
-
-			bool					_IsStarted() const;
-
 			bool					WithTag(uLONG inTag, bool inFlag);
 
-	
+	#define K_NB_MAX_BAGS			(1000)
+			const VValueBag*		fValues[K_NB_MAX_BAGS];
+			sLONG					fStartIndex;	
+			sLONG					fEndIndex;
 	mutable	VCriticalSection		fLock;
-
-			VTime					fStartTime;
+			bool					fMessagesLost;
 			VFilePath				fFolderPath;
 			VString					fLogName;
-			VSplitableLogFile*		fOutput;
-			bool					fIsStarted;	// to avoid an expensive lock on fLock just to know if we should log something
+			//VSplitableLogFile*		fOutput;
 			uLONG					fFilter;	// bitfield to know what we are supposed to log
+			bool					fIsStarted;	// to avoid an expensive lock on fLock just to know if we should log something
 
-			std::vector<IReader*>	fReaders;
-	mutable	VCriticalSection		fReadersLock;
+			sLONG					Read(std::vector<const VValueBag*>& ioValuesVector, bool inAlreadyLocked = false);
+
+			sLONG					Next(sLONG inIndex);
+
+			std::vector<ILogListener*>		fLogListeners;
+	static	sLONG				LogReaderTaskProc(XBOX::VTask* inTask);
+		XBOX::VTask*			fLogReaderTask;
+
 };
-
-
-
-
-
-class XTOOLBOX_API VLog4jMsgFileReader : public VObject, public IRefCountable, public VLog4jMsgFileLogger::IReader
-{
-public:
-			VLog4jMsgFileReader();
-	virtual	~VLog4jMsgFileReader();
-
-			/** @brief	Return the last logged messages since last PeekMessages() call. */
-			void				PeekMessages( VectorOfVString& outMessages) const;
-
-private:
-			// Inherited from VLog4jMsgFileLogger::IReader
-	virtual	void				DoStart( const VString& inFilePath);
-
-			void				_PeekMessages( VectorOfVString& outMessages) const;
-
-			FILE				*fFile;
-	mutable	VectorOfVString		fMessages;
-	mutable	VCriticalSection	fLock;
-};
-
 
 END_TOOLBOX_NAMESPACE
 

@@ -679,7 +679,7 @@ void VPictureData_GDIPlus::_DoLoad()const
 		VPictureDataProvider_Stream* st=new VPictureDataProvider_Stream(fDataProvider);
 		fBitmap=new Gdiplus::Bitmap(st);
 		//JQ 10/07/2012: fixed ACI0077506
-		if (VSystem::IsVista())
+		if (VSystem::IsVista() && XWinSystem::GetSystemVersion()!=WIN_SERVER_2008) // pp incident 125661. le changement de resolution ne fonctionne pas sous 2008 server r1
 			fBitmap->SetResolution( 96.0f, 96.0f); //JQ 16/04/2012: fixed ACI0076335 - ensure dpi=96
 		st->Release();
 		fBounds.SetCoords(0,0,fBitmap->GetWidth(),fBitmap->GetHeight());

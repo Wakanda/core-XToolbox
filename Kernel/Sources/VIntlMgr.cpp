@@ -439,8 +439,6 @@ VIntlMgr::VIntlMgr( const VIntlMgr& inMgr)
 , fAMString( inMgr.fAMString)
 , fPMString( inMgr.fPMString)
 , fUsingAmPm( inMgr.fUsingAmPm)
-, fTrue( inMgr.fTrue)
-, fFalse( inMgr.fFalse)
 , fDecimalSeparator( inMgr.fDecimalSeparator)
 , fThousandsSeparator( inMgr.fThousandsSeparator)
 , fDateSeparator( inMgr.fDateSeparator)
@@ -580,644 +578,287 @@ void VIntlMgr::Reset()
 }
 
 
-void VIntlMgr::GetMonthDayNames( EMonthDayList inListType, VArrayString* outArray)
+void VIntlMgr::FormatDate( const VTime& inDate, VString& outDate, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay)
 {
-	// Verify parameters
-	if (!outArray)
-		return;
-	outArray->SetCount(0);
-	if ((inListType<0) || (inListType>=4))
-		return;
-	
-
-#if VERSIONMAC
-	CFStringRef property[]={
-		kCFDateFormatterWeekdaySymbols,	
-		kCFDateFormatterMonthSymbols,
-		kCFDateFormatterShortWeekdaySymbols,	
-		kCFDateFormatterShortMonthSymbols
-	};
-	CFLocaleRef p_Locale=::CFLocaleCopyCurrent();
-	if (p_Locale)
-	{
-		CFDateFormatterRef p_DateFormatter=::CFDateFormatterCreate(NULL,p_Locale,((inListType & 2)?kCFDateFormatterMediumStyle:kCFDateFormatterLongStyle),kCFDateFormatterNoStyle);
-		if (p_DateFormatter)
-		{
-			// Get the list of names
-			CFArrayRef p_Array=(CFArrayRef)::CFDateFormatterCopyProperty(p_DateFormatter,property[inListType]);
-			if (p_Array)
-			{
-				// outArray returning loop
-				CFIndex iCount=::CFArrayGetCount(p_Array);
-				VString vString;
-				for (CFIndex i=0;i<iCount;i++)
-				{
-					vString.Clear();
-					vString.MAC_FromCFString((CFStringRef)CFArrayGetValueAtIndex(p_Array,i));
-					if (vString.IsEmpty())
-						break;
-					outArray->AppendString(vString);
-				}
-				::CFRelease(p_Array);
-			}
-			::CFRelease(p_DateFormatter);
-		}
-		::CFRelease(p_Locale);
-	}
-
-#elif VERSION_LINUX
-
-	//jmo : If I'm right, this method is only used on Windows plateform
-	bool GetMonthDayNamesMethod=false;
-	xbox_assert(GetMonthDayNamesMethod);	// Postponed Linux Implementation !
-
-#elif VERSIONWIN
-	LCTYPE AbbrNames[]={
-		LOCALE_SABBREVDAYNAME7 | LOCALE_USE_CP_ACP,	// Sunday as day 1
-		LOCALE_SABBREVDAYNAME1 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVDAYNAME2 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVDAYNAME3 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVDAYNAME4 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVDAYNAME5 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVDAYNAME6 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME1 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME2 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME3 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME4 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME5 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME6 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME7 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME8 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME9 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME10 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME11 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME12 | LOCALE_USE_CP_ACP,
-		LOCALE_SABBREVMONTHNAME13 | LOCALE_USE_CP_ACP
-	};
-	LCTYPE LongNames[]={
-		LOCALE_SDAYNAME7 | LOCALE_USE_CP_ACP, // Sunday as day 1
-		LOCALE_SDAYNAME1 | LOCALE_USE_CP_ACP,
-		LOCALE_SDAYNAME2 | LOCALE_USE_CP_ACP,
-		LOCALE_SDAYNAME3 | LOCALE_USE_CP_ACP,
-		LOCALE_SDAYNAME4 | LOCALE_USE_CP_ACP,
-		LOCALE_SDAYNAME5 | LOCALE_USE_CP_ACP,
-		LOCALE_SDAYNAME6 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME1 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME2 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME3 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME4 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME5 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME6 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME7 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME8 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME9 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME10 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME11 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME12 | LOCALE_USE_CP_ACP,
-		LOCALE_SMONTHNAME13 | LOCALE_USE_CP_ACP
-	};
-	int iCount=7;
-	LCTYPE* pArray=((inListType & 2)?AbbrNames:LongNames);
-	switch(inListType)
-	{
-	default:
-	case eAbbreviatedDayOfWeekList:
-	case eDayOfWeekList:
-		break;
-	case eMonthList:
-	case eAbbreviatedMonthList:
-		iCount=13;
-		pArray+=7;
-		break;
-	}
-	
-	UniChar val[256];
-	XBOX::VString vString;
-	for (int i=0;i<iCount;i++)
-	{
-		::GetLocaleInfoW(VIntlMgr::GetDefaultMgr()->fDialect, pArray[i] , val, sizeof(val)/sizeof(UniChar));
-		vString=val;
-		if (vString.IsEmpty())
-			break;
-		outArray->AppendString(vString);
-	}
-#endif
+    GetImpl().FormatDate( inDate, outDate, inFormat, inUseGMTTimeZoneForDisplay);
 }
 
 
-#if VERSIONMAC
-static void MAC_FormatVTime( const VTime& inDate, VString& outText, CFLocaleRef inLocale, CFDateFormatterStyle inDateStyle, CFDateFormatterStyle inTimeStyle, bool inUseGMTTimeZoneForDisplay)
+void VIntlMgr::FormatTime( const VTime& inTime, VString& outTime, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay)
 {
-	outText.Clear();
-
-	CFDateFormatterRef dateFormatter = ::CFDateFormatterCreate( NULL, CFLocaleCopyCurrent(), inDateStyle, inTimeStyle);
-	if (dateFormatter != NULL)
-	{
-		// Init CFGregorianDate structure from inDate.
-		sWORD year, month, day, hour, minute, second, millisecond;
-		inDate.GetUTCTime( year, month, day, hour, minute, second, millisecond);
-
-		CFGregorianDate date;
-		date.year = year;
-		date.month = month;
-		date.day = day;
-		date.hour = hour;
-		date.minute = minute;
-		date.second = second;
-
-		// VTime is in GMT time zone (CFDateFormatterCreateStringWithAbsoluteTime works in local time zone by default)
-
-		CFAbsoluteTime time = CFGregorianDateGetAbsoluteTime( date, NULL);	// use gmt
-
-		if (inUseGMTTimeZoneForDisplay)
-		{
-			CFTimeZoneRef utc_timeZone = CFTimeZoneCreateWithTimeIntervalFromGMT(NULL,0);
-			::CFDateFormatterSetProperty( dateFormatter, kCFDateFormatterTimeZone, utc_timeZone);
-			::CFRelease( utc_timeZone);
-		}
-
-		CFStringRef p_FormattedDate = ::CFDateFormatterCreateStringWithAbsoluteTime( NULL, dateFormatter, time);
-		if (p_FormattedDate)
-		{
-			outText.MAC_FromCFString(p_FormattedDate);
-			::CFRelease(p_FormattedDate);
-		}
-
-		::CFRelease( dateFormatter);
-	}
-}
-#endif
-
-void VIntlMgr::FormatDateByOS( const VTime& inDate, VString& outDate, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay)
-{
-/*
-	format in GMT time zone (needed by 4D)
-*/
-	outDate.Clear();
-#if VERSIONMAC
-	// Get the locale and date formatter
-	CFLocaleRef p_Locale = MAC_RetainCFLocale();
-	if (p_Locale)
-	{
-		// Select date formatter settings
-		CFDateFormatterStyle dateStyle=kCFDateFormatterNoStyle;
-		switch(inFormat)
-		{
-		case eOS_SHORT_FORMAT:
-			dateStyle=kCFDateFormatterShortStyle;
-			break;
-		case eOS_MEDIUM_FORMAT:
-			dateStyle=kCFDateFormatterMediumStyle;
-			break;
-		case eOS_LONG_FORMAT:
-			dateStyle=kCFDateFormatterFullStyle;
-			break;
-		default:
-			break;
-		}
-		
-		// Create the date formatter according inFormat.
-		MAC_FormatVTime( inDate, outDate, p_Locale, dateStyle, kCFDateFormatterNoStyle, inUseGMTTimeZoneForDisplay);
-
-		::CFRelease(p_Locale);
-	}
-
-#elif VERSION_LINUX
-
-    GetImpl().FormatDate(inDate, outDate, inFormat, inUseGMTTimeZoneForDisplay);
-
-#elif VERSIONWIN
-
-	// Prepare SYSTEMTIME for windows.
-	sWORD YY=0,MM=0,DD=0,hh=0,mm=0,ss=0,ms=0;
-	if (inUseGMTTimeZoneForDisplay)
-		inDate.GetUTCTime (YY,MM,DD,hh,mm,ss,ms);
-	else
-		inDate.GetLocalTime (YY,MM,DD,hh,mm,ss,ms);
-
-	// Verify if date >1st Jan 1601 (GetDateFormat doesn't support earlier dates.
-	if (YY>=1601)
-	{
-		// Let the OS do it's job.
-		UniChar acBuffer[256];
-
-		SYSTEMTIME osDate={0};
-		osDate.wYear=YY;
-		osDate.wMonth=MM;
-		osDate.wDay=DD;
-		osDate.wHour=hh;
-		osDate.wMinute=mm;
-		osDate.wSecond=ss;
-		osDate.wMilliseconds=ms;
-
-		if (inFormat == eOS_MEDIUM_FORMAT)
-		{
-			UniChar mediumFormatBuffer[256];
-			int r = ::GetLocaleInfoW( fDialect, LOCALE_SLONGDATE, mediumFormatBuffer, sizeof( mediumFormatBuffer) / sizeof( UniChar));
-			if (testAssert( r != 0))
-			{
-				// replace long month and date by medium ones
-				VString mediumFormat( mediumFormatBuffer);
-				mediumFormat.Exchange( CVSTR( "MMMM"), CVSTR( "MMM"));
-				mediumFormat.Exchange( CVSTR( "dddd"), CVSTR( "ddd"));
-				if (::GetDateFormatW( fDialect, 0, &osDate, mediumFormat.GetCPointer(), acBuffer, sizeof(acBuffer)))
-					outDate=acBuffer;
-			}
-		}
-		else
-		{
-			// Let the OS do the stuff.
-			DWORD dateFormat=(inFormat==eOS_LONG_FORMAT)?DATE_LONGDATE:DATE_SHORTDATE;
-			if (::GetDateFormatW(fDialect,dateFormat,&osDate,NULL,acBuffer,sizeof(acBuffer)))
-				outDate=acBuffer;
-		}
-	}
-	else
-	{
-		// Get the date pattern
-		XBOX::VString pattern;
-		switch(inFormat)
-		{
-			case eOS_LONG_FORMAT:
-				pattern=VIntlMgr::GetLongDatePattern();
-				break;
-			case eOS_MEDIUM_FORMAT:
-			case eOS_SHORT_FORMAT:
-			default:
-				pattern=VIntlMgr::GetShortDatePattern();
-				break;
-				// Create the string
-		}
-
-		XBOX::VString tokens="gyMd";
-		UniChar oldToken=0;
-		int count=0;
-		pattern.AppendChar(' ');
-		sLONG YY2=YY%100;
-		sLONG WD=inDate.GetWeekDay();
-		VArrayString names;
-		XBOX::VString oneName;
-		for (int pos=0;pos<pattern.GetLength();pos++)
-		{
-			UniChar token=pattern[pos];
-			if (tokens.FindUniChar(token)>=1)
-			{
-				if (token==oldToken)
-					count++;
-				else
-				{
-					if (!count)
-					{
-						count=1;
-						oldToken=token;
-					}
-				}
-			}
-
-			if (count && token!=oldToken)
-			{
-				switch(oldToken)
-				{
-				case 'g':
-					if (count==2)
-					{
-						// TODO: ERA will be added if really wanted.
-					}
-					else
-					{
-						for (int i=0;i<count;i++)
-							outDate.AppendUniChar(oldToken);
-					}
-					break;
-
-				case 'y':	// YEAR
-					switch(count)
-					{
-					case 5:
-					case 4:		// 4 or more digits date
-						outDate.AppendLong(YY);
-						break;
-
-					case 2:		// 2 digits with starting 0.
-						if (YY2<=9)
-							outDate.AppendLong(0);
-					case 1:		// 1 or 2 digits
-						outDate.AppendLong(YY2);
-						break;
-
-					default:
-						for (int i=0;i<count;i++)
-							outDate.AppendUniChar(oldToken);
-						break;
-					}
-					break;
-
-				case 'M':	// MONTH
-					switch(count)
-					{
-					case 4:	// Long name
-					case 3:	// Abbreviated name
-						VIntlMgr::GetMonthDayNames((count==4)?eMonthList:eAbbreviatedMonthList,&names);
-						names.GetString(oneName,MM);
-						outDate.AppendString(oneName);
-						break;
-
-					case 2:	// 2 digits number (leading 0)
-						if (MM<=9)
-							outDate.AppendLong(0);
-					case 1:	// 1 or 2 digits number
-						outDate.AppendLong(MM);
-						break;
-
-					default:
-						for (int i=0;i<count;i++)
-							outDate.AppendUniChar(oldToken);
-						break;
-					}
-					break;
-
-				case 'd':	// DAY
-					switch(count)
-					{
-					case 4:	// Weekday long name
-					case 3:	// Weekday abbreviated name
-						VIntlMgr::GetMonthDayNames((count==4)?eDayOfWeekList:eAbbreviatedDayOfWeekList,&names);
-						names.GetString(oneName,WD+1);
-						outDate.AppendString(oneName);
-						break;
-
-					case 2:	// Month day on 2 digits (leading 0)
-						if (DD<=9)
-							outDate.AppendLong(0);
-					case 1:	// Month day on 1 or 2 digits.
-						outDate.AppendLong(DD);
-						break;
-
-					default:
-						for (int i=0;i<count;i++)
-							outDate.AppendUniChar(oldToken);
-						break;
-					}
-					break;
-
-				}
-				count=0;
-			}
-
-			if (!count)
-				outDate.AppendUniChar(token);
-			oldToken=token;
-		}
-
-		// Remove the extra space at end of pattern.
-		if (outDate.GetLength()>1)
-			outDate.SubString(1,outDate.GetLength()-1);
-	}
-#endif
-}
-
-void VIntlMgr::FormatTimeByOS( const VTime& inTime, VString& outTime, EOSFormats inFormat, bool inUseGMTTimeZoneForDisplay)
-{
-/*
-	format using local time zone (needed by 4D)
-*/
-
-	outTime.Clear();
-#if VERSIONMAC
-	// Get the locale
-	CFLocaleRef p_Locale = MAC_RetainCFLocale();
-	if (p_Locale)
-	{
-		// Get the time formatter style from inFormat.
-		CFDateFormatterStyle timeStyle=kCFDateFormatterNoStyle;
-		switch(inFormat)
-		{
-			case eOS_SHORT_FORMAT:
-				timeStyle=kCFDateFormatterShortStyle;
-				break;
-			case eOS_MEDIUM_FORMAT:
-				timeStyle=kCFDateFormatterMediumStyle;
-				break;
-			case eOS_LONG_FORMAT:
-				timeStyle=kCFDateFormatterLongStyle;
-				break;
-			default:
-				break;
-		}
-
-		// Create the time formatter according inFormat.
-		MAC_FormatVTime( inTime, outTime, p_Locale, kCFDateFormatterNoStyle, timeStyle, inUseGMTTimeZoneForDisplay);
-
-		::CFRelease(p_Locale);
-	}
-
-#elif VERSION_LINUX
-    
     GetImpl().FormatTime(inTime, outTime, inFormat, inUseGMTTimeZoneForDisplay);
-
-#elif VERSIONWIN
-	// 1:system short time; 2:system medium time; 3:system long time
-
-	DWORD timeFormat=0;
-	switch(inFormat)
-	{
-	case eOS_SHORT_FORMAT:// No signs
-	case eOS_MEDIUM_FORMAT:// No signs
-		timeFormat=TIME_NOTIMEMARKER;
-		break;
-	case eOS_LONG_FORMAT://all
-		break;
-	default:
-		break;
-	};
-
-	// Prepare SYSTEMTIME for windows.
-	sWORD YY=0,MM=0,DD=0,hh=0,mm=0,ss=0,ms=0;
-	SYSTEMTIME osTime={0};
-	if (inUseGMTTimeZoneForDisplay)
-		inTime.GetUTCTime (YY,MM,DD,hh,mm,ss,ms);
-	else
-		inTime.GetLocalTime (YY,MM,DD,hh,mm,ss,ms);
-	osTime.wYear=YY;
-	osTime.wMonth=MM;
-	osTime.wDay=DD;
-	osTime.wHour=hh;
-	osTime.wMinute=mm;
-	osTime.wSecond=ss;
-	osTime.wMilliseconds=ms;
-
-	// Let the OS do the stuff.
-	UniChar acBuffer[256];
-	if (::GetTimeFormatW( fDialect,timeFormat,&osTime,NULL,acBuffer,sizeof(acBuffer)))
-		outTime=acBuffer;
-	else
-		outTime.Clear();
-
-#endif
 }
 
 
-#if VERSIONMAC
-static void MAC_FormatVDuration( const VDuration& inTime, VString& outText, CFLocaleRef inLocale, CFDateFormatterStyle inDateStyle, CFDateFormatterStyle inTimeStyle)
+void VIntlMgr::FormatDuration( const VDuration& inTime, VString& outTime, EOSFormats inFormat)
 {
-	outText.Clear();
+    GetImpl().FormatDuration(inTime, outTime, inFormat);
+}
 
-	CFDateFormatterRef dateFormatter = ::CFDateFormatterCreate( NULL, CFLocaleCopyCurrent(), inDateStyle, inTimeStyle);
-	if (dateFormatter != NULL)
+
+static sLONG ConsumeSameUniChar( const UniChar*& inString, sLONG inMax)
+{
+	sLONG count = 1;
+	UniChar c = *inString;
+	while( (inString[1] == c) && (count < inMax) )
 	{
-		// Init CFGregorianDate structure from inDate.
-		sLONG day, hour, minute, second, millisecond;
-		inTime.GetDuration( day, hour, minute, second, millisecond);
-
-		CFGregorianDate date;
-		date.year = 0;
-		date.month = 0;
-		date.day = day;
-		date.hour = hour;
-		date.minute = minute;
-		date.second = second;
-
-		// VTime is in GMT time zone (CFDateFormatterCreateStringWithAbsoluteTime works in local time zone by default)
-
-		CFAbsoluteTime time = CFGregorianDateGetAbsoluteTime( date, NULL);	// use gmt
-
-		CFStringRef p_FormattedDate = ::CFDateFormatterCreateStringWithAbsoluteTime( NULL, dateFormatter, time);
-		if (p_FormattedDate)
-		{
-			outText.MAC_FromCFString(p_FormattedDate);
-			::CFRelease(p_FormattedDate);
-		}
-
-		::CFRelease( dateFormatter);
+		++inString;
+		++count;
 	}
+	return count;
 }
-#endif
 
-void VIntlMgr::FormatDurationByOS( const VDuration& inTime, VString& outTime, EOSFormats inFormat)
+
+void VIntlMgr::FormatDateTimeWithPattern( const VTime& inTime, const XBOX::VString& inPattern, bool inUseUTC, const XBOX::VString *inMonthName, XBOX::VString& outString)
 {
-/*
-	format using local time zone (needed by 4D)
-*/
+	VString result;
+	VString s;
 
-	outTime.Clear();
-#if VERSIONMAC
-	// Get the locale
-	CFLocaleRef p_Locale = MAC_RetainCFLocale();
-	if (p_Locale)
+	sWORD year, month, day, hour, minute, second, millisecond;
+	if (inUseUTC)
 	{
-		// Get the time formatter style from inFormat.
-		CFDateFormatterStyle timeStyle=kCFDateFormatterNoStyle;
-		switch(inFormat)
-		{
-			case eOS_SHORT_FORMAT:
-				timeStyle=kCFDateFormatterShortStyle;
-				break;
-			case eOS_MEDIUM_FORMAT:
-				timeStyle=kCFDateFormatterMediumStyle;
-				break;
-			case eOS_LONG_FORMAT:
-				timeStyle=kCFDateFormatterLongStyle;
-				break;
-			default:
-				break;
-		}
-
-		// Create the time formatter according inFormat.
-		MAC_FormatVDuration( inTime, outTime, p_Locale, kCFDateFormatterNoStyle, timeStyle);
-
-		::CFRelease(p_Locale);
+		inTime.GetUTCTime( year, month, day, hour, minute, second, millisecond);
+	}
+	else
+	{
+		inTime.GetLocalTime( year, month, day, hour, minute, second, millisecond);
 	}
 
-#elif VERSION_LINUX
-
-    //jmo - Right now, we do not have short, medium or long format choice on Linux
-    GetImpl().FormatDuration(inTime, outTime);
-
-#elif VERSIONWIN
-	// 1:system short time; 2:system medium time; 3:system long time
-
-	DWORD timeFormat=0;
-	switch(inFormat)
+	const UniChar *begin = inPattern.GetCPointer();
+	const UniChar *end = begin + inPattern.GetLength();
+	for( const UniChar *p = begin ; p != end ; ++p)
 	{
-	case eOS_SHORT_FORMAT:// No signs
-	case eOS_MEDIUM_FORMAT:// No signs
-		timeFormat=TIME_NOTIMEMARKER;
-		break;
-	case eOS_LONG_FORMAT://all
-		break;
-	default:
-		break;
-	};
-
-	// Prepare SYSTEMTIME for windows.
-	sLONG DD=0,hh=0,mm=0,ss=0,ms=0;
-	SYSTEMTIME osTime={0};
-	inTime.GetDuration (DD,hh,mm,ss,ms);
-	osTime.wYear=0;
-	osTime.wMonth=0;
-	osTime.wDay=DD;
-	osTime.wHour=hh;
-	osTime.wMinute=mm;
-	osTime.wSecond=ss;
-	osTime.wMilliseconds=ms;
-
-	// Let the OS do the stuff.
-	UniChar acBuffer[256];
-	if (::GetTimeFormatW( fDialect,timeFormat,&osTime,NULL,acBuffer,sizeof(acBuffer)))
-		outTime=acBuffer;
-	else
-		outTime.Clear();
-
-#endif
-}
-
-
-void VIntlMgr::FormatNumberByOS( const VValueSingle& inValue, VString& outNumber)
-{
-	outNumber.Clear();
-#if VERSIONMAC
-	// Get the locale
-	CFLocaleRef p_Locale = MAC_RetainCFLocale();
-	if (p_Locale)
-	{
-		// Get the value
-		double r=inValue.GetReal();
-		
-		// Create the formatter
-		CFNumberFormatterRef p_Formatter=::CFNumberFormatterCreate(kCFAllocatorDefault,p_Locale,kCFNumberFormatterDecimalStyle);
-		if (p_Formatter)
+		sLONG count;
+		switch( *p)
 		{
-			// Let the OS format inValue as string.
-			CFStringRef p_FormattedValue=::CFNumberFormatterCreateStringWithValue(kCFAllocatorDefault,p_Formatter,kCFNumberDoubleType,&r);
-			if (p_FormattedValue)
-			{
-				outNumber.MAC_FromCFString(p_FormattedValue);
-				::CFRelease(p_FormattedValue);
-			}
+			case 'G':	// era
+				{
+					count = ConsumeSameUniChar( p, 5);
+					switch( count)
+					{
+						case 1:
+						case 2:
+						case 3:
+							result += CVSTR( "AD");	// BC non supporte par VTime
+							break;
+
+						case 4:
+							result += CVSTR( "Anno Domini");
+							break;
+						
+						default:
+							result += 'A';
+							break;
+					}
+					break;
+				}
+
+			case 'y':	// YEAR
+			case 'Y':	// UNSUPPORTED: Year (of "Week of Year"), used in ISO year-week calendar. May differ from calendar year.
+				{
+					count = ConsumeSameUniChar( p, 999);
+					switch( count)
+					{
+						case 1:
+							result.AppendLong( year);
+							break;
+						
+						default:
+							result.AppendPrintf( "%0*d", count, year);
+							break;
+					}
+					break;
+				}
+
+			case 'M':	// MONTH
+			case 'L':	// Stand-alone Month
+				{
+					count = ConsumeSameUniChar( p, 5);
+					switch( count)
+					{
+						case 1:
+						case 2:
+							result.Printf( "%0*d", count, month);
+							break;
+						
+						case 3:
+							if (inMonthName != NULL)
+								s = *inMonthName;
+							else
+								GetMonthName( month, true, s);
+							result += s;
+							break;
+						
+						case 4:
+							if (inMonthName != NULL)
+								s = *inMonthName;
+							else
+								GetMonthName( month, false, s);
+							result += s;
+							break;
+						
+						default:
+							if (inMonthName != NULL)
+								s = *inMonthName;
+							else
+								GetMonthName( month, false, s);
+							result += s[0];
+							break;
+					}
+					break;
+				}
+
+			case 'd':	// day of the month
+				{
+					count = ConsumeSameUniChar( p, 2);
+					result.AppendPrintf( "%0*d", count, day);
+					break;
+				}
 			
-			::CFRelease(p_Formatter);
+			case 'D':	// Day of year
+				{
+					count = ConsumeSameUniChar( p, 3);
+					result.AppendPrintf( "%0*d", count, VTime::ComputeYearDay( year, month, day));
+					break;
+				}
+			
+			case 'g':	// Modified Julian day
+				{
+					count = ConsumeSameUniChar( p, 999);
+					result.AppendPrintf( "%0*d", count, VTime::ComputeJulianDay( year, month, day));
+					break;
+				}
+			
+			case 'E':	// Day of week
+				{
+					sLONG weekDay = XBOX::VTime::ComputeWeekDay( year, month, day);
+					count = ConsumeSameUniChar( p, 6);
+					switch( count)
+					{
+						case 1:
+						case 2:
+						case 3:
+							GetWeekDayName( weekDay, true, s);
+							result += s;
+							break;
+						
+						case 4:
+							GetWeekDayName( weekDay, false, s);
+							result += s;
+							break;
+						
+						case 5:
+							GetWeekDayName( month, false, s);
+							result += s[0];
+							break;
+
+						case 6:
+							GetWeekDayName( month, false, s);
+							result += s[0];
+							result += s[1];
+							break;
+					}
+					break;
+				}
+			
+			case 'a':
+				{
+					if (hour < 12)
+						result += CVSTR( "AM");
+					else
+						result += CVSTR( "PM");
+					break;
+				}
+			
+			case 'h':
+				{
+					count = ConsumeSameUniChar( p, 2);
+					sLONG h = hour % 12;
+					if (h == 0)
+						h = 12;
+					result.AppendPrintf( "%0*d", count, h);
+					break;
+				}
+			
+			case 'H':
+				{
+					count = ConsumeSameUniChar( p, 2);
+					result.AppendPrintf( "%0*d", count, hour);
+					break;
+				}
+			
+			case 'K':
+				{
+					count = ConsumeSameUniChar( p, 2);
+					result.AppendPrintf( "%0*d", count, hour % 12);
+					break;
+				}
+			
+			case 'k':
+				{
+					count = ConsumeSameUniChar( p, 2);
+					result.AppendPrintf( "%0*d", count, (hour == 0) ? 24 : hour);
+					break;
+				}
+			
+			case 'm':
+				{
+					count = ConsumeSameUniChar( p, 2);
+					result.AppendPrintf( "%0*d", count, minute);
+					break;
+				}
+
+			case 's':
+				{
+					count = ConsumeSameUniChar( p, 2);
+					result.AppendPrintf( "%0*d", count, second);
+					break;
+				}
+
+			case 'u':	// UNSUPPORTED: Extended year. This is a single number designating the year of this calendar system, encompassing all supra-year fields.
+			case 'Q':	// UNSUPPORTED: Quarter
+			case 'q':	// UNSUPPORTED: Stand-Alone Quarter 
+			case 'w':	// UNSUPPORTED: Week of Year
+			case 'W':	// UNSUPPORTED: Week of Month
+			case 'F':	// UNSUPPORTED: Day of Week in Month. The example is for the 2nd Wed in July
+			case 'e':	// UNSUPPORTED: Local day of week.
+			case 'c':	// UNSUPPORTED: Stand-alone Local day of week.
+			case 'S':	// UNSUPPORTED: Fractional Second
+			case 'A':	// UNSUPPORTED: Milliseconds in day.
+			case 'Z':	// UNSUPPORTED: Time Zone - RFC 822 GMT format
+			case 'z':	// UNSUPPORTED: Time Zone - with the specific non-location format.
+			case 'V':	// UNSUPPORTED: Time Zone - Identical to the format for z.
+			case 'v':	// UNSUPPORTED: Time Zone - with the generic non-location format.
+				break;
+
+			default:
+				result += *p;
+				break;
+
 		}
-		::CFRelease(p_Locale);
 	}
-
-#elif VERSION_LINUX
-
-    GetImpl().FormatNumber(inValue, outNumber);
-
-#elif VERSIONWIN
-	// Get the CString from ioNumber.
-	inValue.GetString(outNumber);
-	UniChar acValue[255];
-	outNumber.ToUniCString(acValue,sizeof(acValue));
-
-	// Tell windows to translate the string.
-	UniChar acResult[255];
-	::GetNumberFormatW( fDialect,0,acValue,0,acResult,sizeof(acResult));
-
-	// Result the result in ioNumber.
-	outNumber=acResult;
-#endif
+	outString = result;
 }
+
+
+
+void VIntlMgr::GetMonthName( sLONG inIndex, bool inAbbreviated, VString& outName) const
+{
+	if (testAssert( inIndex >= 1 && inIndex <= 12))
+		GetImpl().GetMonthName( inIndex, inAbbreviated, outName);
+	else
+		outName.Clear();
+}
+
+
+void VIntlMgr::GetWeekDayName( sLONG inIndex, bool inAbbreviated, VString& outName) const
+{
+	if (testAssert( inIndex >= 0 && inIndex <= 6))
+		GetImpl().GetWeekDayName( inIndex, inAbbreviated, outName);
+	else
+		outName.Clear();
+}
+
 
 /*
 	static
@@ -1267,7 +908,11 @@ void VIntlMgr::_InitMeCab()
 	{
 		VFolder *resourcesFolder = VProcess::Get()->RetainFolder( VProcess::eFS_Resources);
 		VFilePath path( resourcesFolder->GetPath());
+		#if VERSIONWIN
 		path.ToSubFolder( CVSTR( "MeCab")).ToSubFile( CVSTR( "mecab.dll"));
+		#elif VERSIONMAC
+		path.ToSubFolder( CVSTR( "MeCab")).ToSubFolder( CVSTR( "mecab.bundle"));
+		#endif
 		sMecabLibrary = new VLibrary( path);
 		if (sMecabLibrary->Load())
 		{
@@ -1304,11 +949,8 @@ bool VIntlMgr::_InitLocaleVariables()
 {
 	bool ok = true;
 
-	fTrue = "true";
-	fFalse = "false";
-
 #if VERSIONMAC
-	CFLocaleRef userLocale=::CFLocaleCopyCurrent();
+	CFLocaleRef userLocale = MAC_RetainCFLocale();
 	if (userLocale)
 	{
 		// Decimal separator
@@ -1491,38 +1133,26 @@ bool VIntlMgr::_InitLocaleVariables()
     fUsingAmPm          = GetImpl().UseAmPm();
 
 #elif VERSIONWIN
-	UniChar val[256];
-	sBYTE buffer[16];
-		
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_SDECIMAL|LOCALE_USE_CP_ACP , val, sizeof(val)/sizeof(UniChar));
-	fDecimalSeparator = val;
-
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_STHOUSAND|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fThousandsSeparator=val;
 	
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_SDATE|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fDateSeparator = val;
+	GetImpl().GetLocaleInfo( LOCALE_SDECIMAL, fDecimalSeparator);
+	GetImpl().GetLocaleInfo( LOCALE_STHOUSAND, fThousandsSeparator);
+	GetImpl().GetLocaleInfo( LOCALE_SDATE, fDateSeparator);
+	GetImpl().GetLocaleInfo( LOCALE_STIME, fTimeSeparator);
+	GetImpl().GetLocaleInfo( LOCALE_SCURRENCY, fCurrency);
+	GetImpl().GetLocaleInfo( LOCALE_SLONGDATE, fLongDatePattern);
+	GetImpl().GetLocaleInfo( LOCALE_SSHORTDATE, fShortDatePattern);
+	GetImpl().GetLocaleInfo( LOCALE_STIMEFORMAT, fLongTimePattern);
+	GetImpl().GetLocaleInfo( LOCALE_SDATE, fDateSeparator);
+	GetImpl().GetLocaleInfo( LOCALE_S1159, fAMString);
+	GetImpl().GetLocaleInfo( LOCALE_S2359, fPMString);
 	
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_STIME|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fTimeSeparator = val;
-
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_SCURRENCY|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fCurrency = val;
-	 
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_SLONGDATE|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fLongDatePattern = val;
-
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_SSHORTDATE|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fMediumDatePattern = val;
-	fShortDatePattern = val;
-
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_STIMEFORMAT|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fLongTimePattern = val;
-	fMediumTimePattern = val;
-	fShortTimePattern = val;
+	fMediumDatePattern = fShortDatePattern;
+	fMediumTimePattern = fLongTimePattern;
+	fShortTimePattern = fLongTimePattern;
 	
-	::GetLocaleInfo(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_IDATE|LOCALE_USE_CP_ACP, buffer, sizeof(buffer));
-	switch(buffer[0])
+	VString s;
+	GetImpl().GetLocaleInfo( LOCALE_IDATE, s);
+	switch(s[0])
 	{
 		case '0':
 			fDateOrder = DO_MONTH_DAY_YEAR;
@@ -1535,21 +1165,13 @@ bool VIntlMgr::_InitLocaleVariables()
 			break;
 		default:
 			// Window returns more info than it was.
-			assert(false);
+			xbox_assert(false);
 			break;
 	}
+
 	
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_SDATE|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fDateSeparator = val;
-	
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_S1159|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fAMString=val;
-	
-	::GetLocaleInfoW(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_S2359|LOCALE_USE_CP_ACP, val, sizeof(val)/sizeof(UniChar));
-	fPMString=val;
-		
-	::GetLocaleInfo(MAKELCID(fDialect,SORT_DEFAULT), LOCALE_ITIME|LOCALE_USE_CP_ACP, buffer, sizeof(buffer));
-	fUsingAmPm = (buffer[0] == '0');
+	GetImpl().GetLocaleInfo( LOCALE_ITIME, s);
+	fUsingAmPm = (s[0] == '0');
 
 #endif
 
@@ -1697,6 +1319,17 @@ bool VIntlMgr::IsDigit(UniChar inChar) const
 	#endif
 
 	return _CharTest(inChar, (UniChar*)sUniDigitRanges);
+}
+
+
+sLONG VIntlMgr::CharDigitValue( UniChar inChar) const
+{
+	#if USE_ICU
+	if (ICU_Available())
+		return u_charDigitValue( inChar);
+	#endif
+	
+	return (inChar >= '0') && (inChar <= '9') ? (inChar - '0') : -1;
 }
 
 
@@ -2144,7 +1777,7 @@ bool VIntlMgr::GetWordBoundariesWithOptions( const VString& inText, VectorOfStri
 				int32_t start = bi->first();
 				for( int32_t end = bi->next(); end != BreakIterator::DONE ; start = end, end = bi->next())
 				{
-					if ((inOptions & eKW_UseLineBreakingRule != 0) || (bi->getRuleStatus() != UBRK_WORD_NONE) )
+					if (((inOptions & eKW_UseLineBreakingRule) != 0) || (bi->getRuleStatus() != UBRK_WORD_NONE) )
 					{
 						// if the word is a conson + apostrophe + voyel, let's get only what is after the apostrophe
 						if (specialApostrophe && _HasApostropheSecondFollowedByVowel( inText, start+1, end - start))
@@ -2204,6 +1837,7 @@ bool VIntlMgr::GetWordBoundariesWithOptions( const VString& inText, VectorOfStri
 						const UniChar *found = std::search( textBegin + pos, textEnd, &word[0], &word[produced]);
 						if (testAssert( found != textEnd))
 						{
+							pos = found - textBegin;
 							boundaries.push_back( VectorOfStringSlice::value_type( pos+1, produced));
 							pos += produced;
 						}
@@ -2290,22 +1924,19 @@ bool VIntlMgr::FindWord( const VString& inText, const VString& inPattern, const 
 				sLONG matchedLength;
 				const UniChar* pString = inText.GetCPointer();
 				sLONG lenString = inText.GetLength();
+				sLONG absolutePos = 0; // DH 28-Feb-2013 ACI0079481 Starting position for next find, used instead of shifting pString start (which makes offsets incompatible with fBreakIterator)
 				sLONG pos;
 
 				do 
 				{
-					pos = fCollator->FindString( pString, lenString, inPattern.GetCPointer(), inPattern.GetLength(), inOptions.IsDiacritical(), &matchedLength);
+					pos = fCollator->FindString((pString + absolutePos), (lenString - absolutePos), inPattern.GetCPointer(), inPattern.GetLength(), inOptions.IsDiacritical(), &matchedLength);
 					if (pos > 0)
 					{
 						// see if the found string is enclosed by dead chars
-						bool deadChar_onLeft = (pos > 1) ? (fBreakIterator->isBoundary( pos - 1) != 0) : true;
-						bool deadChar_onRight = (pos + matchedLength <= lenString) ? (fBreakIterator->isBoundary( pos + matchedLength - 1) != 0) : true;
+						absolutePos += pos;
+						bool deadChar_onLeft = (absolutePos > 1) ? (fBreakIterator->isBoundary(absolutePos - 1) != 0) : true;
+						bool deadChar_onRight = (absolutePos + matchedLength <= lenString) ? (fBreakIterator->isBoundary(absolutePos + matchedLength - 1) != 0) : true;
 						ok = deadChar_onLeft && deadChar_onRight;
-						if (!ok)
-						{
-							pString = pString + pos;
-							lenString = lenString - pos;
-						}
 					}
 
 				} while(pos > 0 && !ok);
@@ -3226,14 +2857,6 @@ bool VIntlMgr::DebugConvertString(void* inSrcText, sLONG inSrcBytes, CharSet inS
 	
 	return isOK;
 }
-
-
-void VIntlMgr::GetBoolString(VString& outString, bool inValue)
-{
-	assert(GetDefaultMgr() != NULL);
-	outString = inValue ? GetDefaultMgr()->fTrue : GetDefaultMgr()->fFalse;
-}
-
 
 
 MultiByteCode VIntlMgr::DialectCodeToScriptCode(DialectCode inDialect)

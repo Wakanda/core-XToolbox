@@ -57,6 +57,29 @@ public:
 	virtual	XBOX::VFolder*					RetainScriptsFolder() = 0;
 
 	virtual XBOX::VProgressIndicator*		CreateProgressIndicator( const XBOX::VString& inTitle) = 0;
+
+			// Returns the namespace for file systems available with this runtime.
+			// The runtime might be a wakanda project or solution, or a 4D application.
+			// May return NULL
+	virtual	XBOX::VFileSystemNamespace*		RetainRuntimeFileSystemNamespace();
+	
+			// SetRuntimeSpecific() let you associate some custom data with the host runtime.
+			// The signature must be unique in the whole application. It could be something like "SharedWorkers" or "SharedSQLConnections".
+			// The custom data object is something of your own. It could be a map of named shared workers or a map of shared sql connections for example.
+			// 
+			// Warning: the runtime delegate actual implementation can be various things like a wakanda project, a wakanda solution or a 4D database.
+			// Sometimes it's a short-live context for evaluating some js expression.
+			//
+			// Your custom data objects will be released when the runtime delegate is destroyed when a project, solution or 4D application is closed.
+			// 			
+			void							SetRuntimeSpecific( const XBOX::VString& inSignature, XBOX::IRefCountable *inObject);
+			XBOX::IRefCountable*			RetainRuntimeSpecific( const XBOX::VString& inSignature) const;
+
+private:
+	typedef	unordered_map_VString<VRefPtr<IRefCountable> >				MapOfSpecifics;
+	mutable	VCriticalSection				fMutex;
+			MapOfSpecifics					fSpecifics;
+
 };
 
 
@@ -108,17 +131,18 @@ public:
 			void							UseContext();
 			void							UnuseContext();
 
+											// Try to use context, which must not be used (zero use count), return true if successful. Thread safe.
+				
+			bool							TryToUseContext ();
+
 			const unordered_map_VString<VRefPtr<VFile> >& GetIncludedFiles() const
 			{
 				return fIncludedFiles;
 			}
 
-											// See CommonJS, also needed for compatibility with NodeJS.
-											// TODO: Should be able to "require" native C++ objects and JS written modules.
-											// Currently only able to retrieve native objects for JS method named requireNative().
-											// require() actually implemented in JS.
+			// Return objects of modules implemented using native C++.
 
-			XBOX::VJSObject					Require (XBOX::VJSContext inContext, const XBOX::VString &inClassName);
+			XBOX::VJSObject					RequireNative (const XBOX::VJSContext &inContext, const XBOX::VString &inClassName);
 
 private:
 											~VJSGlobalObject();
@@ -127,8 +151,8 @@ private:
 
 			void							AskDeferredGarbageCollection()	{ XBOX::VInterlocked::Increment( &fGarbageCollectionPending);}
 
-	typedef	unordered_map_VString<VRefPtr<VFile> >		MapOfIncludedFile;
-	typedef	std::vector< std::pair< VFile*, VTime> >	VectorOfFileModificationTime;
+	typedef	unordered_map_VString<VRefPtr<VFile> >				MapOfIncludedFile;
+	typedef	std::vector< std::pair< VRefPtr<VFile>, VTime> >	VectorOfFileModificationTime;
 
 			JS4D::GlobalContextRef			fContext;
 			VJSContextGroup*				fContextGroup;	// not retained (this is our parent)
@@ -153,10 +177,6 @@ private:
 				}
 
 			};
-			
-			typedef	std::map<XBOX::VString, XBOX::JS4D::ObjectRef, CCompare>	SObjectMap;
-				
-			SObjectMap						fRequireMap;
 };
 
 

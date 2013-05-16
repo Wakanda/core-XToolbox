@@ -120,7 +120,7 @@ public:
 	typedef ValueRef (__cdecl *ObjectConvertToTypeCallback) ( ContextRef ctx, ObjectRef object, EType type, ValueRef* exception);
 
 	static	bool					ValueToString( ContextRef inContext, ValueRef inValue, XBOX::VString& outString, ExceptionRef *outException = NULL);
-	static	XBOX::VValueSingle*		ValueToVValue( ContextRef inContext, ValueRef inValue, ExceptionRef *outException = NULL);
+	static	XBOX::VValueSingle*		ValueToVValue( ContextRef inContext, ValueRef inValue, ExceptionRef *outException = NULL, bool simpleDate = false);
 
 	// produces a js null value if VValueSingle is null
 	static	ValueRef				VValueToValue( ContextRef inContext, const XBOX::VValueSingle& inValue, ExceptionRef *outException);
@@ -147,15 +147,16 @@ public:
 	// produces a js null value if VString is null
 	static	ValueRef				VStringToValue( ContextRef inContext, const XBOX::VString& inString);
 
-#if !VERSION_LINUX  // Postponed Linux Implementation !
 	static	ValueRef				VPictureToValue( ContextRef inContext, const XBOX::VPicture& inPict);
-#endif
 
 	static	ValueRef				VBlobToValue( ContextRef inContext, const VBlob& inBlob, const VString& inContentType = CVSTR( "application/octet-stream"));
 
 	static	ValueRef				BoolToValue( ContextRef inContext, bool inValue);
 	
 	static	ValueRef				DoubleToValue( ContextRef inContext, double inValue);
+	
+	static	sLONG8					GetDebugContextId( ContextRef inContext );
+
 
 	template<class Type>
 	static	ValueRef				NumberToValue( ContextRef inContext, const Type& inValue)	{ return DoubleToValue( inContext, static_cast<double>( inValue));}
@@ -167,7 +168,7 @@ public:
 	// fills a VTime from a js object that implements getTime() function.
 	// in case of failure, VTime::IsNull() returns true.
 	// it's caller responsibility to check inObject is really a Date using ValueIsInstanceOf
-	static	bool					DateObjectToVTime( ContextRef inContext, ObjectRef inObject, XBOX::VTime& outTime, ExceptionRef *outException);
+	static	bool					DateObjectToVTime( ContextRef inContext, ObjectRef inObject, XBOX::VTime& outTime, ExceptionRef *outException, bool simpleDate);
 	
 	// produces a number containing the duration in milliseconds
 	// produces a js null value if VDuration is null

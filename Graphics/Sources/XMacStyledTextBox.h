@@ -23,7 +23,7 @@ BEGIN_TOOLBOX_NAMESPACE
 class XMacStyledTextBox : public VStyledTextBox
 {
 public:
-	XMacStyledTextBox(ContextRef inContextRef, const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, TextRenderingMode inMode = TRM_NORMAL, TextLayoutMode inLayoutMode = TLM_NORMAL, GReal inCharKerning = 0.0f, const GReal inRefDocDPI = 72.0f, bool inUseNSAttributes = false);
+	XMacStyledTextBox(ContextRef inContextRef, const VString& inText, const VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, const TextRenderingMode inMode = TRM_NORMAL, const TextLayoutMode inLayoutMode = TLM_NORMAL, const GReal inCharKerning = 0.0f, const GReal inRefDocDPI = 72.0f, bool inUseNSAttributes = false);
 	
 	CFMutableAttributedStringRef GetAttributedString()
 	{
@@ -43,7 +43,7 @@ public:
 	}
 
 	/** get plain text */
-	virtual Boolean GetPlainText( VString& outText);
+	virtual Boolean GetPlainText( VString& outText) const;
 	
 	/** get uniform style on the specified range 
 	@remarks
@@ -51,7 +51,7 @@ public:
 		
 		derived from VStyledTextBox
 	*/
-	sLONG GetStyle(VTextStyle* ioStyle, sLONG rangeStart, sLONG rangeEnd);
+	sLONG GetStyle(VTextStyle* ioStyle, sLONG rangeStart = 0, sLONG rangeEnd = -1);
 	
 	Boolean GetRTFText(/*[out, retval]*/ VString& outRTFText);
 	Boolean	SetRTFText(/*[in]*/const VString& inRTFText);
@@ -67,13 +67,13 @@ public:
 	void InsertText( sLONG inPos, const VString& inText);
 
 	/** delete text range */
-	void DeleteText( sLONG rangeStart, sLONG rangeEnd);
+	void DeleteText( sLONG rangeStart = 0, sLONG rangeEnd = -1);
 	
 	/** replace text range */
 	void ReplaceText( sLONG rangeStart, sLONG rangeEnd, const VString& inText);
 	
 	/** apply style (use style range) */
-	void ApplyStyle( VTextStyle* inStyle);
+	void ApplyStyle( const VTextStyle* inStyle);
 	
 	/** change drawing context 
 	@remarks
@@ -97,18 +97,15 @@ public:
 	*/
 	const VPoint& GetLayoutOffset() const;
 	
-	/** set min line height for the specified range */
-	void	SetMinLineHeight( const GReal inMinHeight, sLONG inStart, sLONG inEnd);
-	
 protected:
 	Boolean DoInitialize();
 	void DoRelease();
 	Boolean DoDraw(const VRect& inBounds);
 	void DoGetSize(GReal &outWidth, GReal &outHeight);
-	void DoApplyStyle(VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL);
+	void DoApplyStyle(const VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL);
 	void _SetFont(VFont *font, const VColor &textColor);
 	void _SetText(const VString& inText);
-	bool CFDictionaryFromVTextStyle(CFDictionaryRef inActualAttributes, CFMutableDictionaryRef inNewAttributes, VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL);
+	bool CFDictionaryFromVTextStyle(CFDictionaryRef inActualAttributes, CFMutableDictionaryRef inNewAttributes, const VTextStyle* inStyle, VTextStyle *inStyleInherit = NULL);
 
 	/** set document reference DPI
 	@remarks
@@ -155,8 +152,7 @@ private:
 	
 	VectorOfStrikeOutLine fCurLayoutStrikeoutLines;
 	
-	justificationStyle fCurJustUniform;
-	GReal fCurLayoutActualWidth;
+	eStyleJust fCurJustUniform;
 	VPoint fCurLayoutOffset;
 };
 

@@ -456,11 +456,18 @@ VError VTCPEndPoint::DoReadExactly(void *outBuff, uLONG* ioLen, sLONG inMsTimeou
 	if (inLen==0)
 		return VE_OK;
 
-	/* Achtung! */ //jmo - was ist das ?
+	/* Achtung! */
 	xbox_assert ( !fIsInAutoReconnect || ( fIsInAutoReconnect && fIsInUse ) );
 
 	if ( fIsSelectIO && !fIsWatching)
-		return _ReadExactly_SelectIO ( ( char* ) outBuff, inLen, inMsTimeout );
+	{
+		VError verr=_ReadExactly_SelectIO((char*)outBuff, inLen, inMsTimeout);
+
+		if(verr==VE_OK)
+			*ioLen=inLen;
+
+		return verr;
+	}
 
 	char* start=reinterpret_cast<char*>(outBuff);
 	char* past=start+inLen;
@@ -856,17 +863,23 @@ VError VTCPEndPoint::Use ( )
 			{
 				VTCPEndPoint*				vtcpEndPointRestored = fClientSession-> Restore ( *this, vError );
 #if 1
-	if ( vError != VE_OK || vtcpEndPointRestored == 0 )
+	if ( (vError != VE_OK && vError != VE_SRVR_SESSION_PROTOCOL_FAILED) || vtcpEndPointRestored == 0 )
 	{
 		sLONG			nSleepTime = ( VSystem::Random ( ) % 30 ) * 1000;
 		if ( nSleepTime < 5000 )
 			nSleepTime += 5000;
 
+		StErrorContextInstaller			stErrContextTemp ( true, false );
+		VErrorContext*					errContext = 0;
 		while (	vError != VE_OK &&
 				VTask::GetCurrent ( )-> GetState ( ) != TS_DYING &&
 				VTask::GetCurrent ( )-> GetState ( ) != TS_DEAD &&
 				nSleepTime < 3 * 60 * 1000  ) // 3 minutes of waiting
 		{
+			errContext = stErrContextTemp. GetContext ( );
+			if ( errContext != 0 )
+				errContext-> Flush ( );
+
 			VTask::GetCurrent ( )-> Sleep ( nSleepTime );
 			vtcpEndPointRestored = fClientSession-> Restore ( *this, vError );
 			if ( vError != VE_OK || vtcpEndPointRestored == 0 )
@@ -877,6 +890,17 @@ VError VTCPEndPoint::Use ( )
 
 				nSleepTime += nAdditionalSleep;
 			}
+		}
+
+		if ( vError == VE_OK )
+		{
+			errContext = stErrContextTemp. GetContext ( );
+			if ( errContext != 0 )
+				errContext-> Flush ( );
+		}
+		else
+		{
+			stErrContextTemp. MergeAndFlush ( );
 		}
 	}
 #endif
@@ -893,8 +917,8 @@ VError VTCPEndPoint::Use ( )
 					{
 						fIsInUse = true;
 						VTCPSessionManager::DebugMessage ( CVSTR ( "Restored end-point" ), this );
-				}
-				else
+					}
+					else
 						VTCPSessionManager::DebugMessage ( CVSTR ( "Failed to restore end-point" ), this );
 				}
 				else
@@ -1009,9 +1033,10 @@ VError VTCPEndPoint::ReportError(VError inErr, bool needThrow, bool isCritical)
 
 
 XBOX::VError VTCPEndPoint::SetNoDelay (bool inYesNo)
-{ 
-	xbox_assert(fSock != NULL);
-	
+{
+	if (!fSock)
+		return ReportError(VE_SRVR_NULL_ENDPOINT);
+
 	return fSock->SetNoDelay(inYesNo);
 }
 
@@ -1019,6 +1044,9 @@ XBOX::VError VTCPEndPoint::SetNoDelay (bool inYesNo)
 
 XBOX::VError VTCPEndPoint::PromoteToSSL ()
 {
+	if (!fSock)
+		return ReportError(VE_SRVR_NULL_ENDPOINT);
+
 	xbox_assert(!fIsSSL);
 
 	VError	error;
@@ -1038,23 +1066,29 @@ XBOX::VError VTCPEndPoint::PromoteToSSL ()
 
 XBOX::VError VTCPEndPoint::DirectSocketRead (void *outBuff, uLONG *ioLen)
 {
+	if (!fSock)
+		return ReportError(VE_SRVR_NULL_ENDPOINT);
+	
 	return fSock->Read((char *) outBuff, ioLen);
 }
 
 
 XBOX::VError VTCPEndPoint::DirectSocketRead (void *outBuff, uLONG *ioLen, sLONG inTimeOut)
 {
+	if (!fSock)
+		return ReportError(VE_SRVR_NULL_ENDPOINT);
+
 	return fSock->ReadWithTimeout((char *) outBuff, ioLen, inTimeOut);
 }
 
 
 VError VTCPEndPoint::ReadWithTimeout(void *outBuff, uLONG *ioLen, sLONG inTimeoutMs)
 {
-	ILogger* logger=VProcess::Get()->RetainLogger();
+	ILogger* logger=VProcess::Get()->GetLogger();
 	
-	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;
+	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;	// ODBCDriver use-case: Logger can be null.
 	
-	VValueBag *tBag=NULL;
+	VValueBag* tBag=NULL;
 	
 	if(shouldTrace)
 		tBag=new VValueBag;
@@ -1111,7 +1145,7 @@ VError VTCPEndPoint::ReadWithTimeout(void *outBuff, uLONG *ioLen, sLONG inTimeou
 	
 	if(shouldDump)
 	{
-		VValueBag *dBag=new VValueBag;
+		VValueBag* dBag=new VValueBag;
 		
 		ILoggerBagKeys::level.Set(dBag, EML_Dump);
 		
@@ -1133,8 +1167,6 @@ VError VTCPEndPoint::ReadWithTimeout(void *outBuff, uLONG *ioLen, sLONG inTimeou
 		if(dBag!=NULL)
 			ReleaseRefCountable(&dBag);
 
-		if(logger!=NULL)
-			ReleaseRefCountable(&logger);
 	}
 
 	return verr;
@@ -1143,11 +1175,11 @@ VError VTCPEndPoint::ReadWithTimeout(void *outBuff, uLONG *ioLen, sLONG inTimeou
 
 VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMillis)
 {
-	ILogger* logger=VProcess::Get()->RetainLogger();
+	ILogger* logger=VProcess::Get()->GetLogger();
 	
 	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;
 	
-	VValueBag *tBag=NULL;
+	VValueBag* tBag=NULL;
 	
 	if(shouldTrace)
 		tBag=new VValueBag;
@@ -1184,7 +1216,7 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 	//jmo - Non blocking and timeout zero really means blocking.
 	//      If not Select IO, silently tweak the socket to reflect that.
 	
-	bool wasBlocking=fSock->IsBlocking();
+	bool wasBlocking = fSock!=NULL ? fSock->IsBlocking() : true;
 	
 	if(inTimeOutMillis<=0 && !wasBlocking && !IsSelectIO())
 		fSock->SetBlocking(true);
@@ -1195,7 +1227,7 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 	VError verr=DoReadExactly(outBuff, &partialReadLen, inTimeOutMillis);
 	
 	
-	if(fSock->IsBlocking()!=wasBlocking)
+	if(fSock!=NULL && fSock->IsBlocking()!=wasBlocking)
 		fSock->SetBlocking(wasBlocking);
 	
 	if(shouldTrace)
@@ -1214,7 +1246,7 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 
 	if(shouldDump)
 	{
-		VValueBag *dBag=new VValueBag;
+		VValueBag* dBag=new VValueBag;
 		
 		ILoggerBagKeys::level.Set(dBag, EML_Dump);
 		
@@ -1236,8 +1268,6 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 		if(dBag!=NULL)
 			ReleaseRefCountable(&dBag);
 		
-		if(logger!=NULL)
-			ReleaseRefCountable(&logger);
 	}
 
 	return verr;
@@ -1246,11 +1276,11 @@ VError VTCPEndPoint::ReadExactly(void *outBuff, uLONG inLen, sLONG inTimeOutMill
 
 VError VTCPEndPoint::WriteWithTimeout(void *inBuff, uLONG *ioLen, sLONG inTimeoutMs, bool inWithEmptyTail)
 {
-	ILogger* logger=VProcess::Get()->RetainLogger();
+	ILogger* logger=VProcess::Get()->GetLogger();
 	
 	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;
 	
-	VValueBag *tBag=NULL;
+	VValueBag* tBag=NULL;
 	
 	if(shouldTrace)
 		tBag=new VValueBag;
@@ -1307,7 +1337,7 @@ VError VTCPEndPoint::WriteWithTimeout(void *inBuff, uLONG *ioLen, sLONG inTimeou
 	
 	if(shouldDump)
 	{
-		VValueBag *dBag=new VValueBag;
+		VValueBag* dBag=new VValueBag;
 		
 		ILoggerBagKeys::level.Set(dBag, EML_Dump);
 		
@@ -1329,9 +1359,6 @@ VError VTCPEndPoint::WriteWithTimeout(void *inBuff, uLONG *ioLen, sLONG inTimeou
 		if(dBag!=NULL)
 			ReleaseRefCountable(&dBag);
 	}
-
-	if(logger!=NULL)
-		ReleaseRefCountable(&logger);
 	
 	return verr;
 }
@@ -1339,11 +1366,11 @@ VError VTCPEndPoint::WriteWithTimeout(void *inBuff, uLONG *ioLen, sLONG inTimeou
 
 VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeOutMillis)
 {
-	ILogger* logger=VProcess::Get()->RetainLogger();
+	ILogger* logger=VProcess::Get()->GetLogger();
 	
 	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;
 	
-	VValueBag *tBag=NULL;
+	VValueBag* tBag=NULL;
 	
 	if(shouldTrace)
 		tBag=new VValueBag;
@@ -1380,7 +1407,7 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 	//jmo - Non blocking and timeout zero really means blocking.
 	//      Silently tweak the socket to reflect that (no SelectIO at writing).
 	
-	bool wasBlocking=fSock->IsBlocking();
+	bool wasBlocking = fSock!=NULL ? fSock->IsBlocking() : true;
 	
 	if(inTimeOutMillis<=0 && !wasBlocking)
 		fSock->SetBlocking(true);
@@ -1391,7 +1418,7 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 	VError verr=DoWriteExactly(inBuff, &partialWriteLen, inTimeOutMillis);
 	
 	
-	if(fSock->IsBlocking()!=wasBlocking)
+	if(fSock!=NULL && fSock->IsBlocking()!=wasBlocking)
 		fSock->SetBlocking(wasBlocking);
 	
 	if(shouldTrace)
@@ -1410,7 +1437,7 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 	
 	if(shouldDump)
 	{
-		VValueBag *dBag=new VValueBag;
+		VValueBag* dBag=new VValueBag;
 		
 		ILoggerBagKeys::level.Set(dBag, EML_Dump);
 		
@@ -1432,9 +1459,6 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 		if(dBag!=NULL)
 			ReleaseRefCountable(&dBag);
 	}
-
-	if(logger!=NULL)
-		ReleaseRefCountable(&logger);
 	
 	return verr;
 }
@@ -1442,11 +1466,11 @@ VError VTCPEndPoint::WriteExactly(const void *inBuff, uLONG inLen, sLONG inTimeO
 
 VError VTCPEndPoint::Close()
 {
-	ILogger* logger=VProcess::Get()->RetainLogger();
+	ILogger* logger=VProcess::Get()->GetLogger();
 	
 	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;
 	
-	VValueBag *tBag=NULL;
+	VValueBag* tBag=NULL;
 	
 	if(shouldTrace)
 		tBag=new VValueBag;
@@ -1484,9 +1508,6 @@ VError VTCPEndPoint::Close()
 	
 	if(tBag!=NULL)
 		ReleaseRefCountable(&tBag);
-	
-	if(logger!=NULL)
-		ReleaseRefCountable(&logger);
 
 	return verr;
 }
@@ -1494,11 +1515,11 @@ VError VTCPEndPoint::Close()
 
 VError VTCPEndPoint::ForceClose()
 {
-	ILogger* logger=VProcess::Get()->RetainLogger();
+	ILogger* logger=VProcess::Get()->GetLogger();
 	
 	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;
 	
-	VValueBag *tBag=NULL;
+	VValueBag* tBag=NULL;
 	
 	if(shouldTrace)
 		tBag=new VValueBag;
@@ -1536,9 +1557,6 @@ VError VTCPEndPoint::ForceClose()
 	
 	if(tBag!=NULL)
 		ReleaseRefCountable(&tBag);
-	
-	if(logger!=NULL)
-		ReleaseRefCountable(&logger);
 
 	return verr;
 }
@@ -1609,11 +1627,11 @@ VTCPEndPoint* VTCPEndPointFactory::CreateClientConnection(VString const& inDNSNa
 														  bool inIsSSL, bool inIsBlocking, sLONG inTimeOutMillis,
 														  VTCPSelectIOPool* inSelectIOPool, VError& outError)
 {
-	ILogger* logger=VProcess::Get()->RetainLogger();
+	ILogger* logger=VProcess::Get()->GetLogger();
 	
 	bool shouldTrace=(logger!=NULL) ? logger->ShouldLog(EML_Trace) : false;
 	
-	VValueBag *tBag=NULL;
+	VValueBag* tBag=NULL;
 	
 	if(shouldTrace)
 		tBag=new VValueBag;
@@ -1664,9 +1682,6 @@ VTCPEndPoint* VTCPEndPointFactory::CreateClientConnection(VString const& inDNSNa
 	
 	if(tBag!=NULL)
 		ReleaseRefCountable(&tBag);
-	
-	if(logger!=NULL)
-		ReleaseRefCountable(&logger);
 	
 	return ep;
 	

@@ -21,73 +21,145 @@
 
 #define K_MAX_SIZE					(4096)
 
-class RemoteDebugPilot;
-class DebugContext;
-typedef enum ChrmDbgMsgType_enum {
+
+
+
+class VChromeDbgHdlPage : public XBOX::VObject, public XBOX::IRefCountable {
+
+public:
+
+	class VTracesContainer : public VObject, public XBOX::IRefCountable {
+	public:
+									VTracesContainer();
+									~VTracesContainer();
+			void					Put(const XBOX::VValueBag* inTraceBag );
+			const XBOX::VValueBag*	Get();
+	private:
+									VTracesContainer( const VTracesContainer& inOther);
+			sLONG					Next(sLONG inIndex);
+
+			#define K_BAGS_ARRAY_SIZE		(32)
+			const XBOX::VValueBag*			fBags[K_BAGS_ARRAY_SIZE];
+			sLONG							fStartIndex;	
+			sLONG							fEndIndex;
+	mutable	XBOX::VCriticalSection			fLock;
+	};
+									VChromeDbgHdlPage(VTracesContainer* intracesContainer);
+	virtual							~VChromeDbgHdlPage();
+
+	virtual void					Init(sLONG inPageNb,CHTTPServer* inHTTPSrv,IWAKDebuggerSettings* inBrkpts);
+	virtual XBOX::VError			Start(OpaqueDebuggerContext inCtxId);
+	virtual XBOX::VError			Stop();
+
+	virtual XBOX::VError			TreatWS(IHTTPResponse* ioResponse,XBOX::VSemaphore* inSem);
+	virtual sLONG					GetPageNb() {return fPageNb;};
+	
+	virtual XBOX::VError			Abort();
+	virtual XBOX::VError			Lookup(const XBOX::VString& inLookupData);
+	virtual XBOX::VError			Eval(const XBOX::VString& inEvalData,const XBOX::VString& inRequestId);
+	virtual XBOX::VError			Callstack(
+										const XBOX::VString&				inCallstackData,
+										const XBOX::VString&				inExceptionInfosStr,
+										const CallstackDescriptionMap&		inCallstackDesc);
+	virtual XBOX::VError			BreakpointReached(
+										int									inLineNb,
+										const XBOX::VectorOfVString&		inDataStr,
+										const XBOX::VString&				inUrlStr,
+										const XBOX::VString&				inExceptionStr);
+
+	virtual WAKDebuggerServerMessage*		WaitFrom();
+
+private:
+	VChromeDbgHdlPage( const VChromeDbgHdlPage& inHdlPage );
+
+	typedef enum ChrmDbgMsgType_enum {
 		NO_MSG,
+		STOP_MSG,
 		SEND_CMD_MSG,
 		CALLSTACK_MSG,
 		LOOKUP_MSG,
 		EVAL_MSG,
 		SET_SOURCE_MSG,
-		BRKPT_REACHED_MSG
-} ChrmDbgMsgType_t;
-typedef struct ChrmDbgMsgData_st {
+		BRKPT_REACHED_MSG,
+		ABORT_MSG
+	} ChrmDbgMsgType_t;
+
+	typedef struct ChrmDbgMsgData_st {
 		XBOX::VString					_urlStr;
 		XBOX::VString					_dataStr;
+		XBOX::VectorOfVString			_dataVectStr;
+		XBOX::VString					_excStr;
+		XBOX::VString					_excInfosStr;
+		CallstackDescriptionMap			_callstackDesc;
+		XBOX::VString					_requestId;
 		WAKDebuggerServerMessage		Msg;
-		RemoteDebugPilot*				_pilot;
-		DebugContext*					_debugContext;
-} ChrmDbgMsgData_t;
-typedef struct ChrmDbgMsg_st {
-	ChrmDbgMsgType_t				type;
-	ChrmDbgMsgData_t				data;
-} ChrmDbgMsg_t;
+	} ChrmDbgMsgData_t;
 
+	typedef struct ChrmDbgMsg_st {
+		ChrmDbgMsgType_t				type;
+		ChrmDbgMsgData_t				data;
+	} ChrmDbgMsg_t;
 
-
-class VChromeDbgHdlPage : public XBOX::VObject{
-
-public:
-
-									VChromeDbgHdlPage();
-	virtual							~VChromeDbgHdlPage();
-
-	void							Init(sLONG inPageNb,CHTTPServer* inHTTPSrv,XBOX::VString inAbsUrl);
 	XBOX::VError					CheckInputData();
-
-	XBOX::VError					TreatMsg();
+	XBOX::VError					TreatMsg(XBOX::VSemaphore* inSem);
+	XBOX::VError					SendResult(const XBOX::VString& inValue, const XBOX::VString& inRequestId);
 	XBOX::VError					SendResult(const XBOX::VString& inValue);
 	XBOX::VError					SendMsg(const XBOX::VString& inValue);
-	XBOX::VError					TreatPageReload(XBOX::VString* inStr, intptr_t inSrcId);
-	XBOX::VError					SendDbgPaused(XBOX::VString* inStr, intptr_t inSrcId);
-	XBOX::VError					TreatWS(IHTTPResponse* ioResponse);
+	XBOX::VError					SendDbgPaused(const XBOX::VString& inStr);
+	XBOX::VError					SendEvaluateResult(const XBOX::VString& inResult, const XBOX::VString& inRequestId);
 	XBOX::VError					GetBrkptParams(sBYTE* inStr, sBYTE** outUrl, sBYTE** outColNb, sBYTE **outLineNb);
-	sLONG							GetPageNb() {return fPageNb;};
-	void							Clear() {/*fSource.clear();*/};
-	bool							fEnabled;// true when chrome front-end connected and initialized
-	//bool							fActive;// true when chrome displays the page
-	//bool							fUsed;// true when the page is fed with 4D debug data
-	IHTTPWebsocketHandler*			fWS;
-	WAKDebuggerState_t				fState;
-	TemplProtectedFifo<ChrmDbgMsg_t>	fFifo;
-	TemplProtectedFifo<ChrmDbgMsg_t>	fOutFifo;
-	XBOX::VString					fRelURL;
-private:
-	sBYTE							fMsgData[K_MAX_SIZE];
-	sLONG							fMsgLen;
-	bool							fIsMsgTerminated;
-	sLONG							fOffset; 
-	XBOX::VString					fMethod;
-	sBYTE*							fParams;
-	sBYTE*							fId;
-	sLONG							fBodyNodeId;
-	sLONG							fPageNb;
-	intptr_t						fSrcId;
-	sLONG							fLineNb;
-	XBOX::VString					fFileName;
-	XBOX::VectorOfVString			fSource;
-	XBOX::VSemaphore				fSem;
+	XBOX::VError					TreatPageReload(
+										const XBOX::VString&			inStr,
+										const XBOX::VString&			inExcStr,
+										const XBOX::VString&			inExcInfos);
+	XBOX::VError					TreatBreakpointReached(ChrmDbgMsg_t& inMsg);
+	XBOX::VError					TreatEvaluate(ChrmDbgMsg_t& inMsg);
+	XBOX::VError					TreatLookup(ChrmDbgMsg_t& inMsg);
+	void							Log(const XBOX::VString& inLoggerID,
+										XBOX::EMessageLevel inLevel,
+										const XBOX::VString& inMessage,
+										XBOX::VString* outFormattedMessage);
+	void							Log(const char* inLoggerID,
+										XBOX::EMessageLevel inLevel,
+										const char* inMessage,
+										XBOX::VString* outFormattedMessage);
+
+	XBOX::VError					TreatTraces();
+	
+	typedef enum ChromeDbgHdlPageState_enum {
+		STOPPED_STATE,
+		STARTING_STATE,
+		CONNECTED_STATE,
+	} ChromeDbgHdlPageState_t;
+
+	IHTTPWebsocketServer*						fWS;
+	TemplProtectedFifo<ChrmDbgMsg_t>			fFifo;
+	TemplProtectedFifo<ChrmDbgMsg_t>			fOutFifo;
+
+	sBYTE									fMsgData[K_MAX_SIZE];
+	XBOX::VSize								fMsgLen;
+	bool									fIsMsgTerminated;
+	XBOX::VSize								fOffset; 
+	XBOX::VString							fMethod;
+	sBYTE*									fParams;
+	sBYTE*									fId;
+	sLONG									fBodyNodeId;
+	sLONG									fPageNb;
+	intptr_t								fSrcId;
+	sLONG									fLineNb;
+	XBOX::VString							fFileName;
+	XBOX::VectorOfVString					fSource;
+	XBOX::VSemaphore						fSem;
+	ChromeDbgHdlPageState_t					fState;
+	XBOX::VString							fExcStr;
+	XBOX::VString							fExcInfosStr;
+	unsigned int							fInternalState;
+	OpaqueDebuggerContext					fCtxId;
+	CallstackDescriptionMap					fCallstackDescription;
+	VTracesContainer*						fTracesContainer;
+	bool									fConsoleEnabled;
+
+
 };
 
 #endif

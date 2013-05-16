@@ -502,6 +502,21 @@ VError XWinAddrLocalQuery::FillAddrList()
 
 VError XWinAddrDnsQuery::FillAddrList(const VString& inDnsName, PortNumber inPort, EProtocol inProto)
 {
+	//Take a shortcut if we have an IP in inDnsName
+	//(Do not deal with IP v4/v6 resolve policy if there is nothing to resolve)
+	if(inPort!=kBAD_PORT)
+	{
+		StKillErrorContext errCtx;
+		XWinNetAddr tmp;
+		VError verr=tmp.FromIpAndPort(inDnsName, inPort);
+	
+		if(verr==VE_OK)
+		{
+			fVAddrList->PushXNetAddr(tmp);
+			return VE_OK;
+		}
+	}
+
 	//Prepare the parameters for getaddrinfo.
 	
 	char utf8DnsName[255];	//Max DNS name

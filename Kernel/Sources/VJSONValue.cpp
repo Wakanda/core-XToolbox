@@ -14,6 +14,7 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VKernelPrecompiled.h"
+#include "VFile.h"
 #include "VJSONTools.h"
 #include "VJSONValue.h"
 
@@ -768,7 +769,7 @@ sLONG VJSONObject::Release( const char* inDebugInfo) const
 VJSONValue VJSONObject::GetProperty( const VString& inName) const
 {
 	MapType::const_iterator i = fMap.find( inName);
-	return (i == fMap.end()) ? VJSONValue::sUndefined : i->second;
+	return (i == fMap.end()) ? VJSONValue::sUndefined : i->second.first;
 }
 
 
@@ -781,9 +782,11 @@ bool VJSONObject::SetProperty( const VString& inName, const VJSONValue& inValue)
 			fMap.erase( inName);
 		else
 		{
-			std::pair<MapType::iterator,bool> i = fMap.insert( MapType::value_type( inName, inValue));
+			std::pair<MapType::iterator,bool> i = fMap.insert( MapType::value_type( inName, std::pair<VJSONValue,size_t>(inValue,fMap.size())));
 			if (!i.second)
-				i.first->second = inValue;
+			{
+				i.first->second.first = inValue;
+			}
 				
 			VJSONGraph::Connect( &fGraph, inValue);
 		}
@@ -798,7 +801,18 @@ bool VJSONObject::SetProperty( const VString& inName, const VJSONValue& inValue)
 
 void VJSONObject::RemoveProperty( const VString& inName)
 {
-	fMap.erase( inName);
+	MapType::const_iterator i = fMap.find( inName);
+	if (i != fMap.end())
+	{
+		// decrement property indexes above the deleted one
+		size_t index = i->second.second;
+		for( MapType::iterator j = fMap.begin() ; j != fMap.end() ; ++j)
+		{
+			if (j->second.second > index)
+				j->second.second -= 1;
+		}
+		fMap.erase( i);
+	}
 }
 
 
@@ -827,6 +841,25 @@ bool VJSONObject::DoStringify( VString& outString, VJSONWriter& inWriter, VError
 }
 
 
+VError VJSONObject::MergeWith(const VJSONObject* inOther, bool inPrivilegesSourceOnConflict)
+{
+	VError err = VE_OK;
+	for (MapType::const_iterator cur = inOther->fMap.begin(), end = inOther->fMap.end(); (cur != end) && (err == VE_OK); ++cur)
+	{
+		if (inPrivilegesSourceOnConflict)
+		{
+			MapType::const_iterator found = fMap.find( cur->first);
+			if (found == fMap.end())
+				SetProperty(cur->first, cur->second.first);
+		}
+		else
+			SetProperty(cur->first, cur->second.first);
+	}
+	return err;
+}
+
+
+
 VError VJSONObject::Clone( VJSONValue& outValue, VJSONCloner& inCloner) const
 {
 	VError err = VE_OK;
@@ -834,22 +867,22 @@ VError VJSONObject::Clone( VJSONValue& outValue, VJSONCloner& inCloner) const
 	VJSONObject *clone = new VJSONObject;
 	if (clone != NULL)
 	{
-		MapType clonedMap = fMap;
+		MapType clonedMap( fMap);
 
 		for( MapType::iterator i = clonedMap.begin() ; (i != clonedMap.end()) && (err == VE_OK) ; ++i)
 		{
-			if (i->second.IsObject())
+			if (i->second.first.IsObject())
 			{
-				VJSONObject *theOriginalObject = RetainRefCountable( i->second.GetObject());
-				err = inCloner.CloneObject( theOriginalObject, i->second);
-				VJSONGraph::Connect( &clone->fGraph, i->second);
+				VJSONObject *theOriginalObject = RetainRefCountable( i->second.first.GetObject());
+				err = inCloner.CloneObject( theOriginalObject, i->second.first);
+				VJSONGraph::Connect( &clone->fGraph, i->second.first);
 				ReleaseRefCountable( &theOriginalObject);
 			}
-			else if (i->second.IsArray())
+			else if (i->second.first.IsArray())
 			{
-				VJSONArray *theOriginalArray = RetainRefCountable( i->second.GetArray());
-				err = theOriginalArray->Clone( i->second, inCloner);
-				VJSONGraph::Connect( &clone->fGraph, i->second);
+				VJSONArray *theOriginalArray = RetainRefCountable( i->second.first.GetArray());
+				err = theOriginalArray->Clone( i->second.first, inCloner);
+				VJSONGraph::Connect( &clone->fGraph, i->second.first);
 				ReleaseRefCountable( &theOriginalArray);
 			}
 		}
@@ -865,6 +898,25 @@ VError VJSONObject::Clone( VJSONValue& outValue, VJSONCloner& inCloner) const
 	ReleaseRefCountable( &clone);
 
 	return err;
+}
+
+
+//---------------------------------------------------
+
+
+VJSONPropertyConstOrderedIterator::VJSONPropertyConstOrderedIterator( const VJSONObject *inObject)
+{
+	fMappedValues.resize( inObject->fMap.size(), NULL);
+	
+	VectorOfMappedValueRef::iterator j = fMappedValues.begin();
+	for( VJSONObject::MapType::const_iterator i = inObject->fMap.begin() ; i != inObject->fMap.end() ; ++i)
+	{
+		xbox_assert( i->second.second >= 0 && i->second.second < fMappedValues.size());
+		fMappedValues[i->second.second] = &*i;
+	}
+	
+	fIterator = fMappedValues.begin();
+	fIterator_end = fMappedValues.end();
 }
 
 
@@ -1113,7 +1165,7 @@ VError VJSONWriter::StringifyObject( const VJSONObject *inObject, VString& outSt
 			array.resize( inObject->fMap.size());
 
 			VectorOfVString::iterator j = array.begin();
-			for( VJSONPropertyConstIterator i( inObject) ; i.IsValid() && (err == VE_OK) ; ++i, ++j)
+			for( VJSONPropertyConstOrderedIterator i( inObject) ; i.IsValid() && (err == VE_OK) ; ++i, ++j)
 			{
 				err = i.GetName().GetJSONString( *j, GetOptions());
 				if (err == VE_OK)
@@ -1189,6 +1241,20 @@ VError VJSONWriter::StringifyArray( const VJSONArray *inArray, VString& outStrin
 	}
 		
 	return err;
+}
+
+
+VError VJSONWriter::StringifyValueToFile( VFile *inFile, const VJSONValue& inValue, JSONOption inOptions)
+{
+	if (!testAssert( inFile != NULL))
+	{
+		return VE_OK;
+	}
+
+	VString jsonString;
+	VJSONWriter writer( inOptions);
+	writer.StringifyValue( inValue, jsonString);
+	return inFile->SetContentAsString( jsonString, VTC_UTF_8);
 }
 
 

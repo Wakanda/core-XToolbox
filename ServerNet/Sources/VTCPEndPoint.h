@@ -207,7 +207,7 @@ protected:
 };
 
 
-class XTOOLBOX_API VTCPEndPointFactory
+class XTOOLBOX_API VTCPEndPointFactory : public VObject
 {
 	public :
 	

@@ -117,24 +117,11 @@ VJSSystemWorker::VJSSystemWorker (const XBOX::VString &inCommandLine, const XBOX
 	fProcessLauncher.SetRedirectStandardInput(true);
 	fProcessLauncher.SetRedirectStandardOutput(true);
 
-	if (inFolderPath.GetLength()) {
-
-		// On Mac platform, convert POSIX path to HFS.
-
-#if VERSIONMAC == 1
-
-		XBOX::VFilePath	path;
-
-		path.FromFullPath(inFolderPath, XBOX::FPS_POSIX);
-		fProcessLauncher.SetDefaultDirectory(path.GetPath());
-		
-#else
+    // inFolderPath must be in "native" format (i.e. HFS for Mac).
+    
+	if (inFolderPath.GetLength())
 		
 		fProcessLauncher.SetDefaultDirectory(inFolderPath);
-		
-#endif
-	
-	}
 	
 #if VERSIONWIN
 	
@@ -665,7 +652,7 @@ void VJSSystemWorkerClass::_Exec (XBOX::VJSParms_callStaticFunction &ioParms, vo
 	ioParms.ReturnNullValue();
 	inputBuffer = NULL;
 
-	if (!ioParms.GetStringParam(1, commandLine)) {
+	if (!ioParms.IsStringParam(1) || !ioParms.GetStringParam(1, commandLine)) {
 		
 		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "1");
 		return;

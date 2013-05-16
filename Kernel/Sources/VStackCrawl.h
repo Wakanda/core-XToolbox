@@ -19,7 +19,7 @@
 BEGIN_TOOLBOX_NAMESPACE
 
 enum {
-	kMaxScrawlFrames = 24
+	kMaxScrawlFrames = 48
 };
 
 END_TOOLBOX_NAMESPACE

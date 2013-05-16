@@ -26,6 +26,69 @@
 #include "ILogger.h"
 
 
+/*
+	VStackCrawl::Dump() produces a stack crawl with fully qualified symbols separated by \n.
+	for	ILogger, we prefer smaller one line information enough for debugging.
+*/
+static VString ShortenStackCrawlOneLine( const VString& inStackCrawl)
+{
+	VString result;
+	
+	VectorOfVString items;
+	inStackCrawl.GetSubStrings( '\n', items, true /* inReturnEmptyStrings */, true /* inTrimSpaces */);
+	
+	for( VectorOfVString::iterator i = items.begin() ; i != items.end() ; ++i)
+	{
+		// remove function parameter list
+		VString s = *i;
+		VIndex posLeft = s.FindUniChar( '(');
+		VIndex posRight = s.FindUniChar( ')');
+		if ( (posLeft > 0) && (posRight > posLeft) )
+		{
+			s.Remove( posLeft, posRight - posLeft + 1);
+		}
+		
+		// remove xbox:: namespaces
+		s.ExchangeAll( CVSTR( "xbox::"), CVSTR(""));
+		
+		// remove some extra useless info
+		s.ExchangeAll( CVSTR( "non-virtual thunk to "), CVSTR(""));
+		
+		// remove const qualifier
+		VIndex pos = s.FindRawString( " const");
+		if ( (pos > 0) && (pos == s.GetLength() - 5) )
+			s.Remove( pos, 6);
+		
+		if (i != items.begin())
+			result += " <- ";
+		result += s;
+	}
+	return result;
+}
+
+
+/*
+	sometimes the __FILE__ macro returns a full path.
+	We only want the filename for ILogger
+*/
+static VString ShortenFilePath( const VString& inFilePath)
+{
+	#if VERSIONMAC || VERSION_LINUX
+	UniChar sep = '/';
+	#elif VERSIONWIN
+	UniChar sep = '\\';
+	#endif
+
+	VIndex pos = inFilePath.FindUniChar( sep, inFilePath.GetLength(), true);
+	if (pos <= 0)
+		return inFilePath;
+
+	VString s;
+	inFilePath.GetSubString( pos + 1, inFilePath.GetLength() - pos, s);
+	return s;
+}
+
+
 VDebuggerActionCode VNotificationDebugMessageHandler::_TranslateNotificationResponse( ENotificationResponse inResponse)
 {
 	VDebuggerActionCode code;
@@ -213,7 +276,7 @@ void VDebugMgr::DebugMsg( const VString& inMessage)
 					}
 					
 					// log to ILogger
-					ILogger *logger = VProcess::Get()->RetainLogger();
+					ILogger *logger = VProcess::Get()->GetLogger();//->RetainLogger();
 					if ((logger != NULL) && logger->ShouldLog( EML_Debug))
 					{
 						// remove ending \n because line management is managed by the logger
@@ -229,7 +292,6 @@ void VDebugMgr::DebugMsg( const VString& inMessage)
 						logger->LogBag( bag);
 						ReleaseRefCountable( &bag);
 					}
-					ReleaseRefCountable( &logger);
 				}
 
 				// Log to debugger console
@@ -304,21 +366,29 @@ bool VDebugMgr::AssertFailed(const char* inTestString, const char* inFileName, s
 						}
 						
 						// log to ILogger
-						ILogger *logger = VProcess::Get()->RetainLogger();
+						ILogger *logger = VProcess::Get()->GetLogger();
 						if ( (logger != NULL) && logger->ShouldLog( EML_Assert))
 						{
 							VValueBag *bag = new VValueBag;
 							
 							ILoggerBagKeys::level.Set( bag, EML_Assert);
-							ILoggerBagKeys::file_name.Set( bag, inFileName);
+							ILoggerBagKeys::file_name.Set( bag, ShortenFilePath( inFileName));
 							ILoggerBagKeys::line_number.Set( bag, inLineNumber);
 							ILoggerBagKeys::message.Set( bag, inTestString);
+
+							VStackCrawl crawl;
+							crawl.LoadFrames( 2, 8);
+							VString stackCrawl;
+							crawl.Dump( stackCrawl);
+							if (!stackCrawl.IsEmpty())
+							{
+								ILoggerBagKeys::stack_crawl.Set( bag, ShortenStackCrawlOneLine( stackCrawl));
+							}
 
 							logger->LogBag( bag);
 							
 							ReleaseRefCountable( &bag);
 						}
-						ReleaseRefCountable( &logger);
 						
 						if (fMessageHandler != NULL)
 						{
@@ -397,7 +467,7 @@ void VDebugMgr::ErrorThrown(VErrorBase* inError)
 					}
 						
 					// log to ILogger
-					ILogger *logger = VProcess::Get()->RetainLogger();
+					ILogger *logger = VProcess::Get()->GetLogger();
 					if ( (logger != NULL) && logger->ShouldLog( EML_Error))
 					{
 						VValueBag *bag = new VValueBag;
@@ -414,14 +484,13 @@ void VDebugMgr::ErrorThrown(VErrorBase* inError)
 							inError->GetStackCrawl( stackCrawl);
 							if (!stackCrawl.IsEmpty())
 							{
-								ILoggerBagKeys::stack_crawl.Set( bag, stackCrawl);
+								ILoggerBagKeys::stack_crawl.Set( bag, ShortenStackCrawlOneLine( stackCrawl));
 							}
 							
 							logger->LogBag( bag);
 						}
 						ReleaseRefCountable( &bag);
 					}
-					ReleaseRefCountable( &logger);
 					
 					// Log to debugger console
 					if (fLogInDebugger && fDebuggerAvailable)
@@ -643,9 +712,9 @@ FILE *VDebugMgr::_OpenAssertFile( bool inWithTimeStamp, bool inWithStackCrawl)
 	{
 		VStackCrawl crawl;
 #if VERSIONDEBUG
-		crawl.LoadFrames( 2, 8);
+		crawl.LoadFrames( 4, 8);
 #else
-		crawl.LoadFrames( 1, 8);
+		crawl.LoadFrames( 4, 8);
 #endif
 		crawl.Dump( assertFile);
 	}

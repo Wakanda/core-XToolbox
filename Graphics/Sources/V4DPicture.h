@@ -23,33 +23,11 @@
 BEGIN_TOOLBOX_NAMESPACE
 
 class VPictureQDBridgeBase;
-class VMacPictureAllocatorBase;
+class VMacHandleAllocatorBase;
 class VPictureData;
 class xV4DPictureBlobRef;
 class VPictureDataProvider;
-enum
-{
-	kPict_DBG_Delete=0,
-	kPict_DBG_Copy,
-	kPictData_DBG_Delete,
-	kPictData_DBG_Retain,
-	kPictData_DBG_Release
-};
 
-class XTOOLBOX_API I4DPictureDebug
-{
-	public:
-	I4DPictureDebug();
-	virtual ~I4DPictureDebug();
-	void	AddBreak(long id);
-	bool	IsBreakEnable(long inID)const;
-	void	RemoveBreak(long inID);
-	void	ToogleBreak(long inID);
-	void	InvokeBreak(long inID) const;
-private:
-	typedef std::map<long,long> _BreakMap;
-	mutable _BreakMap fBreakMap;
-};
 
 
 #if _WIN32 || __GNUC__
@@ -144,52 +122,10 @@ public:
 };
 
  
-typedef std::map < VString , const class VPictureData* > _VPictDataMap ;
-typedef std::pair < VString , const class VPictureData* > _VPictDataPair ;
-typedef _VPictDataMap::iterator _VPictDataMap_Iterrator ;
-typedef _VPictDataMap::const_iterator _VPictDataMap_Const_Iterrator ;
-
-class XTOOLBOX_API xVPictureMapWatch :public VObject IWATCHABLE_NOREG(xVPictureMapWatch)
-{
-	public:
-	xVPictureMapWatch(_VPictDataMap* inMap)
-	{
-		fMap=inMap;
-	}
-	virtual ~xVPictureMapWatch()
-	{
-	}
-	virtual sLONG IW_CountProperties()
-	{
-		return (sLONG)fMap->size()+1;
-	}
-	virtual void IW_GetPropName(sLONG /*inPropID*/,VValueSingle& outName)
-	{
-		outName.FromString("PictData");
-	}
-	virtual void IW_GetPropValue(sLONG inPropID,VValueSingle& outValue)
-	{
-		if(inPropID==0)
-			return;
-		sLONG i;
-		_VPictDataMap_Iterrator it;
-		for(i=1,it=fMap->begin();it!=fMap->end();it++,i++)
-		{
-			if(i==inPropID)
-			{
-				if((*it).second)
-					IW_SetHexVal((sLONG_PTR)(*it).second,outValue);
-				else
-					IW_SetHexVal((sLONG_PTR)NULL,outValue);
-			}
-		}
-	}
-	virtual void IW_GetPropInfo(sLONG inPropID,bool& outEditable,IWatchable_Base** outChild);
-	
-
-	private:
-	_VPictDataMap* fMap;
-};
+typedef std::map < VString , const class VPictureData* > VPictDataMap ;
+typedef std::pair < VString , const class VPictureData* > VPictDataPair ;
+typedef VPictDataMap::iterator VPictDataMap_Iterrator ;
+typedef VPictDataMap::const_iterator VPictDataMap_Const_Iterrator ;
 
 class _VPictureAccumulator :public VObject, public IRefCountable
 {
@@ -204,12 +140,13 @@ class _VPictureAccumulator :public VObject, public IRefCountable
 	VArrayOf<const VPictureData*> fList;
 };
 
-class XTOOLBOX_API VPicture :public VValueSingle IWATCHABLE_NOREG(VPicture)
+class XTOOLBOX_API VPicture :public VValueSingle
 {
 	public:
 	static	const VPicture_info	sInfo;	
 	static void Deinit();
-	static void Init(VPictureQDBridgeBase* inQDBridge,VMacPictureAllocatorBase* inMacAllocator);
+	static void Init(VMacHandleAllocatorBase* inMacAllocator);
+	static void InitQDBridge(VPictureQDBridgeBase* inQDBridge);
 
 	VPicture(VFile& inFile,bool inAllowUnknownData);
 	VPicture(const VPictureData* inData);
@@ -217,12 +154,15 @@ class XTOOLBOX_API VPicture :public VValueSingle IWATCHABLE_NOREG(VPicture)
 	VPicture();
 	VPicture(VBlob* inBlob);
 	VPicture(VStream* inStream,_VPictureAccumulator* inRecorder=0);
+#if !VERSION_LINUX
 	VPicture(PortRef inPortRef,VRect inBounds);
+#endif
 	VPicture& operator=(const VPicture& inPict);
 	
 	virtual ~VPicture();
 	
 /*************************** inherited from VValue *******************************/
+	
 	virtual VError				ReadRawFromStream( VStream* ioStream, sLONG inParam = 0); //used by db4d server to read data without interpretation (for example : pictures)
 	virtual Boolean				CanBeEvaluated () const { return false; }
 	virtual	const VValueInfo*	GetValueInfo() const {return &sInfo;}
@@ -255,173 +195,196 @@ class XTOOLBOX_API VPicture :public VValueSingle IWATCHABLE_NOREG(VPicture)
 	virtual VError				WriteToStream (VStream* ioStream, sLONG inParam = 0) const;
 	
 	virtual Boolean				EqualToSameKind( const VValue* inValue, Boolean inDiacritical = false) const;
-	
+/************************************************************************************************************/
+// Debug
+
+			void				DumpPictureInfo(VString& outDump,sLONG level) const;
+
 /*************************************************************************************************************/
-	
-	void SetExtraData(const VBlob& inBlob);
-	VSize GetExtraData(VBlob& outBlob)const;
-	VSize GetExtraDataSize()const;
-	void ClearExtraData();
-	
-	void FromVFile(VFile& inFile,bool inAllowUnknownData);
-	void Draw(PortRef inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
-	void Draw(VGraphicContext* inGraphicContext,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
-	void Print(PortRef inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
-	void Print(VGraphicContext* inGraphicContext,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
-	#if VERSIONWIN
-	void Draw(Gdiplus::Graphics* inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
-	#else
-	void Draw(CGContextRef inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
-	#endif
-	void RemovePastablePicData();
-	
-	void* GetPicHandle(bool inAppendPicEnd=false)const;
-	VSize GetDataSize(_VPictureAccumulator* inRecorder=0) const;	
-	
-	void DumpPictureInfo(VString& outDump,sLONG level) const;
-	
-	void FromVPictureData(const VPictureData* inData);
-	
-	void FromVPicture_Copy(const VPicture& inData,bool inKeepSettings=false);
-	void FromVPicture_Retain(const VPicture& inData,bool inKeepSettings=false);
+// Extra Data	
+			void				SetExtraData(const VBlob& inBlob);
+			VSize				GetExtraData(VBlob& outBlob)const;
+			VSize				GetExtraDataSize()const;
+			void				ClearExtraData();
 
-	void FromVPicture_Copy(const VPicture* inData,bool inKeepSettings=false);
-	void FromVPicture_Retain(const VPicture* inData,bool inKeepSettings=false);
-	
-	void FromMacHandle(void* inMacHandle,bool trydecode=false,bool inWithPicEnd=false);
-	void FromPtr(void* inPtr,VSize inSize);
-	
-	void FromMacPicHandle(void* inMacPict,bool inWithPicEnd=false);
-	void FromMacPictPtr(void* inMacPtr,VSize inSize,bool inWithPicEnd=false);
-	
-	void CalcBestPictData(){_SelectDefault();}
-	
-	bool AppendPictData(const VPictureData* inData,bool inReplaceIfExist=false,bool inRecalcDefaultPictData=false);
-	const VPictureData* RetainNthPictData(VIndex inIndex) const;
-	const VPictureData* RetainPictDataByMimeType(const VString& inMime) const;
-	const VPictureData* RetainPictDataByExtension(const VString& inExt) const;
-	const VPictureData* RetainPictDataByIdentifier(const VString& inExt) const;
-	VIndex CountPictureData()const {return (VIndex)fPictDataMap.size();}
-	void SelectPictureDataByExtension(const VString& inExt,bool inForDisplay=true,bool inForPrinting=false)const;
-	void SelectPictureDataByMimeType(const VString& inExt,bool inForDisplay=true,bool inForPrinting=false)const;
-	
-	const VPictureData* RetainPictDataForDisplay() const;
-	const VPictureData* RetainPictDataForPrinting() const;
-	
-	void GetMimeList(VString& outMimes) const;
-	
-	const VPictureData* _GetBestPictDataForDisplay()const
-	{
-		return fBestForDisplay;
-	}
-	const VPictureData* _GetBestPictDataForPrinting()const
-	{
-		return fBestForPrinting;
-	}
-	VPicture* CreateGrayPicture()const;
-	
-	virtual	void					Clear();
-	
-	sLONG GetWidth(bool inIgnoreTransform=false) const;
-	sLONG GetHeight(bool inIgnoreTransform=false)const;
-	VPoint GetWidthHeight(bool inIgnoreTransform=false)const;
-	VRect GetCoords(bool inIgnoreTransform=false)const;
-	
-	bool IsSplited(sWORD* ioLine=0,sWORD* ioCol=0)const;
-	void SetSplitInfo(bool inSplit,sWORD inLine,sWORD inCol);
-	
-	bool IsSamePictData(const VPicture* inPicture)const;
-	
-	sLONG _GetMaxPictDataRefcount();
+/************************************************************************************************************/	
+//	
+			void				FromVFile(VFile& inFile,bool inAllowUnknownData);
+			void				FromVPictureData(const VPictureData* inData);
+			
+			// Si inKeepSettings est faux (cas general) les settings de l'image de destination sont remplacer par ceux de l'image source
+			// Si inKeepSettings est vrai, seul les pictdata sont copier. Les transformations, et autres settings de l'image de destination ne sont touché
+			// inCopyOutsidePath : dois tj etre FAUX, reservé a DB & javascript. Si vrai l'outside path de la valuesource de l'image de destination sera remplacé
 
-	bool IsPictEmpty() const;
+			void				FromVPicture_Copy(const VPicture& inData,bool inKeepSettings,bool inCopyOutsidePath=false);
+			void				FromVPicture_Retain(const VPicture& inData,bool inKeepSettings,bool inCopyOutsidePath=false);
 
-	const VValueBag* RetainMetaDatas(const VString* inPictureIdentifier=NULL);
-	
-	/*********************** IWAtchable *************************/
-	// for debug
-	void dbg_SetCVCache(bool b){fInCVCache=b;}
-	bool dbg_GetCVCache(){return fInCVCache;}
+			void				FromVPicture_Copy(const VPicture* inData,bool inKeepSettings,bool inCopyOutsidePath=false);
+			void				FromVPicture_Retain(const VPicture* inData,bool inKeepSettings,bool inCopyOutsidePath=false);
+			
+#if !VERSION_LINUX
+//TODO - jmo : Voir avec Patrick pour virer le VHandle ?
+			void				FromMacHandle(void* inMacHandle,bool trydecode=false,bool inWithPicEnd=false);
+#endif
 
-	virtual sLONG IW_CountProperties();
-	virtual void IW_GetPropName(sLONG inPropID,VValueSingle& outName);
-	virtual void IW_GetPropValue(sLONG inPropID,VValueSingle& outValue);
-	virtual void IW_GetPropInfo(sLONG inPropID,bool& outEditable,IWatchable_Base** outChild);
-	virtual short IW_GetIconID(sLONG inPropID);
-	//virtual bool IW_UseCustomMenu(sLONG inPropID,IWatchableMenuInfoArray &outmenuinfo);
-	//virtual void IW_HandleCustomMenu(sLONG inID);
-	virtual void IW_SetPropValue(sLONG inPropID,VValueSingle& inValue);
-	/*********************** ******** *************************/
+			void				FromPtr(void* inPtr,VSize inSize);
+			
+			void				FromMacPicHandle(void* inMacPict,bool inWithPicEnd=false);
+			void				FromMacPictPtr(void* inMacPtr,VSize inSize,bool inWithPicEnd=false);
 
-	sWORD GetPicEnd_PosX()const{return fDrawingSettings.GetPicEnd_PosX();}
-	sWORD GetPicEnd_PosY()const{return fDrawingSettings.GetPicEnd_PosY();}
-	void SetPicEndPos(sWORD inX,sWORD inY){fDrawingSettings.SetPicEndPos(inX,inY);}
-	void  OffsetPicEndPos(sWORD inOffX,sWORD inOffY){fDrawingSettings.OffsetPicEndPos(inOffX,inOffY);}
-	
-	sWORD GetPicEnd_TransfertMode()const{return fDrawingSettings.GetPicEnd_TransfertMode();}
-	void SetPicEnd_TransfertMode(sWORD inMode){return fDrawingSettings.SetPicEnd_TransfertMode(inMode);}
-	
-	static bool IsVPictureData(uCHAR* inBuff,VSize inBuffSize);
-	VError SaveToBlob(VBlob* inBlob,bool inEvenIfEmpty=false,_VPictureAccumulator* inRecorder=0)const;
-	VError ReadFromBlob(VBlob& inBlob);
+			VError				SaveToBlob(VBlob* inBlob,bool inEvenIfEmpty=false,_VPictureAccumulator* inRecorder=0)const;
+			VError				ReadFromBlob(VBlob& inBlob);
 
-	VError	GetPictureForRTF(VString& outRTFKind,VBlob& outBlob);
+			VError				ImportFromStream (VStream& ioStream) ;
+/********************************************************************************************************/
+// Picture data management
+			
+			bool				AppendPictData(const VPictureData* inData,bool inReplaceIfExist=false,bool inRecalcDefaultPictData=false);
+			const				VPictureData* RetainNthPictData(VIndex inIndex) const;
+			const				VPictureData* RetainPictDataByMimeType(const VString& inMime) const;
+			const				VPictureData* RetainPictDataByExtension(const VString& inExt) const;
+			const				VPictureData* RetainPictDataByIdentifier(const VString& inExt) const;
+			VIndex				CountPictureData()const {return (VIndex)fPictDataMap.size();}
+			void				SelectPictureDataByExtension(const VString& inExt,bool inForDisplay=true,bool inForPrinting=false)const;
+			void				SelectPictureDataByMimeType(const VString& inExt,bool inForDisplay=true,bool inForPrinting=false)const;
+			
+			const VPictureData* RetainPictDataForDisplay() const;
+			const VPictureData* RetainPictDataForPrinting() const;
 
-	VPicture* BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureMosaic inMode,bool inNoAlpha=false,const VColor& inColor=VColor(255,255,255,255))const;
+			VSize				GetDataSize(_VPictureAccumulator* inRecorder=0) const;	
 
-	void SetEmpty(bool inKeepSettings=false);
+			void				CalcBestPictData(){_SelectDefault();}
 	
-	static VFile* SelectPictureFile();
+			void				GetMimeList(VString& outMimes) const;
 	
-	VPictureDrawSettings_Base& GetSettings(){return fDrawingSettings;}
-	const VPictureDrawSettings_Base& GetSettings()const{return fDrawingSettings;}
-	
-	void SetDrawingSettings(const VPictureDrawSettings_Base& inSet)
-	{
-		fDrawingSettings.FromVPictureDrawSettings(&inSet);
-	}
+			const VPictureData* _GetBestPictDataForDisplay()const
+			{
+				return fBestForDisplay;
+			}
+			
+			const VPictureData* _GetBestPictDataForPrinting()const
+			{
+				return fBestForPrinting;
+			}
 
-	static VPicture*	EncapsulateBlob(const VBlob* inBlob,bool inOwnData);
-	VError				ExtractBlob(VBlob& outBlob);
-	
-	// extract IPTC keywords
-	void				GetKeywords( VString& outKeywords);
-	
-/************/
+			bool				IsSamePictData(const VPicture* inPicture)const;
+
+			
+/********************************************************************************************************/
+// Picture Info & prop
+
+			sLONG				GetWidth(bool inIgnoreTransform=false) const;
+			sLONG				GetHeight(bool inIgnoreTransform=false)const;
+			VPoint				GetWidthHeight(bool inIgnoreTransform=false)const;
+			VRect				GetCoords(bool inIgnoreTransform=false)const;
+
+			bool				IsSplited(sWORD* ioLine=0,sWORD* ioCol=0)const;
+			void				SetSplitInfo(bool inSplit,sWORD inLine,sWORD inCol);
+			
+			bool				IsPictEmpty() const;
+			void				SetEmpty(bool inKeepSettings=false);
+			virtual	void					Clear();
+			
+			sWORD				GetPicEnd_PosX()const{return fDrawingSettings.GetPicEnd_PosX();}
+			sWORD				GetPicEnd_PosY()const{return fDrawingSettings.GetPicEnd_PosY();}
+			void				SetPicEndPos(sWORD inX,sWORD inY){fDrawingSettings.SetPicEndPos(inX,inY);}
+			void				OffsetPicEndPos(sWORD inOffX,sWORD inOffY){fDrawingSettings.OffsetPicEndPos(inOffX,inOffY);}
+
+			void				SetSourceFileName(const VString& inFileName);
+			const VString&		GetSourceFileName() const;
+
+			sWORD				GetPicEnd_TransfertMode()const{return fDrawingSettings.GetPicEnd_TransfertMode();}
+			void				SetPicEnd_TransfertMode(sWORD inMode){return fDrawingSettings.SetPicEnd_TransfertMode(inMode);}
+
+/******************************************************************************************************/
 // transform accessor	
 	
-	//VAffineTransform& GetPictureMatrix(){return fDrawingSettings.GetPictureMatrix();}
-	const VAffineTransform& GetPictureMatrix()const{return fDrawingSettings.GetPictureMatrix();}
-	void SetPictureMatrix(const VAffineTransform& inMat)
-	{
-		fDrawingSettings.SetPictureMatrix(inMat);
-		_SetValueSourceDirty();
-	}
-	void ResetMatrix()
-	{
-		fDrawingSettings.GetPictureMatrix().MakeIdentity();
-		_SetValueSourceDirty();
-	}
-	void MultiplyMatrix(const VAffineTransform& inMat,VAffineTransform::MatrixOrder inOrder=VAffineTransform::MatrixOrderPrepend)
-	{
-		fDrawingSettings.GetPictureMatrix().Multiply(inMat,inOrder);
-		_SetValueSourceDirty();
-	}
-	void Translate(GReal sX,GReal sY,VAffineTransform::MatrixOrder inOrder=VAffineTransform::MatrixOrderPrepend)
-	{
-		fDrawingSettings.GetPictureMatrix().Translate(sX,sY,inOrder);
-		_SetValueSourceDirty();
-	}
-	void Scale(GReal sX,GReal sY,VAffineTransform::MatrixOrder inOrder=VAffineTransform::MatrixOrderPrepend)
-	{
-		fDrawingSettings.GetPictureMatrix().Scale(sX,sY,inOrder);
-		_SetValueSourceDirty();
-	}
-	bool IsKeyWordInMetaData(const VString& keyword, VIntlMgr* inIntlMgr);
+			const VAffineTransform& GetPictureMatrix()const{return fDrawingSettings.GetPictureMatrix();}
+			void SetPictureMatrix(const VAffineTransform& inMat)
+			{
+				fDrawingSettings.SetPictureMatrix(inMat);
+				_SetValueSourceDirty();
+			}
+			void ResetMatrix()
+			{
+				fDrawingSettings.GetPictureMatrix().MakeIdentity();
+				_SetValueSourceDirty();
+			}
+			void MultiplyMatrix(const VAffineTransform& inMat,VAffineTransform::MatrixOrder inOrder=VAffineTransform::MatrixOrderPrepend)
+			{
+				fDrawingSettings.GetPictureMatrix().Multiply(inMat,inOrder);
+				_SetValueSourceDirty();
+			}
+			void Translate(GReal sX,GReal sY,VAffineTransform::MatrixOrder inOrder=VAffineTransform::MatrixOrderPrepend)
+			{
+				fDrawingSettings.GetPictureMatrix().Translate(sX,sY,inOrder);
+				_SetValueSourceDirty();
+			}
+			void Scale(GReal sX,GReal sY,VAffineTransform::MatrixOrder inOrder=VAffineTransform::MatrixOrderPrepend)
+			{
+				fDrawingSettings.GetPictureMatrix().Scale(sX,sY,inOrder);
+				_SetValueSourceDirty();
+			}
+
+/********************************************************************************************************/
+// Draw Settings
+
+			VPictureDrawSettings_Base&			GetSettings(){return fDrawingSettings;}
+			const VPictureDrawSettings_Base&	GetSettings()const{return fDrawingSettings;}
 	
-	void			SetSourceFileName(const VString& inFileName);
-	const VString&	GetSourceFileName() const;
+			void SetDrawingSettings(const VPictureDrawSettings_Base& inSet)
+			{
+				fDrawingSettings.FromVPictureDrawSettings(&inSet);
+			}
+
+/********************************************************************************************************/
+// MetaData
+			const VValueBag*		RetainMetaDatas(const VString* inPictureIdentifier=NULL);
+			void					GetKeywords( VString& outKeywords);
+			bool					IsKeyWordInMetaData(const VString& keyword, VIntlMgr* inIntlMgr);
+
+/********************************************************************************************************/
+// Draw	
+#if !VERSION_LINUX	
+			void Draw(PortRef inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
+			void Draw(VGraphicContext* inGraphicContext,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
+			void Print(PortRef inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
+			void Print(VGraphicContext* inGraphicContext,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
+#endif
 	
+#if VERSIONWIN
+			void Draw(Gdiplus::Graphics* inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
+#elif VERSIONMAC
+			void Draw(CGContextRef inPortRef,const VRect& r,class VPictureDrawSettings* inSet=NULL)const;
+#endif
+
+/********************************************************************************************************/
+// Misc & utilities
+
+			static bool IsVPictureData(uCHAR* inBuff,VSize inBuffSize);
+			static VFile* SelectPictureFile();
+
+			static VPicture*	EncapsulateBlob(const VBlob* inBlob,bool inOwnData);
+			VError				ExtractBlob(VBlob& outBlob);
+
+			void		RemovePastablePicData();
+			
+#if WITH_VMemoryMgr
+			void*		GetPicHandle(bool inAppendPicEnd=false)const;
+#endif
+
+# if !VERSION_LINUX			
+			VPicture*	CreateGrayPicture()const;
+#endif
+			
+			sLONG		_GetMaxPictDataRefcount();
+
+			VError	GetPictureForRTF(VString& outRTFKind,VBlob& outBlob);
+
+#if !VERSION_LINUX
+			VPicture* BuildThumbnail(sLONG inWidth,sLONG inHeight,PictureMosaic inMode,bool inNoAlpha=false,const VColor& inColor=VColor(255,255,255,255))const;
+#endif
+
 protected:
 
 	virtual void					DoNullChanged();
@@ -441,9 +404,8 @@ private:
 
 	void _UpdateNullState();
 	
-	
 	void _ReadHeaderV1(xVPictureBlockHeaderV1& inHeader,bool inSwap);
-	//void _ReadHeaderV2(xVPictureBlockHeaderV2& inHeader,bool inSwap);
+	
 	bool _Is4DMetaSign(const VString& instr);
 
 	void _ReadExtraInfoBag(VValueBag& inBag);
@@ -470,8 +432,8 @@ private:
 	
 	VSize _GetDataSize(_VPictureAccumulator* inRecorder=0) const;
 	void _ClearMap();
-	void _CopyMap_Retain(const _VPictDataMap& inSrcMap);
-	void _CopyMap_Copy(const _VPictDataMap& inSrcMap);
+	void _CopyMap_Retain(const VPictDataMap& inSrcMap);
+	void _CopyMap_Copy(const VPictDataMap& inSrcMap);
 	bool _CheckBlobRefCount() const;
 	bool _FindMetaPicture() const;
 	
@@ -503,9 +465,7 @@ private:
 	
 	VPictureDrawSettings_Base			fDrawingSettings;
 	
-	_VPictDataMap						fPictDataMap;
-	xVPictureMapWatch					fMapWatch; // for debug
-
+	VPictDataMap						fPictDataMap;
 };
 
 END_TOOLBOX_NAMESPACE

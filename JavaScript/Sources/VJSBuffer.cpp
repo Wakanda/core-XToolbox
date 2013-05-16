@@ -459,7 +459,7 @@ void VJSBufferClass::GetDefinition (ClassDefinition &outDefinition)
 		{	"write",			js_callStaticFunction<_write>,			JS4D::PropertyAttributeDontDelete	},
 		{	"toString",			js_callStaticFunction<_toString>,		JS4D::PropertyAttributeDontDelete	},
 		{	"toBlob",			js_callStaticFunction<_toBlob>,			JS4D::PropertyAttributeDontDelete	},
-		{	"toArrayBuffer",	js_callStaticFunction<_toArrayBuffer>,	JS4D::PropertyAttributeDontDelete	},
+//		{	"toArrayBuffer",	js_callStaticFunction<_toArrayBuffer>,	JS4D::PropertyAttributeDontDelete	},
 
 		{	"copy",				js_callStaticFunction<_copy>,			JS4D::PropertyAttributeDontDelete	},
 		{	"slice",			js_callStaticFunction<_slice>,			JS4D::PropertyAttributeDontDelete	},

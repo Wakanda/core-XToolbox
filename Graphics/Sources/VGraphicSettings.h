@@ -87,9 +87,6 @@ public:
 	void	RestoreTextState ();
 	void	NormalizeTextState ();
 	
-	TransferMode	SetPixelTransferMode (TransferMode inMode);
-	TransferMode	GetPixelTransferMode () const { return fPixelTransferMode; };
-	
 	uBYTE	SetAlphaBlend (uBYTE inAlphaBlend);
 	uBYTE	GetAlphaBlend () const { return fAlphaBlend; };
 
@@ -119,7 +116,6 @@ protected:
 	DrawingMode			fTextDrawingMode;
 	TextRenderingMode	fTextRenderingMode;
 	TextMeasuringMode	fTextMeasuringMode;
-	TransferMode		fPixelTransferMode;	// Pixel State
 	VPtrStream*			fPixelState;		// Context storing
 	VPtrStream*			fPenState;
 	VPtrStream*			fTextState;

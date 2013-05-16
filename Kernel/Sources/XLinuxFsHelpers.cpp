@@ -26,6 +26,8 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <pwd.h>
 #include <utime.h>
 #include <limits.h>
 
@@ -125,15 +127,75 @@ VError PathBuffer::InitWithExe()
 }
 
 
+VError PathBuffer::InitWithSysCacheDir()
+{
+	char* s=strncpy(fPath, "/var/cache", sizeof(fPath));
+	xbox_assert(s!=NULL);
+
+	return VE_OK;
+}
+
+
+VError PathBuffer::InitWithPersistentTmpDir()
+{
+	//Temporary files to be preserved between reboots
+	char* s=strncpy(fPath, "/var/tmp/", sizeof(fPath));
+	xbox_assert(s!=NULL);
+
+	return VE_OK;
+}
+
+
 VError PathBuffer::InitWithUniqTmpDir()
 {
-	int n=snprintf(fPath, sizeof(fPath), "/tmp/Wakanda_XXXXXX");	//A path template with 6 'X' - no more, no less !
-	xbox_assert(n>0);
+	//A path template with 6 'X' - no more, no less !
+	char*s=strncpy(fPath, "/tmp/Wakanda_XXXXXX", sizeof(fPath));
+	xbox_assert(s!=NULL);
 
-	if(mkdtemp(fPath)==NULL)   //Create the directory and replace the 'X' with the actual path
+	//Create the directory and replace the 'X' with the actual path
+	if(mkdtemp(fPath)==NULL)
 		return MAKE_NATIVE_VERROR(errno);
 
 	return VE_OK;
+}
+
+
+VError PathBuffer::InitWithUserDir()
+{
+	char* home=NULL;
+
+	//Warning : the simple way to get home (home=getenv("HOME")) doesn't work well with
+	//sudo -u toto Wakanda
+	//$HOME isn't modified so real user's home will be used instead of toto's home.
+
+	long len=sysconf(_SC_GETPW_R_SIZE_MAX);
+
+	if(len!=-1)
+	{
+		char buf[len];
+		struct passwd pwd;
+		struct passwd* result=NULL;
+
+		getpwuid_r(getuid(), &pwd, buf, len, &result);
+
+		if(result!=NULL)
+		{
+			if(result->pw_dir!=NULL && strlen(result->pw_dir)>0 && strcmp(result->pw_dir, "/")!=0)
+			{
+				strncpy(fPath, result->pw_dir, sizeof(fPath));
+				return VE_OK;
+			}
+
+			if(result->pw_name!=NULL && strlen(result->pw_name)>0)
+			{
+				//Temporary files to be preserved between reboots
+				int n=snprintf(fPath, sizeof(fPath), "/var/tmp/%s", result->pw_name);
+				return VE_OK;
+			}
+		}
+	}
+
+	return VE_INVALID_PARAMETER;
 }
 
 
@@ -379,7 +441,7 @@ VError OpenHelper::OpenMax(const char* inPath, FileDescSystemRef* outFd)
 		verr=OpenStd(inPath, outFd, &failToGetLock);
 	}
 
-    //jmo - Pourquoi ? Verifier impl win & mac !
+	//jmo - Pourquoi ? Verifier impl win & mac !
 	//SetFileAccess(oldAccess);
 
 	return verr;
@@ -412,21 +474,21 @@ VError OpenHelper::OpenStd(const char* inPath, FileDescSystemRef* outFd, bool* o
 
 	FileAccess att=GetFileAccess();
 
-	switch(att)				//WARNING : On Unix, the implicit 'sharing convention' for 'cooperative file locking' is that
-	{						//'shared' portions of files a read-only. But to match windows behavior, our convention is
+	switch(att)             //WARNING : On Unix, the implicit 'sharing convention' for 'cooperative file locking' is that
+	{                       //'shared' portions of files a read-only. But to match windows behavior, our convention is
 							//that shared portions are read-write.
 	case FA_READ :
 		openFlags|=O_RDONLY;
-		//Simplest form of read, never fail, don't care about locks : We are not a 'cooperative process',
-		break;				//and we take the risk of unpredictable changes, since no one know we are reading the file !
+							//Simplest form of read, never fail, don't care about locks : We are not a 'cooperative process',
+		break;              //and we take the risk of unpredictable changes, since no one know we are reading the file !
 	case FA_SHARED :
 		openFlags|=O_RDWR;
-		lockType=F_RDLCK;	//DESPITE THE NAME, THIS HAS NOTHING TO DO WITH A READ LOCK !
-		break;				//It's a 'sharing attribute' for 'cooperative processes' that agree on a 'sharing convention'
+		lockType=F_RDLCK;   //DESPITE THE NAME, THIS HAS NOTHING TO DO WITH A READ LOCK !
+		break;              //It's a 'sharing attribute' for 'cooperative processes' that agree on a 'sharing convention'
 
 	case FA_READ_WRITE :
-		openFlags|=O_RDWR;	//DESPITE THE NAME, THIS HAS (almost) NOTHING TO DO WITH A WRITE LOCK !
-		lockType=F_WRLCK;	//It's an 'exclusive attribute' for 'cooperative processes' that agree on a 'sharing convention'
+		openFlags|=O_RDWR;  //DESPITE THE NAME, THIS HAS (almost) NOTHING TO DO WITH A WRITE LOCK !
+		lockType=F_WRLCK;   //It's an 'exclusive attribute' for 'cooperative processes' that agree on a 'sharing convention'
 		break;
 
 	case FA_MAX :

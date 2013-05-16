@@ -115,7 +115,7 @@
 	//(but after element attributes has been parsed): 
 	//(Match() will call SetAttribute handler only for attributes that match CSS styles)
 
-	fCSSMatch->Match( myNodeElement)
+	fCSSMatch->Match( myNodeElement)   
 
 	[/code]
 */
@@ -197,7 +197,9 @@ namespace CSSProperty
 		LENGTH,
 		FONTSIZE,
 		COORD, /** same as LENGTH but can be negative so can be used for properties which allow negative <length> values */
+		STRING,
 
+		LINEHEIGHT,
 		NUMBER,
 		URI,	/** only CSS2 url is allowed */
 		DIMENSION,
@@ -208,11 +210,13 @@ namespace CSSProperty
 		FONTSTYLE,
 		FONTWEIGHT,
 		TEXTDECORATION,
+		DIRECTION,
 		WRITINGMODE,
 		TEXTALIGN,
 		DISPLAYALIGN,
+		VERTICALALIGN,
 		COLOR, /** 'transparent' & 'invert' ident are allowed, also support SVG color idents */
-		
+		TABSTOPTYPE, //4D CSS property
 
 		SVGLENGTH, /** same as LENGTH but unit is optional */
 		SVGFONTSIZE, /** same as FONTSIZE but unit is optional */
@@ -230,7 +234,8 @@ namespace CSSProperty
 		SVGSTROKELINEJOIN,
 		SVGTEXTANCHOR,
 		SVGSHAPERENDERING,
-		SVGTEXTRENDERING
+		SVGTEXTRENDERING,
+		SVGTEXTALIGN
 		
 	} eType;
 
@@ -305,6 +310,14 @@ namespace CSSProperty
 	#define kFONT_SIZE_X_LARGE 		(12.0+2*0.2*12)
 	#define kFONT_SIZE_XX_LARGE 	(12.0+3*0.2*12)
 
+	/** direction (CSS) */
+	typedef enum eDirection
+	{
+		kDIRECTION_LTR,			//left to right writing mode
+		kDIRECTION_RTL,			//right to left writing mode
+	} eDirection;
+
+	/** writing*/
 	typedef enum eWritingMode
 	{
 		kWRITING_MODE_LR,			//left to right writing mode
@@ -325,9 +338,22 @@ namespace CSSProperty
 		kTEXT_ALIGN_START,			//text aligned to left
 		kTEXT_ALIGN_END,			//text aligned to right
 		kTEXT_ALIGN_CENTER,			//text centered
-		kTEXT_ALIGN_JUSTIFY			//text justified
-
+		kTEXT_ALIGN_JUSTIFY,		//text justified
+		kTEXT_ALIGN_LEFT = kTEXT_ALIGN_START, //text aligned to left
+		kTEXT_ALIGN_RIGHT = kTEXT_ALIGN_END //text aligned to right
 	} eTextAlign;
+
+	typedef enum eVerticalAlign
+	{
+		kTEXT_ALIGN_BASELINE,		
+		kTEXT_ALIGN_SUB,		
+		kTEXT_ALIGN_SUPER,		
+		kTEXT_ALIGN_TOP,		
+		kTEXT_ALIGN_TEXT_TOP,		
+		kTEXT_ALIGN_MIDDLE,
+		kTEXT_ALIGN_BOTTOM,		
+		kTEXT_ALIGN_TEXT_BOTTOM		
+	} eVerticalAlign;
 
 	typedef enum eShapeRenderingMode
 	{
@@ -347,6 +373,15 @@ namespace CSSProperty
 		kTRM_GEOMETRIC_PRECISION			/* for now implemented as auto */
 
 	} eTextRenderingMode;
+
+	typedef enum eTabStopType
+	{
+		kTST_LEFT,
+		kTST_RIGHT,
+		kTST_CENTER,
+		kTST_DECIMAL,
+		kTST_BAR
+	} eTabStopType;
 
 	typedef struct Dimension 
 	{
@@ -408,6 +443,10 @@ namespace CSSProperty
 				if (v.css.fURI) 
 					delete v.css.fURI;
 				break;
+			case STRING:
+				if (v.css.fString) 
+					delete v.css.fString;
+				break;
 			case DIMENSION:
 				if (v.css.fDimension.fIdent) 
 					delete v.css.fDimension.fIdent;
@@ -440,6 +479,7 @@ namespace CSSProperty
 			union 
 			{
 				Real fNumber;
+				VString *fString;
 				VString *fURI;
 				Dimension fDimension;
 				Real fPercentage; /** percentage range is [0,1] */
@@ -451,9 +491,12 @@ namespace CSSProperty
 				eFontStyle fFontStyle;
 				uLONG fTextDecoration;
 				eFontWeight fFontWeight;
+				eDirection fDirection;
 				eWritingMode fWritingMode;
 				eTextAlign fTextAlign;	/** text horizontal alignment */
-				eTextAlign fDisplayAlign;	/** text vertical alignment */
+				eTextAlign fDisplayAlign;	/** display-align */
+				eVerticalAlign fVerticalAlign; /** vertical-align */
+				eTabStopType fTabStopType;
 			} css;
 
 			/** SVG values types */
@@ -1518,7 +1561,7 @@ public:
 	static bool ParseRGBFunc( VCSSLexParser *inLexParser, uLONG& outColor, VString* ioValue = NULL);
 
 	/** parse the declaration value based on the specified value type */
-	static CSSProperty::Value *ParseValue( VCSSLexParser *inLexParser, CSSProperty::eType inType, VString* ioValue);
+	static CSSProperty::Value *ParseValue( VCSSLexParser *inLexParser, CSSProperty::eType inType, VString* ioValue, bool inIgnoreSVG = false);
 
 protected:
 	/** parse string-encoded CSS document 
@@ -1635,12 +1678,15 @@ protected:
 /** CSS2 inline declarations parser class 
 @remarks
 	for instance "fill:red; stroke:black; stroke-width:0.1cm"
+
+@exceptions
+	might throw VCSSException
 */
 class XTOOLBOX_API VCSSParserInlineDeclarations: public VObject
 {
 public:
 	/** initialize CSS2 inline declarations parser */
-	VCSSParserInlineDeclarations() {}
+	VCSSParserInlineDeclarations( bool inSilentCSSExceptions = false) { fSilentCSSExceptions = inSilentCSSExceptions; }
 	virtual ~VCSSParserInlineDeclarations() {}
 
 	/** start inline declarations parsing */
@@ -1652,6 +1698,8 @@ public:
 	bool GetNextAttribute( VString& outAttribut, VString& outValue, bool *outIsImportant = NULL);
 
 protected:
+	bool fSilentCSSExceptions;
+
 	CSSRuleSet::Declarations fDeclarations;
 	VIndex fIndexCur;
 };

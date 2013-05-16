@@ -19,7 +19,7 @@
 #include "Kernel/Sources/VObject.h"
 #include "Kernel/Sources/VMessage.h"
 #include "Kernel/Sources/VFolder.h"
-
+#include "Kernel/Sources/VLogger.h"
 
 BEGIN_TOOLBOX_NAMESPACE
 
@@ -54,10 +54,11 @@ enum
 
 	Init_EnableD2D			= 8,
 	Init_EnableD2DHardware	= 16,
+	Init_EnableLogger		= 32,
 #if ARCH_64
-	Init_Default			= 0
+	Init_Default			= 0 | Init_EnableLogger
 #else
-	Init_Default			= Init_WithQuickTime
+	Init_Default			= Init_WithQuickTime | Init_EnableLogger
 #endif
 };
 typedef uLONG InitOptions;
@@ -108,10 +109,7 @@ typedef uLONG InitOptions;
 			
 			ILocalizer*			GetLocalizer() const							{ return fLocalizer;}
 			void				SetLocalizer( ILocalizer *inLocalizer)			{ fLocalizer = inLocalizer;}
-			
-			ILogger*			RetainLogger() const;
-			// The logger is retained
-			void				SetLogger( ILogger *inLogger);
+
 
 			// returns the product name as stored in the version information or overloaded using SetProductName
 			void				GetProductName( VString& outName) const			{ outName = fProductName;}
@@ -139,6 +137,7 @@ typedef uLONG InitOptions;
 			void				SetPreferencesInApplicationData( bool inInAppData)	{ fPreferencesInApplicationData = inInAppData;}
 			bool				GetPreferencesInApplicationData() const				{ return fPreferencesInApplicationData;}
 			
+			XBOX::ILogger*		GetLogger();
 
 #if VERSIONWIN
 	static	HINSTANCE			WIN_GetAppInstance()							{ return sWIN_AppInstance; }
@@ -209,12 +208,12 @@ private:
 			uLONG				fSystemID;
 			VIntlMgr*			fIntlManager;
 			ILocalizer*			fLocalizer;
-			ILogger*			fLogger;
 			
 			VString				fProductName;	// Name of the folder to store application preferences files (not localized but can be customized by 4D OEM customers)
 			VString				fProductVersion;
 			
 			VectorOfVString		fCommandLineArguments;
+			VRefPtr<VLogger>	fLogger;
 
 	static	VProcess*			sInstance;
 #if VERSIONWIN

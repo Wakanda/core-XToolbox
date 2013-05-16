@@ -167,7 +167,15 @@ VError XWinTCPSocket::Close(bool inWithRecvLoop)
 #endif
 
 	if(fSslDelegate!=NULL)
+	{
+		//Make sure the socket is blocking, SSL shutdown will be easier
+		u_long nonBlocking=false;
+
+		int err=ioctlsocket(realSocket, FIONBIO, &nonBlocking);
+		xbox_assert(err!=SOCKET_ERROR);
+		
 		fSslDelegate->Shutdown();
+	}
 
 	int err=shutdown(realSocket, SD_SEND);
 	
@@ -178,7 +186,7 @@ VError XWinTCPSocket::Close(bool inWithRecvLoop)
 		char garbage[512];
 		uLONG len=sizeof(garbage);
 
-		ReadWithTimeout(garbage, &len, 30); 
+		TrashWithTimeout(realSocket, 3000 /*3s timeout*/); 
 	}
 
 	if(realSocket!=kBAD_SOCKET)
@@ -238,12 +246,6 @@ VError XWinTCPSocket::WaitFor(Socket inFd, FdSet inSet, sLONG inMsTimeout, sLONG
 		fd_set* es=(inSet==kERROR_SET) ? &set : NULL;
 
         int res=select(inFd+1, rs, ws, es, &timeout);
-
-		if(res==-1 && errno==EINTR)
-		{
-			now=VSystem::GetCurrentTime();
-			continue;
-		}
 		
 		//Prepare to return and update spent time if caller asked for it
 		
@@ -259,7 +261,7 @@ VError XWinTCPSocket::WaitFor(Socket inFd, FdSet inSet, sLONG inMsTimeout, sLONG
 		if(res==1)
 			return VE_OK;
 		
-		return vThrowNativeError(errno);
+		return vThrowNativeError(WSAGetLastError());
 	}
 }
 
@@ -306,13 +308,20 @@ VError XWinTCPSocket::Connect(const VNetAddress& inAddr, sLONG inMsTimeout)
 
 	err=connect(fSock, inAddr.GetAddr(), inAddr.GetAddrLen());
 	
+	//OUR SOCKET SEEMS TO HAVE WINSOCK 1.x BEHAVIOR : AS I UNDERSTAND THE DOC, WE SHOULDN'T HAVE TO TEST FOR
+	//WSAEINVAL NOR WSAEWOULDBLOCK WITH WINSOCK 2.x
+	//http://msdn.microsoft.com/en-us/library/windows/desktop/ms737625(v=vs.85).aspx
+
 	if(err!=0 && WSAGetLastError()!=WSAEINPROGRESS && WSAGetLastError()!=WSAEALREADY && WSAGetLastError()!=WSAEWOULDBLOCK)
 		return vThrowNativeError(WSAGetLastError());
 
 	//If for any reason the socket is already connected, we take a shortcut to save a select syscall.
 	if(err==0)
+	{
+		verr=SetBlocking(true);
 		return verr;
-	
+	}
+
 	verr=WaitForConnect(inMsTimeout);
 
 	if(verr!=VE_OK)
@@ -322,11 +331,7 @@ VError XWinTCPSocket::Connect(const VNetAddress& inAddr, sLONG inMsTimeout)
 	//(This test is mandatory on Mac... Although windows impl worked without it, it was conceptually broken)
 	err=connect(fSock, inAddr.GetAddr(), inAddr.GetAddrLen());
 
-	//OUR SOCKET SEEMS TO HAVE WINSOCK 1.x BEHAVIOR : AS I UNDERSTAND THE DOC, WE SHOULDN'T HAVE TO TEST FOR
-	//WSAEINVAL NOR WSAEWOULDBLOCK WITH WINSOCK 2.x
-	//http://msdn.microsoft.com/en-us/library/windows/desktop/ms737625(v=vs.85).aspx
-
-	if(err!=0 && WSAGetLastError()!=WSAEISCONN && WSAGetLastError()!=WSAEINVAL && WSAGetLastError()!=WSAEWOULDBLOCK)
+	if(err!=0 && WSAGetLastError()!=WSAEISCONN)
 		return vThrowNativeError(WSAGetLastError());
 	
 	fProfile=ClientSock;
@@ -337,7 +342,7 @@ VError XWinTCPSocket::Connect(const VNetAddress& inAddr, sLONG inMsTimeout)
 }
 
 
-VError XWinTCPSocket::Listen(const VNetAddress& inAddr, bool inAlreadyBound)
+VError XWinTCPSocket::Listen(const VNetAddress& inAddr, bool inAlreadyBound, bool inReuseAddress)
 {
 	xbox_assert(fProfile==NewSock);
 
@@ -357,11 +362,14 @@ VError XWinTCPSocket::Listen(const VNetAddress& inAddr, bool inAlreadyBound)
 
 	if(!inAlreadyBound)
 	{
-		int opt=true;
-		err=setsockopt(fSock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&opt), sizeof(opt));
-		
-		if(err!=0)
-			return vThrowNativeError(WSAGetLastError());
+		if (inReuseAddress)
+		{
+			int opt=true;
+			err=setsockopt(fSock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&opt), sizeof(opt));
+
+			if(err!=0)
+				return vThrowNativeError(WSAGetLastError());
+		}
 		
 		err=bind(fSock, inAddr.GetAddr(), inAddr.GetAddrLen());
 
@@ -482,9 +490,7 @@ XWinTCPSocket* XWinTCPSocket::Accept(uLONG inMsTimeout)
 		}	
 		else
 		{
-			do
-				err=close(sock);
-			while(err==-1 && errno==EINTR);
+			err=closesocket(sock);
 		}
 	}	
 	
@@ -744,6 +750,56 @@ VError XWinTCPSocket::WriteWithTimeout(const void* inBuff, uLONG* ioLen, sLONG i
 }
 
 
+//static
+void XWinTCPSocket::TrashWithTimeout(Socket inFd, sLONG inMsTimeout, sLONG* outMsSpent)
+{
+	if(inFd==kBAD_SOCKET)
+		return;
+	
+	if(inMsTimeout<0)
+		return;
+	
+	sLONG start=VSystem::GetCurrentTime();
+	sLONG stop=start+inMsTimeout;
+	sLONG now=start;
+	
+	for(;;)
+	{
+		sLONG msTimeout=stop-now;
+		
+		timeval timeout={0};
+		
+		timeout.tv_sec=msTimeout/1000;
+		timeout.tv_usec=1000*(msTimeout%1000);
+		
+        fd_set rs;
+        FD_ZERO(&rs);
+        FD_SET(inFd, &rs);
+				
+        int res=select(inFd+1, &rs, NULL, NULL, &timeout);
+
+		if(outMsSpent!=NULL)
+		{
+			now=VSystem::GetCurrentTime();
+			*outMsSpent=now-start;
+		}
+		
+		//select failed, or timedout
+		if(res!=1)
+			break;
+		
+		char buf[1024];
+		int len=sizeof(buf);
+		int n=0;
+		
+		n=recv(inFd, buf, len, 0 /*flags*/);
+
+		//recv failed, or all data is read.
+		if(n<=0)
+			break;
+	}
+}
+
 
 //static
 XWinTCPSocket* XWinTCPSocket::NewClientConnectedSock(const VString& inDnsName, PortNumber inPort, sLONG inMsTimeout)
@@ -831,7 +887,7 @@ XWinTCPSocket* XWinTCPSocket::NewClientConnectedSock(const VString& inDnsName, P
 #if WITH_DEPRECATED_IPV4_API
 
 //static
-XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock)
+XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock, bool inReuseAddress)
 {
 	sockaddr_in v4={0};
 	v4.sin_family=AF_INET;
@@ -860,7 +916,7 @@ XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber in
 
 	VNetAddress addr(v4);
 
-	VError verr=xsock->Listen(addr, alreadyBound);
+	VError verr=xsock->Listen(addr, alreadyBound, inReuseAddress);
 	
 	if(verr!=VE_OK)
 	{
@@ -882,7 +938,7 @@ XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber in
 #else
 
 //static
-XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock)
+XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock, bool inReuseAddress)
 {
 	bool alreadyBound=(inBoundSock!=kBAD_SOCKET) ? true : false;
 	
@@ -891,7 +947,7 @@ XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, 
 	VError verr=VE_OK;
 	
 	if(sock==kBAD_SOCKET)
-		verr=vThrowNativeError(errno);
+		verr=vThrowNativeError(WSAGetLastError());
 	
 	XWinTCPSocket* xsock=NULL;
 	
@@ -907,7 +963,7 @@ XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, 
 	{
 		xsock->SetServicePort(inAddr.GetPort());
 		
-		verr=xsock->Listen(inAddr, alreadyBound);
+		verr=xsock->Listen(inAddr, alreadyBound, inReuseAddress);
 	}
 	
 	if(verr==VE_OK)
@@ -935,17 +991,17 @@ XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, 
 
 
 //static
-XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(PortNumber inPort, Socket inBoundSock)
+XWinTCPSocket* XWinTCPSocket::NewServerListeningSock(PortNumber inPort, Socket inBoundSock, bool inReuseAddress)
 {
 #if WITH_DEPRECATED_IPV4_API
-	return NewServerListeningSock(INADDR_ANY, inPort, inBoundSock);
+	return NewServerListeningSock(INADDR_ANY, inPort, inBoundSock, inReuseAddress);
 #else
 	VNetAddress anyAddr;
 	VError verr=anyAddr.FromAnyIpAndPort(inPort);
 	
 	xbox_assert(verr==VE_OK);
 	
-	return NewServerListeningSock(anyAddr, inBoundSock);
+	return NewServerListeningSock(anyAddr, inBoundSock, inReuseAddress);
 #endif
 }
 
@@ -974,7 +1030,7 @@ XBOX::VError XWinTCPSocket::PromoteToSSL(VKeyCertChain* inKeyCertChain)
 			
 	case ClientSock :
 			
-			delegate=VSslDelegate::NewClientDelegate(GetRawSocket()/*, inKeyCertChain*/);
+			delegate=VSslDelegate::NewClientDelegate(GetRawSocket(), inKeyCertChain);
 			break;
 			
 	default :
@@ -1007,7 +1063,14 @@ bool XWinTCPSocket::IsSSL()
 XWinAcceptIterator::XWinAcceptIterator()
 {
 	fSockIt=fSocks.end();	// sc 05/07/2012
-	FD_ZERO(&fReadSet);
+	fReadSet=new fd_set;
+	FD_ZERO(fReadSet);
+}
+
+
+XWinAcceptIterator::~XWinAcceptIterator()
+{
+	delete fReadSet;
 }
 
 
@@ -1069,9 +1132,9 @@ VError XWinAcceptIterator::GetNewConnectedSocket(XWinTCPSocket** outSock, sLONG 
 		//We need to issue a new select call, with timeout
 		*outShouldRetry=false;
 
-        FD_ZERO(&fReadSet);
+        FD_ZERO(fReadSet);
 		
-		sLONG maxFd=-1;	//Ignored on Windows
+		sLONG maxFd=-1;	//Ignored on Windows, but tell us we have found something to watch
 		
 		SockPtrColl::const_iterator cit;
 		
@@ -1079,8 +1142,17 @@ VError XWinAcceptIterator::GetNewConnectedSocket(XWinTCPSocket** outSock, sLONG 
 		{
 			Socket fd=(*cit)->GetRawSocket();
 			
-			FD_SET(fd, &fReadSet);
+            if((sLONG)fd>maxFd)
+				maxFd=(sLONG)fd;
+            
+			FD_SET(fd, fReadSet);
 		}
+        
+        //Ensure we have something to watch
+        xbox_assert(maxFd!=-1);
+        
+        if(maxFd==-1)
+            return vThrowError(VE_INVALID_PARAMETER);
 		
 		sLONG now=VSystem::GetCurrentTime();
 		sLONG stop=now+inMsTimeout;
@@ -1094,7 +1166,7 @@ VError XWinAcceptIterator::GetNewConnectedSocket(XWinTCPSocket** outSock, sLONG 
 			timeout.tv_sec=msTimeout/1000;
 			timeout.tv_usec=1000*(msTimeout%1000);
 		
-			int res=select(maxFd+1, &fReadSet, NULL, NULL, &timeout);
+			int res=select(maxFd+1, fReadSet, NULL, NULL, &timeout);
 	
 			if(res==0)
 				return VE_SOCK_TIMED_OUT;
@@ -1114,7 +1186,7 @@ VError XWinAcceptIterator::GetNewConnectedSocket(XWinTCPSocket** outSock, sLONG 
 	{
 		Socket fd=(*fSockIt)->GetRawSocket();
 		
-		if(FD_ISSET(fd, &fReadSet))
+		if(FD_ISSET(fd, fReadSet))
 		{
 			*outSock=(*fSockIt)->Accept(0 /*No timeout*/);
 			
@@ -1281,7 +1353,7 @@ XWinUDPSocket* XWinUDPSocket::NewMulticastSock(uLONG inLocalIpv4, uLONG inMultic
 	
 	if(sock==kBAD_SOCKET)
 	{
-		vThrowNativeError(errno);
+		vThrowNativeError(WSAGetLastError());
 		return NULL;
 	}
 
@@ -1326,7 +1398,7 @@ XWinUDPSocket* XWinUDPSocket::NewMulticastSock(const VString& inMultiCastIP, Por
 		
 	if(sock==kBAD_SOCKET)
 	{
-		vThrowNativeError(errno);
+		vThrowNativeError(WSAGetLastError());
 		return NULL;
 	}
 	
@@ -1400,7 +1472,7 @@ XWinUDPSocket* XWinUDPSocket::NewMulticastSock(const VString& inMultiCastIP, Por
 		xbox_assert(err!=1);
 		
 		if(err==-1)
-			vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, errno);
+			vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, WSAGetLastError());
 		else if(err==1)
 			vThrowError(VE_SRVR_CANT_SUBSCRIBE_MULTICAST);
 			
@@ -1411,14 +1483,12 @@ XWinUDPSocket* XWinUDPSocket::NewMulticastSock(const VString& inMultiCastIP, Por
 		err=bind(sock, localAddr.GetAddr(), localAddr.GetAddrLen());
 		
 		if(err!=0)
-			vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, errno);
+			vThrowNativeCombo(VE_SRVR_CANT_SUBSCRIBE_MULTICAST, WSAGetLastError());
 	}
 	
 	if(xsock==NULL || err!=0)
 	{
-		do
-			err=close(sock);
-		while(err==-1 && errno==EINTR);
+		err=closesocket(sock);
 		
 		delete xsock;
 		

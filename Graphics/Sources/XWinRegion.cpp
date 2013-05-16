@@ -285,19 +285,12 @@ void VRegion::FromPolygon (const VPolygon& inPolygon)
 	
 	VPolygon*	constPoly = (VPolygon*) &inPolygon;
 	
-#if !USE_GDIPLUS
-	POINT*	firstPt = (POINT*) constPoly->WIN_LockPolygon();
+	const POINT* firstPt = constPoly->GetNativePoints();
 	fRegion = ::CreatePolygonRgn(firstPt, constPoly->GetPointCount(), WINDING);
-	constPoly->WIN_UnlockPolygon();
 	
 	// Note: polygon doesnt actually use fOffset. Use AdjustOrigin instead.
 	fOffset.SetPosTo(0, 0);
 	_AdjustOrigin();
-#else
-	Gdiplus::GraphicsPath path;
-	path.AddPolygon((Gdiplus::PointF*)constPoly,constPoly->GetPointCount());
-	fRegion = new Gdiplus::Region(&path);
-#endif
 
 	_ComputeBounds();
 }
@@ -345,10 +338,15 @@ Boolean VRegion::operator == (const VRegion& inRgn) const
 	}
 	else
 	{
+		VRegion regionXor(*this);
+		regionXor.Xor( inRgn);
+		return regionXor.IsEmpty();
+		/*
 		assert(false);
 		test = true;
 		test &= fOffset.GetX() == inRgn.fOffset.GetX();
 		test &= fOffset.GetY() == inRgn.fOffset.GetY();
+		*/
 	}
 	
 	return test;

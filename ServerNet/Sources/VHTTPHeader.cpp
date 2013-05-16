@@ -111,6 +111,8 @@ bool VHTTPHeader::GetHeaderValue (const XBOX::VString& inName, sLONG& outValue) 
 		outValue = GetLongFromString (stringValue);
 		return true;
 	}
+	else
+		outValue = 0;
 	
 	return false;
 }
@@ -124,6 +126,8 @@ bool VHTTPHeader::GetHeaderValue (const XBOX::VString& inName, XBOX::VTime& outV
 		outValue.FromRfc822String (stringValue);
 		return true;
 	}
+	else
+		outValue.Clear();
 	
 	return false;
 }
@@ -139,13 +143,19 @@ bool VHTTPHeader::SetHeaderValue (const XBOX::VString& inName, const XBOX::VStri
 {
 	bool bIsCookie = EqualASCIIVString (inName, STRING_HEADER_SET_COOKIE);
 
-	XBOX::VNameValueCollection::ConstIterator it = fHeaderList.find (inName);
+	XBOX::VNameValueCollection::Iterator it = fHeaderList.find (inName);
 	if ((it != fHeaderList.end()) && !bIsCookie)
 	{
 		if (inOverride)
-			fHeaderList.Set (inName, inValue);
+		{
+			it->second.FromString (inValue);
+		}
 		else
-			fHeaderList.Add (inName, inValue);
+		{
+			// Concatenate headers values
+			it->second.AppendCString (", ");
+			it->second.AppendString (inValue);
+		}
 	}
 	else
 	{
@@ -176,22 +186,23 @@ bool VHTTPHeader::SetHeaderValue (const XBOX::VString& inName, const XBOX::VTime
 
 bool VHTTPHeader::GetContentType (XBOX::VString& outContentType, XBOX::CharSet *outCharSet) const
 {
-	outContentType.Clear();
-
 	XBOX::VString	headerValue;
 	XBOX::CharSet	charSet = XBOX::VTC_UNKNOWN;
+	bool			isOK = false;
 
 	if (GetHeaderValue (STRING_HEADER_CONTENT_TYPE, headerValue))
 	{
 		ExtractContentTypeAndCharset (headerValue, outContentType, charSet);
 
-		if (NULL != outCharSet)
-			*outCharSet = charSet;
-
-		return true;
+		isOK = true;
 	}
+	else
+		outContentType.Clear();
 
-	return false;
+	if (NULL != outCharSet)
+		*outCharSet = charSet;
+
+	return isOK;
 }
 
 
@@ -216,9 +227,33 @@ bool VHTTPHeader::SetContentType (const XBOX::VString& inContentType, const XBOX
 }
 
 
+bool VHTTPHeader::GetContentLength (XBOX::VSize& outValue) const
+{
+	XBOX::VString stringValue;
+	if (GetHeaderValue (STRING_HEADER_CONTENT_LENGTH, stringValue))
+	{
+		sLONG lValue = GetLongFromString (stringValue);
+
+		outValue = (lValue >= 0) ? lValue : 0;
+		return (lValue >= 0);
+	}
+
+	return false;
+}
+
+
+bool VHTTPHeader::SetContentLength (const XBOX::VSize& inValue)
+{
+	XBOX::VString stringValue;
+	stringValue.FromLong8 (inValue);
+
+	return SetHeaderValue (STRING_HEADER_CONTENT_LENGTH, stringValue, true);
+}
+
+
 bool VHTTPHeader::GetHeaderValues (const HTTPCommonHeaderCode inHeaderCode, XBOX::VectorOfVString& outValues) const
 {
-	if (!fHeaderList.size())
+	if (fHeaderList.empty())
 		return false;
 	
 	const XBOX::VString headerName (GetHTTPHeaderName (inHeaderCode));
@@ -234,7 +269,7 @@ bool VHTTPHeader::GetHeaderValues (const HTTPCommonHeaderCode inHeaderCode, XBOX
 		first = ++it;
 	}
 
-	return (outValues.size() > 0);
+	return (!outValues.empty());
 }
 
 
@@ -446,7 +481,7 @@ void VHTTPHeader::FromString (const XBOX::VString& inString)
 			string.SubString (1, posCRLF_CRLF);
 
 		string.GetSubStrings (CRLF_STRING, nameValuePairs, false, true);
-		if (nameValuePairs.size() > 0)
+		if (!nameValuePairs.empty())
 		{
 			XBOX::VString	headerName;
 			XBOX::VString	headerValue;

@@ -17,14 +17,10 @@
 #include "V4DPictureIncludeBase.h"
 #include "VGraphicContext.h"
 #if VERSIONWIN
-#include "XWinGDIPlusGraphicContext.h"
 #include "XWinStyledTextBox.h"
 #if ENABLE_D2D
 #include "XWinD2DGraphicContext.h"
 #endif
-#endif
-#if VERSIONMAC
-#include "XMacQuartzGraphicContext.h"
 #endif
 #include "VStyledTextBox.h"
 #include "VPattern.h"
@@ -44,6 +40,8 @@ bool	VGraphicContext::sDebugRevealInval		= false;
 
 /** initialize filter inflating offset */
 const GReal VGraphicContext::sLayerFilterInflatingOffset = (GReal) 64.0;
+
+VMapOfComputingGC* VGraphicContext::sMapOfComputingGC = NULL;
 
 #if VERSIONWIN
 HDC_TransformSetter::HDC_TransformSetter(HDC inDC,VAffineTransform& inMat)
@@ -144,13 +142,6 @@ HDC_MapModeSaverSetter::~HDC_MapModeSaverSetter()
 }
 
 #endif
-
-
-VGraphicContext* VGraphicContext::CreateBitmapContext(const VRect& inBounds)
-{
-	return VNativeGraphicContext::CreateBitmapContext(inBounds);
-}
-
 
 
 /** create offscreen image compatible with the specified gc */
@@ -394,6 +385,7 @@ VImageOffScreen::~VImageOffScreen()
 
 Boolean VGraphicContext::Init(bool inEnableD2D, bool inEnableHardware)
 {
+	sMapOfComputingGC = new VMapOfComputingGC();
 #if VERSIONMAC
 	return VMacQuartzGraphicContext::Init();
 #else
@@ -420,7 +412,49 @@ void VGraphicContext::DeInit()
 	VWinGDIGraphicContext::DeInit();
 //	VWinGDIPlusGraphicContext::DeInit();
 #endif
+
+	if (sMapOfComputingGC)
+	{
+		delete sMapOfComputingGC;
+		sMapOfComputingGC = NULL;
+	}
 }
+
+void VGraphicContext::SetMaxPerfFlag(bool inMaxPerfFlag) 
+{
+	if (inMaxPerfFlag == fMaxPerfFlag)
+		return;
+
+	fMaxPerfFlag = inMaxPerfFlag;
+
+	if (fMaxPerfFlag)
+	{
+		//disable antialiasing for shapes & text
+
+		//backup high quality status (inverse of max performance status)
+		bool highQualityAntialiased = fIsHighQualityAntialiased;
+		TextRenderingMode highQualityTextRenderingMode = fHighQualityTextRenderingMode;
+
+		//here as fMaxPerfFlag == true, calling following methods will actually disable smoothing text & antialiasing
+		SetTextRenderingMode( fHighQualityTextRenderingMode);
+		DisableAntiAliasing();
+
+		//keep high quality status for later restore (restored if max perf is disabled)
+		fIsHighQualityAntialiased = highQualityAntialiased;
+		fHighQualityTextRenderingMode = highQualityTextRenderingMode;
+	}
+	else
+	{
+		//restore high quality antialiasing as set with SetTextRenderingMode & EnableAntiAliasing
+
+		SetTextRenderingMode( fHighQualityTextRenderingMode);
+		if (fIsHighQualityAntialiased)
+			EnableAntiAliasing();
+		else 
+			DisableAntiAliasing();
+	}
+}
+
 
 bool VGraphicContext::IsD2DAvailable()
 {
@@ -439,7 +473,11 @@ bool VGraphicContext::IsD2DAvailable()
 void VGraphicContext::D2DEnable( bool inD2DEnable)
 {
 #if ENABLE_D2D	
+	bool isEnabled = D2DIsEnabled();
 	VWinD2DGraphicContext::D2DEnable( inD2DEnable);
+	if (isEnabled != D2DIsEnabled())
+		//we need to clear shared computing graphic contexts is D2D status has changed
+		ClearAllForComputingMetrics();
 #endif
 }
 
@@ -525,27 +563,52 @@ void VGraphicContext::DesktopCompositionModeChanged()
 		bounds are expressed in DIP (so with DPI = 96): 
 		D2D internally manages page scaling by scaling bounds & coordinates by DPI/96; 
 */
-VGraphicContext* VGraphicContext::Create(ContextRef inContextRef, const VRect& inBounds, const GReal inPageScale, const bool inTransparent, const bool inSoftwareOnly)
+VGraphicContext* VGraphicContext::Create(ContextRef inContextRef, const VRect& inBounds, const GReal inPageScale, const bool inTransparent, const bool inSoftwareOnly, const GraphicContextType inType)
 {
 #if VERSIONWIN
-#if ENABLE_D2D
-	if (IsD2DAvailable())
+	bool softwareOnly = inSoftwareOnly || !VGraphicContext::IsHardwareEnabled() || (inType == eSoftwareGraphicContext) || (inType == eWinD2DSoftwareGraphicContext);
+	switch (inType)
 	{
-		//Vista+
-		VGraphicContext *gc = static_cast<VGraphicContext *>(new VWinD2DGraphicContext( inContextRef, inBounds, inPageScale, inTransparent));
-		if (gc)
-			gc->SetSoftwareOnly(inSoftwareOnly);
-		return gc;
-	}
-	else
-#endif
-		//XP
+	case eDefaultGraphicContext:
+	case eSoftwareGraphicContext:
+	case eHardwareGraphicContext:
+	case eWinD2DSoftwareGraphicContext:
+	case eWinD2DHardwareGraphicContext:
+		{
+	#if ENABLE_D2D
+		if (IsD2DAvailable() && (!softwareOnly || VSystem::IsSeven())) //fallback to GDIPlus if software & not seven
+		{
+			//Vista+
+			VGraphicContext *gc = static_cast<VGraphicContext *>(new VWinD2DGraphicContext( inContextRef, inBounds, inPageScale, inTransparent));
+			if (gc)
+				gc->SetSoftwareOnly(softwareOnly);
+			return gc;
+		}
+		else
+	#endif
+			//XP
+			return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inContextRef));
+		}
+		break;
+	case eWinGDIPlusGraphicContext:
 		return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inContextRef));
-#endif
-#if VERSIONMAC
+		break;
+	case eWinGDIGraphicContext:
+		return static_cast<VGraphicContext *>(new VWinGDIGraphicContext( inContextRef));
+		break;
+	default:
+		{
+		xbox_assert(false);
+		return static_cast<VGraphicContext *>(new VWinGDIGraphicContext( inContextRef));
+		}
+		break;
+	}
+#elif VERSIONMAC
 	CGRect boundsNative;
 	inBounds.MAC_ToCGRect( boundsNative);
 	return static_cast<VGraphicContext *>(new VMacQuartzGraphicContext( inContextRef, true, boundsNative));
+#else
+	return NULL;
 #endif
 }
 
@@ -615,15 +678,40 @@ bool VGraphicContext::BindContext( ContextRef inContextRef, const VRect& inBound
 		bounds are expressed in DIP (so with DPI = 96): 
 		D2D internally manages page scaling by scaling bounds & coordinates by DPI/96
 */
-VGraphicContext* VGraphicContext::CreateShared(sLONG inUserHandle, ContextRef inContextRef, const VRect& inBounds, const GReal inPageScale, const bool inTransparent, const bool inSoftwareOnly)
+VGraphicContext* VGraphicContext::CreateShared(sLONG inUserHandle, ContextRef inContextRef, const VRect& inBounds, const GReal inPageScale, const bool inTransparent, const bool inSoftwareOnly, const GraphicContextType inType)
 {
 #if ENABLE_D2D
 	if (IsD2DAvailable())
-		//Vista+
-		return VWinD2DGraphicContext::CreateShared(inUserHandle, inContextRef, inBounds, inPageScale, inTransparent, inSoftwareOnly);
-	else
+	{
+		bool softwareOnly = inSoftwareOnly || !VGraphicContext::IsHardwareEnabled() || (inType == eSoftwareGraphicContext) || (inType == eWinD2DSoftwareGraphicContext);
+		switch (inType)
+		{
+		case eDefaultGraphicContext:
+		case eSoftwareGraphicContext:
+		case eHardwareGraphicContext:
+		case eWinD2DSoftwareGraphicContext:
+		case eWinD2DHardwareGraphicContext:
+			if (!softwareOnly || VSystem::IsSeven()) //fallback to GDIPlus on Vista if software only
+				return VWinD2DGraphicContext::CreateShared(inUserHandle, inContextRef, inBounds, inPageScale, inTransparent, softwareOnly);
+			else
+				return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inContextRef));
+			break;
+		case eWinGDIPlusGraphicContext:
+			return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inContextRef));
+			break;
+		case eWinGDIGraphicContext:
+			return static_cast<VGraphicContext *>(new VWinGDIGraphicContext( inContextRef));
+			break;
+		default:
+			{
+			xbox_assert(false);
+			return static_cast<VGraphicContext *>(new VWinGDIGraphicContext( inContextRef));
+			}
+			break;
+		}
+	}
 #endif
-		return VGraphicContext::Create( inContextRef, inBounds, inPageScale, inTransparent);
+	return VGraphicContext::Create( inContextRef, inBounds, inPageScale, inTransparent, inSoftwareOnly, inType);
 }
 
 
@@ -668,16 +756,48 @@ void VGraphicContext::RemoveShared( sLONG inUserHandle)
 		render target DPI = 96.0f*inPageScale 
 		(yes render target DPI is a floating point value)
 */
-VGraphicContext* VGraphicContext::Create(HWND inHWND, const GReal inPageScale, const bool inTransparent)
+VGraphicContext* VGraphicContext::Create(HWND inHWND, const GReal inPageScale, const bool inTransparent, const GraphicContextType inType)
 {
 #if ENABLE_D2D
 	if (IsD2DAvailable())
-		//Vista+
-		return static_cast<VGraphicContext *>(new VWinD2DGraphicContext( inHWND, inPageScale, inTransparent));
-	else
+	{
+		bool softwareOnly = !VGraphicContext::IsHardwareEnabled() || (inType == eSoftwareGraphicContext) || (inType == eWinD2DSoftwareGraphicContext);
+		switch (inType)
+		{
+		case eDefaultGraphicContext:
+		case eSoftwareGraphicContext:
+		case eHardwareGraphicContext:
+		case eWinD2DSoftwareGraphicContext:
+		case eWinD2DHardwareGraphicContext:
+			if (!softwareOnly || VSystem::IsSeven()) //fallback to GDIPlus on Vista if software only
+			{
+				VGraphicContext *gc = static_cast<VGraphicContext *>(new VWinD2DGraphicContext( inHWND, inPageScale, inTransparent));
+				if (gc && softwareOnly)
+					gc->SetSoftwareOnly(true);
+				return gc;
+			}
+			else
+				return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inHWND));
+			break;
+		case eWinGDIPlusGraphicContext:
+			return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inHWND));
+			break;
+		case eWinGDIGraphicContext:
+			return static_cast<VGraphicContext *>(new VWinGDIGraphicContext( inHWND));
+			break;
+		default:
+			{
+			xbox_assert(false);
+			return static_cast<VGraphicContext *>(new VWinGDIGraphicContext( inHWND));
+			}
+			break;
+		}
+	}
 #endif
-		//XP
+	if (inType != eWinGDIGraphicContext)
 		return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inHWND));
+	else
+		return static_cast<VGraphicContext *>(new VWinGDIGraphicContext( inHWND));
 }
 #endif
 
@@ -702,9 +822,9 @@ VGraphicContext* VGraphicContext::Create(HWND inHWND, const GReal inPageScale, c
 		(yes render target DPI is a floating point value)
 */
 #if VERSIONWIN
-VGraphicContext *VGraphicContext::CreateBitmapGraphicContext( sLONG inWidth, sLONG inHeight, const GReal inPageScale, const bool inTransparent, const VPoint* inOrigViewport, bool inTransparentCompatibleGDI)
+VGraphicContext *VGraphicContext::CreateBitmapGraphicContext( sLONG inWidth, sLONG inHeight, const GReal inPageScale, const bool inTransparent, const VPoint* inOrigViewport, bool inTransparentCompatibleGDI, const GraphicContextType inType)
 #else
-VGraphicContext *VGraphicContext::CreateBitmapGraphicContext( sLONG inWidth, sLONG inHeight, const GReal inPageScale, const bool inTransparent, const VPoint* inOrigViewport, bool)
+VGraphicContext *VGraphicContext::CreateBitmapGraphicContext( sLONG inWidth, sLONG inHeight, const GReal inPageScale, const bool inTransparent, const VPoint* inOrigViewport, bool, const GraphicContextType)
 #endif
 {
 	if (inWidth == 0 || inHeight == 0 || inPageScale == 0.0f)
@@ -715,33 +835,202 @@ VGraphicContext *VGraphicContext::CreateBitmapGraphicContext( sLONG inWidth, sLO
 	if (IsD2DAvailable() && VSystem::IsSeven()) //D2D bitmap context is software only but D2D software is not available on Vista
 	{
 		//Seven+
+		VPoint orig;
 		if (inOrigViewport)
-			return static_cast<VGraphicContext *>(new VWinD2DGraphicContext( inWidth, inHeight, inPageScale, *inOrigViewport, inTransparent, inTransparentCompatibleGDI));
-		else
-			return static_cast<VGraphicContext *>(new VWinD2DGraphicContext( inWidth, inHeight, inPageScale, VPoint(), inTransparent, inTransparentCompatibleGDI));
+			orig = *inOrigViewport;
+
+		switch (inType)
+		{
+		case eDefaultGraphicContext:
+		case eSoftwareGraphicContext:
+		case eHardwareGraphicContext:
+		case eWinD2DSoftwareGraphicContext:
+		case eWinD2DHardwareGraphicContext:
+			return static_cast<VGraphicContext *>(new VWinD2DGraphicContext( inWidth, inHeight, inPageScale, orig, inTransparent, inTransparentCompatibleGDI));			
+			break;
+		case eWinGDIPlusGraphicContext:
+			return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inWidth, inHeight));
+			break;
+		case eWinGDIGraphicContext:
+		default:
+			{
+			VWinGDIBitmapContext* gc = new VWinGDIBitmapContext(NULL);
+			if (!gc->CreateBitmap(VRect(0,0,inWidth,inHeight)))
+				ReleaseRefCountable(&gc);
+			return static_cast<VGraphicContext *>(gc);
+			}
+			break;
+		}
 	}
-	else
 #endif
-		//XP or Vista
+	if (inType != eWinGDIGraphicContext)
 		return static_cast<VGraphicContext *>(new VWinGDIPlusGraphicContext( inWidth, inHeight));
-#endif
-#if VERSIONMAC
+	else
+	{
+		VWinGDIBitmapContext* gc = new VWinGDIBitmapContext(NULL);
+		if (!gc->CreateBitmap(VRect(0,0,inWidth,inHeight)))
+			ReleaseRefCountable(&gc);
+		return static_cast<VGraphicContext *>(gc);
+	}
+#elif VERSIONMAC
 	return static_cast<VGraphicContext *>(new VMacQuartzBitmapContext( VRect(0, 0, inWidth, inHeight), true));
-#endif
+#else
 	return NULL;
+#endif
 }
 
 
-void VGraphicContext::_ApplyStandardPattern(PatternStyle inPatternStyle, ContextRef inContext)
+/** return graphic context type */
+GraphicContextType	VGraphicContext::GetGraphicContextType() const
 {
-	//JQ 06/02/2009: disabled due to 'recursive on all control paths' compilation warning
-	//				 actually seem to be obsolete because unused at all
-#if VERSIONMAC
-//	VMacQuartzGraphicContext::_ApplyStandardPattern(inPatternStyle, inContext);
+#if VERSIONWIN
+	if (IsD2DImpl())
+	{
+		if (IsHardware())
+			return eWinD2DHardwareGraphicContext;
+		else
+			return eWinD2DSoftwareGraphicContext;
+	}
+	else if (IsGdiPlusImpl())
+		return eWinGDIPlusGraphicContext;
+	else
+		return eWinGDIGraphicContext;
+#elif VERSIONMAC
+	return eMacQuartz2DGraphicContext;
 #else
-//	VWinGDIGraphicContext::_ApplyStandardPattern(inPatternStyle, inContext);
-//	VWinGDIPlusGraphicContext::_ApplyStandardPattern(inPatternStyle, inContext);
+	return eSoftwareGraphicContext;
 #endif
+}
+
+/** return true if current gc is compatible with the passed gc type 
+@param inType
+	gc type
+@param inIgnoreHardware
+	true: ignore hardware status (software and hardware gc are compatible if they have the same impl)
+	false: take account hardware status (will return false if gc has not the same hardware status as the passed gc type)
+*/
+bool VGraphicContext::IsCompatible( GraphicContextType inType, bool inIgnoreHardware)
+{
+	GraphicContextType thisType = GetGraphicContextType();
+	if (thisType == inType)
+		return true;
+#if VERSIONWIN
+	if (!inIgnoreHardware)
+		return false;
+	if (IsD2DImpl() 
+		&&
+		(inType == eWinD2DSoftwareGraphicContext || inType == eWinD2DHardwareGraphicContext)
+		)
+		return true;
+#endif
+	return false;
+}
+
+/** create and return gc compatible with this gc but used only for metrics */
+VGraphicContext* VGraphicContext::CreateCompatibleForComputingMetrics() const
+{
+#if VERSIONWIN
+	if (IsD2DImpl())
+		return CreateForComputingMetrics( eWinD2DSoftwareGraphicContext); 
+	else if (IsGdiPlusImpl())
+		return CreateForComputingMetrics( eWinGDIPlusGraphicContext);
+	else 
+		return CreateForComputingMetrics( eWinGDIGraphicContext);
+#else
+	return CreateForComputingMetrics();
+#endif
+}
+
+
+/** create a bitmap context for the specified type which is used only for computing metrics (i.e. not for drawing or blitting) 
+@remarks
+	returned graphic context is shared & stored in a internal static global table
+
+	method is thread-safe
+*/
+VGraphicContext* VGraphicContext::CreateForComputingMetrics(const GraphicContextType inType)
+{
+	if (sMapOfComputingGC)
+		return sMapOfComputingGC->Create( inType);
+	else
+		return NULL;
+}
+
+/** clear the shared bitmap context for metrics associated with the specified graphic context type 
+
+	method is thread-safe
+*/
+void VGraphicContext::ClearForComputingMetrics(const GraphicContextType inType)
+{
+	if (sMapOfComputingGC)
+		sMapOfComputingGC->Clear( inType);
+}
+
+/** clear all shared bitmap context for metrics 
+	
+	method is thread-safe
+*/
+void VGraphicContext::ClearAllForComputingMetrics()
+{
+	if (sMapOfComputingGC)
+		sMapOfComputingGC->ClearAll();
+}
+
+
+/** create a bitmap context for the specified type which is used only for metrics (i.e. not for drawing) 
+@remarks
+	returned graphic context is shared & stored in a internal static global table
+
+	it is caller responsibility to ensure returned gc is used tread-safe
+	(as only GUI component & GUI thread should use VGraphicContext, it should not be a problem)
+*/
+VGraphicContext* VMapOfComputingGC::Create(const GraphicContextType inType)
+{
+	VTaskLock protect(&fMutex);
+
+#if VERSIONWIN //only on Windows we might use different kind of gc
+	sLONG type = (sLONG)inType;
+#else
+	sLONG type = eDefaultGraphicContext;
+#endif
+
+	bool addToMap = true;
+	MapOfGCPerType::const_iterator it = fMapOfComputingGC.find(type);
+	if (it != fMapOfComputingGC.end())
+	{
+		addToMap = false;
+		if (it->second->GetRefCount() == 1) //only referenced by internal table
+			return RetainRefCountable( it->second.Get());
+	}
+
+	VGraphicContext *gc = VGraphicContext::CreateBitmapGraphicContext( 1, 1, 1.0f, false, NULL, true, (GraphicContextType)type);  
+	if (gc && addToMap)
+		fMapOfComputingGC[type] = VRefPtr<VGraphicContext>(gc);
+
+	return gc;
+}
+
+/** clear the shared bitmap context for metrics associated with the specified graphic context type */
+void VMapOfComputingGC::Clear(const GraphicContextType inType)
+{
+	VTaskLock protect(&fMutex);
+
+#if VERSIONWIN //only on Windows we might use different kind of gc
+	sLONG type = (sLONG)inType;
+#else
+	sLONG type = eDefaultGraphicContext;
+#endif
+
+	MapOfGCPerType::iterator it = fMapOfComputingGC.find(type);
+	if (it != fMapOfComputingGC.end())
+		fMapOfComputingGC.erase(it);
+}
+
+/** clear all shared bitmap context for metrics */
+void VMapOfComputingGC::ClearAll()
+{
+	VTaskLock protect(&fMutex);
+	fMapOfComputingGC.clear();
 }
 
 
@@ -761,6 +1050,12 @@ VGraphicContext::VGraphicContext():VObject(),IRefCountable()
 	fPrinterScaleX=1.0;
 	fPrinterScaleY=1.0;
 	fHairline=false;
+
+#if ENABLE_D2D
+	fD2DCurGC = NULL;
+	fD2DParentHDC = NULL;
+	fD2DUseCount = 0;
+#endif
 }
 
 
@@ -780,6 +1075,12 @@ VGraphicContext::VGraphicContext(const VGraphicContext& inOriginal):VObject(),IR
 	fPrinterScaleX=inOriginal.fPrinterScaleX;
 	fPrinterScaleY=inOriginal.fPrinterScaleY;
 	fHairline=inOriginal.fHairline;
+
+#if ENABLE_D2D
+	fD2DCurGC = NULL;
+	fD2DParentHDC = NULL;
+	fD2DUseCount = 0;
+#endif
 }
 
 
@@ -843,14 +1144,14 @@ bool VGraphicContext::SetHairline(bool inSet)
 
 
 #if VERSIONMAC
-void VGraphicContext::_RevealUpdate(WindowRef inWindow)
+void VGraphicContext::RevealUpdate(WindowRef inWindow)
 {
-	VMacQuartzGraphicContext::_RevealUpdate(inWindow);
+	VMacQuartzGraphicContext::RevealUpdate(inWindow);
 }
 #elif VERSIONWIN
-void VGraphicContext::_RevealUpdate(HWND inWindow)
+void VGraphicContext::RevealUpdate(HWND inWindow)
 {
-	VWinGDIPlusGraphicContext::_RevealUpdate(inWindow);
+	VWinGDIPlusGraphicContext::RevealUpdate(inWindow);
 }
 #endif
 
@@ -858,13 +1159,13 @@ void VGraphicContext::_RevealUpdate(HWND inWindow)
 // mecanism. It try to remain as independant as possible
 // from the framework. Use with care.
 //
-void VGraphicContext::_RevealClipping(ContextRef inContext)
+void VGraphicContext::RevealClipping(ContextRef inContext)
 {
 #if VERSIONMAC
-	VMacQuartzGraphicContext::_RevealClipping(inContext);
+	VMacQuartzGraphicContext::RevealClipping(inContext);
 #else
-//	VWinGDIGraphicContext::_RevealClipping(inContext);
-	VWinGDIPlusGraphicContext::_RevealClipping(inContext);
+//	VWinGDIGraphicContext::RevealClipping(inContext);
+	VWinGDIPlusGraphicContext::RevealClipping(inContext);
 #endif
 }
 
@@ -873,13 +1174,13 @@ void VGraphicContext::_RevealClipping(ContextRef inContext)
 // mecanism. It try to remain as independant as possible
 // from the framework. Use with care.
 //
-void VGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRef inRegion)
+void VGraphicContext::RevealBlitting(ContextRef inContext, const RgnRef inRegion)
 {
 #if VERSIONMAC
-	VMacQuartzGraphicContext::_RevealBlitting(inContext, inRegion);
+	VMacQuartzGraphicContext::RevealBlitting(inContext, inRegion);
 #else
-//	VWinGDIGraphicContext::_RevealBlitting(inContext, inRegion);
-	VWinGDIPlusGraphicContext::_RevealBlitting(inContext, inRegion);
+//	VWinGDIGraphicContext::RevealBlitting(inContext, inRegion);
+	VWinGDIPlusGraphicContext::RevealBlitting(inContext, inRegion);
 #endif
 }
 
@@ -888,18 +1189,18 @@ void VGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRef inRegio
 // mecanism. It try to remain as independant as possible
 // from the framework. Use with care.
 //
-void VGraphicContext::_RevealInval(ContextRef inContext, const RgnRef inRegion)
+void VGraphicContext::RevealInval(ContextRef inContext, const RgnRef inRegion)
 {
 #if VERSIONMAC
-	VMacQuartzGraphicContext::_RevealInval(inContext, inRegion);
+	VMacQuartzGraphicContext::RevealInval(inContext, inRegion);
 #else
-//	VWinGDIGraphicContext::_RevealInval(inContext, inRegion);
-	VWinGDIPlusGraphicContext::_RevealInval(inContext, inRegion);
+//	VWinGDIGraphicContext::RevealInval(inContext, inRegion);
+	VWinGDIPlusGraphicContext::RevealInval(inContext, inRegion);
 #endif
 }
 
 
-sWORD VGraphicContext::_GetRowBytes(sWORD inWidth, sBYTE inDepth, sBYTE inPadding)
+sWORD VGraphicContext::GetRowBytes(sWORD inWidth, sBYTE inDepth, sBYTE inPadding)
 {
 	sWORD	result = 0;
 	
@@ -965,7 +1266,7 @@ sWORD VGraphicContext::_GetRowBytes(sWORD inWidth, sBYTE inDepth, sBYTE inPaddin
 }
 
 
-sBYTE* VGraphicContext::_RotatePixels(GReal inRadian, sBYTE* ioBits, sWORD inRowBytes, sBYTE inDepth, sBYTE inPadding, const VRect& inSrcBounds, VRect& outDestBounds, uBYTE inFillByte)
+sBYTE* VGraphicContext::RotatePixels(GReal inRadian, sBYTE* ioBits, sWORD inRowBytes, sBYTE inDepth, sBYTE inPadding, const VRect& inSrcBounds, VRect& outDestBounds, uBYTE inFillByte)
 {
 	sWORD	srcleft = (sWORD)inSrcBounds.GetLeft();
 	sWORD	srctop = (sWORD)inSrcBounds.GetTop();
@@ -1117,7 +1418,7 @@ sBYTE* VGraphicContext::_RotatePixels(GReal inRadian, sBYTE* ioBits, sWORD inRow
 	dstwidth = dstright-dstleft;
 	dstheight = dstbottom-dsttop;
 	// make dest bitmap	
-	rotrowbytes = _GetRowBytes(dstwidth, inDepth, inPadding);
+	rotrowbytes = GetRowBytes(dstwidth, inDepth, inPadding);
 	rotsize = dstheight * rotrowbytes;
 	rotbits = (sBYTE*) VMemory::NewPtrClear(rotsize, 'rotb');
 	if(!rotbits) return 0;  
@@ -1552,7 +1853,7 @@ void VGraphicContext::_BuildRoundRectPath(const VRect _inBounds,GReal inOvalWidt
 {
 	VRect inBounds(_inBounds);
 	if (fShapeCrispEdgesEnabled)
-		_CEAdjustRectInTransformedSpace(inBounds, inFillOnly);
+		CEAdjustRectInTransformedSpace(inBounds, inFillOnly);
 
 	bool hline=true,vline=true;
 	XBOX::VPoint cp1,cp2;
@@ -1606,7 +1907,7 @@ void VGraphicContext::_BuildRoundRectPath(const VRect _inBounds,GReal inOvalWidt
 @remarks
 	this method should only be called if fShapeCrispEdgesEnabled is equal to true
 */
-void VGraphicContext::_CEAdjustPointInTransformedSpace( VPoint& ioPos, bool inFillOnly, VPoint *outPosTransformed)
+void VGraphicContext::CEAdjustPointInTransformedSpace( VPoint& ioPos, bool inFillOnly, VPoint *outPosTransformed)
 {
 #if VERSIONMAC
 	UseReversedAxis();	//here in transformed space which is Quartz2D space, 
@@ -1712,12 +2013,12 @@ void VGraphicContext::_CEAdjustPointInTransformedSpace( VPoint& ioPos, bool inFi
 @remarks
 	this method should only be called if fShapeCrispEdgesEnabled is equal to true
 */
-void VGraphicContext::_CEAdjustRectInTransformedSpace( VRect& ioRect, bool inFillOnly)
+void VGraphicContext::CEAdjustRectInTransformedSpace( VRect& ioRect, bool inFillOnly)
 {
 	//adjust first rect origin
 	VPoint posTopLeft( ioRect.GetTopLeft());
 	VPoint posTopLeftTransformed;
-	_CEAdjustPointInTransformedSpace( posTopLeft, inFillOnly, &posTopLeftTransformed);
+	CEAdjustPointInTransformedSpace( posTopLeft, inFillOnly, &posTopLeftTransformed);
 
 	//we need to round width & height in transformed space in order it is integer
 	//- because if transformed width & height are int values, 
@@ -2013,15 +2314,13 @@ void VGraphicContext::_DrawLegacyStyledText( HDC inHDC, const VString& inText, V
 	//xbox_assert(inFont);
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inText, inStyles, inHoriz, inVert);
-
-	VStyledTextBox *textBox = new XWinStyledTextBox(inHDC, inText, styles ? styles : inStyles, inHwndBounds, inColor, inFont, inMode, inRefDocDPI);
-	
-	if (styles)
-		styles->Release();
+	VStyledTextBox *textBox = new XWinStyledTextBox(inHDC, inText, inStyles, inHwndBounds, inColor, inFont, inMode, inRefDocDPI);
 
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHoriz);
+		textBox->SetParaAlign( inVert);
+
 		//ensure we use advanced graphics mode (because we use untransformed coordinates)
 		StGDIUseGraphicsAdvanced useAdvanced(inHDC);
 
@@ -2090,15 +2389,13 @@ void VGraphicContext::_GetLegacyStyledTextBoxCaretMetricsFromCharIndex( HDC inHD
 	}
 	
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( *text, inStyles, inHAlign, inVAlign);
-
-	XWinStyledTextBox *textBox = new XWinStyledTextBox(inHDC, *text, styles ? styles : inStyles, inHwndBounds, VColor::sBlackColor, inFont, inMode, inRefDocDPI);
-	
-	if (styles)
-		styles->Release();
+	XWinStyledTextBox *textBox = new XWinStyledTextBox(inHDC, *text, inStyles, inHwndBounds, VColor::sBlackColor, inFont, inMode, inRefDocDPI);
 
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHAlign);
+		textBox->SetParaAlign( inVAlign);
+
 		leading = (text->GetUniChar(charIndex+1) == 13 || text->GetUniChar(charIndex+1) == 10) ? true : leading;
 		
 		/* VStyledTextEditView uses CR and not CRLF for compatibility with RichTextEdit so this code is now useless
@@ -2150,16 +2447,14 @@ bool VGraphicContext::_GetLegacyStyledTextBoxCharIndexFromCoord( HDC inHDC, cons
 	//xbox_assert(inFont);
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inText, inStyles, inHAlign, inVAlign);
-
-	XWinStyledTextBox *textBox = new XWinStyledTextBox(inHDC, inText, styles ? styles : inStyles, inHwndBounds, VColor::sBlackColor, inFont, inMode, inRefDocDPI);
-	
-	if (styles)
-		styles->Release();
+	XWinStyledTextBox *textBox = new XWinStyledTextBox(inHDC, inText, inStyles, inHwndBounds, VColor::sBlackColor, inFont, inMode, inRefDocDPI);
 
 	bool inside = false;
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHAlign);
+		textBox->SetParaAlign( inVAlign);
+
 		inside = textBox->GetCharIndexFromCoord( inHwndBounds, inPos, outCharIndex);
 
 		/* VStyledTextEditView uses CR and not CRLF for compatibility with RichTextEdit so this code is now useless
@@ -2209,15 +2504,12 @@ void VGraphicContext::_GetLegacyStyledTextBoxRunBoundsFromRange( HDC inHDC, cons
 	//xbox_assert(inFont);
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inText, inStyles, inHAlign, inVAlign);
-
-	XWinStyledTextBox *textBox = new XWinStyledTextBox(inHDC, inText, styles ? styles : inStyles, inBounds, VColor::sBlackColor, inFont, inMode, inRefDocDPI);
-	
-	if (styles)
-		styles->Release();
+	XWinStyledTextBox *textBox = new XWinStyledTextBox(inHDC, inText, inStyles, inBounds, VColor::sBlackColor, inFont, inMode, inRefDocDPI);
 
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHAlign);
+		textBox->SetParaAlign( inVAlign);
 		textBox->GetRunBoundsFromRange( inBounds, outRunBounds, inStart, inEnd);
 		textBox->Release();
 	}
@@ -2751,48 +3043,6 @@ void VGraphicContext::GetTextBoxLines( const VString& inText, const GReal inMaxW
 	}
 }
 
-/** apply custom alignment to input styles & return new styles 
-@remarks
-	return NULL if input style is not modified by new alignment
-*/
-VTreeTextStyle *VGraphicContext::_StylesWithCustomAlignment(const VString& inText, VTreeTextStyle *inStyles, AlignStyle inHoriz, AlignStyle inVert)
-{
-	//apply custom horizontal justification (TODO: apply custom vert justification (mandatory for SVG component only))
-	VTreeTextStyle *styles = NULL;
-	if (inHoriz != AL_DEFAULT)
-	{
-		bool overrideJust = true;
-		if (inStyles && inStyles->GetData()->GetJustification() != JST_Notset)
-		{
-			sLONG start, end;
-			inStyles->GetData()->GetRange( start, end);
-			if (start == 0 && end == inText.GetLength())
-				//inStyles justification overrides inHoriz
-				overrideJust = false;
-		}
-		if (overrideJust)
-		{
-			justificationStyle justStyle = JST_Notset;
-			if(inHoriz == AL_LEFT)
-				justStyle = JST_Left;
-			else if(inHoriz == AL_CENTER)
-				justStyle = JST_Center;
-			else if(inHoriz == AL_RIGHT)
-				justStyle = JST_Right;
-			else if(inHoriz == AL_JUST)
-				justStyle = JST_Justify;
-			VTextStyle *style = new VTextStyle();
-			style->SetRange( 0, inText.GetLength());
-			style->SetJustification( justStyle);
-			styles = new VTreeTextStyle( style);
-			if (inStyles)
-				styles->AddChild( inStyles);
-		}
-	}
-	return styles;
-}
-
-
 
 /** paint arc stroke 
 @param inCenter
@@ -2966,18 +3216,13 @@ bool VGraphicContext::UseFontTrueTypeOnly( VTreeTextStyle *inStyles)
 	}
 	if (inStyles)
 		return UseFontTrueTypeOnlyRec( inStyles);
-	else
-		return true;
-#else
-	return true;
 #endif
+	return true;
 }
 
 bool VGraphicContext::UseFontTrueTypeOnlyRec( VTreeTextStyle *inStyles) 
 {
-#if VERSIONMAC
-	return true;
-#else
+#if VERSIONWIN
 	if (inStyles->GetData())
 	{
 		if (!inStyles->GetData()->GetFontName().IsEmpty())
@@ -3001,8 +3246,16 @@ bool VGraphicContext::UseFontTrueTypeOnlyRec( VTreeTextStyle *inStyles)
 		if (!UseFontTrueTypeOnlyRec( inStyles->GetNthChild( i)))
 			return false;
 	}
-	return true;
 #endif
+	return true;
+}
+
+
+void VGraphicContext::EndLayer()
+{
+	VImageOffScreenRef offscreen = _EndLayer();
+	if (offscreen)
+		offscreen->Release();
 }
 
 #if VERSIONWIN
@@ -3031,6 +3284,7 @@ void VGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const VPoint& 
 	if (!inTextLayout->_BeginDrawLayer( inTopLeft))
 	{
 		//text has been refreshed from layer: we do not need to redraw text content
+		inTextLayout->_EndDrawLayer();
 		inTextLayout->EndUsingContext();
 		return;
 	}
@@ -3042,7 +3296,10 @@ void VGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const VPoint& 
 		//while printing, we fallback to classic DrawStyledText method
 		StGDIUseGraphicsAdvanced useAdvanced(hdc);
 
-		VRect bounds( inTopLeft.GetX()*fPrinterScaleX, inTopLeft.GetY()*fPrinterScaleY, inTextLayout->fCurLayoutWidth*fPrinterScaleX, inTextLayout->fCurLayoutHeight*fPrinterScaleY);
+		VRect bounds(	(inTopLeft.GetX()+inTextLayout->fMarginLeft)*fPrinterScaleX, 
+						(inTopLeft.GetY()+inTextLayout->fMarginTop)*fPrinterScaleY, 
+						inTextLayout->_GetLayoutWidthMinusMargin()*fPrinterScaleX, 
+						inTextLayout->_GetLayoutHeightMinusMargin()*fPrinterScaleY);
 		inTextLayout->_BeginUsingStyles();
 		//as fPrinterScaleY = printer DPI/72, we need to set text dpi to fPrinterScaleY*inTextLayout->fDPI (so in 4D form as inTextLayout->fDPI = 72, text dpi = (printer DPI/72)*72 = printer DPI)
 		_DrawLegacyStyledText( hdc,		inTextLayout->GetText(), inTextLayout->fCurFont, inTextLayout->fCurTextColor, inTextLayout->fStyles, 
@@ -3055,7 +3312,10 @@ void VGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const VPoint& 
 		StGDIUseGraphicsAdvanced useAdvanced(hdc);
 
 		UINT oldbkMode= ::SetBkMode(hdc,TRANSPARENT);
-		VRect bounds( inTopLeft.GetX(), inTopLeft.GetY(), inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
+		VRect bounds(	inTopLeft.GetX()+inTextLayout->fMarginLeft, 
+						inTopLeft.GetY()+inTextLayout->fMarginTop, 
+						inTextLayout->_GetLayoutWidthMinusMargin(), 
+						inTextLayout->_GetLayoutHeightMinusMargin());
 
 		inTextLayout->fTextBox->SetDrawContext( hdc);
 		inTextLayout->fTextBox->Draw(bounds);
@@ -3141,7 +3401,10 @@ void VGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *inTextLayou
 		//ensure we use advanced graphics mode (because we use untransformed coordinates)
 		StGDIUseGraphicsAdvanced useAdvanced(hdc);
 
-		VRect bounds( inTopLeft.GetX(), inTopLeft.GetY(), inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
+		VRect bounds(	inTopLeft.GetX()+inTextLayout->fMarginLeft, 
+						inTopLeft.GetY()+inTextLayout->fMarginTop, 
+						inTextLayout->_GetLayoutWidthMinusMargin(), 
+						inTextLayout->_GetLayoutHeightMinusMargin());
 		inTextLayout->fTextBox->SetDrawContext( hdc);
 		(static_cast<XWinStyledTextBox *>(inTextLayout->fTextBox))->GetRunBoundsFromRange( bounds, outRunBounds, inStart, inEnd);
 	}
@@ -3200,7 +3463,10 @@ void VGraphicContext::_GetTextLayoutCaretMetricsFromCharIndex( VTextLayout *inTe
 		
 		leading = (charIndex < inTextLayout->fTextLength && inTextLayout->GetText().GetUniChar(charIndex+1) == 13) ? true : leading;
 
-		VRect bounds( inTopLeft.GetX(), inTopLeft.GetY(), inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
+		VRect bounds(	inTopLeft.GetX()+inTextLayout->fMarginLeft, 
+						inTopLeft.GetY()+inTextLayout->fMarginTop, 
+						inTextLayout->_GetLayoutWidthMinusMargin(), 
+						inTextLayout->_GetLayoutHeightMinusMargin());
 		inTextLayout->fTextBox->SetDrawContext( hdc); 
 		(static_cast<XWinStyledTextBox *>(inTextLayout->fTextBox))->GetCaretMetricsFromCharIndex( bounds, charIndex, outCaretPos, outTextHeight, leading, inCaretUseCharMetrics);
 
@@ -3250,7 +3516,10 @@ bool VGraphicContext::_GetTextLayoutCharIndexFromPos( VTextLayout *inTextLayout,
 		//ensure we use advanced graphics mode (because we use untransformed coordinates)
 		StGDIUseGraphicsAdvanced useAdvanced(hdc);
 
-		VRect bounds( inTopLeft.GetX(), inTopLeft.GetY(), inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
+		VRect bounds(	inTopLeft.GetX()+inTextLayout->fMarginLeft, 
+						inTopLeft.GetY()+inTextLayout->fMarginTop, 
+						inTextLayout->_GetLayoutWidthMinusMargin(), 
+						inTextLayout->_GetLayoutHeightMinusMargin());
 		inTextLayout->fTextBox->SetDrawContext( hdc);
 		inside = (static_cast<XWinStyledTextBox *>(inTextLayout->fTextBox))->GetCharIndexFromCoord( bounds, inPos, outCharIndex);
 
@@ -3293,18 +3562,29 @@ void VGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 				inTextLayout->fCurWidth = inTextLayout->fMaxWidth ? inTextLayout->fMaxWidth : 100000.0f;
 				inTextLayout->fCurHeight = 0.0f;
 				textBox->GetSize(inTextLayout->fCurWidth, inTextLayout->fCurHeight);
+				xbox_assert( fmod(inTextLayout->fCurWidth, 1.0f) == 0.0f && fmod(inTextLayout->fCurHeight, 1.0f) == 0.0f);
 				if (inTextLayout->fMaxWidth != 0.0f && inTextLayout->fCurWidth > inTextLayout->fMaxWidth)
-					inTextLayout->fCurWidth = inTextLayout->fMaxWidth;
+					inTextLayout->fCurWidth = std::floor(inTextLayout->fMaxWidth); //might be ~0 otherwise it is always rounded yet
 				if (inTextLayout->fMaxHeight != 0.0f && inTextLayout->fCurHeight > inTextLayout->fMaxHeight)
-					inTextLayout->fCurHeight = inTextLayout->fMaxHeight;
+					inTextLayout->fCurHeight = std::floor(inTextLayout->fMaxHeight); //might be ~0 otherwise it is always rounded yet
 				if (inTextLayout->fMaxWidth == 0.0f)
-					inTextLayout->fCurLayoutWidth = ceil(inTextLayout->fCurWidth);
+					inTextLayout->fCurLayoutWidth = inTextLayout->fCurWidth;
 				else
-					inTextLayout->fCurLayoutWidth = ceil(inTextLayout->fMaxWidth);
+					inTextLayout->fCurLayoutWidth = std::floor(inTextLayout->fMaxWidth); //might be ~0 otherwise it is always rounded yet
 				if (inTextLayout->fMaxHeight == 0.0f)
-					inTextLayout->fCurLayoutHeight = ceil(inTextLayout->fCurHeight);
+					inTextLayout->fCurLayoutHeight = inTextLayout->fCurHeight;
 				else
-					inTextLayout->fCurLayoutHeight = ceil(inTextLayout->fMaxHeight);
+					inTextLayout->fCurLayoutHeight = std::floor(inTextLayout->fMaxHeight); //might be ~0 otherwise it is always rounded yet
+				if (inTextLayout->fMarginLeft != 0.0f || inTextLayout->fMarginRight != 0.0f)
+				{
+					inTextLayout->fCurWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+					inTextLayout->fCurLayoutWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+				}
+				if (inTextLayout->fMarginTop != 0.0f || inTextLayout->fMarginBottom != 0.0f)
+				{
+					inTextLayout->fCurHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+					inTextLayout->fCurLayoutHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+				}
 			}
 			inTextLayout->fNeedUpdateBounds = false;
 		}
@@ -3322,13 +3602,8 @@ void VGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 	StGDIUseGraphicsAdvanced useAdvanced(hdc);
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inTextLayout->GetText(), inTextLayout->fStyles, inTextLayout->fHAlign, inTextLayout->fVAlign);
-
 	VRect bounds(0.0f, 0.0f, inTextLayout->fMaxWidth ? inTextLayout->fMaxWidth : 100000.0f, inTextLayout->fMaxHeight ? inTextLayout->fMaxHeight : 100000.0f);
-	XWinStyledTextBox *textBox = new XWinStyledTextBox(hdc, inTextLayout->GetText(), styles ? styles : inTextLayout->fStyles, bounds, inTextLayout->fCurTextColor, inTextLayout->fCurFont, inTextLayout->fLayoutMode, inTextLayout->fDPI);
-
-	if (styles)
-		styles->Release();
+	VStyledTextBox *textBox = VStyledTextBox::CreateImpl( hdc, *inTextLayout, &bounds, GetTextRenderingMode());
 
 	xbox_assert(textBox);
 	if (textBox)
@@ -3336,19 +3611,30 @@ void VGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 		inTextLayout->fCurWidth = bounds.GetWidth();
 		inTextLayout->fCurHeight = 0.0f;
 		textBox->GetSize(inTextLayout->fCurWidth, inTextLayout->fCurHeight);
+		xbox_assert( fmod(inTextLayout->fCurWidth, 1.0f) == 0.0f && fmod(inTextLayout->fCurHeight, 1.0f) == 0.0f);
 		if (inTextLayout->fMaxWidth != 0.0f && inTextLayout->fCurWidth > inTextLayout->fMaxWidth)
-			inTextLayout->fCurWidth = inTextLayout->fMaxWidth;
+			inTextLayout->fCurWidth = std::floor(inTextLayout->fMaxWidth); //might be ~0 otherwise it is always rounded yet
 		if (inTextLayout->fMaxHeight != 0.0f && inTextLayout->fCurHeight > inTextLayout->fMaxHeight)
-			inTextLayout->fCurHeight = inTextLayout->fMaxHeight;
+			inTextLayout->fCurHeight = std::floor(inTextLayout->fMaxHeight); //might be ~0 otherwise it is always rounded yet
 		if (inTextLayout->fMaxWidth == 0.0f)
-			inTextLayout->fCurLayoutWidth = ceil(inTextLayout->fCurWidth);
+			inTextLayout->fCurLayoutWidth = inTextLayout->fCurWidth;
 		else
-			inTextLayout->fCurLayoutWidth = ceil(inTextLayout->fMaxWidth);
+			inTextLayout->fCurLayoutWidth = std::floor(inTextLayout->fMaxWidth); //might be ~0 otherwise it is always rounded yet
 		if (inTextLayout->fMaxHeight == 0.0f)
-			inTextLayout->fCurLayoutHeight = ceil(inTextLayout->fCurHeight);
+			inTextLayout->fCurLayoutHeight = inTextLayout->fCurHeight;
 		else
-			inTextLayout->fCurLayoutHeight = ceil(inTextLayout->fMaxHeight);
-		inTextLayout->fTextBox = static_cast<VStyledTextBox *>(textBox);
+			inTextLayout->fCurLayoutHeight = std::floor(inTextLayout->fMaxHeight); //might be ~0 otherwise it is always rounded yet
+		if (inTextLayout->fMarginLeft != 0.0f || inTextLayout->fMarginRight != 0.0f)
+		{
+			inTextLayout->fCurWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+			inTextLayout->fCurLayoutWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+		}
+		if (inTextLayout->fMarginTop != 0.0f || inTextLayout->fMarginBottom != 0.0f)
+		{
+			inTextLayout->fCurHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+			inTextLayout->fCurLayoutHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+		}
+		inTextLayout->fTextBox = textBox;
 	}
 
 	}
@@ -3363,1745 +3649,96 @@ void VGraphicContext::gdiTransparentBlt( HDC hdcDest, const VRect& inDestBounds,
 						inColorTransparent.WIN_ToCOLORREF());
 }
 
-#endif
 
-//////////////////////////////////////////////////////////
-//
-// VTextLayout class
-//
-//////////////////////////////////////////////////////////
-
-
-VTextLayout::VTextLayout(bool inShouldEnableCache)
-{
-	fGC = NULL;
-	fLayoutIsValid = false;
-	fGCUseCount = 0;
-	fShouldEnableCache = inShouldEnableCache;
-	fShouldDrawOnLayer = true;
-	fShouldAllowClearTypeOnLayer = true;
-	fLayerIsForMetricsOnly = false;
-	fCurLayerOffsetViewRect = VPoint(-100000.0f, 0); 
-	fLayerOffScreen = NULL;
-	fLayerIsDirty = true;
-	fTextLength = 0;
-	//if text is empty, we need to set layout text to a dummy "x" text otherwise 
-	//we cannot get correct metrics for caret or for text layout bounds  
-	//(we use fTextLength to know the actual text length & stay consistent)
-	fText.FromCString("x");
-	fTextPtrExternal = NULL;
-	fTextPtr = &fText;
-	fDefaultFont = NULL;
-	fHasDefaultTextColor = false;
-	fDefaultStyle = NULL;
-	fCurFont = NULL;
-	fCurKerning = 0.0f;
-	fCurTextRenderingMode = TRM_NORMAL;
-	fCurWidth = 0.0f;
-	fCurHeight = 0.0f;
-	fCurLayoutWidth = 0.0f;
-	fCurLayoutHeight = 0.0f;
-	fCurOverhangLeft = 0.0f;
-	fCurOverhangRight = 0.0f;
-	fCurOverhangTop = 0.0f;
-	fCurOverhangBottom = 0.0f;
-	fStyles = fExtStyles = NULL;
-	fMaxWidth = 0.0f;
-	fMaxHeight = 0.0f;
-	fNeedUpdateBounds = false;
-	fHAlign = AL_DEFAULT;
-	fVAlign = AL_DEFAULT;
-	fLayoutMode = TLM_NORMAL;
-	fDPI = 72.0f;
-	fUseFontTrueTypeOnly = false;
-	fStylesUseFontTrueTypeOnly = true;
-	fTextBox = NULL;
 #if ENABLE_D2D
-	fLayoutD2D = NULL;
-#endif
-	fBackupFont = NULL;
-	fIsPrinting = false;
-	fSkipDrawLayer = false;
-	fShouldDrawBackgroundColor = false;
-	fBackgroundColorDirty = true;
-}
+/** if current gc is not a D2D gc & if D2D is available & enabled, 
+	derive current gc to D2D gc & return it
+	(return NULL if current gc is D2D gc yet)
 
-VTextLayout::~VTextLayout()
-{
-	xbox_assert(fGCUseCount == 0);
-	fLayoutIsValid = false;
-	ReleaseRefCountable(&fDefaultStyle);
-	ReleaseRefCountable(&fBackupFont);
-	ReleaseRefCountable(&fLayerOffScreen);
-	ReleaseRefCountable(&fDefaultFont);
-	ReleaseRefCountable(&fCurFont);
-	ReleaseRefCountable(&fExtStyles);
-	ReleaseRefCountable(&fStyles);
-	ReleaseRefCountable(&fTextBox);
-#if ENABLE_D2D
-	if (fLayoutD2D)
-	{
-		fLayoutD2D->Release();
-		fLayoutD2D = NULL;
-	}
-#endif
-}
-
-/** begin using text layout for the specified gc */
-void VTextLayout::BeginUsingContext( VGraphicContext *inGC, bool inNoDraw)
-{
-	xbox_assert(inGC);
-	
-	if (fGCUseCount > 0)
-	{
-		xbox_assert(fGC == inGC);
-		fGC->BeginUsingContext( inNoDraw);
-		//if caller has updated some layout settings, we need to update again the layout
-		if (!fLayoutIsValid || fNeedUpdateBounds)
-			_UpdateTextLayout();
-		fGCUseCount++;
-		return;
-	}
-	
-	fMutex.Lock();
-	
-	fGCUseCount++;
-	inGC->BeginUsingContext( inNoDraw);
-	inGC->UseReversedAxis();
-
-	//reset layout & layer if we are printing
-	GReal scaleX, scaleY;
-	fIsPrinting = inGC->GetPrinterScale( scaleX, scaleY);
-	if (fIsPrinting)
-	{
-		fLayoutIsValid = false;
-		ReleaseRefCountable(&fLayerOffScreen);
-		fLayerIsDirty = true;
-	}
-
-	_SetGC( inGC);
-	xbox_assert(fGC == inGC);
-
-	//set current font & text color
-	xbox_assert(fBackupFont == NULL);
-	fBackupFont = inGC->RetainFont();
-	inGC->GetTextColor( fBackupTextColor);
-
-	if (fLayoutIsValid)
-	{
-		if (fBackupFont != fCurFont)
-			inGC->SetFont( fCurFont);
-	
-		if (fBackupTextColor != fCurTextColor)
-			inGC->SetTextColor( fCurTextColor);
-	}
-
-	//update text layout (only if it is no longer valid)
-	_UpdateTextLayout();
-
-}
-
-/** end using text layout */
-void VTextLayout::EndUsingContext()
-{
-	fGCUseCount--;
-	xbox_assert(fGCUseCount >= 0);
-	if (fGCUseCount > 0)
-	{
-		fGC->EndUsingContext();
-		return;
-	}
-
-	//restore font & text color
-	fGC->SetTextColor( fBackupTextColor);
-
-	VFont *font = fGC->RetainFont();
-	if (font != fBackupFont)
-		fGC->SetFont( fBackupFont);
-	ReleaseRefCountable(&font);
-	ReleaseRefCountable(&fBackupFont);
-
-	fGC->EndUsingContext();
-	_SetGC( NULL);
-	
-	fMutex.Unlock();
-}
-
-void VTextLayout::_BeginUsingStyles()
-{
-	fMutex.Lock();
-	if (fExtStyles)
-	{
-		//attach extra styles to current styles
-		if (fStyles == NULL)
-			fStyles = fExtStyles;
-		else
-			fStyles->AddChild( fExtStyles);
-	}
-}
-
-void VTextLayout::_EndUsingStyles()
-{
-	if (fExtStyles)
-	{
-		//detach extra styles from current styles
-		if (fStyles == fExtStyles)
-			fStyles = NULL;
-		else
-			fStyles->RemoveChildAt(fStyles->GetChildCount());
-	}
-	fMutex.Unlock();
-}
-
-
-void VTextLayout::_ResetLayer(VGraphicContext *inGC, bool inAlways)
-{
-	if (!inGC)
-		inGC = fGC;
-	xbox_assert(inGC);
-
-	fLayerIsDirty = true;
-	if (!fShouldEnableCache)
-	{
-		fLayerIsForMetricsOnly = true;
-		ReleaseRefCountable(&fLayerOffScreen);
-		return;
-	}
-	if (!fLayerOffScreen || !fLayerIsForMetricsOnly || inAlways)
-	{
-		fLayerIsForMetricsOnly = true;
-		ReleaseRefCountable(&fLayerOffScreen);
-#if VERSIONWIN
-		if (!inGC->IsGDIImpl())
-#endif
-			fLayerOffScreen = new VImageOffScreen( inGC); //reset layer to 1x1 size (this compatible layer is used only for metrics)
-	}
-}
-
-
-void VTextLayout::_UpdateBackgroundColorRenderInfo(const VPoint& inTopLeft, const VRect& inClipBounds)
-{
-	xbox_assert(fGC);
-
-	if (!fShouldDrawBackgroundColor)
-		return;
-	if (!fBackgroundColorDirty)
-		return;
-
-	fBackgroundColorDirty = false;
-	fBackgroundColorRenderInfo.clear();
-
-	VIndex start;
-	GetCharIndexFromPos( fGC, inTopLeft, inClipBounds.GetTopLeft(), start);
-	
-	VIndex end;
-	GetCharIndexFromPos( fGC, inTopLeft, inClipBounds.GetBotRight(), end);
-
-	if (start >= end)
-		return;
-
-	if (fStyles)
-		_UpdateBackgroundColorRenderInfoRec( inTopLeft, fStyles, start, end);
-	if (fExtStyles)
-		_UpdateBackgroundColorRenderInfoRec( inTopLeft, fExtStyles, start, end);
-}
-
-void VTextLayout::_UpdateBackgroundColorRenderInfoRec( const VPoint& inTopLeft, VTreeTextStyle *inStyles, const sLONG inStart, const sLONG inEnd)
-{
-	sLONG start, end;
-	inStyles->GetData()->GetRange( start, end);
-
-	if (start < inStart)
-		start  = inStart;
-	if (end > inEnd)
-		end = inEnd;
-
-	if (start < end)
-	{
-		if (!inStyles->GetData()->GetTransparent())
-		{
-			VectorOfRect runBounds;
-			GetRunBoundsFromRange( fGC, runBounds, VPoint(), start, end); //we compute with layout origin = (0,0) because while we draw background color, we add inTopLeft
-																		  //(and we do not want to compute again render info if layout has been translated only)
-
-			XBOX::VColor backcolor;
-			backcolor.FromRGBAColor(inStyles->GetData()->GetBackGroundColor());
-
-			fBackgroundColorRenderInfo.push_back(BoundsAndColor( runBounds, backcolor));
-		}
-
-		sLONG childCount = inStyles->GetChildCount();
-		for (int i = 1; i <= childCount; i++)
-			_UpdateBackgroundColorRenderInfoRec( inTopLeft, inStyles->GetNthChild( i), start, end);
-	}
-}
-
-
-void VTextLayout::_DrawBackgroundColor(const VPoint& inTopLeft)
-{
-	if (!fShouldDrawBackgroundColor)
-		return;
-
-	VectorOfBoundsAndColor::const_iterator it = fBackgroundColorRenderInfo.begin();
-	for (; it != fBackgroundColorRenderInfo.end(); it++)
-	{
-		fGC->SetFillColor( it->second);
-
-		VectorOfRect::const_iterator itRect = it->first.begin();
-		for (; itRect != it->first.end(); itRect++)
-		{
-			VRect bounds = *itRect;
-			bounds.SetPosBy( inTopLeft.GetX(), inTopLeft.GetY());
-			fGC->FillRect( bounds);
-		}
-	}
-}
-
-bool VTextLayout::_CheckLayerBounds(const VPoint& inTopLeft, VRect& outLayerBounds)
-{
-	fShouldDrawBackgroundColor = !fGC->CanDrawStyledTextBackColor() && ((fGC->GetTextRenderingMode() & TRM_LEGACY_OFF) || fUseFontTrueTypeOnly);	
-
-	if ((!fShouldDrawOnLayer || !fShouldEnableCache || fIsPrinting || fGC->IsGDIImpl()) //not draw on layer
-		&& 
-		!fShouldDrawBackgroundColor) //not draw background color
-		return true;
-
-	VAffineTransform ctm;	
-	fGC->UseReversedAxis();
-	fGC->GetTransformToScreen(ctm); //in case there is a pushed layer, we explicitly request transform from user space to hwnd space
-									//(because fLayerViewRect is in hwnd user space)
-	if (ctm.GetScaling() != fCurLayerCTM.GetScaling()
-		||
-		ctm.GetShearing() != fCurLayerCTM.GetShearing())
-	{
-		//if scaling or rotation has changed, mark layer and background color as dirty
-		fLayerIsDirty = true;
-		fBackgroundColorDirty = true;
-		fCurLayerCTM = ctm;
-	}
-
-	outLayerBounds = VRect( inTopLeft.GetX(), inTopLeft.GetY(), fCurLayoutWidth, fCurLayoutHeight); //on default, layer bounds = layout bounds
-
-	//determine layer bounds
-	if (!fLayerViewRect.IsEmpty())
-	{
-		//constraint layer bounds with view rect bounds
-
-		//clip layout bounds with view rect bounds in gc local user space
-		if (ctm.IsIdentity())
-			outLayerBounds.Intersect( fLayerViewRect);
-		else
-		{
-#if VERSIONMAC
-			//fLayerViewRect is window rectangle in QuickDraw coordinates so we need to convert it to Quartz2D coordinates
-			//(because transformed space is equal to Quartz2D space)
-			VRect boundsViewRect(fLayerViewRect);
-			VRect portBounds;
-			fGC->GetParentPortBounds(portBounds);
-			boundsViewRect.SetY(portBounds.GetHeight()-(fLayerViewRect.GetY()+fLayerViewRect.GetHeight()));
-			VRect boundsViewLocal = ctm.Inverse().TransformRect( boundsViewRect);
-#else
-			VRect boundsViewLocal = ctm.Inverse().TransformRect( fLayerViewRect);
-#endif
-			boundsViewLocal.NormalizeToInt();
-			outLayerBounds.Intersect( boundsViewLocal);
-		}
-		VPoint offset = outLayerBounds.GetTopLeft() - inTopLeft;
-		if (offset != fCurLayerOffsetViewRect)
-		{
-			//layout has scrolled in view window: mark it as dirty
-			fCurLayerOffsetViewRect = offset;
-			fLayerIsDirty = true;
-			fBackgroundColorDirty = true;
-		}
-	}
-
-	if (outLayerBounds.IsEmpty())
-	{
-		//do not draw at all if layout is fully clipped by fLayerViewRect
-		_ResetLayer();
-	
-		fBackgroundColorRenderInfo.clear();
-		fBackgroundColorDirty = false;
-		return false; 
-	}
-
-	_UpdateBackgroundColorRenderInfo(inTopLeft, outLayerBounds);
-	return true;
-}
-
-
-bool VTextLayout::_BeginDrawLayer(const VPoint& inTopLeft)
-{
-	xbox_assert(fGC);
-
-	VRect boundsLayout;
-	bool doDraw = _CheckLayerBounds( inTopLeft, boundsLayout);
-
-	if (!fShouldDrawOnLayer || !fShouldEnableCache || fIsPrinting || fGC->IsGDIImpl())
-	{
-		if (doDraw)
-			_DrawBackgroundColor( inTopLeft);
-		return doDraw;
-	}
-
-	if (!fLayerOffScreen)
-		fLayerIsDirty = true;
-
-#if VERSIONWIN
-	if (fShouldAllowClearTypeOnLayer && !fGC->IsGDIImpl())
-	{
-		TextRenderingMode trm = fGC->fMaxPerfFlag ? TRM_WITHOUT_ANTIALIASING : fGC->fHighQualityTextRenderingMode;
-		if (!(trm & TRM_WITHOUT_ANTIALIASING))
-			if (!(trm & TRM_WITH_ANTIALIASING_NORMAL))
-			{
-				//if ClearType is enabled, do not draw on layer GC but draw on parent GC
-				//(but keep layer in order to preserve the layout)
-				fSkipDrawLayer = true;
-				_ResetLayer();
-				if (doDraw)
-					_DrawBackgroundColor( inTopLeft);
-				return doDraw;
-			}
-	}
-#endif
-
-	if (!doDraw)
-		return false;
-
-	bool doRedraw = true; 
-	if (!fLayerIsDirty)
-		doRedraw = !fGC->DrawLayerOffScreen( boundsLayout, fLayerOffScreen);
-	if (doRedraw)
-	{
-		fLayerIsDirty = true;
-		bool doClear = !fGC->BeginLayerOffScreen( boundsLayout, fLayerOffScreen, false);
-		ReleaseRefCountable(&fLayerOffScreen);
-		if (doClear)
-		{
-			//clear layer if offscreen layer is preserved
-			//(otherwise current frame would be painted over last frame)
-			if (fGC->IsD2DImpl() || fGC->IsGdiPlusImpl())
-				fGC->Clear(VColor(0,0,0,0));
-			else
-				fGC->Clear(VColor(0,0,0,0), &boundsLayout);
-		}
-		else
-			fLayerIsForMetricsOnly = false;
-		_DrawBackgroundColor( inTopLeft);
-	}
-	return doRedraw;
-}
-
-void VTextLayout::_EndDrawLayer()
-{
-#if VERSIONWIN
-	if (!fShouldDrawOnLayer || !fShouldEnableCache || fIsPrinting || fGC->IsGDIImpl() || fSkipDrawLayer)
-	{
-		fSkipDrawLayer = false;
-		return;
-	}
-#else
-	if (!fShouldDrawOnLayer || !fShouldEnableCache || fIsPrinting)
-		return;
-#endif
-
-	xbox_assert(fLayerOffScreen == NULL);
-	fLayerOffScreen = fGC->EndLayerOffScreen();
-	fLayerIsDirty = fLayerOffScreen == NULL;
-}
-
-
-/** set text layout graphic context 
-@remarks
-	it is the graphic context to which is bound the text layout
-	if gc is changed and offscreen layer is disabled or gc is not compatible with the actual offscreen layer gc, text layout needs to be computed & redrawed again 
-	so it is recommended to enable the internal offscreen layer in order to preserve layout on multiple frames
-	(and to not redraw text layout at every frame) because offscreen layer & text content are preserved as long as it is compatible with the attached gc & text content is not dirty
+	you should not release returned gc if not NULL: call EndUsingD2D to properly release it
 */
-void VTextLayout::_SetGC( VGraphicContext *inGC)
+VGraphicContext* VGraphicContext::BeginUsingD2D(const VRect& inBounds, bool inTransparent, bool inSoftwareOnly, sLONG inSharedUserHandle) 
 {
-	if (fGC == inGC)
-		return;
-	if (fLayoutIsValid && inGC == NULL && fGC && fShouldEnableCache && !fLayerOffScreen && !fIsPrinting
-#if VERSIONWIN
-		&& !fGC->IsGDIImpl()
-#endif
-		)
+	if (fD2DUseCount)
 	{
-		//here we are about to detach a gc from the text layout:
-		//in order to preserve the layout, if there is not yet a offscreen layer,
-		//we create a dummy layer compatible with the last used gc 
-		//which will be used to preserve layout until text is drawed first time or if text is not pre-rendered (on Windows, text is not pre-rendered if fUseClearTypeOnLayer == true && current text rendering mode is set to ClearType or system default)
-		//(it is necessary if caller calls many metric methods for instance before drawing first time)
-		_ResetLayer();
+		fD2DUseCount++;
+		return fD2DCurGC;
 	}
 
-#if VERSIONWIN	
-	if (inGC)
-	{
-		//ensure current layout impl is consistent with current kind of gc
-		if (!inGC->IsD2DImpl())
-		{
-			if (fLayoutD2D)
-			{
-				fLayoutD2D->Release();
-				fLayoutD2D = NULL;
-			}
-			if (!fTextBox)
-				fLayoutIsValid = false;
-		}
-	}
-
-	if ((inGC && inGC->IsGDIImpl()) //attaching GDI context
-		|| 
-		(!inGC && (fGC && fGC->IsGDIImpl()))) //detaching GDI context
-		//for GDI we do not take account offscreen layer for layout validity if we are not printing
-		//(we assume we use always a GDI context compatible with the screen DPI if we are not printing: 
-		// caller should use VTextLayout::SetDPI to change layout dpi rather than changing GDI device dpi if caller needs a dpi not equal to screen dpi;
-		// doing that way allows VTextLayout to cache text layout for a fixed dpi & dpi scaling is applied internally by scaling fonts rather than device dpi)
-		fLayoutIsValid = fLayoutIsValid && fShouldEnableCache && !fIsPrinting;
-	else
-#endif
-		fLayoutIsValid = fLayoutIsValid && fShouldEnableCache && fLayerOffScreen && !fIsPrinting;
-#if VERSIONWIN
-	//we need to check layer offscreen compatibility with new gc to determine if layer is still suitable
-	//(because on Windows there are up to 3 kind of graphic context depending on platform availability...)
-	//
-	//note that normally the gc is capable of determining that itself & update layer impl seamlessly while drawing with layer 
-	//but we need to determine compatibility here in order to reset text layout too because text layout metrics are also bound to the kind of graphic context
-	//(otherwise text layout metrics would be not consistent with gc if kind of gc is changed)
-	if (inGC && fLayerOffScreen)
-	{
-		if (inGC->IsGDIImpl())
-		{
-			//disable offscreen for GDI 
-			ReleaseRefCountable(&fLayerOffScreen);
-			fLayerIsDirty = true;
-			if (fIsPrinting)
-				fLayoutIsValid = false;
-		}
-#if ENABLE_D2D
-		else if (inGC->IsGdiPlusImpl())
-		{
-			if (!fLayerOffScreen->IsGDIPlusImpl())
-			{
-				//layer is not a GDIPlus layer: reset layer & layout
-				_ResetLayer( inGC, true);
-				fLayoutIsValid = false;
-			}
-		}
-		else if (inGC->IsD2DImpl())
-		{
-			if (!fLayerOffScreen->IsD2DImpl())
-			{
-				//layer is not a D2D layer: reset layer & layout
-				_ResetLayer( inGC, true);
-				fLayoutIsValid = false;
-			}
-			else 
-			{
-				//check if D2D layer uses same resource domain than current gc
-				//caution: here gc render target should have been initialized otherwise gc rt resource domain is undetermined
-				ID2D1BitmapRenderTarget *bmpRT = (ID2D1BitmapRenderTarget *)(*fLayerOffScreen);
-				xbox_assert(bmpRT);
-				
-				D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(
-					inGC->IsHardware() ? D2D1_RENDER_TARGET_TYPE_HARDWARE : D2D1_RENDER_TARGET_TYPE_SOFTWARE,
-					D2D1::PixelFormat(),
-					0.0f,
-					0.0f,
-					D2D_RENDER_TARGET_USE_GDI_COMPATIBLE_DC ? D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE : D2D1_RENDER_TARGET_USAGE_NONE,
-					inGC->IsHardware() ? D2D1_FEATURE_LEVEL_10 : D2D1_FEATURE_LEVEL_DEFAULT
-					);
-				if (!bmpRT->IsSupported( props))
-				{
-					//layer resource domain is not equal to gc resource domain: reset layer & impl layout 
-					_ResetLayer( inGC, true);
-					fLayoutIsValid = false;
-				}
-			}
-		}
-#endif
-	}
-#endif
-	//attach new gc or dispose actual gc (if inGC == NULL)
-	CopyRefCountable(&fGC, inGC);
-	if (fGC && fShouldEnableCache && !fLayerOffScreen && !fIsPrinting)
-		_ResetLayer(); //ensure a compatible layer is created if cache is enabled & we are not printing
-	else if (fGC && fShouldEnableCache && !fShouldDrawOnLayer && !fIsPrinting)
-		_ResetLayer();
-}
-
-
-/** set default font 
-@remarks
-	by default, base font is current gc font BUT: 
-	it is highly recommended to call this method to avoid to inherit default font from gc
-	& bind a default font to the text layout
-	otherwise if gc font has changed, text layout needs to be computed again if there is no default font defined
-
-	by default, input font is assumed to be 4D form-compliant font (created with dpi = 72)
-*/
-void VTextLayout::SetDefaultFont( VFont *inFont, GReal inDPI)
-{
-	if (fDefaultFont == inFont && inDPI == 72)
-		return;
-
-	fLayoutIsValid = false;
-	if (inFont == NULL)
-	{
-		ReleaseRefCountable(&fDefaultFont);
-		ReleaseRefCountable(&fDefaultStyle);
-		return;
-	}
-
-	if (inDPI == 72)
-		CopyRefCountable(&fDefaultFont, inFont);
-	else
-	{
-		//we always keep unscaled font (font with dpi = 72)
-		VFont *font = VFont::RetainFont(inFont->GetName(), inFont->GetFace(), inFont->GetPixelSize(), 72.0f*72.0f/inDPI); 
-		CopyRefCountable(&fDefaultFont, font);
-		ReleaseRefCountable(&font);
-	}
-	ReleaseRefCountable(&fDefaultStyle);
-}
-
-
-/** get & retain default font 
-@remarks
-	by default, return 4D form-compliant font (with dpi = 72) so not the actual fDPI-scaled font 
-	(for consistency with SetDefaultFont & because fDPI internal scaling should be transparent for caller)
-*/
-VFont *VTextLayout::RetainDefaultFont(GReal inDPI) const
-{
-	if (!fDefaultFont)
+	if (HasPrinterScale())
 		return NULL;
 
-	if (inDPI == 72.0f)
-		return RetainRefCountable(fDefaultFont);
-	else
-		return VFont::RetainFont(fDefaultFont->GetName(), fDefaultFont->GetFace(), fDefaultFont->GetPixelSize(), inDPI); 
-}
+	xbox_assert(fD2DParentHDC == NULL);
 
-
-/** set font DPI (default is 4D form DPI = 72) */
-void VTextLayout::SetDPI( GReal inDPI)
-{
-	if (fDPI == inDPI)
-		return;
-	fLayoutIsValid = false;
-	fDPI = inDPI;
-}
-
-
-void VTextLayout::_CheckStylesConsistency()
-{
-	//ensure initial text range == initial styles range (otherwise merging styles later would be constrained to initial range)
-	if (fStyles)
-	{
-		sLONG start, end;
-		fStyles->GetData()->GetRange( start, end);
-		bool doUpdate = false;
-		if (start < 0)
-		{
-			start = 0;
-			doUpdate = true;
-		}
-		if (end > fTextLength)
-		{
-			end = fTextLength;
-			doUpdate = true;
-		}
-		if (doUpdate)
-			fStyles->GetData()->SetRange( start, end);
-		if (start > 0 || end < fTextLength)
-		{
-			//expand styles to contain text range
-			VTreeTextStyle *styles = new VTreeTextStyle( new VTextStyle());
-			styles->GetData()->SetRange( 0, fTextLength);
-			styles->AddChild( fStyles);
-			fStyles->Release();
-			fStyles = styles;
-		}
-	}
-
-	if (fExtStyles)
-	{
-		//for fExtStyles, we do not need to expand styles to text range because we do not merge other styles with it:
-		//we just check if range is included in text range
-		sLONG start, end;
-		fExtStyles->GetData()->GetRange( start, end);
-		bool doUpdate = false;
-		if (start < 0)
-		{
-			start = 0;
-			doUpdate = true;
-		}
-		if (end > fTextLength)
-		{
-			end = fTextLength;
-			doUpdate = true;
-		}
-		if (doUpdate)
-			fExtStyles->GetData()->SetRange( start, end);
-	}
-}
-
-/** replace current text & styles 
-@remarks
-	if inCopyStyles == true, styles are copied
-	if inCopyStyles == false, styles are retained: in that case, if you modify passed styles you should call this method again 
-	
-*/
-void VTextLayout::SetText( const VString& inText, VTreeTextStyle *inStyles, bool inCopyStyles)
-{
-	VTaskLock protect(&fMutex);
-
-	fLayoutIsValid = false;
-	fTextLength = inText.GetLength();
-	fTextPtrExternal = NULL;
-	if (fTextLength == 0)
-	{
-		//if text is empty, we need to set layout text to a dummy "x" text otherwise 
-		//we cannot get correct metrics for caret or for text layout bounds  
-		//(we use fTextLength to know the actual text length & stay consistent)
-		fText.FromCString("x");
-		fTextPtr = &fText;
-	}
-#if VERSIONMAC
-	else if (inText.GetUniChar(fTextLength) == 13)
-	{
-		//if last character is a CR, we need to append some dummy whitespace character otherwise 
-		//we cannot get correct metrics after last CR (CoreText bug)
-		//(we use fTextLength to know the actual text length & stay consistent)
-		fText.FromString(inText);
-		fText.AppendChar(' ');
-		fTextPtr = &fText;
-	}
-	else
-#endif
-	{
-		fText.FromString(inText);
-		fTextPtr = &fText;
-	}
-
-	if (inCopyStyles && inStyles)
-	{
-		VTreeTextStyle *styles = fStyles;
-		fStyles = new VTreeTextStyle( inStyles);
-		ReleaseRefCountable(&styles);
-	}
-	else
-		CopyRefCountable(&fStyles, inStyles);
-
-	_CheckStylesConsistency();
-
-	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-}
-
-
-/** replace current text & styles 
-@remarks
-	here VTextLayout does not copy the input text but only keeps a reference on it if inCopyText == false (default): 
-	caller still owns the layout text so caller should not destroy the referenced text before VTextLayout is destroyed
-	if caller modifies inText, it should call this method again
-	Also, InsertText & DeleteText will update inText (so caller does not need to update it if it uses these methods)
-
-	if inCopyStyles == true, styles are copied
-	if inCopyStyles == false, styles are retained: in that case, if you modify passed styles you should call this method again 
-							  Also, ApplyStyle will update inStyles (so caller does not need to update it if it uses ApplyStyle)
-*/
-void VTextLayout::SetText( VString* inText, VTreeTextStyle *inStyles, bool inCopyStyles, bool inCopyText)
-{
-	VTaskLock protect(&fMutex);
-
-	fLayoutIsValid = false;
-	fTextLength = inText->GetLength();
-	fTextPtrExternal = inCopyText ? NULL : inText;
-	if (fTextLength == 0)
-	{
-		//if text is empty, we need to set layout text to a dummy "x" text otherwise 
-		//we cannot get correct metrics for caret or for text layout bounds  
-		//(we use fTextLength to know the actual text length & stay consistent)
-		fText.FromCString("x");
-		fTextPtr = &fText;
-	}
-#if VERSIONMAC
-	else if (inText->GetUniChar(fTextLength) == 13)
-	{
-		//if last character is a CR, we need to append some dummy whitespace character otherwise 
-		//we cannot get correct metrics after last CR (CoreText bug)
-		//(we use fTextLength to know the actual text length & stay consistent)
-		fText.FromString(*inText);
-		fText.AppendChar(' ');
-		fTextPtr = &fText;
-	}
-	else
-#endif
-	{
-		if (inCopyText)
-		{
-			fText.FromString(*inText);
-			fTextPtr = &fText;
-		}
-		else
-			fTextPtr = inText;
-	}
-
-	if (inCopyStyles && inStyles)
-	{
-		VTreeTextStyle *styles = fStyles;
-		fStyles = new VTreeTextStyle( inStyles);
-		ReleaseRefCountable(&styles);
-	}
-	else
-		CopyRefCountable(&fStyles, inStyles);
-
-	_CheckStylesConsistency();
-
-	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-}
-
-
-/** set text styles 
-@remarks
-	if inCopyStyles == true, styles are copied
-	if inCopyStyles == false (default), styles are retained: in that case, if you modify passed styles you should call this method again 
-*/
-void VTextLayout::SetStyles( VTreeTextStyle *inStyles, bool inCopyStyles)
-{
-	VTaskLock protect(&fMutex);
-	if (!inStyles && !fStyles)
-		return;
-
-	fLayoutIsValid = false;
-
-	if (inCopyStyles && inStyles)
-	{
-		VTreeTextStyle *styles = fStyles;
-		fStyles = new VTreeTextStyle( inStyles);
-		ReleaseRefCountable(&styles);
-	}
-	else
-		CopyRefCountable(&fStyles, inStyles);
-
-	_CheckStylesConsistency();
-
-	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-}
-
-/** set extra text styles 
-@remarks
-	it can be used to add a temporary style effect to the text layout without modifying the main text styles
-	(for instance to add a text selection effect: see VStyledTextEditView)
-
-	if inCopyStyles == true, styles are copied
-	if inCopyStyles == false (default), styles are retained: in that case, if you modify passed styles you should call this method again 
-*/
-void VTextLayout::SetExtStyles( VTreeTextStyle *inStyles, bool inCopyStyles)
-{
-	VTaskLock protect(&fMutex);
-	if (!inStyles && !fExtStyles)
-		return;
-
-	if (!testAssert(inStyles == NULL || inStyles != fStyles))
-		return;
-
-	fLayoutIsValid = false;
-
-	if (inCopyStyles && inStyles)
-	{
-		VTreeTextStyle *styles = fExtStyles;
-		fExtStyles = new VTreeTextStyle( inStyles);
-		ReleaseRefCountable(&styles);
-	}
-	else
-		CopyRefCountable(&fExtStyles, inStyles);
-
-	_CheckStylesConsistency();
-
-	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-}
-
-
-/** update text layout if it is not valid */
-void VTextLayout::_UpdateTextLayout()
-{
-	VTaskLock protect(&fMutex);
-	if (!fGC)
-	{
-		//text layout is invalid if gc is not defined
-		fLayoutIsValid = false;
-		ReleaseRefCountable(&fTextBox);
-#if ENABLE_D2D
-		if (fLayoutD2D)
-		{
-			fLayoutD2D->Release();
-			fLayoutD2D = NULL;
-		}
-#endif
-		return;
-	}
-	if (fLayoutIsValid)
-	{
-		//NDJQ: here we can check only the attached gc because offscreen layer (if enabled) will inherit the attached gc context settings when BeginLayerOffScreen is called
-		//		(layer surface compatiblity with fGC has been already checked in _SetGC)
-
-		//check if font has changed
-		if (!fCurFont)
-			fLayoutIsValid = false;
-		else 
-		{
-			if (!fDefaultFont)
-			{
-				//check if gc font has changed
-				VFont *font = fGC->RetainFont();
-				if (!font)
-					font = VFont::RetainStdFont(STDF_TEXT);
-				if (font != fCurFont)
-					fLayoutIsValid = false;
-				ReleaseRefCountable(&font);
-			}
-#if VERSION_DEBUG
-			else
-				xbox_assert(fDefaultFont == fCurFont);
-#endif
-		}
-		//check if text color has changed
-		if (fLayoutIsValid)
-		{
-			if (!fHasDefaultTextColor)
-			{
-				//check if gc text color has changed
-				VColor color;
-				fGC->GetTextColor(color);
-				if (color != fCurTextColor)
-					fLayoutIsValid = false;
-			}
-#if VERSION_DEBUG
-			else
-				xbox_assert(fDefaultTextColor == fCurTextColor);
-#endif
-			//check if text rendering mode has changed
-			if (fLayoutIsValid && fCurTextRenderingMode != fGC->GetTextRenderingMode())
-				fLayoutIsValid = false;
-#if VERSIONMAC
-			//check if kerning has changed (only on Mac OS: kerning is not used for text box layout on other impls)
-			if (fLayoutIsValid && fCurKerning != fGC->GetCharActualKerning())
-				fLayoutIsValid = false;
-#endif
-		}
-	}
-
-	if (fLayoutIsValid)
-	{
-		if (fNeedUpdateBounds) //update only bounds
-		{
-#if VERSIONWIN
-			fUseFontTrueTypeOnly = fStylesUseFontTrueTypeOnly && fCurFont->IsTrueTypeFont();
-#else
-			fUseFontTrueTypeOnly = true;
-#endif
-			fGC->_UpdateTextLayout( this);
-		}
-	}
-	else
-	{
-		ReleaseRefCountable(&fTextBox);
-
-		//set cur font
-		if (fDefaultFont)
-			CopyRefCountable(&fCurFont, fDefaultFont);
-		else 
-		{
-			VFont *font = fGC->RetainFont();
-			if (!font)
-				font = VFont::RetainStdFont(STDF_TEXT);
-			CopyRefCountable(&fCurFont, font);
-			ReleaseRefCountable(&font);
-		}
-		xbox_assert(fCurFont);
-#if VERSIONWIN
-		fUseFontTrueTypeOnly = fStylesUseFontTrueTypeOnly && fCurFont->IsTrueTypeFont();
-#else
-		fUseFontTrueTypeOnly = true;
-#endif
-		//set cur text color
-		if (fHasDefaultTextColor)
-			fCurTextColor = fDefaultTextColor;
-		else
-		{
-			VColor color;
-			fGC->GetTextColor(color);
-			fCurTextColor = color;
-		}
-		//set cur kerning
-		fCurKerning = fGC->GetCharActualKerning();
-
-		//set cur text rendering mode
-		fCurTextRenderingMode = fGC->GetTextRenderingMode();
-
-		fCurWidth = 0.0f;
-		fCurHeight = 0.0f;
-		fCurLayoutWidth = 0.0f;
-		fCurLayoutHeight = 0.0f;
-		fCurOverhangLeft = 0.0f;
-		fCurOverhangRight = 0.0f;
-		fCurOverhangTop = 0.0f;
-		fCurOverhangBottom = 0.0f;
-		fLayerIsDirty = true;
-
-		//update font & text color
-		VFont *fontOld = fGC->RetainFont();
-		if (fontOld != fCurFont)
-			fGC->SetFont( fCurFont);
-		ReleaseRefCountable(&fontOld);
-		
-		VColor textColorOld;
-		fGC->GetTextColor( textColorOld);
-		if (fCurTextColor != textColorOld)
-			fGC->SetTextColor( fCurTextColor);
-
-		//compute text layout according to VTextLayout settings
-		_BeginUsingStyles();
-		fGC->_UpdateTextLayout( this);
-		_EndUsingStyles();
-
-		if (fTextBox)
-			fLayoutIsValid = true;
-#if ENABLE_D2D
-		else if (fLayoutD2D)
-			fLayoutIsValid = true;
-#endif
-		else
-			fLayoutIsValid = false;
-
-		fBackgroundColorDirty = true;
-	}
-}
-
-/** return true if layout styles uses truetype font only */
-bool VTextLayout::_StylesUseFontTrueTypeOnly() const
-{
-#if VERSIONMAC
-	return true;
-#else
-#if ENABLE_D2D
-	if (fTextLength > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE)
-		return false;
-#endif
-	bool useTrueTypeOnly;
-	if (fStyles)
-		useTrueTypeOnly = VGraphicContext::UseFontTrueTypeOnlyRec( fStyles);
-	else
-		useTrueTypeOnly = true;
-	if (fExtStyles && fStylesUseFontTrueTypeOnly)
-		useTrueTypeOnly = useTrueTypeOnly && VGraphicContext::UseFontTrueTypeOnlyRec( fExtStyles);
-	return useTrueTypeOnly;
-#endif
-}
-
-/** return true if layout uses truetype font only */
-bool VTextLayout::UseFontTrueTypeOnly(VGraphicContext *inGC) const
-{
-#if VERSIONMAC
-	return true;
-#else
-	//FIXME: for now we fallback to GDI impl if text is too big because Direct2D does not allow for now direct layout update
-#if ENABLE_D2D
-	if (fTextLength > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE)
-		return false;
-#endif
-
-	xbox_assert(inGC);
-	bool curFontIsTrueType = false;
-	if (fDefaultFont)
-		curFontIsTrueType = fDefaultFont->IsTrueTypeFont() != FALSE ? true : false;
-	else 
-	{
-		VFont *font = inGC->RetainFont();
-		if (!font)
-			font = VFont::RetainStdFont(STDF_TEXT);
-		curFontIsTrueType = font->IsTrueTypeFont() != FALSE ? true : false;
-		ReleaseRefCountable(&font);
-	}
-	return fStylesUseFontTrueTypeOnly && curFontIsTrueType;
-#endif
-}
-
-/** insert text at the specified position */
-void VTextLayout::InsertText( sLONG inPos, const VString& inText)
-{
-	if (!inText.GetLength())
-		return;
-
-	VTaskLock protect(&fMutex);
-	xbox_assert(fTextPtr);
-	sLONG lengthPrev = fTextLength;
-	sLONG lengthPrevImpl = fTextPtr->GetLength();
-#if VERSIONMAC
-	bool needAddWhitespace = fTextPtr->GetLength() == fTextLength; //if not equal, a ending whitespace has been added yet to the impl layout
-#endif
-	if (fTextPtr == &fText)
-	{
-		//restore actual text
-		if (fTextPtrExternal)
-		{
-			fTextPtr = fTextPtrExternal;
-			try
-			{
-				fTextLength = fTextPtrExternal->GetLength();
-			}
-			catch(...)
-			{
-				fTextPtrExternal = NULL;
-				fTextPtr = &fText;
-				if (fText.GetLength() > fTextLength)
-					fText.Truncate(fTextLength);
-			}
-		}
-		else if (fText.GetLength() > fTextLength)
-			fText.Truncate(fTextLength);
-	}
-
-	if (inPos < 0)
-		inPos = 0;
-	if (inPos > fTextLength)
-		inPos = fTextLength;
-	if (!fTextLength)
-	{
-		if (fStyles)
-			fStyles->Truncate(0);
-		if (fExtStyles)
-			fExtStyles->Truncate(0);
-		*fTextPtr = inText;
-		if (fStyles)
-			fStyles->ExpandAtPosBy( 0, inText.GetLength());
-		if (fExtStyles)
-			fExtStyles->ExpandAtPosBy( 0, inText.GetLength());
-		fLayoutIsValid = false;
-	}
-	else
-	{
-		fTextPtr->Insert( inText, inPos+1);
-		if (fStyles)
-			fStyles->ExpandAtPosBy( inPos, inText.GetLength());
-		if (fExtStyles)
-			fExtStyles->ExpandAtPosBy( inPos, inText.GetLength());
-	}
-	fTextLength = fTextPtr->GetLength();
-#if VERSIONMAC
-	bool addWhitespace = false;
-	if (fTextPtr->GetUniChar(fTextLength) == 13)
-	{
-		//if last character is a CR, we need to append some dummy whitespace character otherwise 
-		//we cannot get correct metrics after last CR (CoreText bug)
-		//(we use fTextLength to know the actual text length & stay consistent)
-		if (fTextPtr != &fText)
-			fText.FromString(*fTextPtr);
-		fText.AppendChar(' ');
-		fTextPtr = &fText;
-		addWhitespace = true;
-	}
-#endif
-
-#if VERSIONWIN
-	bool useFontTrueTypeOnly = fStylesUseFontTrueTypeOnly;
-	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-	if (fStylesUseFontTrueTypeOnly != useFontTrueTypeOnly)
-		fLayoutIsValid = false;
-#else
-	fStylesUseFontTrueTypeOnly = true;
-#endif
-
-	if (fLayoutIsValid && fTextBox)
-	{
-#if VERSIONWIN
-		//FIXME: if we insert a single CR with RichTextEdit, we need to compute all layout otherwise RTE seems to not take account 
-		//CR and screws up styles too (if inText contains other characters but CR it is ok: quite annoying...)
-		if (inText.GetLength() == 1 && inText.GetUniChar(1) == 13)
-			fLayoutIsValid = false;
-		else
-		{
-#endif
-			//direct update impl layout
-			fTextBox->SetDrawContext(NULL); //reset drawing context (it is not used for layout update)
-			fTextBox->InsertText( inPos, inText);
-			
-			if (lengthPrev == 0)
-			{
-#if VERSIONMAC				
-				needAddWhitespace = true;
-#endif
-				fTextBox->DeleteText(fTextLength, fTextLength+1); //remove dummy "x" for empty text
-			}
-			
-#if VERSIONMAC
-			if (addWhitespace && needAddWhitespace)
-				fTextBox->InsertText( fTextLength, VString(" "));
-#endif
-			fNeedUpdateBounds = true;
-#if VERSIONWIN
-		}
-#endif
-	}
-	else
-		//layout direct update not supported are not implemented: compute all layout
-		//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent annoying perf issues
-		fLayoutIsValid = false;
-	
-	fBackgroundColorDirty = true;
-}
-
-
-/** replace text */
-void VTextLayout::ReplaceText( sLONG inStart, sLONG inEnd, const VString& inText)
-{
-	VTaskLock protect(&fMutex);
-	if (inStart < 0)
-		inStart = 0;
-	if (inStart > fTextLength)
-		inStart = fTextLength;
-	if (inEnd > fTextLength)
-		inEnd = fTextLength;
-	
-	xbox_assert(fTextPtr);
-	sLONG lengthPrev = fTextLength;
-	sLONG lengthPrevImpl = fTextPtr->GetLength();
-#if VERSIONMAC
-	bool needAddWhitespace = fTextPtr->GetLength() == fTextLength; //if not equal, a ending whitespace has been added yet to the impl layout
-#endif
-	if (fTextPtr == &fText)
-	{
-		//restore actual text
-		if (fTextPtrExternal)
-		{
-			fTextPtr = fTextPtrExternal;
-			try
-			{
-				fTextLength = fTextPtrExternal->GetLength();
-			}
-			catch(...)
-			{
-				fTextPtrExternal = NULL;
-				fTextPtr = &fText;
-				if (fText.GetLength() > fTextLength)
-					fText.Truncate(fTextLength);
-			}
-		}
-		else if (fText.GetLength() > fTextLength)
-			fText.Truncate(fTextLength);
-	}
-
-	if (fStyles)
-	{
-		if (inEnd > inStart && inText.GetLength() > 0)
-		{
-			fStyles->Truncate( inStart+1, inEnd-(inStart+1));
-			if (inText.GetLength() > 1)
-				fStyles->ExpandAtPosBy( inStart+1, inText.GetLength()-1);
-		}
-		else
-		{
-			if (inEnd > inStart)
-				fStyles->Truncate( inStart, inEnd-inStart);
-			if (inText.GetLength() > 0)
-				fStyles->ExpandAtPosBy( inStart, inText.GetLength());
-		}
-	}
-	if (fExtStyles)
-	{
-		if (inEnd > inStart && inText.GetLength() > 0)
-		{
-			fExtStyles->Truncate( inStart+1, inEnd-(inStart+1));
-			if (inText.GetLength() > 1)
-				fExtStyles->ExpandAtPosBy( inStart+1, inText.GetLength()-1);
-		}
-		else
-		{
-			if (inEnd > inStart)
-				fExtStyles->Truncate( inStart, inEnd-inStart);
-			if (inText.GetLength() > 0)
-				fExtStyles->ExpandAtPosBy( inStart, inText.GetLength());
-		}
-	}
-	
-	if (inEnd > inStart)
-		fTextPtr->Replace(inText, inStart+1, inEnd-inStart);
-	else 
-		fTextPtr->Insert(inText, inStart+1);
-	
-	fTextLength = fTextPtr->GetLength();
-#if VERSIONMAC	
-	bool addWhitespace = false;
-#endif
-	if (fTextLength == 0)
-	{
-		//if text is empty, we need to set layout text to a dummy "x" text otherwise 
-		//we cannot get correct metrics for caret or for text layout bounds  
-		//(we use fTextLength to know the actual text length & stay consistent)
-		fText.FromCString("x");
-		fTextPtr = &fText;
-	}
-#if VERSIONMAC
-	else
-	{
-		if (fTextPtr->GetUniChar(fTextLength) == 13)
-		{
-			//if last character is a CR, we need to append some dummy whitespace character otherwise 
-			//we cannot get correct metrics after last CR (CoreText bug)
-			//(we use fTextLength to know the actual text length & stay consistent)
-			if (fTextPtr != &fText)
-				fText.FromString(*fTextPtr);
-			fText.AppendChar(' ');
-			fTextPtr = &fText;
-			addWhitespace = true;
-		}
-	}
-#endif
-	
-#if VERSIONWIN
-	bool useFontTrueTypeOnly = fStylesUseFontTrueTypeOnly;
-	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-	if (fStylesUseFontTrueTypeOnly != useFontTrueTypeOnly)
-		fLayoutIsValid = false;
-#else
-	fStylesUseFontTrueTypeOnly = true;
-#endif
-	
-	if (fLayoutIsValid && fTextBox)
-	{
-#if VERSIONWIN
-		//FIXME: if we insert a single CR with RichTextEdit, we need to compute all layout otherwise RTE seems to not take account 
-		//CR and screws up styles too (if inText contains other characters but CR it is ok: quite annoying...)
-		if (inText.GetLength() == 1 && inText.GetUniChar(1) == 13)
-			fLayoutIsValid = false;
-		else
-		{
-#endif
-			//direct update impl layout
-			fTextBox->SetDrawContext(NULL); //reset drawing context (it is not used for layout update)
-			fTextBox->ReplaceText(inStart, inEnd, inText);
-			
-			if (lengthPrev == 0 && fTextLength > 0)
-			{
-#if VERSIONMAC				
-				needAddWhitespace = true;
-#endif
-				fTextBox->DeleteText(fTextLength, fTextLength+1); //remove dummy "x" for empty text
-			}
-			
-			if (fTextLength == 0 && lengthPrev > 0)
-				//add dummy "x" for empty text
-				fTextBox->InsertText(0, CVSTR("x"));
-#if VERSIONMAC
-			if (addWhitespace && needAddWhitespace)
-				fTextBox->InsertText( fTextLength, VString(" "));
-#endif
-			fNeedUpdateBounds = true;
-#if VERSIONWIN
-		}
-#endif
-	}
-	else
-		//layout direct update not supported are not implemented: compute all layout
-		//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent perf issues
-		fLayoutIsValid = false;
-	
-	fBackgroundColorDirty = true;
-}
-
-
-/** delete text range */
-void VTextLayout::DeleteText( sLONG inStart, sLONG inEnd)
-{
-	VTaskLock protect(&fMutex);
-	if (inStart < 0)
-		inStart = 0;
-	if (inStart > fTextLength)
-		inStart = fTextLength;
-	if (inEnd > fTextLength)
-		inEnd = fTextLength;
-	if (inStart >= inEnd)
-		return;
-
-	xbox_assert(fTextPtr);
-	sLONG lengthPrev = fTextLength;
-	sLONG lengthPrevImpl = fTextPtr->GetLength();
-#if VERSIONMAC
-	bool needAddWhitespace = fTextPtr->GetLength() == fTextLength; //if not equal, a ending whitespace has been added yet to the impl layout
-#endif
-	if (fTextPtr == &fText)
-	{
-		//restore actual text
-		if (fTextPtrExternal)
-		{
-			fTextPtr = fTextPtrExternal;
-			try
-			{
-				fTextLength = fTextPtrExternal->GetLength();
-			}
-			catch(...)
-			{
-				fTextPtrExternal = NULL;
-				fTextPtr = &fText;
-				if (fText.GetLength() > fTextLength)
-					fText.Truncate(fTextLength);
-			}
-		}
-		else if (fText.GetLength() > fTextLength)
-			fText.Truncate(fTextLength);
-	}
-
-	if (fStyles)
-		fStyles->Truncate(inStart, inEnd-inStart);
-	if (fExtStyles)
-		fExtStyles->Truncate(inStart, inEnd-inStart);
-	fTextPtr->Remove( inStart+1, inEnd-inStart);
-	fTextLength = fTextPtr->GetLength();
-#if VERSIONMAC	
-	bool addWhitespace = false;
-#endif
-	if (fTextLength == 0)
-	{
-		//if text is empty, we need to set layout text to a dummy "x" text otherwise 
-		//we cannot get correct metrics for caret or for text layout bounds  
-		//(we use fTextLength to know the actual text length & stay consistent)
-		fText.FromCString("x");
-		fTextPtr = &fText;
-	}
-#if VERSIONMAC
-	else
-	{
-		if (fTextPtr->GetUniChar(fTextLength) == 13)
-		{
-			//if last character is a CR, we need to append some dummy whitespace character otherwise 
-			//we cannot get correct metrics after last CR (CoreText bug)
-			//(we use fTextLength to know the actual text length & stay consistent)
-			if (fTextPtr != &fText)
-				fText.FromString(*fTextPtr);
-			fText.AppendChar(' ');
-			fTextPtr = &fText;
-			addWhitespace = true;
-		}
-	}
-#endif
-
-#if VERSIONWIN
-	bool useFontTrueTypeOnly = fStylesUseFontTrueTypeOnly;
-	fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-	if (fStylesUseFontTrueTypeOnly != useFontTrueTypeOnly)
-		fLayoutIsValid = false;
-#else
-	fStylesUseFontTrueTypeOnly = true;
-#endif
-
-	if (fLayoutIsValid && fTextBox)
-	{
-		//direct update impl layout
-		fTextBox->SetDrawContext(NULL); //reset drawing context (it is not used for layout update)
-		fTextBox->DeleteText( inStart, inEnd);
-		
-		if (fTextLength == 0 && lengthPrev > 0)
-			//add dummy "x" for empty text
-			fTextBox->InsertText(0, CVSTR("x"));
-		
-#if VERSIONMAC
-		if (addWhitespace && needAddWhitespace)
-			fTextBox->InsertText( fTextLength, VString(" "));
-#endif
-		fNeedUpdateBounds = true;
-	}
-	else
-		//layout direct update not supported are not implemented: compute all layout
-		//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent perf issues
-		fLayoutIsValid = false;
-	
-	fBackgroundColorDirty = true;
-}
-
-
-/** set min line height on the specified range 
- @remarks
-	it is used while editing to prevent text wobble while editing with IME
- */
-void VTextLayout::SetMinLineHeight(const GReal inMinHeight, sLONG inStart, sLONG inEnd)
-{
-#if VERSIONMAC	
-	if (fLayoutIsValid && fTextBox)
-	{
-		fTextBox->SetMinLineHeight(inMinHeight, inStart, inEnd);
-		fNeedUpdateBounds = true;
-	}
-#endif
-}
-
-
-VTreeTextStyle *VTextLayout::_RetainDefaultTreeTextStyle() const
-{
-	if (!fDefaultFont && !fHasDefaultTextColor)
-	{
-		ReleaseRefCountable(&fDefaultStyle);
+	if (IsD2DImpl())
 		return NULL;
-	}
-	if (!fDefaultStyle)
+
+	if (!IsD2DAvailable())
+		return NULL;
+
+	xbox_assert(!fD2DCurGC);
+
+	XBOX::VRect clipBounds;
+	GetClipBoundingBox( clipBounds); //we intersect input bounds with parent gc current clipping bounds (to reduce rt size)
+	clipBounds.Intersect( inBounds);
+
+	//FIXME: temp fix for clipping bug - theme controls seem to not take account ctm while clipping 
+	//									 (clipping is done assuming there is none ctm translation)
+	//		 as a workaround we ensure render target origin is bound to parent context origin
+	clipBounds.SetCoords( 0, 0, clipBounds.GetRight(), clipBounds.GetBottom()); 
+
+	//get GDI parent context 
+	fD2DParentHDC = BeginUsingParentContext(); 
+
+	//create new D2D context 
+
+	XBOX::VGraphicContext *gc;
+	if (inSharedUserHandle)
+		gc = VGraphicContext::CreateShared( inSharedUserHandle, fD2DParentHDC, clipBounds, 1.0f, inTransparent, inSoftwareOnly);
+	else
+		gc = VGraphicContext::Create( fD2DParentHDC, clipBounds, 1.0f, inTransparent, inSoftwareOnly);
+	xbox_assert(gc);
+	if (gc)
 	{
-		VTextStyle *style = fDefaultFont ? fDefaultFont->CreateTextStyle() : new VTextStyle();
-		if (fHasDefaultTextColor)
-		{
-			style->SetHasForeColor(true);
-			style->SetColor( fDefaultTextColor.GetRGBAColor());
-		}
-		fDefaultStyle = new VTreeTextStyle( style);
+		gc->BeginUsingContext();
+		fD2DCurGC = gc;
+		fD2DUseCount++;
+	}
+	else
+	{
+		//failed to create gc: release the GDI parent context
+		EndUsingParentContext(fD2DParentHDC);
+		fD2DParentHDC = NULL;
 	}
 
-	fDefaultStyle->GetData()->SetRange(0, fTextLength);
-	fDefaultStyle->Retain();
-	return fDefaultStyle;
+	return gc;
 }
 
-/** retain full styles
+
+/** end using derived D2D gc & restore context 
 @remarks
-	use this method to get the full styles applied to the text content
-	(but not including the graphic context default font: this font is already applied internally by gc methods before applying styles)
-
-	caution: please do not modify fStyles between _RetainFullTreeTextStyle & _ReleaseFullTreeTextStyle
-
-	(in monostyle, it is generally equal to _RetainDefaultTreeTextStyle)
+	pass the gc returned by BeginUsingD2D (might be NULL)
 */
-VTreeTextStyle *VTextLayout::_RetainFullTreeTextStyle() const
+void VGraphicContext::EndUsingD2D(VGraphicContext * inDerivedGC) 
 {
-	if (!fStyles)
-		return _RetainDefaultTreeTextStyle();
-
-	VTreeTextStyle *styles = _RetainDefaultTreeTextStyle();
-	if (styles)
+	if (!fD2DUseCount)
 	{
-		styles->AddChild(fStyles);
-		return styles;
-	}
-	else
-	{
-		fStyles->Retain();
-		return fStyles;
-	}
-}
-
-void VTextLayout::_ReleaseFullTreeTextStyle( VTreeTextStyle *inStyles) const
-{
-	if (!inStyles)
-		return;
-
-	if (!fStyles)
-	{
-		xbox_assert(inStyles == fDefaultStyle);
-		inStyles->Release();
+		xbox_assert(fD2DCurGC == NULL && inDerivedGC == NULL);
 		return;
 	}
+	fD2DUseCount--;
+	if (fD2DUseCount > 0)
+		return;
 
-	if (inStyles == fDefaultStyle)
-	{
-		xbox_assert(inStyles->GetChildCount() == 1);
-		inStyles->RemoveChildAt(1);
-	}
-	inStyles->Release();
+	xbox_assert(fD2DUseCount == 0 && fD2DCurGC && fD2DCurGC->IsD2DImpl() && fD2DCurGC == inDerivedGC);
+	
+	fD2DCurGC->EndUsingContext();
+	XBOX::ReleaseRefCountable(&fD2DCurGC);
+
+	EndUsingParentContext(fD2DParentHDC);
+	fD2DParentHDC = NULL;
 }
-
-/** apply style (use style range) */
-bool VTextLayout::ApplyStyle( VTextStyle* inStyle)
-{
-	VTaskLock protect(&fMutex);
-	if (_ApplyStyle( inStyle))
-	{
-#if VERSIONWIN
-		bool useFontTrueTypeOnly = fStylesUseFontTrueTypeOnly;
-		fStylesUseFontTrueTypeOnly = _StylesUseFontTrueTypeOnly();
-		if (fStylesUseFontTrueTypeOnly != useFontTrueTypeOnly)
-			fLayoutIsValid = false;
-#else
-		fStylesUseFontTrueTypeOnly = true;
 #endif
-
-//#if VERSIONWIN //TODO: remove when Mac OS X impl for XMacStyledTextBox::ApplyStyle is done
-		if (fLayoutIsValid && fTextBox)
-		{
-			//direct update impl layout
-			fTextBox->SetDrawContext(NULL); //reset drawing context (it is not used for layout update)
-			fTextBox->ApplyStyle( inStyle);
-			fNeedUpdateBounds = true;
-		}
-		else
-//#endif
-			//layout direct update not supported are not implemented: compute all layout
-			//FIXME: Direct2D layout cannot be directly updated so for now caller should backfall to GDI if text is big to prevent perf issues
-			fLayoutIsValid = false;
-		fBackgroundColorDirty = true;
-		return true;
-	}
-	return false;
-}
-
-
-
-bool  VTextLayout::_ApplyStyle(VTextStyle *inStyle)
-{
-	if (!inStyle)
-		return false;
-	sLONG start, end;
-	inStyle->GetRange( start, end);
-	if (start > end || inStyle->IsUndefined())
-		return false;
-
-	bool needUpdate = false;
-	VTextStyle *newStyle = NULL;
-	if (start <= 0 && end >= fTextLength)
-	{
-		//update default uniform style: this is optimization to avoid to create or update unnecessary fStyles (this speeds up rendering too)
-		if (!inStyle->GetFontName().IsEmpty()
-			||
-			(fDefaultFont
-			&&
-				(
-				inStyle->GetItalic() != UNDEFINED_STYLE
-				||
-				inStyle->GetBold() != UNDEFINED_STYLE
-				||
-				inStyle->GetUnderline() != UNDEFINED_STYLE
-				||
-				inStyle->GetStrikeout() != UNDEFINED_STYLE
-				||
-				inStyle->GetFontSize() != UNDEFINED_STYLE
-				)
-			)
-			)
-		{
-			//set new default font as combination of current default font (if any) & inStyle
-
-			VString fontname;
-			GReal fontsize = 12; 
-			VFontFace fontface = 0;
-
-			if (fDefaultFont)
-			{
-				fontname = fDefaultFont->GetName();
-				fontsize = fDefaultFont->GetPixelSize(); 
-				fontface = fDefaultFont->GetFace();
-			}
-			if (!inStyle->GetFontName().IsEmpty())
-				fontname = inStyle->GetFontName();
-			if (inStyle->GetFontSize() > 0)
-				fontsize = inStyle->GetFontSize();
-			if (inStyle->GetItalic() == TRUE)
-				fontface |= KFS_ITALIC;
-			else if (inStyle->GetItalic() == FALSE)
-				fontface &= ~KFS_ITALIC;
-			if (inStyle->GetStrikeout() == TRUE)
-				fontface |= KFS_STRIKEOUT;
-			else if (inStyle->GetStrikeout() == FALSE)
-				fontface &= ~KFS_STRIKEOUT;
-			if (inStyle->GetUnderline() == TRUE)
-				fontface |= KFS_UNDERLINE;
-			else if (inStyle->GetUnderline() == FALSE)
-				fontface &= ~KFS_UNDERLINE;
-			if (inStyle->GetBold() == TRUE)
-				fontface |= KFS_BOLD;
-			else if (inStyle->GetBold() == FALSE)
-				fontface &= ~KFS_BOLD;
-			VFont *font = VFont::RetainFont( fontname, fontface, fontsize, 72.0f);
-			if (font != fDefaultFont)
-			{
-				CopyRefCountable(&fDefaultFont, font);		
-				ReleaseRefCountable(&fDefaultStyle);
-				needUpdate = true;
-				fLayoutIsValid = false; //recompute all layout
-			}
-			font->Release();
-		}
-		if (inStyle->GetHasForeColor())
-		{
-			//modify current default text color
-			VColor color;
-			color.FromRGBAColor( inStyle->GetColor());
-			if (!fHasDefaultTextColor || color != fDefaultTextColor)
-			{
-				fHasDefaultTextColor = true;
-				fDefaultTextColor = color;
-				ReleaseRefCountable(&fDefaultStyle);
-				needUpdate = true;
-				fLayoutIsValid = false; //recompute all layout
-			}
-		}
-		if (inStyle->GetJustification() != JST_Notset)
-		{
-			//modify current default horizontal justification
-			AlignStyle align = _ToAlignStyle( inStyle->GetJustification());
-			if (align != fHAlign)
-			{
-				fHAlign = align;
-				needUpdate = true;
-			}
-			newStyle = new VTextStyle( inStyle);
-			inStyle = newStyle;
-			inStyle->SetJustification( JST_Notset);
-		}
-	}
-	else
-	{
-		if (inStyle->GetJustification() != JST_Notset)
-		{
-			//for now we can only update justification globally
-
-			newStyle = new VTextStyle( inStyle);
-			inStyle = newStyle;
-			inStyle->SetJustification( JST_Notset);
-		}
-	}
-
-	if (!inStyle->IsUndefined())
-	{
-		if (fStyles)
-		{
-			needUpdate = true;
-
-			VTreeTextStyle *styles = _RetainFullTreeTextStyle(); //to ensure fStyles will use fDefaultStyle as parent 
-																 //(so only styles which are different from default uniform style will be overriden)
-
-			fStyles->ApplyStyle( inStyle); //we apply only on fStyles
-
-			_ReleaseFullTreeTextStyle( styles); //detach fStyles from fDefaultStyle
-
-			if (fStyles->GetChildCount() == 0 && fStyles->GetData()->IsUndefined())
-				ReleaseRefCountable(&fStyles);
-		}
-		else
-		{
-			fStyles = new VTreeTextStyle( new VTextStyle());
-			fStyles->GetData()->SetRange(0, fTextLength);
-
-			VTreeTextStyle *styles = _RetainFullTreeTextStyle(); //to ensure fStyles will use fDefaultStyle as parent 
-																 //(so only styles which are different from default uniform style will be overriden)
-			fStyles->ApplyStyle( inStyle); //we apply only on fStyles
-
-			_ReleaseFullTreeTextStyle( styles); //detach fStyles from fDefaultStyle
-
-			if (fStyles->GetChildCount() == 0 && fStyles->GetData()->IsUndefined())
-			{
-				//can happen if input style does not override current default font or style
-				ReleaseRefCountable(&fStyles);
-			}
-			else
-				needUpdate = true;
-		}
-	}
-	if (inStyle == newStyle)
-		delete newStyle;
-	return needUpdate;
-}
-
-
-#if VERSIONWIN
 
 /** begin render offscreen */
 HDC VGDIOffScreen::Begin(HDC inHDC, const VRect& inBounds, bool *inNewBmp, bool inInheritParentClipping)
@@ -5500,15 +4137,10 @@ bool VGCOffScreen::Begin(XBOX::VGraphicContext *inGC, const XBOX::VRect& inBound
 
 	if (fDrawingGCDelegate)
 	{
-		VGraphicContext *prevDrawingGC = RetainRefCountable(fDrawingGC);
-		ReleaseRefCountable(&fDrawingGC);
-		fDrawingGC = (*fDrawingGCDelegate)( inGC, inBounds, inTransparent, fDrawingGCParentContext, prevDrawingGC, fDrawingGCDelegateUserData);
-		ReleaseRefCountable(&prevDrawingGC);
+		fDrawingGC = (*fDrawingGCDelegate)( inGC, inBounds, inTransparent, fDrawingGCParentContext, fDrawingGCDelegateUserData);
 		if (fDrawingGC)
 			fDrawingGC->BeginUsingContext();
 	}	
-	else
-		ReleaseRefCountable(&fDrawingGC);
 
 	return newLayer;
 }
@@ -5524,8 +4156,7 @@ void VGCOffScreen::End(XBOX::VGraphicContext *inGC)
 	if (fDrawingGC)
 	{
 		fDrawingGC->EndUsingContext();
-		if (!fDrawingGC->IsD2DImpl()) //we keep D2D gc as it can be rebound to another context (sparing a dealloc/realloc)
-			ReleaseRefCountable(&fDrawingGC);
+		ReleaseRefCountable(&fDrawingGC);
 		inGC->EndUsingParentContext( fDrawingGCParentContext);
 	}
 
@@ -5554,5 +4185,7 @@ bool VGCOffScreen::ShouldClear(XBOX::VGraphicContext *inGC, const VRect& inBound
 		return true;
 	return inGC->ShouldClearLayerOffScreen( inBounds, fLayerOffScreen);
 }
+
+
 
 

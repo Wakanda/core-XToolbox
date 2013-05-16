@@ -95,7 +95,8 @@ typedef enum HTTPParsingState
 	PS_ReadingRequestLine,
 	PS_ReadingHeaders,
 	PS_ReadingBody,
-	PS_ParsingFinished
+	PS_ParsingFinished,
+	PS_WaitingForBody		/* Used for "Expect: 100-Continue" request header */
 } HTTPParsingState;
 
 

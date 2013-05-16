@@ -31,7 +31,15 @@
 #include "VTextTypes.h"
 #include "VAssert.h"
 #include "VObject.h"
+#include "VTime.h"
+#include "VString.h"
 #include "VTextStyle.h"
+#include "VJSONValue.h"
+
+#include "VDocText.h"
+#include "VDocImage.h"
+#include "VDocParagraph.h"
+#include "VDocTable.h"
 
 USING_TOOLBOX_NAMESPACE
 

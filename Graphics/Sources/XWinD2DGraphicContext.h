@@ -40,7 +40,7 @@ BEGIN_TOOLBOX_NAMESPACE
 //@remarks
 //	D2D factory can still be multi-threaded:
 //  this setting disables only mutexs while drawing
-#define D2D_GUI_SINGLE_THREADED 1
+#define D2D_GUI_SINGLE_THREADED 0
 #if D2D_GUI_SINGLE_THREADED
 #define D2D_GUI_RESOURCE_MUTEX_LOCK(type) 
 #else
@@ -84,6 +84,7 @@ class VGraphicFilterProcess;
 #define D2D_RECT(x) D2D1::RectF(x.GetLeft(), x.GetTop(), x.GetRight(), x.GetBottom())
 #define D2D_POINT(x) D2D1::Point2F(x.GetX(), x.GetY())
 #define D2D_COLOR(color) D2D1::ColorF( color.GetRed()/255.0f, color.GetGreen()/255.0f, color.GetBlue()/255.0f, color.GetAlpha()/255.0f) 
+#define VCOLOR_FROM_D2D_COLOR(color) VColor((uBYTE)(color.r*255),(uBYTE)(color.g*255),(uBYTE)(color.b*255),(uBYTE)(color.a*255))
 
 #define D2D_CACHE_RESOURCE_HARDWARE TRUE
 #define D2D_CACHE_RESOURCE_SOFTWARE FALSE
@@ -463,6 +464,27 @@ public:
 	/** return true if graphic context uses hardware resources */
 	bool IsHardware() const { return fRenderTarget != NULL && fIsRTHardware != FALSE; }
 
+	/** set to true to speed up GDI over D2D context rendering 
+	@remarks
+		that mode optimizes GDI over D2D context rendering so that GDI over D2D context is preserved much longer
+		but it means that some rendering is done by GDI but D2D 
+		if shape rendering in both contexts is similar: 
+		for instance pictures, simple shapes like lines & rect without gradient pattern, user dashes and opacity < 1
+		might be rendered with GDI to preserve longer GDI context; 
+		D2D is still used to render shapes which are not renderable with GDI
+
+		note that clearing that mode forces a GDI flush if fast GDI was previously enabled
+
+		for instance, you should enable it if you intend to render a set of primitives including legacy texts and optionally pictures and simple lines & rects
+		in order to use only a single GDI over D2D context to render the set of primitives
+		(because switching from D2D to GDI and GDI to D2D has a high perf hit)
+
+		that mode is disabled on default: on default only legacy texts are rendered with GDI
+		that mode does nothing in context but D2D
+	*/
+	virtual	void EnableFastGDIOverD2D( bool inEnable = true);
+	virtual bool IsEnabledFastGDIOverD2D() const { return fGDI_Fast; }
+
 	/** create a shared graphic context binded initially to the specified native context ref 
 	@param inUserHandle
 		user handle used to identify the shared graphic context
@@ -706,38 +728,6 @@ public:
 	}
 	bool GetLockParentContext() const { return fLockParentContext; }
 	
-	/** Windows & Direct2D only (but safe for any impl): if true, if GDI context is queried on a transparent surface (bitmap or layer),
-		it will ensure GDI surface is prepared for drawing with GDI 
-		(it does nothing on a opaque surface)
-
-		It assumes all pixels drawed with GDI are opaque.
-
-		you should call this method on a per-case basis that is before BeginUsingParentContext 
-		and reset status with ShouldPrepareTransparentForGDI(false) after EndUsingParentContext
-		(if you let the status to be true, surface will be always prepared while querying a hdc which can have a high perf hit
-		 especially if hdc is not used for drawing...)
-
-		default if false
-	@param inAllow
-		enable/disable GDI surface preparation
-
-	@param inBounds
-		bounds in gc user space of area where surface needs to be prepared (should be set to intended drawing area)
-		if NULL, all surface area will be fixed
-	*/
-	void ShouldPrepareTransparentForGDI( bool inAllow, const VRect *inBounds = NULL)
-	{
-		fGDI_ShouldPrepareTransparent = inAllow && fIsTransparent;
-		if (inBounds && fGDI_ShouldPrepareTransparent)
-		{
-			fGDI_HasTransparentBounds = true;
-			fGDI_TransparentBounds = *inBounds;
-		}
-		else
-			fGDI_HasTransparentBounds = false;
-	}
-	bool ShouldPrepareTransparentForGDI() const { return fGDI_ShouldPrepareTransparent; }
-
 	/** enable/disable Direct2D implementation at runtime
 	@remarks
 		if set to false, IsD2DAvailable() will return false even if D2D is available on the platform
@@ -791,9 +781,14 @@ public:
 	virtual void	SetFillColor (const VColor& inColor, VBrushFlags* ioFlags = NULL) { _SetFillColor( inColor, ioFlags); }
 			void	_SetFillColor (const VColor& inColor, VBrushFlags* ioFlags = NULL) const;
 
-	virtual void	SetFillPattern (const VPattern* inPattern, VBrushFlags* ioFlags = NULL);
-	virtual void	SetLineColor (const VColor& inColor, VBrushFlags* ioFlags = NULL);
-	virtual void	SetLinePattern (const VPattern* inPattern, VBrushFlags* ioFlags = NULL);
+	virtual void	SetFillPattern (const VPattern* inPattern, VBrushFlags* ioFlags = NULL) { _SetFillPattern( inPattern, ioFlags); }
+			void	_SetFillPattern (const VPattern* inPattern, VBrushFlags* ioFlags = NULL) const;
+
+	virtual void	SetLineColor (const VColor& inColor, VBrushFlags* ioFlags = NULL) { _SetLineColor( inColor, ioFlags); }
+			void	_SetLineColor (const VColor& inColor, VBrushFlags* ioFlags = NULL) const;
+
+	virtual void	SetLinePattern (const VPattern* inPattern, VBrushFlags* ioFlags = NULL) { _SetLinePattern( inPattern, ioFlags); }
+			void	_SetLinePattern (const VPattern* inPattern, VBrushFlags* ioFlags = NULL) const;
 
 	/** set line dash pattern
 	@param inDashOffset
@@ -803,13 +798,16 @@ public:
 		for instance {3,2,4} will paint line on 3 user units, unpaint on 2 user units
 							 and paint again on 4 user units and so on...
 	*/
-	virtual void	SetLineDashPattern(GReal inDashOffset, const VLineDashPattern& inDashPattern, VBrushFlags* ioFlags = NULL);
+	virtual void	SetLineDashPattern(GReal inDashOffset, const VLineDashPattern& inDashPattern, VBrushFlags* ioFlags = NULL) { _SetLineDashPattern( inDashOffset, inDashPattern, ioFlags); }
+			void	_SetLineDashPattern(GReal inDashOffset, const VLineDashPattern& inDashPattern, VBrushFlags* ioFlags = NULL) const;
 
 	/** set fill rule */
 	virtual void	SetFillRule( FillRuleType inFillRule);
 
-	virtual void	SetLineWidth (GReal inWidth, VBrushFlags* ioFlags = NULL);
-	virtual GReal	GetLineWidth () const { return fStrokeWidth; }
+	virtual void	SetLineWidth (GReal inWidth, VBrushFlags* ioFlags = NULL) { _SetLineWidth( inWidth, ioFlags); }
+			void	_SetLineWidth (GReal inWidth, VBrushFlags* ioFlags = NULL) const;
+	virtual GReal	GetLineWidth () const;
+
 	virtual void	SetLineStyle (CapStyle inCapStyle, JoinStyle inJoinStyle, VBrushFlags* ioFlags = NULL);
 	virtual void	SetLineCap (CapStyle inCapStyle, VBrushFlags* ioFlags = NULL);
 	virtual void	SetLineJoin(JoinStyle inJoinStyle, VBrushFlags* ioFlags = NULL); 
@@ -857,8 +855,6 @@ public:
 	virtual uBYTE	SetAlphaBlend (uBYTE inAlphaBlend);
 	virtual void	SetPixelBackColor (const VColor& inColor);
 	virtual void	SetPixelForeColor (const VColor& inColor);
-	
-	virtual TransferMode	SetPixelTransferMode (TransferMode inMode);
 	
 	// Graphic context storage
 	typedef enum eDeferredRestoreType
@@ -934,6 +930,9 @@ public:
 	// clear all layers and restore main graphic context
 	virtual void	ClearLayers();
 
+	virtual bool	ShouldDrawTextOnTransparentLayer() const;
+
+
 	/** return current clipping bounding rectangle 
 	 @remarks
 	 bounding rectangle is expressed in VGraphicContext normalized coordinate space 
@@ -967,9 +966,9 @@ public:
 	void	_GetTransformToLayer(VAffineTransform &outTransform, sLONG inIndexLayer) const;
 
 	//return current graphic context native reference
-	virtual VGraphicContextNativeRef GetNativeRef() const
+	virtual VGCNativeRef GetNativeRef() const
 	{
-		return (VGraphicContextNativeRef)((ID2D1RenderTarget *)fRenderTarget);
+		return (VGCNativeRef)((ID2D1RenderTarget *)fRenderTarget);
 	}
 	
 	// Text measurement
@@ -1270,11 +1269,11 @@ public:
 	virtual	void	EndUsingParentPort(PortRef inPortRef)const{EndUsingParentContext(inPortRef);};
 
 
-	virtual	PortRef		_GetParentPort () const { return BeginUsingParentContext(); };
-	virtual	ContextRef	_GetParentContext () const { return BeginUsingParentContext(); };
+	virtual	PortRef		GetParentPort () const { return BeginUsingParentContext(); };
+	virtual	ContextRef	GetParentContext () const { return BeginUsingParentContext(); };
 
-	virtual	void	_ReleaseParentPort (PortRef inPortRef) const {return EndUsingParentContext(inPortRef);};
-	virtual	void	_ReleaseParentContext (ContextRef inContextRef) const {return EndUsingParentContext(inContextRef);};
+	virtual	void	ReleaseParentPort (PortRef inPortRef) const {return EndUsingParentContext(inPortRef);};
+	virtual	void	ReleaseParentContext (ContextRef inContextRef) const {return EndUsingParentContext(inContextRef);};
 
 	// Utilities
 	virtual	Boolean	UseEuclideanAxis () { return false; };
@@ -1285,11 +1284,11 @@ public:
 	void	SetTextCursorInfo (VString& inFont, sLONG inSize, Boolean inBold, Boolean inItalic, sLONG inX, sLONG inY);
 
 	// Debug Utils
-	static void	_RevealUpdate (HWND inHwnd);
-	static void	_RevealClipping (ContextRef inContext);
+	static void	RevealUpdate (HWND inHwnd);
+	static void	RevealClipping (ContextRef inContext);
 	void	_RevealCurClipping () const;
-	static void	_RevealBlitting (ContextRef inContext, const RgnRef inHwndRegion);
-	static void	_RevealInval (ContextRef inContext, const RgnRef inHwndRegion);
+	static void	RevealBlitting (ContextRef inContext, const RgnRef inHwndRegion);
+	static void	RevealInval (ContextRef inContext, const RgnRef inHwndRegion);
 	
 
 	HDC _GetHDC() const;
@@ -1299,11 +1298,11 @@ public:
 	@remarks
 		used only by Direct2D impl
 	*/
-	void _SetParentContextNoDraw(bool inStatus) const
+	void SetParentContextNoDraw(bool inStatus) const
 	{
 		fParentContextNoDraw = inStatus;
 	}
-	bool _GetParentContextNoDraw() const { return fParentContextNoDraw; }
+	bool GetParentContextNoDraw() const { return fParentContextNoDraw; }
 protected:
 	/** draw text layout 
 	@remarks
@@ -1367,6 +1366,8 @@ protected:
 	*/
 	virtual void	_UpdateTextLayout( VTextLayout *inTextLayout);
 
+
+	virtual	void	_BuildRoundRectPath(const VRect inBounds,GReal inWidth,GReal inHeight,VGraphicPath& outPath, bool inFillOnly = false);
 
 	/** test Aero Desktop Composition **/
 	typedef HRESULT (WINAPI* DwmIsCompositionEnabledProc)(BOOL *pfEnabled);
@@ -1443,6 +1444,8 @@ protected:
 	mutable HDC			fGDI_HDC;
 	mutable bool		fGDI_HDC_FromBeginUsingParentContext;
 	mutable bool		fGDI_IsReleasing;
+	mutable bool		fGDI_Fast;
+	mutable bool		fGDI_QDCompatible;
 
 	/** temporary GDI gc
 	@remarks
@@ -1459,24 +1462,21 @@ protected:
 	mutable std::vector<VRect> fGDI_ClipRect;
 	mutable std::vector<VFont *> fGDI_TextFont;
 	mutable std::vector<VColor>  fGDI_TextColor;
-	mutable VFont		*fGDI_TextFontToRestore;
-	mutable VColor		fGDI_TextColorToRestore;
+	mutable std::vector<VColor>  fGDI_StrokeColor;
+	mutable std::vector<bool>	 fGDI_HasSolidStrokeColor;
+	mutable std::vector<bool>	 fGDI_HasSolidStrokeColorInherit;
+	mutable std::vector<GReal>	 fGDI_StrokeWidth;
+	mutable std::vector<const VPattern *> fGDI_StrokePattern;
+	mutable std::vector<bool>	 fGDI_HasStrokeCustomDashesInherit;
+	mutable std::vector<VColor>  fGDI_FillColor;
+	mutable std::vector<bool>	 fGDI_HasSolidFillColor;
+	mutable std::vector<bool>	 fGDI_HasSolidFillColorInherit;
+	mutable std::vector<const VPattern *> fGDI_FillPattern;
+
 	mutable bool		fGDI_CurIsParentDC;
 	mutable bool		fGDI_CurIsPreparedForTransparent;
 	mutable VRect		fGDI_CurBoundsClipTransparentBmpSpace;
 	mutable VRect		fGDI_CurBoundsClipTransparent;
-
-	/** Windows only: if true, if GDI context is queried on a transparent surface (bitmap or layer),
-		it will ensure GDI surface is prepared for GDI 
-		(it does nothing on a opaque surface)
-	*/
-	mutable bool		fGDI_ShouldPrepareTransparent;
-
-	/** bounds (local to gc user space) of the area which should be prepared for drawing with GDI on a tranparent surface 
-		(if it is not specified, it is equal to the surface size from which is queried the GDI context)
-	*/
-	mutable bool		fGDI_HasTransparentBounds;
-	mutable VRect		fGDI_TransparentBounds;
 
 	/** lock status: lock GDI parent context or lock GDI-compatible context created from the render target content
 	@remarks
@@ -1669,13 +1669,13 @@ private:
 	void _ClearLayers() const;
 
 	/** create gradient stop collection from the specified gradient pattern */
-	ID2D1GradientStopCollection *_CreateGradientStopCollection( const VGradientPattern *inPattern);
+	ID2D1GradientStopCollection *_CreateGradientStopCollection( const VGradientPattern *inPattern) const;
 
 	/** create linear gradient brush from the specified pattern */
-	void _CreateLinearGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial);
+	void _CreateLinearGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial) const;
 
 	/** create radial gradient brush from the specified pattern */
-	void _CreateRadialGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial);
+	void _CreateRadialGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial) const;
 
 	void	_RestoreClipOverride() const;
 
@@ -1731,7 +1731,7 @@ private:
 
 	// end info for BeginUsingParentPort
 
-	D2D1_GRADIENT_STOP			fTempStops[8];
+	mutable D2D1_GRADIENT_STOP	fTempStops[8];
 
 #if D2D_GDI_USE_GDIPLUS_BITMAP_FOR_TRANSPARENCY
 	/** Gdiplus Bitmap used to draw with GDI over a transparent surface

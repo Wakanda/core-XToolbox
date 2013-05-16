@@ -104,6 +104,8 @@ public:
 			void				ReturnFilePathAsFileOrFolder( const XBOX::VFilePath& inPath)	{ fReturnValue.SetFilePathAsFileOrFolder( inPath, fException);}
 				
 			void				ReturnValue( const VJSValue& inValue)				{ fReturnValue = inValue; }
+			void				ReturnJSONValue( const VJSONValue& inValue)			{ fReturnValue.SetJSONValue( inValue, fException);}
+
 			void				ReturnNullValue()									{ fReturnValue.SetNull(); }
 			void				ReturnUndefinedValue()								{ fReturnValue.SetUndefined(); }
 
@@ -178,10 +180,11 @@ public:
 			XBOX::VFolder*		RetainFolderParam( size_t inIndex, bool allowPath = true) const;
 
 			VJSValue			GetParamValue( size_t inIndex) const;
-			XBOX::VValueSingle*	CreateParamVValue( size_t inIndex) const;
+			XBOX::VValueSingle*	CreateParamVValue( size_t inIndex, bool simpleDate = false) const;
 			bool				GetParamObject( size_t inIndex, VJSObject& outObject) const;
 			bool				GetParamArray( size_t inIndex, VJSArray& outArray) const;
 			bool				GetParamFunc( size_t inIndex, VJSObject& outObject, bool allowString = false) const;
+			bool				GetParamJSONValue( size_t inIndex, VJSONValue& outValue) const;
 			
 			// returns true if param doesn't exist or is null (no exception is thrown)
 			bool				IsNullParam( size_t inIndex) const;
@@ -192,6 +195,7 @@ public:
 			bool				IsStringParam( size_t inIndex) const;
 			bool				IsObjectParam( size_t inIndex) const;
 			bool				IsArrayParam( size_t inIndex) const;
+			bool				IsFunctionParam( size_t inIndex) const;
 
 			// returns the private data of specified param if it is a native object of class NATIVE_CLASS, NULL if it is not.
 			// exception if index out of bound.
@@ -239,18 +243,25 @@ public:
 		: VJSParms_withArguments( inContext, inFunction, inArgumentCount, inArguments, outException)
 		, VJSParms_withReturnValue( inContext, inFunction, outException)
 		, VJSParms_withException( inContext, inFunction, outException)
+		, fFunction (inContext, inFunction)
 		, fThis( inContext, inThis)
 			{
 			;
 			}
 
+			// Use the returned (function) object to retrieve private C++ data.
+
+			VJSObject			GetFunction ()						{ return fFunction;	}
+
+
 			const VJSObject&	GetThis() const						{ return fThis;}
 			void				ReturnThis()						{ fReturnValue = fThis;}
 
 private:
+
+			VJSObject			fFunction;		// Object which is called as a function.
 			VJSObject			fThis;
 };
-
 
 //======================================================
 
@@ -362,7 +373,7 @@ public:
 
 			const VJSValue&		GetPropertyValue() const								{ return fValue;}
 			
-			XBOX::VValueSingle*	CreatePropertyVValue() const							{ return fValue.CreateVValue( fException);}
+			XBOX::VValueSingle*	CreatePropertyVValue(bool simpleDate) const							{ return fValue.CreateVValue( fException, simpleDate);}
 
 			// returns the private data of the property if it is a native object of class NATIVE_CLASS, NULL if it is not.
 			template<class NATIVE_CLASS>

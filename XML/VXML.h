@@ -44,8 +44,6 @@
 #include "XML/Sources/VSpanText.h"
 #include "XML/Sources/VInfoPlistTools.h"
 
-#include "XML/Sources/VSpanText.h"
-
 #if _WIN32
 	#pragma pack( pop )
 #else

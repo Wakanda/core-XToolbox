@@ -94,7 +94,7 @@
                <source>Failed to launch SQL Server. Please make sure that the port assigned to the SQL Server is not used by another application.
                   If SSL is enabled, make sure the certificate (key.pem and cert.pem) exists at the appropriate location.</source>
                <target>SQL Server konnte nicht gestartet werden. Bitte stellen Sie sicher, das der zugewiesene Port für SQL Server nicht bereits von einer anderen Anwendung benutzt wird.
-                  Wenn SSL aktiviert ist, prüfen Sie ob die Zertifikate (key.pem und cert.pem) korrekt installiert sind.</target>
+Wenn SSL aktiviert ist, prüfen Sie ob die Zertifikate (key.pem und cert.pem) korrekt installiert sind.</target>
             </trans-unit>
             
             <trans-unit id="FailedLocateSSLCertificate" resname="SQL_ERROR_FAILED_TO_LOCATE_SSL_CERTIFICATE">

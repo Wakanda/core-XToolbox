@@ -400,36 +400,6 @@ void VMacQDGraphicContext::SetPixelBackColor(const VColor& inColor)
 }
 
 
-TransferMode VMacQDGraphicContext::SetPixelTransferMode(TransferMode inMode)
-{
-	sWORD	mode;
-	
-	switch (inMode)
-	{
-		case TM_COPY:
-			mode = patCopy;
-			break;
-			
-		case TM_TRANSPARENT:
-			mode = srcOr;
-			break;
-			
-		case TM_OR:
-			mode = srcOr;
-			break;
-			
-		case TM_XOR:
-			mode = srcXor;
-			break;
-		
-		default:
-			assert(false);
-			break;
-	}
-	
-	return TM_COPY;
-}
-
 
 #pragma mark-
 
@@ -502,14 +472,14 @@ void VMacQDGraphicContext::SaveContext()
 		
 		// Store back pattern
 //		PixPatHandle	bkPPat = ::NewPixPat();
-//		::GetPortBackPixPat(_GetParentPort(), bkPPat);
+//		::GetPortBackPixPat(GetParentPort(), bkPPat);
 //		
 //		VPattern	bkPat(bkPPat);
 //		bkPat.WriteToStream(fSavedContext);
 //		::DisposePixPat(bkPPat);
 		
 		// Store text mode
-		sWORD	mode = ::GetPortTextMode(_GetParentPort());
+		sWORD	mode = ::GetPortTextMode(GetParentPort());
 		fSavedContext->PutWord(mode);
 		
 		// Close and check for errors
@@ -547,7 +517,7 @@ void VMacQDGraphicContext::RestoreContext()
 		// Load back pattern
 //		VPattern	bkPat;
 //		if (bkPat.ReadFromStream(fSavedContext) == VE_OK)
-//			::SetPortBackPixPat(_GetParentPort(), bkPat);
+//			::SetPortBackPixPat(GetParentPort(), bkPat);
 		
 		// Load text mode
 		sWORD	mode = fSavedContext->GetWord();
@@ -1082,7 +1052,7 @@ void VMacQDGraphicContext::ClipRect(const VRect& inHwndBounds, Boolean inAddToPr
 		::ClipRect(inHwndBounds.MAC_ToQDRect(macRect));
 	}
 	
-	_RevealClipping(context);
+	RevealClipping(context);
 }
 
 
@@ -1111,7 +1081,7 @@ void VMacQDGraphicContext::ClipRegion(const VRegion& inHwndRegion, Boolean inAdd
 		::DisposeRgn(qdRgn);
 	}
 	
-	_RevealClipping(context);
+	RevealClipping(context);
 }
 
 
@@ -1126,7 +1096,7 @@ void VMacQDGraphicContext::GetClip(VRegion& outHwndRgn) const
 }
 
 
-void VMacQDGraphicContext::_RevealClipping(PortRef inPort)
+void VMacQDGraphicContext::RevealClipping(PortRef inPort)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealClipping)
@@ -1159,7 +1129,7 @@ void VMacQDGraphicContext::_RevealClipping(PortRef inPort)
 }
 
 
-void VMacQDGraphicContext::_RevealUpdate(WindowRef inWindow)
+void VMacQDGraphicContext::RevealUpdate(WindowRef inWindow)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealUpdate)
@@ -1194,7 +1164,7 @@ void VMacQDGraphicContext::_RevealUpdate(WindowRef inWindow)
 }
 
 
-void VMacQDGraphicContext::_RevealBlitting(PortRef inPort, const RgnRef inRegion)
+void VMacQDGraphicContext::RevealBlitting(PortRef inPort, const RgnRef inRegion)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealBlitting)
@@ -1222,7 +1192,7 @@ void VMacQDGraphicContext::_RevealBlitting(PortRef inPort, const RgnRef inRegion
 }
 
 
-void VMacQDGraphicContext::_RevealInval(PortRef inPort, const RgnRef inRegion)
+void VMacQDGraphicContext::RevealInval(PortRef inPort, const RgnRef inRegion)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealInval)

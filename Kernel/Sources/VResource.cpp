@@ -183,8 +183,8 @@ VError VResourceFile::CopyResourcesInto(VResourceFile& inDestination) const
 
 					#if VERSIONDEBUG
 						sLONG size = 0;
-						testAssert(GetResourceSize(theType, id, &size) == VE_OK);
-						assert(size == VMemory::GetHandleSize(h));
+						if (testAssert( GetResourceSize(theType, id, &size) == VE_OK))
+							xbox_assert(size == VMemory::GetHandleSize(h));
 					#endif
 						
 						if (testAssert(h != NULL))

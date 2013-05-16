@@ -107,7 +107,7 @@ private :
 };
 
 
-class XTOOLBOX_API VNetAddressList
+class XTOOLBOX_API VNetAddressList : public VObject
 {
 public :
 

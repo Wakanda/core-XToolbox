@@ -390,7 +390,7 @@ void VErrorBase::GetErrorDescription( VString& outError) const
 			outError.FromUniCString( buff);
 			found = true;
 		}
-#else
+#elif VERSIONMAC
 		char buff[1024];
 		int r = strerror_r( (int) errCode, buff, sizeof( buff));
 		if ( (r == 0 || r == ERANGE) && (strlen( buff) != 0) )
@@ -398,13 +398,40 @@ void VErrorBase::GetErrorDescription( VString& outError) const
 			outError.FromBlock( buff, strlen( buff), VTC_UTF_8);
 			found = true;
 		}
+#elif VERSION_LINUX
+	#ifdef __clang__
+		//clang uses GNU version of strerror_r (Bug ?)
+		char buff[1024];
+		buff[0]=0;
+		char* msg = strerror_r( (int) errCode, buff, sizeof( buff));
+
+		found = strlen(msg) > 0;	//jmo - not quite sure
+		
+		if(found)
+			outError.FromBlock( msg, strlen( msg), VTC_UTF_8);
+	#else
+		//gcc uses XSI (portable) version of strerror_r
+		char buff[1024];
+		int r = strerror_r( (int) errCode, buff, sizeof( buff));
+		if ( (r == 0 || (r == -1 && errno == ERANGE)) && (strlen( buff) != 0) )
+		{
+			outError.FromBlock( buff, strlen( buff), VTC_UTF_8);
+			found = true;
+		}
+	#endif
 #endif
 	}
 
-	if (!found && (fNativeError != VNE_OK) )
+	if (fNativeError != VNE_OK)
 	{
+		// if there's a native error description, take it.
+		// Std error dialog will show GetActionDescription() in addition.
 		VString errorString;
-		GetNativeErrorString( fNativeError, outError);
+		GetNativeErrorString( fNativeError, errorString);
+		if (!errorString.IsEmpty())
+		{
+			outError = errorString;
+		}
 	}
 
 	if (outError.IsEmpty())

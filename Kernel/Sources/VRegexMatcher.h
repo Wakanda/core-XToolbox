@@ -37,6 +37,10 @@ public:
 			VIndex					GetGroupLength( VIndex inGroupIndex) const;
 			
 			bool					IsSamePattern( const VString& inPattern) const;
+			const VString&			GetPattern() const
+			{
+				return fPattern;
+			}
 
 private:
 									VRegexMatcher( const VString& inPattern, xbox_icu::RegexMatcher *inMatcher):fPattern( inPattern), fMatcher( inMatcher) {;}

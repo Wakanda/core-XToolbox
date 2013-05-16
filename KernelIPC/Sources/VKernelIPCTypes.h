@@ -17,23 +17,6 @@
 #define __VKernelIPCTypes__
 
 #include "Kernel/Sources/VKernelTypes.h"
-
-BEGIN_TOOLBOX_NAMESPACE
-
-typedef enum PlugInKind
-{
-	PIK_INVALID = 0,
-	PIK_DESIGN,
-	PIK_CLASSIC,
-	PIK_OFFSCREEN,
-	PIK_OUTPUT,
-	PIK_PRINTING
-} PlugInKind;
-
-
-END_TOOLBOX_NAMESPACE
-
-
 #endif
 
 

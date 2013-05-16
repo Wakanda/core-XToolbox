@@ -83,78 +83,119 @@ static bool GetLogicalAddress(const void* addr, char* moduleName, uLONG len, uLO
 }
 
 
+
+bool XWinStackCrawl::operator < (const XWinStackCrawl& other) const
+{
+	bool res;
+	if (fNumFrames == other.fNumFrames)
+	{
+		res = false;
+		for (int i = 0; i < fNumFrames; ++i)
+		{
+			if (fFrame[i] < other.fFrame[i])
+			{
+				res = true;
+				break;
+			}
+		}
+	}
+	else
+	{
+		if (fNumFrames <= 0 && other.fNumFrames <= 0)
+			res = false;
+		else
+			res = (fNumFrames < other.fNumFrames);
+	}
+	return res;
+}
+
+
 //---------------------------------------------------------------
 //
 // XWinStackCrawl::XWinStackCrawl
 //
 //---------------------------------------------------------------
+
+typedef USHORT (WINAPI *CaptureStackBackTraceProc)(ULONG, ULONG, PVOID*, PULONG);
+
 void XWinStackCrawl::LoadFrames(uLONG inStartFrame, uLONG inNumFrames)
 {
-	assert(inNumFrames > 0);
+	xbox_assert(inNumFrames > 0);
 
 	if (inNumFrames > kMaxScrawlFrames)
 		inNumFrames = kMaxScrawlFrames;
 
 	EnterCriticalSection( &sCriticalSection);
-	
-	fNumFrames = 0;
 
-	STACKFRAME64 stackFrame = {0};
-	CONTEXT context = {0};
-
-#if ARCH_32
-	DWORD machine = IMAGE_FILE_MACHINE_I386;
-	__asm {
-		start:
-		lea ebx, stackFrame   
-		lea	eax, start						// $$$ Presumbably there's a simpler way to get the program counter...
-		mov	context.Eip, eax				
-		mov	context.Ebp, ebp			
-		mov	context.Esp, esp
+	static CaptureStackBackTraceProc sCaptureStackBackTraceProcPtr = (CaptureStackBackTraceProc) ::GetProcAddress( ::GetModuleHandle("ntdll.dll"), "RtlCaptureStackBackTrace");  
+    
+    if (sCaptureStackBackTraceProcPtr != NULL)
+    {
+		fNumFrames = (*sCaptureStackBackTraceProcPtr)( inStartFrame, inNumFrames, (PVOID*) &fFrame[0], NULL);
 	}
-	stackFrame.AddrPC.Offset = context.Eip;
-	stackFrame.AddrPC.Mode    = AddrModeFlat; 
-	stackFrame.AddrFrame.Offset = context.Ebp;
-	stackFrame.AddrFrame.Mode = AddrModeFlat;
-	stackFrame.AddrStack.Offset = context.Esp;
-	stackFrame.AddrStack.Mode = AddrModeFlat; 
-#elif ARCH_64
-	DWORD machine = IMAGE_FILE_MACHINE_AMD64;
-	RtlCaptureContext( &context);	// doesn't work for 32bits!
-	stackFrame.AddrPC.Offset = context.Rip;
-	stackFrame.AddrPC.Mode    = AddrModeFlat; 
-	stackFrame.AddrFrame.Offset = context.Rsp;
-	stackFrame.AddrFrame.Mode = AddrModeFlat;
-	stackFrame.AddrStack.Offset = context.Rsp;
-	stackFrame.AddrStack.Mode = AddrModeFlat; 
-#endif 
-
-	++inStartFrame;							// first frame should be our caller so skip the first frame
-
-	sLONG succeeded = true;
-	HANDLE curProcess = ::GetCurrentProcess();
-	HANDLE curThread = ::GetCurrentThread();
-	for (uLONG i = 0; i < inStartFrame + inNumFrames && succeeded; i++)
+	else
 	{
-		succeeded = ::StackWalk64( machine,	// machine type
-			  curProcess,		// process handle
-			  curThread,		// thread handle
-			  &stackFrame,				// returned stack frame
-			  &context,						// context frame (not needed for Intel)
-			  NULL,						// ReadMemoryRoutine 
-			  ::SymFunctionTableAccess64,	// FunctionTableAccessRoutine 
-			  ::SymGetModuleBase64,			// GetModuleBaseRoutine
-			  NULL);						// TranslateAddress 
-
-
-        if ( 0 == stackFrame.AddrFrame.Offset ) // Basic sanity check to make sure
-            break;                      // the frame is OK.  Bail if not.
 		
-		if (succeeded && i >= inStartFrame)
+		fNumFrames = 0;
+
+		STACKFRAME64 stackFrame = {0};
+		CONTEXT context = {0};
+
+	#if ARCH_32
+		DWORD machine = IMAGE_FILE_MACHINE_I386;
+		__asm {
+			start:
+			lea ebx, stackFrame   
+			lea	eax, start						// $$$ Presumbably there's a simpler way to get the program counter...
+			mov	context.Eip, eax				
+			mov	context.Ebp, ebp			
+			mov	context.Esp, esp
+		}
+		stackFrame.AddrPC.Offset = context.Eip;
+		stackFrame.AddrPC.Mode    = AddrModeFlat; 
+		stackFrame.AddrFrame.Offset = context.Ebp;
+		stackFrame.AddrFrame.Mode = AddrModeFlat;
+		stackFrame.AddrStack.Offset = context.Esp;
+		stackFrame.AddrStack.Mode = AddrModeFlat; 
+	#elif ARCH_64
+		DWORD machine = IMAGE_FILE_MACHINE_AMD64;
+		RtlCaptureContext( &context);	// doesn't work for 32bits!
+		stackFrame.AddrPC.Offset = context.Rip;
+		stackFrame.AddrPC.Mode    = AddrModeFlat; 
+		stackFrame.AddrFrame.Offset = context.Rsp;
+		stackFrame.AddrFrame.Mode = AddrModeFlat;
+		stackFrame.AddrStack.Offset = context.Rsp;
+		stackFrame.AddrStack.Mode = AddrModeFlat; 
+	#endif 
+
+		++inStartFrame;							// first frame should be our caller so skip the first frame
+
+		sLONG succeeded = true;
+		HANDLE curProcess = ::GetCurrentProcess();
+		HANDLE curThread = ::GetCurrentThread();
+		for (uLONG i = 0; i < inStartFrame + inNumFrames && succeeded; i++)
 		{
-			fFrame[fNumFrames++] = (char *) 0 + stackFrame.AddrPC.Offset;
+			succeeded = ::StackWalk64( machine,	// machine type
+				  curProcess,		// process handle
+				  curThread,		// thread handle
+				  &stackFrame,				// returned stack frame
+				  &context,						// context frame (not needed for Intel)
+				  NULL,						// ReadMemoryRoutine 
+				  ::SymFunctionTableAccess64,	// FunctionTableAccessRoutine 
+				  ::SymGetModuleBase64,			// GetModuleBaseRoutine
+				  NULL);						// TranslateAddress 
+
+
+			if ( 0 == stackFrame.AddrFrame.Offset ) // Basic sanity check to make sure
+				break;                      // the frame is OK.  Bail if not.
+			
+			if (succeeded && i >= inStartFrame)
+			{
+				fFrame[fNumFrames++] = (char *) 0 + stackFrame.AddrPC.Offset;
+			}
 		}
 	}
+
 	LeaveCriticalSection( &sCriticalSection);
 }
 

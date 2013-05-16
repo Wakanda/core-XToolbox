@@ -318,8 +318,12 @@ protected:
 	
 	virtual VError DoEncode(const VPictureData& /*inData*/,const VValueBag* /*inSettings*/,VBlob& /*outBlob*/,VPictureDrawSettings* /*inSet=NULL*/)const {return VE_UNIMPLEMENTED;} 
 	virtual VError DoEncode(const VPictureData& /*inData*/,const VValueBag* /*inSettings*/,VFile& /*outFile*/,VPictureDrawSettings* /*inSet=NULL*/)const {return VE_UNIMPLEMENTED;} 
-		
-	#if VERSIONWIN
+	
+	// pour factoriser un peu. N'encode le data qui si le codec source & dest est le meme. Utile pour Linux.
+	VError	_GenericEncodeUnknownData(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet=NULL)const;
+	VError	_GenericEncodeUnknownData(const VPictureData& inData,const VValueBag* inSettings,VFile& outFile,VPictureDrawSettings* inSet=NULL)const;
+
+#if VERSIONWIN
 	
 	virtual VError					_GDIPLUS_Encode(const VString& inMimeType,const VPictureData& inData,const VValueBag *inSettings,VBlob& outBlob,VPictureDrawSettings* inSet=NULL) const;
 	
@@ -327,12 +331,11 @@ protected:
 	virtual Gdiplus::Metafile*		_CreateGDIPlus_Metafile(VPictureDataProvider& inDataProvider)const;
 	virtual HBITMAP					_CreateHBitmap(VPictureDataProvider& inDataProvider)const;
 	virtual HENHMETAFILE			_CreateMetafile(VPictureDataProvider& inDataProvider)const;
-	#else
+#elif VERSIONMAC
 	virtual CGImageRef				_CreateCGImageRef(VPictureDataProvider& inDataProvider)const;
-	#endif
+#endif
 	virtual void*					_CreateMacPicture(VPictureDataProvider& inDataProvider)const;
 
-protected:
 	/* uniform type identifier */
 	VString	fUTI;					 
 
@@ -342,8 +345,7 @@ protected:
 #endif
 
 private:
-	
-	//sLONG					f4DType;
+
 	VString					fDisplayName;
 	VArrayOf<VString>		fFileExtensions;
 	VArrayOf<sLONG>			fFileMacType;
@@ -433,7 +435,7 @@ class XTOOLBOX_API VPictureCodecFactory : public IRefCountable ,public IPictureH
 	
 	void RegisterCodec(VPictureCodec* inCodec);
 	void RegisterQuicktimeDecoder(VPictureCodec* inCodec);
-
+	void UnRegisterQuicktimeDecoder();
 	bool IsQuicktimeCodec(const VPictureCodec* inCodec);
 
 	const VPictureCodec* RegisterAndRetainUnknownDataCodec(const VString& inIdentifier);
@@ -527,7 +529,7 @@ class XTOOLBOX_API VPictureCodecFactory : public IRefCountable ,public IPictureH
 #if VERSIONMAC	
 	/** append ImageIO codecs */
 	void _AppendImageIOCodecs();
-#else
+#elif VERSIONWIN
 	/** append WIC codecs */
 	void _AppendWICCodecs();
 #endif
@@ -823,13 +825,47 @@ class XTOOLBOX_API VPictureCodec_4DVarBlob :public VPictureCodec
 
 };
 
+#if VERSION_LINUX
+// fake SVG codec
+class VPictureCodec_SVG :public VPictureCodec
+{
+	typedef VPictureCodec inherited;
+	public:
+	VPictureCodec_SVG();
+	virtual ~VPictureCodec_SVG();
+
+	static void _RegisterCodec();
+	static void _UnRegisterCodec();
+
+	bool ValidateData(VFile& inFile)const;
+	bool ValidateData(VPictureDataProvider& inDataProvider)const;
+	
+	class VPictureData* _CreatePictData(VPictureDataProvider& inDataProvider,_VPictureAccumulator* inRecorder=0) const;
+
+	virtual void RetainFileKind(VectorOfVFileKind &outFileKind) const;
+
+	/** return true if buffer has GZIP data embedded */
+	static bool IsDataGZIP(const void *inBuffer, VSize inSize);
+	/** return true if buffer has XML data embedded */
+	
+	static bool IsDataXML(const void *inBuffer, VSize inSize);
+	
+	virtual bool NeedReEncode(const VPictureData& inData,const VValueBag* inCompressionSettings,VPictureDrawSettings* inSet)const;
+	
+protected:
+
+	VError DoEncode(const VPictureData& inData,const VValueBag* inSettings,VBlob& outBlob,VPictureDrawSettings* inSet=NULL) const;
+	VError DoEncode(const VPictureData& inData,const VValueBag* inSettings,VFile& inFile,VPictureDrawSettings* inSet=NULL) const;
+	
+};
+#endif
 
 END_TOOLBOX_NAMESPACE
 
 #if VERSIONMAC
-#include "VImageIOCodec.h" 
-#else
-#include "VWICCodec.h"
+	#include "VImageIOCodec.h" 
+#elif VERSIONWIN
+	#include "VWICCodec.h"
 #endif
 
 #endif

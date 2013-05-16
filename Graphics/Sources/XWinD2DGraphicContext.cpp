@@ -104,8 +104,6 @@ VWinD2DGraphicContext::MapOfSharedGC VWinD2DGraphicContext::fMapOfSharedGC[];
 CComPtr<IDWriteFactory> VWinD2DGraphicContext::fDWriteFactory;
 VCriticalSection VWinD2DGraphicContext::fMutexDWriteFactory;
 
-
-
 // Static
 
 void	VWinD2DGraphicContext::DesktopCompositionModeChanged()
@@ -721,8 +719,7 @@ void VWinD2DGraphicContext::SetTransparent( bool inTransparent)
 	if (fIsTransparent == inTransparent)
 		return;
 	fIsTransparent = inTransparent;
-	if (!fIsTransparent)
-		fGDI_ShouldPrepareTransparent = false;
+
 	//we must recreate render target because alpha mode has changed
 	_DisposeDeviceDependentObjects(false);
 }
@@ -875,7 +872,10 @@ void VWinD2DGraphicContext::WndResize()
 		if (fHwndRenderTarget && 
 			((fHDCBounds.GetWidth() != bounds.GetWidth()) || (fHDCBounds.GetHeight() != bounds.GetHeight())))
 			fHwndRenderTarget->Resize( D2D1::SizeU(bounds.GetWidth(), bounds.GetHeight()));
-		fHDCBounds.FromRect( bounds);
+		{
+			fHDCBounds.FromRect( bounds);
+			fHDCBindRectDirty = true;
+		}
 	}
 }
 
@@ -1491,40 +1491,6 @@ ContextRef	VWinD2DGraphicContext::BeginUsingParentContext()const
 			//so flush current drawing context & lock rt parent dc 
 			wantsLockParentContext = true;
 		}
-		/*
-		else if (fGDI_HDC)
-		{
-			if (fGDI_CurIsPreparedForTransparent)
-			{
-				//the actual GDI context is prepared for transparency yet: check prepared bounds with new bounds
-				xbox_assert(fLockCount > 0 && fGDI_TransparentBmp);
-
-				VRect boundsGDI;
-				if (fGDI_HasTransparentBounds)
-				{
-					boundsGDI = fLockSaveTransform.TransformRect(fGDI_TransparentBounds); //caution: use fLockSaveTransform here because surface is locked
-					VRect boundsMax( 0,0,fGDI_TransparentBmp->GetWidth(), fGDI_TransparentBmp->GetHeight());
-					boundsGDI.Intersect(boundsMax);
-				}
-				else
-					boundsGDI = VRect(0,0,fGDI_TransparentBmp->GetWidth(), fGDI_TransparentBmp->GetHeight());
-
-				boundsGDI.Union( fGDI_CurBoundsClipTransparentBmpSpace);
-				if (boundsGDI != fGDI_CurBoundsClipTransparentBmpSpace)
-				{
-					//if new bounds to prepare are not included in actual prepared bounds, we need to flush current GDI context
-					//in order to create a new context, otherwise we can still use actual GDI context
-					FlushGDI();
-					xbox_assert(fGDI_HDC == NULL);
-				}
-			}
-			else
-			{
-				FlushGDI();
-				xbox_assert(fGDI_HDC == NULL);
-			}
-		}
-		*/
 	}
 #endif
 
@@ -1854,125 +1820,6 @@ HDC VWinD2DGraphicContext::_GetHDC() const
 	xbox_assert(fGDI_SaveClipCounter == 0);
 	xbox_assert(fGDI_SaveContextCounter == 0);
 
-#if D2D_GDI_USE_GDIPLUS_BITMAP_FOR_TRANSPARENCY
-	//NDJQ: now uses render target over Gdiplus bitmap hdc 
-	/*
-	fGDI_CurIsPreparedForTransparent = false;
-	bool doPrepareTransparencyForGDI =	fUseCount > 0 && fIsTransparent && !fLockParentContext 
-										&& 
-										fGDI_ShouldPrepareTransparent && !fLayerOffScreenCount && fHDCOpenCount == 1; 
-	//doPrepareTransparencyForGDI = false;
-#if VERSIONDEBUG
-	//bool doFillRed = false;
-	//if (::GetAsyncKeyState( (VkKeyScanW( VK_LSHIFT) & 0xff) & 0x8000) != 0)
-	//	doPrepareTransparencyForGDI = false;
-	//doFillRed = true;
-#endif
-
-	Gdiplus::Graphics *gcGDIPlus = NULL;
-	Gdiplus::Bitmap *bmpGDIPlus = NULL;
-	HDC hdcGDIPlus = NULL;
-	GReal pageScale;
-	if (doPrepareTransparencyForGDI)
-	{
-		//prepare GDIPlus bmp & GDI context
-		if (fGDI_HasTransparentBounds)
-		{
-			VAffineTransform ctm;
-			_GetTransform( ctm);
-			fGDI_CurBoundsClipTransparent = ctm.TransformRect( fGDI_TransparentBounds);
-			fGDI_CurBoundsClipTransparent.Intersect(fClipBoundsCur);
-			fGDI_CurBoundsClipTransparent.NormalizeToInt();
-		}
-		else
-		{
-			fGDI_CurBoundsClipTransparent = fClipBoundsCur;
-			fGDI_CurBoundsClipTransparent.NormalizeToInt();
-		}
-		fGDI_CurBoundsClipTransparentBmpSpace = fGDI_CurBoundsClipTransparent;
-		fGDI_CurBoundsClipTransparentBmpSpace.SetPosTo( 0.0f, 0.0f); 
-
-		pageScale = fDPI/96.0f;
-		INT width = (INT)ceil(fGDI_CurBoundsClipTransparent.GetWidth()*pageScale);
-		INT height = (INT)ceil(fGDI_CurBoundsClipTransparent.GetHeight()*pageScale);
-		if (width < 1)
-		{
-			doPrepareTransparencyForGDI = false;
-			width = 1;
-		}
-		if (height < 1)
-		{
-			doPrepareTransparencyForGDI = false;
-			height = 1;
-		}
-		if (doPrepareTransparencyForGDI && width && height)
-		{
-			//create GDIPlus PARGB surface
-			bmpGDIPlus = new Gdiplus::Bitmap(	width,
-												height,
-												PixelFormat32bppPARGB);
-			if (bmpGDIPlus)
-				//create GDIPlus graphic context
-				gcGDIPlus = new Gdiplus::Graphics( static_cast<Gdiplus::Image *>(bmpGDIPlus));
-			if (gcGDIPlus)
-			{
-				if (fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)
-					gcGDIPlus->SetTextRenderingHint( Gdiplus::TextRenderingHintSingleBitPerPixel);
-				else
-					gcGDIPlus->SetTextRenderingHint( Gdiplus::TextRenderingHintAntiAlias);
-
-				gcGDIPlus->SetPixelOffsetMode( Gdiplus::PixelOffsetModeHalf);
-				//we need to disable bitmap interpolation on a transparent surface to avoid dirty edges 
-				gcGDIPlus->SetInterpolationMode( Gdiplus::InterpolationModeNearestNeighbor); 
-
-				//get GDI hdc from GDIPlus context
-				hdcGDIPlus = gcGDIPlus->GetHDC();
-			}
-			if (!gcGDIPlus || !bmpGDIPlus || !hdcGDIPlus)
-			{
-				if (gcGDIPlus)
-					delete gcGDIPlus;
-				if (bmpGDIPlus)
-					delete bmpGDIPlus;
-				bmpGDIPlus = NULL;
-				gcGDIPlus = NULL;
-				hdcGDIPlus = NULL;
-			}
-			else
-			{
-				//prepare transparent surface for GDI 
-				if (fGDI_CurBoundsClipTransparentBmpSpace.GetWidth() >= 1 && fGDI_CurBoundsClipTransparentBmpSpace.GetHeight() >= 1)
-				{
-					//copy render target content constrained to specified bounds to the bitmap
-					VWinD2DGraphicContext *gcD2DBmp = new VWinD2DGraphicContext( hdcGDIPlus, fGDI_CurBoundsClipTransparentBmpSpace, pageScale, true);
-					if (testAssert(gcD2DBmp))
-					{
-						gcD2DBmp->SetSoftwareOnly( !fIsRTHardware); //ensure bmp rt shares this rt resource domain (for fast copy)
-						gcD2DBmp->BeginUsingContext();
-#if VERSIONDEBUG
-						//if (doFillRed)
-						//	gcD2DBmp->Clear(VColor(255,0,0,255));
-						//else
-#endif
-							gcD2DBmp->Clear(); //need to clear because it is not opaque
-
-						VAffineTransform ctm;
-						_GetTransform(ctm);
-						_SetTransform(VAffineTransform());
-						_CopyContentTo( gcD2DBmp, &fGDI_CurBoundsClipTransparent, &fGDI_CurBoundsClipTransparentBmpSpace); //copy this rt content to gdiplus bmp
-						xbox_assert( fUseCount > 0 && fLockCount == 0);
-						_SetTransform(ctm);
-						gcD2DBmp->EndUsingContext();
-						gcD2DBmp->Release();
-
-						fGDI_CurIsPreparedForTransparent = true;
-					}
-				}
-			}
-		}
-	}
-	*/
-#endif
 	_Lock();
 	xbox_assert(fLockSaveUseCount <= 0 || fLockCount == 1);
 
@@ -2079,6 +1926,18 @@ HDC VWinD2DGraphicContext::_GetHDC() const
 	{
 		xbox_assert(fLockSaveUseCount > 0);
 
+		//on default, GDI context inherits current text font & color, stroke solid color, fill solid color & stroke width
+		//(GDI cannot apply gradients patterns)
+		//if fast GDI is enabled:
+		//  if caller fills later a shape like line(s) or simple rect with a solid opaque color (without dashes for stroke), GDI context will be used
+		//  otherwise D2D context will be used
+		//	Also legacy texts are painted with GDI 
+		//  It is recommended for instance to group simple shape primitives & legacy texts in a drawing block with fast GDI mode enabled
+		//  (to reduce GDI over D2D contexts instances & so speed up rendering - as switching from D2D to GDI & from GDI to D2D has a high performance hit)
+		//if fast GDI is disabled:
+		//	if caller fills later any shape, D2D will be used but GDI
+		//	(if fast GDI is disabled, actually only legacy texts are painted with GDI - and RichTextEdit)
+
 		VColor textColor;
 		GetTextColor(textColor);
 
@@ -2087,8 +1946,24 @@ HDC VWinD2DGraphicContext::_GetHDC() const
 		fGDI_GC->BeginUsingContext();
 		
 		//backup text font & color (as they can be updated without triggering a FlushGDI to keep alive GDI gc while drawing text)
-		CopyRefCountable(&fGDI_TextFontToRestore, fTextFont);
-		fGDI_TextColorToRestore = textColor;
+		xbox_assert(fGDI_TextFont.size() == 0);
+
+		fGDI_TextFont.push_back( RetainRefCountable(fTextFont));
+		fGDI_TextColor.push_back( textColor);
+		if (fGDI_Fast)
+		{
+			fGDI_StrokeWidth.push_back( fStrokeWidth);
+			fGDI_StrokePattern.push_back(NULL);
+			fGDI_HasSolidStrokeColor.push_back(false);
+			fGDI_HasSolidStrokeColorInherit.push_back(fStrokeBrush.IsEqualObject(fStrokeBrushSolid));
+			fGDI_StrokeColor.push_back(VColor());
+			fGDI_HasStrokeCustomDashesInherit.push_back( fStrokeDashCount != 0);
+
+			fGDI_HasSolidFillColor.push_back(false);
+			fGDI_HasSolidFillColorInherit.push_back(fFillBrush.IsEqualObject(fFillBrushSolid));
+			fGDI_FillColor.push_back(VColor());
+			fGDI_FillPattern.push_back(NULL);
+		}
 
 		fGDI_GC->SetTextDrawingMode(DM_NORMAL); 
 
@@ -2096,6 +1971,10 @@ HDC VWinD2DGraphicContext::_GetHDC() const
 		if (fTextFont && fHDCOpenCount == 1) //if 2, it is done yet by BeginUsingParentContext
 			fGDI_GC->SetFont( fTextFont);
 		fGDI_GC->SetTextColor(textColor);
+
+		fGDI_GC->SetLineColor( VCOLOR_FROM_D2D_COLOR(fStrokeBrushSolid->GetColor()));
+		fGDI_GC->SetFillColor( VCOLOR_FROM_D2D_COLOR(fFillBrushSolid->GetColor()));
+		fGDI_GC->SetLineWidth( fStrokeWidth);
 	}
 	else
 		fGDI_HDC = NULL;
@@ -2256,20 +2135,26 @@ void VWinD2DGraphicContext::_ReleaseHDC(HDC inDC, bool inDeferRelease) const
 	//(because there is still some RestoreContext or RestoreClip waiting)
 	if (fLockSaveUseCount > 0 && !fUnlockNoRestoreDrawingContext)
 	{
-		if (0 < fGDI_TextFont.size())
+		if testAssert(0 < fGDI_TextFont.size())
 		{
 			if (fGDI_TextFont[0])
 				_SetFont( fGDI_TextFont[0]);
 			_SetTextColor( fGDI_TextColor[0]);
-		}
-		else
-		{
-			if (fGDI_TextFontToRestore)
-				_SetFont( fGDI_TextFontToRestore);
-			_SetTextColor( fGDI_TextColorToRestore);
+			if (fGDI_Fast)
+			{
+				if (fGDI_HasSolidStrokeColor[0])
+					_SetLineColor( fGDI_StrokeColor[0]);
+				if (fGDI_StrokePattern[0])
+					_SetLinePattern(fGDI_StrokePattern[0]);
+				_SetLineWidth( fGDI_StrokeWidth[0]);
+				if (fGDI_HasSolidFillColor[0])
+					_SetFillColor( fGDI_FillColor[0]);
+				if (fGDI_FillPattern[0])
+					_SetFillPattern(fGDI_FillPattern[0]);
+			}
 		}
 		std::vector<VRect>::const_iterator itClip = fGDI_ClipRect.begin();
-		int saveContextCount = 0;
+		int saveContextCount = 1;
 		for (int i = 0; i < fGDI_Restore.size(); i++)
 		{
 			if (fGDI_Restore[i] == eSave_Clipping)
@@ -2288,17 +2173,23 @@ void VWinD2DGraphicContext::_ReleaseHDC(HDC inDC, bool inDeferRelease) const
 			else //ePush_Context
 			{
 				_SaveContext();
-				if (saveContextCount+1 < fGDI_TextFont.size())
+				if (saveContextCount < fGDI_TextFont.size())
 				{
-					if (fGDI_TextFont[saveContextCount+1])
-						_SetFont( fGDI_TextFont[saveContextCount+1]);
-					_SetTextColor( fGDI_TextColor[saveContextCount+1]);
-				}
-				else
-				{
-					if (fGDI_TextFontToRestore)
-						_SetFont( fGDI_TextFontToRestore);
-					_SetTextColor( fGDI_TextColorToRestore);
+					if (fGDI_TextFont[saveContextCount])
+						_SetFont( fGDI_TextFont[saveContextCount]);
+					_SetTextColor( fGDI_TextColor[saveContextCount]);
+					if (fGDI_Fast)
+					{
+						if (fGDI_HasSolidStrokeColor[saveContextCount])
+							_SetLineColor(	fGDI_StrokeColor[saveContextCount]);
+						if (fGDI_StrokePattern[saveContextCount])
+							_SetLinePattern(fGDI_StrokePattern[saveContextCount]);
+						_SetLineWidth(	fGDI_StrokeWidth[saveContextCount]);
+						if (fGDI_HasSolidFillColor[saveContextCount])
+							_SetFillColor(	fGDI_FillColor[saveContextCount]);
+						if (fGDI_FillPattern[saveContextCount])
+							_SetFillPattern(fGDI_FillPattern[saveContextCount]);
+					}
 				}
 				saveContextCount++;
 			}
@@ -2310,8 +2201,18 @@ void VWinD2DGraphicContext::_ReleaseHDC(HDC inDC, bool inDeferRelease) const
 		if (*it)
 			(*it)->Release();
 	}
-
-	ReleaseRefCountable(&fGDI_TextFontToRestore);
+	std::vector<const VPattern *>::iterator itPattern = fGDI_StrokePattern.begin();
+	for (;itPattern != fGDI_StrokePattern.end(); itPattern++)
+	{
+		if (*itPattern)
+			(*itPattern)->Release();
+	}
+	itPattern = fGDI_FillPattern.begin();
+	for (;itPattern != fGDI_FillPattern.end(); itPattern++)
+	{
+		if (*itPattern)
+			(*itPattern)->Release();
+	}
 
 	fGDI_PushedClipCounter = 0;
 	fGDI_SaveClipCounter = 0;
@@ -2322,6 +2223,20 @@ void VWinD2DGraphicContext::_ReleaseHDC(HDC inDC, bool inDeferRelease) const
 	fGDI_Restore.clear();
 	fGDI_TextFont.clear();
 	fGDI_TextColor.clear();
+	if (fGDI_Fast)
+	{
+		fGDI_HasSolidStrokeColor.clear();
+		fGDI_HasSolidStrokeColorInherit.clear();
+		fGDI_StrokeColor.clear();
+		fGDI_StrokePattern.clear();
+		fGDI_StrokeWidth.clear();
+		fGDI_HasStrokeCustomDashesInherit.clear();
+		
+		fGDI_HasSolidFillColor.clear();
+		fGDI_FillColor.clear();
+		fGDI_FillPattern.clear();
+		fGDI_HasSolidFillColorInherit.clear();
+	}
 	fGDI_IsReleasing = false;
 }
 
@@ -2432,6 +2347,8 @@ void VWinD2DGraphicContext::_Init()
 	fHwnd = NULL;
 	fHDC = NULL;
 	fGDI_HDC = NULL;
+	fGDI_Fast = false;
+	fGDI_QDCompatible = false;
 	fGDI_HDC_FromBeginUsingParentContext = false;
 	fGDI_GC = NULL;
 	fGDI_SaveClipCounter = 0;
@@ -2440,12 +2357,9 @@ void VWinD2DGraphicContext::_Init()
 	fGDI_LastPushedClipCounter.reserve(16);
 	fGDI_ClipRect.reserve(16);
 	fGDI_Restore.reserve(16);
-	fGDI_TextFontToRestore = NULL;
 	fGDI_IsReleasing = false;
-	fGDI_ShouldPrepareTransparent = false;
 	fGDI_CurIsPreparedForTransparent = false;
 	fGDI_CurIsParentDC = false;
-	fGDI_HasTransparentBounds = false;
 	fLockParentContext = D2D_RENDER_TARGET_USE_GDI_COMPATIBLE_DC ? false : true;
 	fParentContextNoDraw = false;
 	fUnlockNoRestoreDrawingContext = false;
@@ -2514,8 +2428,6 @@ void VWinD2DGraphicContext::_Dispose()
 	xbox_assert(fChildGC == NULL);
 
 	xbox_assert(fGDI_HDC == NULL);
-	xbox_assert(!fGDI_TextFontToRestore);
-	ReleaseRefCountable(&fGDI_TextFontToRestore);
 	xbox_assert(fLayerOffScreenCount == 0);
 
 	xbox_assert(fClipRegionInit == NULL);
@@ -3082,6 +2994,10 @@ void VWinD2DGraphicContext::ResetTransform()
 
 void VWinD2DGraphicContext::BeginUsingContext(bool inNoDraw)
 {
+#if VERSIONDEBUG
+	//::DebugMsg("VWinD2DGraphicContext::BeginUsingContext: current task ID = %x\n", VTask::GetCurrentID());
+#endif
+
 	if (!inNoDraw && (fGdiplusBmp || fWICBitmap))
 	{
 		//we are about to write on the bitmap: ensure backing store is released
@@ -3299,6 +3215,43 @@ void VWinD2DGraphicContext::BeginUsingContext(bool inNoDraw)
 	}
 }
 
+
+/** set to true to speed up GDI over D2D render context rendering 
+@remarks
+	that mode optimizes GDI over D2D rendering so that GDI over D2D context is preserved much longer
+	but it means that some rendering is done by GDI but D2D (like pictures or drawing simple lines)
+
+	note that clearing that mode forces a GDI flush
+
+	that mode is disabled on default
+	that mode does nothing in context but D2D
+*/
+void VWinD2DGraphicContext::EnableFastGDIOverD2D( bool inEnable)
+{
+	if (inEnable)
+	{
+		if (!fGDI_Fast)
+		{
+			if (fUseCount <= 0)
+				return;
+			FlushGDI();
+			fGDI_Fast = true;
+			//open GDI context so it is still preserved on EndUsingParentContext
+			//(also save current context)
+			HDC hdc = BeginUsingParentContext();
+			EndUsingParentContext( hdc);
+		}
+	}
+	else 
+		if (fGDI_Fast)
+		{
+			FlushGDI(); //flush GDI & restore context 
+			fGDI_Fast = false;
+		}
+}
+
+
+
 /** flush actual GDI context (created from render target) */
 void VWinD2DGraphicContext::FlushGDI() const
 {
@@ -3512,6 +3465,9 @@ void VWinD2DGraphicContext::_Lock() const
 		return;
 	}
 
+	if (fGDI_Fast)
+		_SaveContext();
+
 	fLockCount++;
 
 	//lock parent HDC only if not in a offscreen layer
@@ -3632,6 +3588,10 @@ void	VWinD2DGraphicContext::_Unlock() const
 					delete fLockSaveClipRegion;
 					fLockSaveClipRegion = NULL;
 				}
+
+				if (fGDI_Fast)
+					//we need to restore context as it was saved in _Lock()
+					_RestoreContext();
 				return;
 			}
 
@@ -3763,6 +3723,9 @@ void	VWinD2DGraphicContext::_Unlock() const
 
 			//restore transform
 			_SetTransform( fLockSaveTransform);
+
+			if (fGDI_Fast)
+				_RestoreContext();
 		}
 		else
 		{
@@ -3785,10 +3748,21 @@ void	VWinD2DGraphicContext::_Unlock() const
 
 void VWinD2DGraphicContext::_SetFillColor(const VColor& inColor, VBrushFlags* ioFlags) const
 {
-	FlushGDI();
-
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
+
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		fGDI_GC->SetFillColor( inColor);
+
+		fGDI_HasSolidFillColor.back() = true;
+		fGDI_HasSolidFillColorInherit.back() = true;
+		fGDI_FillColor.back() = inColor;
+		return;
+	}
+	
+	FlushGDI();
 
 	fFillBrush = (ID2D1Brush *)NULL;
 	fFillBrushLinearGradient = (ID2D1LinearGradientBrush *)NULL;
@@ -3817,7 +3791,7 @@ void VWinD2DGraphicContext::_SetFillColor(const VColor& inColor, VBrushFlags* io
 }
 
 /** create gradient stop collection from the specified gradient pattern */
-ID2D1GradientStopCollection *VWinD2DGraphicContext::_CreateGradientStopCollection( const VGradientPattern *p)
+ID2D1GradientStopCollection *VWinD2DGraphicContext::_CreateGradientStopCollection( const VGradientPattern *p) const
 {
 	//create stop collection
 	int numStop = p->GetGradientStops().size();
@@ -3961,7 +3935,7 @@ ID2D1GradientStopCollection *VWinD2DGraphicContext::_CreateGradientStopCollectio
 }
 
 //create linear gradient brush from the specified input pattern
-void VWinD2DGraphicContext::_CreateLinearGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial)
+void VWinD2DGraphicContext::_CreateLinearGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial) const
 {
 	const VAxialGradientPattern *p = static_cast<const VAxialGradientPattern*>(inPattern); 
 
@@ -3997,7 +3971,7 @@ void VWinD2DGraphicContext::_CreateLinearGradientBrush( const VPattern* inPatter
 
 
 //create radial gradient brush from the specified input pattern
-void VWinD2DGraphicContext::_CreateRadialGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial)
+void VWinD2DGraphicContext::_CreateRadialGradientBrush( const VPattern* inPattern, CComPtr<ID2D1Brush> &ioBrush, CComPtr<ID2D1LinearGradientBrush> &ioBrushLinear, CComPtr<ID2D1RadialGradientBrush> &ioBrushRadial) const
 {
 	const VRadialGradientPattern *p = static_cast<const VRadialGradientPattern*>(inPattern); 
 
@@ -4038,14 +4012,35 @@ void VWinD2DGraphicContext::_CreateRadialGradientBrush( const VPattern* inPatter
 }
 
 
-void VWinD2DGraphicContext::SetFillPattern(const VPattern* inPattern, VBrushFlags* ioFlags)
+void VWinD2DGraphicContext::_SetFillPattern(const VPattern* inPattern, VBrushFlags* ioFlags) const
 {
-	FlushGDI();
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
 
 	if (inPattern == NULL || !inPattern->IsGradient())
 	{
+		if (fGDI_Fast && fGDI_HDC)
+		{
+			xbox_assert(fLockCount > 0 && fGDI_GC);
+			fGDI_GC->SetFillPattern( inPattern);
+
+			if (inPattern == NULL)
+			{
+				//ensure pattern will be restored to solid color when restoring later D2D context
+				VPattern *pattern = VPattern::RetainStdPattern( PAT_FILL_PLAIN);
+				if (testAssert(pattern))
+					CopyRefCountable(&(fGDI_FillPattern.back()), const_cast<const VPattern *>(pattern));
+				ReleaseRefCountable(&pattern);
+			}
+			else
+				CopyRefCountable(&(fGDI_FillPattern.back()), inPattern);
+
+			fGDI_HasSolidFillColorInherit.back() = true;
+			return;
+		}
+
+		FlushGDI();
+
 		fFillBrushLinearGradient = (ID2D1LinearGradientBrush *)NULL;
 		fFillBrushRadialGradient = (ID2D1RadialGradientBrush *)NULL;
 		fFillBrush = (ID2D1Brush *)NULL;
@@ -4065,6 +4060,7 @@ void VWinD2DGraphicContext::SetFillPattern(const VPattern* inPattern, VBrushFlag
 	}
 	else
 	{ 
+		FlushGDI();
 		if (inPattern->GetKind() == 'axeP')
 		{
 			_CreateLinearGradientBrush( inPattern, fFillBrush, fFillBrushLinearGradient, fFillBrushRadialGradient);
@@ -4093,11 +4089,24 @@ void VWinD2DGraphicContext::SetFillPattern(const VPattern* inPattern, VBrushFlag
 }
 
 
-void VWinD2DGraphicContext::SetLineColor(const VColor& inColor, VBrushFlags* ioFlags)
+void VWinD2DGraphicContext::_SetLineColor(const VColor& inColor, VBrushFlags* ioFlags) const
 {
-	FlushGDI();
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
+
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		fGDI_GC->SetLineColor( inColor);
+
+		fGDI_HasSolidStrokeColor.back() = true;
+		fGDI_StrokeColor.back() = inColor;
+		fGDI_HasSolidStrokeColorInherit.back() = true;
+
+		return;
+	}
+	
+	FlushGDI();
 
 	fStrokeBrush = (ID2D1Brush *)NULL;
 	fStrokeBrushLinearGradient = (ID2D1LinearGradientBrush *)NULL;
@@ -4116,9 +4125,8 @@ void VWinD2DGraphicContext::SetLineColor(const VColor& inColor, VBrushFlags* ioF
 
 
 
-void VWinD2DGraphicContext::SetLinePattern(const VPattern* inPattern, VBrushFlags* ioFlags)
+void VWinD2DGraphicContext::_SetLinePattern(const VPattern* inPattern, VBrushFlags* ioFlags) const
 {
-	FlushGDI();
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
 
@@ -4126,6 +4134,7 @@ void VWinD2DGraphicContext::SetLinePattern(const VPattern* inPattern, VBrushFlag
 	{
 		if (inPattern->GetKind() == 'axeP')
 		{
+			FlushGDI();
 			_CreateLinearGradientBrush( inPattern, fStrokeBrush, fStrokeBrushLinearGradient, fStrokeBrushRadialGradient);
 			if (ioFlags)
 				ioFlags->fLineBrushChanged = 1;
@@ -4133,12 +4142,49 @@ void VWinD2DGraphicContext::SetLinePattern(const VPattern* inPattern, VBrushFlag
 		}
 		else if (inPattern->GetKind() == 'radP')
 		{
+			FlushGDI();
 			_CreateRadialGradientBrush( inPattern, fStrokeBrush, fStrokeBrushLinearGradient, fStrokeBrushRadialGradient);
 			if (ioFlags)
 				ioFlags->fLineBrushChanged = 1;
 			return;
 		}
 	}
+
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		fGDI_GC->SetLinePattern( inPattern);
+
+		if (inPattern == NULL || dynamic_cast<const VStandardPattern*>(inPattern) == NULL)
+		{
+			//reset to solid color & no dashes
+			if (!fGDI_HasSolidStrokeColor.back())
+			{
+				fGDI_HasSolidStrokeColor.back() = true;
+				//get inherited color
+				fGDI_StrokeColor.back() = VCOLOR_FROM_D2D_COLOR(fStrokeBrushSolid->GetColor());
+				for (int i = 0; i < fGDI_HasSolidStrokeColor.size(); i++)
+				{
+					if (fGDI_HasSolidStrokeColor[i])
+						fGDI_StrokeColor.back() = fGDI_StrokeColor[i];
+				}
+			}
+			fGDI_HasSolidStrokeColorInherit.back() = true;
+
+			//ensure we reset pattern to plain when later D2D context is restored
+			VPattern *pattern = VPattern::RetainStdPattern( PAT_LINE_PLAIN);
+			if (testAssert(pattern))
+				CopyRefCountable(&(fGDI_StrokePattern.back()), const_cast<const VPattern *>(pattern));
+			ReleaseRefCountable(&pattern);
+		}
+		else
+			CopyRefCountable(&(fGDI_StrokePattern.back()), inPattern);
+		
+		fGDI_HasStrokeCustomDashesInherit.back() = false;
+		return;
+	}
+	
+	FlushGDI();
 
 	const VStandardPattern *stdp = dynamic_cast<const VStandardPattern*>(inPattern);
 
@@ -4218,8 +4264,25 @@ void VWinD2DGraphicContext::SetLinePattern(const VPattern* inPattern, VBrushFlag
 	for instance {3,2,4} will paint line on 3 user units, unpaint on 2 user units
 						 and paint again on 4 user units and so on...
 */
-void VWinD2DGraphicContext::SetLineDashPattern(GReal inDashOffset, const VLineDashPattern& inDashPattern, VBrushFlags* ioFlags)
+void VWinD2DGraphicContext::_SetLineDashPattern(GReal inDashOffset, const VLineDashPattern& inDashPattern, VBrushFlags* ioFlags) const
 {
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		if (inDashPattern.size() < 2)
+		{
+			//clear dash pattern
+
+			VPattern *pattern = VPattern::RetainStdPattern( PAT_LINE_PLAIN);
+			if (testAssert(pattern))
+				CopyRefCountable(&(fGDI_StrokePattern.back()), const_cast<const VPattern *>(pattern));
+			ReleaseRefCountable(&pattern);
+
+			fGDI_HasStrokeCustomDashesInherit.back() = false;
+			return;
+		}
+	}
+
 	FlushGDI();
 	D2D1_DASH_STYLE dashStyle = fStrokeStyle->GetDashStyle();
 
@@ -4299,8 +4362,28 @@ void VWinD2DGraphicContext::SetFillRule( FillRuleType inFillRule)
 }
 
 
-void VWinD2DGraphicContext::SetLineWidth(GReal inWidth, VBrushFlags* ioFlags)
+GReal VWinD2DGraphicContext::GetLineWidth () const 
 {
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		return fGDI_GC->GetLineWidth();
+	}
+
+	return fStrokeWidth; 
+}
+
+void VWinD2DGraphicContext::_SetLineWidth(GReal inWidth, VBrushFlags* ioFlags) const
+{
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		fGDI_GC->SetLineWidth( inWidth);
+
+		fGDI_StrokeWidth.back() = inWidth;
+		return;
+	}
+
 	FlushGDI();
 	if (fStrokeWidth != inWidth)
 	{
@@ -4309,7 +4392,7 @@ void VWinD2DGraphicContext::SetLineWidth(GReal inWidth, VBrushFlags* ioFlags)
 		if (fStrokeStyle->GetDashStyle() == D2D1_DASH_STYLE_CUSTOM)
 			//for custom dash pattern, we need to rebuild dash pattern
 			//because dash pattern unit is stroke width
-			SetLineDashPattern( fStrokeStyleProps.dashOffset, fStrokeDashPatternInit);
+			_SetLineDashPattern( fStrokeStyleProps.dashOffset, fStrokeDashPatternInit);
 
 		if (ioFlags)
 			ioFlags->fLineSizeChanged = 1;
@@ -4319,7 +4402,14 @@ void VWinD2DGraphicContext::SetLineWidth(GReal inWidth, VBrushFlags* ioFlags)
 
 void VWinD2DGraphicContext::SetLineCap (CapStyle inCapStyle, VBrushFlags *ioFlags)
 {
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		return;
+	}
+
 	FlushGDI();
+
 	D2D1_CAP_STYLE capStyle;
 	switch (inCapStyle)
 	{
@@ -4361,7 +4451,14 @@ void VWinD2DGraphicContext::SetLineCap (CapStyle inCapStyle, VBrushFlags *ioFlag
 
 void VWinD2DGraphicContext::SetLineJoin(JoinStyle inJoinStyle, VBrushFlags* ioFlags)
 {
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		return;
+	}
+
 	FlushGDI();
+
 	D2D1_LINE_JOIN lineJoin;
 	switch (inJoinStyle)
 	{
@@ -4400,7 +4497,14 @@ void VWinD2DGraphicContext::SetLineJoin(JoinStyle inJoinStyle, VBrushFlags* ioFl
 
 void VWinD2DGraphicContext::SetLineMiterLimit( GReal inMiterLimit)
 {
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		return;
+	}
+
 	FlushGDI();
+
 	if (fStrokeStyle->GetMiterLimit() == inMiterLimit)
 		return;
 
@@ -4444,7 +4548,8 @@ void VWinD2DGraphicContext::_SetTextColor(const VColor& inColor, VBrushFlags* io
 		//we must update font & text color to restore later on FlushGDI
 		//otherwise the FlushGDI context restore will restore font & text from before first BeginUsingParentContext
 		//(because text color & font update do not trigger a FlushGDI in order to keep alive GDI context as long as possible for texts)
-		fGDI_TextColorToRestore = inColor;
+		fGDI_TextColor.back() = inColor;
+		return;
 	}
 
 	fTextBrush = (ID2D1Brush *)NULL;
@@ -4501,7 +4606,11 @@ void VWinD2DGraphicContext::SetBackColor(const VColor& inColor, VBrushFlags* ioF
 
 DrawingMode VWinD2DGraphicContext::SetDrawingMode(DrawingMode inMode, VBrushFlags* ioFlags)
 {
-	FlushGDI();
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		return fGDI_GC->SetDrawingMode( inMode);
+	}
 	DrawingMode previousMode = fDrawingMode;
 	if (GetMaxPerfFlag())
 		fDrawingMode = DM_NORMAL;
@@ -4516,6 +4625,16 @@ void VWinD2DGraphicContext::GetBrushPos (VPoint& outHwndPos) const
 
 void VWinD2DGraphicContext::SetTransparency(GReal inAlpha)
 {
+	if (fGlobalAlpha == inAlpha)
+		return;
+
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		if (inAlpha == 1.0f)
+			return;
+	}
+
 	FlushGDI();
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
@@ -4529,6 +4648,12 @@ void VWinD2DGraphicContext::SetTransparency(GReal inAlpha)
 
 void VWinD2DGraphicContext::SetShadowValue(GReal inHOffset, GReal inVOffset, GReal inBlurness)
 {
+	if (fGDI_Fast && fGDI_HDC)
+	{
+		xbox_assert(fLockCount > 0 && fGDI_GC);
+		fGDI_GC->SetShadowValue( inHOffset, inVOffset, inBlurness);
+		return;
+	}
 	FlushGDI();
 	fShadowHOffset = inHOffset;
 	fShadowVOffset = inVOffset;
@@ -4569,7 +4694,6 @@ bool VWinD2DGraphicContext::IsAntiAliasingAvailable()
 }
 TextMeasuringMode VWinD2DGraphicContext::SetTextMeasuringMode(TextMeasuringMode inMode)
 {
-	FlushGDI();
 	TextMeasuringMode previous = fTextMeasuringMode;
 	fTextMeasuringMode = inMode;
 	return previous;
@@ -4617,7 +4741,7 @@ TextRenderingMode VWinD2DGraphicContext::SetTextRenderingMode( TextRenderingMode
 	StParentContextNoDraw hdcNoDraw(this);
 	if (fTextFontMetrics)
 		//ensure we update font metrics if legacy mode has changed 
-		fTextFontMetrics->DoUseLegacyMetrics(fTextFontMetrics->GetDesiredUseLegacyMetrics());
+		fTextFontMetrics->UseLegacyMetrics(fTextFontMetrics->GetDesiredUseLegacyMetrics());
 
 	return previousMode;
 }
@@ -4644,7 +4768,12 @@ void VWinD2DGraphicContext::_SetFont( VFont *inFont, GReal inScale) const
 			//we must update font & text color to restore later on FlushGDI
 			//otherwise the FlushGDI will restore font & text saved before first BeginUsingParentContext
 			//(because text color & font update do not trigger a FlushGDI in order to keep alive GDI context as long as possible for texts)
-			CopyRefCountable(&fGDI_TextFontToRestore, inFont);
+			if (fGDI_TextFont.back() != inFont)
+			{
+				VFont *font = fGDI_TextFont.back();
+				ReleaseRefCountable(&font);
+				fGDI_TextFont.back() = RetainRefCountable(inFont);
+			}
 		}
 		return;
 	}
@@ -4667,7 +4796,12 @@ void VWinD2DGraphicContext::_SetFont( VFont *inFont, GReal inScale) const
 		//we must update font & text color to restore later on FlushGDI
 		//otherwise the FlushGDI will restore font & text saved before first BeginUsingParentContext
 		//(because text color & font update do not trigger a FlushGDI in order to keep alive GDI context as long as possible for texts)
-		CopyRefCountable(&fGDI_TextFontToRestore, fTextFont);
+		if (fGDI_TextFont.back() != fTextFont)
+		{
+			VFont *font = fGDI_TextFont.back();
+			ReleaseRefCountable(&font);
+			fGDI_TextFont.back() = RetainRefCountable(fTextFont);
+		}
 	}
 
 	fWhiteSpaceWidth = 0.0f;
@@ -4773,11 +4907,6 @@ void VWinD2DGraphicContext::SetPixelBackColor(const VColor& inColor)
 }
 
 
-TransferMode VWinD2DGraphicContext::SetPixelTransferMode(TransferMode inMode)
-{
-	return TM_COPY;
-}
-
 
 #pragma mark-
 
@@ -4861,7 +4990,7 @@ IDWriteTextLayout *VWinD2DGraphicContext::_GetTextBoundsTypographic( const VStri
 	IDWriteTextLayout *textLayout = NULL;
 	{
 		VTaskLock lock(&fMutexDWriteFactory);
-		textLayout = fTextFont->CreateTextLayout( fRenderTarget, inString, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), DWRITE_TEXT_LAYOUT_MAX_WIDTH, DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AL_LEFT, AL_TOP, inLayoutMode);
+		textLayout = fTextFont->GetImpl().CreateTextLayout( fRenderTarget, inString, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), DWRITE_TEXT_LAYOUT_MAX_WIDTH, DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AL_LEFT, AL_TOP, inLayoutMode);
 		if (!textLayout)
 		{
 			oRect.SetEmpty();
@@ -4957,8 +5086,22 @@ void VWinD2DGraphicContext::_SaveContext() const
 		fGDI_SaveContextCounter++;
 		fGDI_Restore.push_back(eSave_Context);
 		//we push current font & text color to restore later in D2D parent context because SetTextColor & SetFont do not trigger a FlushGDI to keep alive GDI gc as long as possible
-		fGDI_TextFont.push_back( RetainRefCountable( fGDI_TextFontToRestore));
-		fGDI_TextColor.push_back( fGDI_TextColorToRestore);
+		fGDI_TextFont.push_back( RetainRefCountable(fGDI_TextFont.back()));
+		fGDI_TextColor.push_back( fGDI_TextColor.back());
+		if (fGDI_Fast)
+		{
+			fGDI_HasSolidStrokeColor.push_back(false);
+			fGDI_HasSolidStrokeColorInherit.push_back( fGDI_HasSolidStrokeColorInherit.back());
+			fGDI_StrokeColor.push_back( fGDI_StrokeColor.back());
+			fGDI_StrokePattern.push_back(NULL);
+			fGDI_StrokeWidth.push_back( fGDI_StrokeWidth.back());
+			fGDI_HasStrokeCustomDashesInherit.push_back( fGDI_HasStrokeCustomDashesInherit.back());
+
+			fGDI_HasSolidFillColor.push_back(false);
+			fGDI_HasSolidFillColorInherit.push_back( fGDI_HasSolidFillColorInherit.back());
+			fGDI_FillColor.push_back( fGDI_FillColor.back());
+			fGDI_FillPattern.push_back(NULL);
+		}
 		return;
 	}
 
@@ -4979,13 +5122,26 @@ void VWinD2DGraphicContext::_RestoreContext() const
 			xbox_assert(fGDI_Restore.back() == eSave_Context);
 			fGDI_Restore.pop_back();
 			
-			VFont *font = fGDI_TextFont.back();
-			CopyRefCountable(&fGDI_TextFontToRestore, font);
-			ReleaseRefCountable(&font);
 			fGDI_TextFont.pop_back();
-			
-			fGDI_TextColorToRestore = fGDI_TextColor.back();
 			fGDI_TextColor.pop_back();
+			if (fGDI_Fast)
+			{
+				fGDI_HasSolidStrokeColor.pop_back();
+				fGDI_HasSolidStrokeColorInherit.pop_back();
+				fGDI_StrokeColor.pop_back();
+				fGDI_StrokeWidth.pop_back();
+				fGDI_HasStrokeCustomDashesInherit.pop_back();
+
+				fGDI_HasSolidFillColor.pop_back();
+				fGDI_HasSolidFillColorInherit.pop_back();
+				fGDI_FillColor.pop_back();
+				if (fGDI_StrokePattern.back())
+					fGDI_StrokePattern.back()->Release();
+				fGDI_StrokePattern.pop_back();
+				if (fGDI_FillPattern.back())
+					fGDI_FillPattern.back()->Release();
+				fGDI_FillPattern.pop_back();
+			}
 
 			fGDI_SaveContextCounter--;
 			fGDI_GC->RestoreContext();
@@ -5011,12 +5167,7 @@ void VWinD2DGraphicContext::DrawTextBox(const VString& inText, AlignStyle inHAli
 		_InitDeviceDependentObjects();
 	if ((fTextRenderingMode & TRM_LEGACY_ON) || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!fTextFont->IsTrueTypeFont())))
 	{
-		bool allowGDITextOnTransparent = ShouldPrepareTransparentForGDI();
-		ShouldPrepareTransparentForGDI(true, &inHwndBounds);
-
 		_DrawLegacyTextBox(inText, inHAlign, inVAlign, inHwndBounds, inLayoutMode);
-
-		ShouldPrepareTransparentForGDI(allowGDITextOnTransparent);
 		return;
 	}
 
@@ -5077,7 +5228,7 @@ void VWinD2DGraphicContext::GetTextBoxBounds( const VString& inText, VRect& ioHw
 
 	VTaskLock lock(&fMutexDWriteFactory);
 		
-	IDWriteTextLayout *textLayout = fTextFont->CreateTextLayout( 
+	IDWriteTextLayout *textLayout = fTextFont->GetImpl().CreateTextLayout( 
 					fRenderTarget,
 					inText, 
 					(!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)),
@@ -5143,7 +5294,7 @@ void VWinD2DGraphicContext::_DrawTextWithCustomKerning(const VString& inString, 
 		{
 			sChar.SetUniChar(1, *c);
 			fRenderTarget->DrawText(
-				sChar.GetCPointer(), 1, fTextFont->GetDWriteTextFormat(), 
+				sChar.GetCPointer(), 1, fTextFont->GetImpl().GetDWriteTextFormat(), 
 				D2D1::RectF( pos.GetX(), pos.GetY(), pos.GetX()+DWRITE_TEXT_LAYOUT_MAX_WIDTH, pos.GetY()+DWRITE_TEXT_LAYOUT_MAX_HEIGHT),
 				fTextBrush,
 				D2D1_DRAW_TEXT_OPTIONS_NONE
@@ -5212,9 +5363,6 @@ void VWinD2DGraphicContext::DrawText(const VString& inString, const VPoint& inPo
 	{
 		//legacy GDI drawing (D2D cannot draw TrueType fonts)
 
-		bool allowGDITextOnTransparent = ShouldPrepareTransparentForGDI();
-		ShouldPrepareTransparentForGDI(true);
-
 		bool oldLockParentContext = fLockParentContext;
 		fLockParentContext = false; 
 		HDC hdc = BeginUsingParentContext();
@@ -5248,7 +5396,6 @@ void VWinD2DGraphicContext::DrawText(const VString& inString, const VPoint& inPo
 			}
 		}
 		EndUsingParentContext(hdc);
-		ShouldPrepareTransparentForGDI(allowGDITextOnTransparent);
 		fLockParentContext = oldLockParentContext;
 		return;
 	}
@@ -5271,7 +5418,7 @@ void VWinD2DGraphicContext::DrawText(const VString& inString, const VPoint& inPo
 	VTaskLock lock(&fMutexDWriteFactory);
 
 	IDWriteTextLayout *textLayout = NULL;
-	textLayout = fTextFont->CreateTextLayout( fRenderTarget, inString, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), DWRITE_TEXT_LAYOUT_MAX_WIDTH, DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AL_LEFT, AL_TOP, inLayoutMode);
+	textLayout = fTextFont->GetImpl().CreateTextLayout( fRenderTarget, inString, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), DWRITE_TEXT_LAYOUT_MAX_WIDTH, DWRITE_TEXT_LAYOUT_MAX_HEIGHT, AL_LEFT, AL_TOP, inLayoutMode);
 	if (!textLayout)
 		return;
 
@@ -5351,13 +5498,9 @@ void VWinD2DGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const VP
 		//fallback to legacy text rendering
 		VRect bounds;
 		inTextLayout->GetLayoutBounds( NULL, bounds, inTopLeft);
-		bool allowGDITextOnTransparent = ShouldPrepareTransparentForGDI(); 
-		ShouldPrepareTransparentForGDI(true, &bounds);
 		
 		VGraphicContext::_DrawTextLayout( inTextLayout, inTopLeft);
-		
-		ShouldPrepareTransparentForGDI(allowGDITextOnTransparent);
-		
+
 		inTextLayout->EndUsingContext();
 		return;
 	}
@@ -5373,6 +5516,7 @@ void VWinD2DGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const VP
 	if (!inTextLayout->_BeginDrawLayer( inTopLeft))
 	{
 		//text has been refreshed from layer: we do not need to redraw text content
+		inTextLayout->_EndDrawLayer();
 		inTextLayout->EndUsingContext();
 		return;
 	}
@@ -5398,12 +5542,12 @@ void VWinD2DGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const VP
 	{
 		//glyphs extend outside the layout box so clip including glyph extend
 		VPoint pos(inTopLeft);
-		pos.SetPosBy( inTextLayout->fCurOverhangLeft, inTextLayout->fCurOverhangTop);
+		pos.SetPosBy(inTextLayout->fMarginLeft+inTextLayout->fCurOverhangLeft, inTextLayout->fMarginTop+inTextLayout->fCurOverhangTop);
 	
-		VRect boundsOverhang(	inTopLeft.GetX()-inflateX, 
-								inTopLeft.GetY(), 
-								inTextLayout->fCurLayoutWidth+inflateX*2, 
-								inTextLayout->fCurLayoutHeight);
+		VRect boundsOverhang(	inTopLeft.GetX()+inTextLayout->fMarginLeft-inflateX, 
+								inTopLeft.GetY()+inTextLayout->fMarginTop, 
+								inTextLayout->_GetLayoutWidthMinusMargin()+inflateX*2, 
+								inTextLayout->_GetLayoutHeightMinusMargin());
 		SaveClip();
 		ClipRect(boundsOverhang);
 		fRenderTarget->DrawTextLayout( D2D_POINT(pos),
@@ -5413,11 +5557,14 @@ void VWinD2DGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const VP
 		RestoreClip();
 	}
 	else
-		fRenderTarget->DrawTextLayout( D2D_POINT(inTopLeft),
+	{
+		VPoint pos(inTopLeft);
+		pos.SetPosBy(inTextLayout->fMarginLeft, inTextLayout->fMarginTop);
+		fRenderTarget->DrawTextLayout( D2D_POINT(pos),
 									   inTextLayout->fLayoutD2D,
 									   fTextBrush,
 									   D2D1_DRAW_TEXT_OPTIONS_CLIP);
-
+	}
 	inTextLayout->_EndDrawLayer();
 	inTextLayout->EndUsingContext();
 }
@@ -5499,7 +5646,7 @@ void VWinD2DGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *inTex
 		inEnd = inTextLayout->fTextLength;
 
 	VPoint pos(inTopLeft);
-	pos.SetPosBy(inTextLayout->fCurOverhangLeft, inTextLayout->fCurOverhangTop);
+	pos.SetPosBy(inTextLayout->fMarginLeft+inTextLayout->fCurOverhangLeft, inTextLayout->fMarginTop+inTextLayout->fCurOverhangTop);
 	_GetRangeBounds( inTextLayout->fLayoutD2D, inStart, inEnd-inStart, pos, outRunBounds);
 
 	inTextLayout->EndUsingContext();
@@ -5540,7 +5687,7 @@ void VWinD2DGraphicContext::_GetTextLayoutCaretMetricsFromCharIndex( VTextLayout
 	xbox_assert(inTextLayout->fLayoutD2D);
 	
 	VPoint pos(inTopLeft);
-	pos.SetPosBy(inTextLayout->fCurOverhangLeft, inTextLayout->fCurOverhangTop);
+	pos.SetPosBy(inTextLayout->fMarginLeft+inTextLayout->fCurOverhangLeft, inTextLayout->fMarginTop+inTextLayout->fCurOverhangTop);
 
 	bool leading = inCaretLeading;
 	VIndex charIndex = inCharIndex;
@@ -5614,7 +5761,7 @@ bool VWinD2DGraphicContext::_GetTextLayoutCharIndexFromPos( VTextLayout *inTextL
 	xbox_assert(inTextLayout->fLayoutD2D);
 	
 	VPoint pos(inTopLeft);
-	pos.SetPosBy(inTextLayout->fCurOverhangLeft, inTextLayout->fCurOverhangTop);
+	pos.SetPosBy(inTextLayout->fMarginLeft+inTextLayout->fCurOverhangLeft, inTextLayout->fMarginTop+inTextLayout->fCurOverhangTop);
 
 	BOOL isTrailing = FALSE;
 	BOOL isInside = FALSE;
@@ -5661,22 +5808,17 @@ void VWinD2DGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 	}
 	ReleaseRefCountable(&(inTextLayout->fTextBox));
 
-	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inTextLayout->GetText(), inTextLayout->fStyles, inTextLayout->fHAlign, inTextLayout->fVAlign);
-
 	//compute DWrite layout & determine actual bounds
 	VRect bounds(0.0f, 0.0f, inTextLayout->fMaxWidth, inTextLayout->fMaxHeight);
 	VRect boundsWithOverhangs;
 	DWRITE_TEXT_METRICS textMetrics;
 	DWRITE_OVERHANG_METRICS textOverhangMetrics;
-	_GetStyledTextBoxBounds(inTextLayout->GetText(), styles ? styles : inTextLayout->fStyles, 
+	_GetStyledTextBoxBounds(inTextLayout->GetText(), inTextLayout->fStyles, 
 							inTextLayout->fHAlign, inTextLayout->fVAlign, inTextLayout->fLayoutMode, bounds, 
 							&(inTextLayout->fLayoutD2D), 
 							inTextLayout->fDPI, false, true, 
 							(void *)&textMetrics,
 							(void *)&textOverhangMetrics);
-	if (styles)
-		styles->Release();
 
 	if (inTextLayout->fLayoutD2D)
 	{
@@ -5685,9 +5827,9 @@ void VWinD2DGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 		inTextLayout->fCurLayoutHeight = bounds.GetHeight();
 		
 		if (inTextLayout->fMaxHeight != 0.0f && inTextLayout->fCurLayoutHeight > inTextLayout->fMaxHeight)
-			inTextLayout->fCurLayoutHeight = inTextLayout->fMaxHeight;
+			inTextLayout->fCurLayoutHeight = std::floor(inTextLayout->fMaxHeight); //might be ~0 otherwise it is always rounded yet
 		if (inTextLayout->fMaxWidth != 0.0f && inTextLayout->fCurLayoutWidth > inTextLayout->fMaxWidth)
-			inTextLayout->fCurLayoutWidth = inTextLayout->fMaxWidth;
+			inTextLayout->fCurLayoutWidth = std::floor(inTextLayout->fMaxWidth); //might be ~0 otherwise it is always rounded yet
 		
 		//store text layout overhang metrics
 		inTextLayout->fCurOverhangLeft = textOverhangMetrics.left > 0.0f ? textOverhangMetrics.left : 0.0f;
@@ -5696,8 +5838,19 @@ void VWinD2DGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 		inTextLayout->fCurOverhangBottom = textOverhangMetrics.bottom > 0.0f ? textOverhangMetrics.bottom : 0.0f;
 
 		//store formatted text metrics
-		inTextLayout->fCurWidth = textMetrics.widthIncludingTrailingWhitespace+inTextLayout->fCurOverhangLeft+inTextLayout->fCurOverhangRight;
-		inTextLayout->fCurHeight = textMetrics.height+inTextLayout->fCurOverhangTop+inTextLayout->fCurOverhangBottom;
+		inTextLayout->fCurWidth = std::ceil(textMetrics.widthIncludingTrailingWhitespace+inTextLayout->fCurOverhangLeft+inTextLayout->fCurOverhangRight);
+		inTextLayout->fCurHeight = std::ceil(textMetrics.height+inTextLayout->fCurOverhangTop+inTextLayout->fCurOverhangBottom);
+
+		if (inTextLayout->fMarginLeft != 0.0f || inTextLayout->fMarginRight != 0.0f)
+		{
+			inTextLayout->fCurWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+			inTextLayout->fCurLayoutWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+		}
+		if (inTextLayout->fMarginTop != 0.0f || inTextLayout->fMarginBottom != 0.0f)
+		{
+			inTextLayout->fCurHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+			inTextLayout->fCurLayoutHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+		}
 	}
 }
 
@@ -5708,14 +5861,9 @@ void VWinD2DGraphicContext::DrawStyledText( const VString& inText, VTreeTextStyl
 
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
-	if ((fTextRenderingMode & TRM_LEGACY_ON) || inText.GetLength() > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
+	if ((fTextRenderingMode & TRM_LEGACY_ON) || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
 	{
-		bool allowGDITextOnTransparent = ShouldPrepareTransparentForGDI(); 
-		ShouldPrepareTransparentForGDI(true, &inHwndBounds);
-
 		_DrawLegacyStyledText(inText, inStyles, inHAlign, inVAlign, inHwndBounds, inLayoutMode, inRefDocDPI);
-
-		ShouldPrepareTransparentForGDI(allowGDITextOnTransparent);
 		return;
 	}
 
@@ -5729,11 +5877,11 @@ void VWinD2DGraphicContext::DrawStyledText( const VString& inText, VTreeTextStyl
 	{
 		fontScaled = VFont::RetainFont( fTextFont->GetName(), fTextFont->GetFace(), fTextFont->GetPixelSize(), inRefDocDPI);
 		xbox_assert(fontScaled);
-		textLayout = fontScaled->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+		textLayout = fontScaled->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 		ReleaseRefCountable(&fontScaled);
 	}
 	else
-		textLayout = fTextFont->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+		textLayout = fTextFont->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 	if (!textLayout)
 		return;
 
@@ -5807,7 +5955,7 @@ void  VWinD2DGraphicContext::_GetStyledTextBoxBounds( const VString& inText, VTr
 		_InitDeviceDependentObjects();
 
 	if (inEnableLegacy)
-		if ((fTextRenderingMode & TRM_LEGACY_ON) || inText.GetLength() > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
+		if ((fTextRenderingMode & TRM_LEGACY_ON) || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
 		{
 			StParentContextNoDraw hdcNoDraw(this);
 			_GetLegacyStyledTextBoxBounds(inText, inStyles, ioBounds, inRefDocDPI);
@@ -5824,7 +5972,7 @@ void  VWinD2DGraphicContext::_GetStyledTextBoxBounds( const VString& inText, VTr
 	{
 		fontScaled = VFont::RetainFont( fTextFont->GetName(), fTextFont->GetFace(), fTextFont->GetPixelSize(), inRefDocDPI);
 		xbox_assert(fontScaled);
-		textLayout = fontScaled->CreateTextLayout( 
+		textLayout = fontScaled->GetImpl().CreateTextLayout( 
 						fRenderTarget,
 						inText, 
 						(!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)),
@@ -5837,7 +5985,7 @@ void  VWinD2DGraphicContext::_GetStyledTextBoxBounds( const VString& inText, VTr
 		ReleaseRefCountable(&fontScaled);
 	}
 	else
-		textLayout = fTextFont->CreateTextLayout( 
+		textLayout = fTextFont->GetImpl().CreateTextLayout( 
 						fRenderTarget,
 						inText, 
 						(!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)),
@@ -5911,12 +6059,14 @@ void  VWinD2DGraphicContext::_GetStyledTextBoxBounds( const VString& inText, VTr
 	if (textOverhangMetrics->bottom > 0.0f)
 		ioBounds.SetSizeBy( 0.0f, textOverhangMetrics->bottom);
 	
+	ioBounds.SetWidth( std::ceil(ioBounds.GetWidth()));
+	ioBounds.SetHeight( std::ceil(ioBounds.GetHeight()));
 
 	//deal with math discrepancies: ensure last line of text is not clipped (so if height is 40.99 we convert it to 50)
-	GReal height = ioBounds.GetHeight();
-	if ((ceil(height)-height) <= 0.01)
-		ioBounds.SetHeight(ceil(height));
-
+	//GReal height = ioBounds.GetHeight();
+	//if ((ceil(height)-height) <= 0.01)
+	//	ioBounds.SetHeight(ceil(height));
+	
 	if (outLayout)
 		*outLayout = textLayout;
 	else
@@ -5945,7 +6095,7 @@ void VWinD2DGraphicContext::GetStyledTextBoxRunBoundsFromRange( const VString& i
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
 
-	if ((fTextRenderingMode & TRM_LEGACY_ON) || inText.GetLength() > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
+	if ((fTextRenderingMode & TRM_LEGACY_ON) || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
 	{
 		StParentContextNoDraw hdcNoDraw(this);
 		_GetLegacyStyledTextBoxRunBoundsFromRange(inText, inStyles, inBounds, outRunBounds, inStart, inEnd, inHAlign, inVAlign, inMode, inRefDocDPI);
@@ -5959,11 +6109,11 @@ void VWinD2DGraphicContext::GetStyledTextBoxRunBoundsFromRange( const VString& i
 	{
 		fontScaled = VFont::RetainFont( fTextFont->GetName(), fTextFont->GetFace(), fTextFont->GetPixelSize(), inRefDocDPI);
 		xbox_assert(fontScaled);
-		textLayout = fontScaled->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inBounds.GetWidth(), inBounds.GetHeight(), inHAlign, inVAlign, inMode, inStyles, inRefDocDPI);
+		textLayout = fontScaled->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inBounds.GetWidth(), inBounds.GetHeight(), inHAlign, inVAlign, inMode, inStyles, inRefDocDPI);
 		ReleaseRefCountable(&fontScaled);
 	}
 	else
-		textLayout = fTextFont->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inBounds.GetWidth(), inBounds.GetHeight(), inHAlign, inVAlign, inMode, inStyles, inRefDocDPI);
+		textLayout = fTextFont->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inBounds.GetWidth(), inBounds.GetHeight(), inHAlign, inVAlign, inMode, inStyles, inRefDocDPI);
 	if (!textLayout)
 		return;
 
@@ -6000,7 +6150,7 @@ bool VWinD2DGraphicContext::GetStyledTextBoxCharIndexFromCoord( const VString& i
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
 
-	if ((fTextRenderingMode & TRM_LEGACY_ON) || inText.GetLength() > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
+	if ((fTextRenderingMode & TRM_LEGACY_ON) || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
 	{
 		StParentContextNoDraw hdcNoDraw(this);
 		return _GetLegacyStyledTextBoxCharIndexFromCoord( inText, inStyles, inHwndBounds, inPos, outCharIndex, inHAlign, inVAlign, inLayoutMode, inRefDocDPI);
@@ -6012,11 +6162,11 @@ bool VWinD2DGraphicContext::GetStyledTextBoxCharIndexFromCoord( const VString& i
 	{
 		fontScaled = VFont::RetainFont( fTextFont->GetName(), fTextFont->GetFace(), fTextFont->GetPixelSize(), inRefDocDPI);
 		xbox_assert(fontScaled);
-		textLayout = fontScaled->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+		textLayout = fontScaled->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 		ReleaseRefCountable(&fontScaled);
 	}
 	else
-		textLayout = fTextFont->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+		textLayout = fTextFont->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 	if (!textLayout)
 	{
 		outCharIndex = 0;
@@ -6181,7 +6331,7 @@ void VWinD2DGraphicContext::GetStyledTextBoxCaretMetricsFromCharIndex( const VSt
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
 
-	if ((fTextRenderingMode & TRM_LEGACY_ON) || inText.GetLength() > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
+	if ((fTextRenderingMode & TRM_LEGACY_ON) || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
 	{
 		StParentContextNoDraw hdcNoDraw(this);
 		return _GetLegacyStyledTextBoxCaretMetricsFromCharIndex( inText, inStyles, inHwndBounds, inCharIndex, outCaretPos, outTextHeight, inCaretLeading, inCaretUseCharMetrics, inHAlign, inVAlign, inLayoutMode, inRefDocDPI);
@@ -6199,11 +6349,11 @@ void VWinD2DGraphicContext::GetStyledTextBoxCaretMetricsFromCharIndex( const VSt
 		{
 			fontScaled = VFont::RetainFont( fTextFont->GetName(), fTextFont->GetFace(), fTextFont->GetPixelSize(), inRefDocDPI);
 			xbox_assert(fontScaled);
-			textLayout = fontScaled->CreateTextLayout( fRenderTarget, VString("x"), (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+			textLayout = fontScaled->GetImpl().CreateTextLayout( fRenderTarget, VString("x"), (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 			ReleaseRefCountable(&fontScaled);
 		}
 		else
-			textLayout = fTextFont->CreateTextLayout( fRenderTarget, VString("x"), (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+			textLayout = fTextFont->GetImpl().CreateTextLayout( fRenderTarget, VString("x"), (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 		charIndex = 0;
 		leading = true;
 	}
@@ -6214,11 +6364,11 @@ void VWinD2DGraphicContext::GetStyledTextBoxCaretMetricsFromCharIndex( const VSt
 		{
 			fontScaled = VFont::RetainFont( fTextFont->GetName(), fTextFont->GetFace(), fTextFont->GetPixelSize(), inRefDocDPI);
 			xbox_assert(fontScaled);
-			textLayout = fontScaled->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+			textLayout = fontScaled->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 			ReleaseRefCountable(&fontScaled);
 		}
 		else
-			textLayout = fTextFont->CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
+			textLayout = fTextFont->GetImpl().CreateTextLayout( fRenderTarget, inText, (!(fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)), inHwndBounds.GetWidth(), inHwndBounds.GetHeight(), inHAlign, inVAlign, inLayoutMode, inStyles, inRefDocDPI);
 	}
 	if (!textLayout)
 		return;
@@ -6265,7 +6415,7 @@ void VWinD2DGraphicContext::GetTextBoxLines( const VString& inText, const GReal 
 	if (fRenderTarget == NULL)
 		_InitDeviceDependentObjects();
 
-	if (inNoBreakWord || (fTextRenderingMode & TRM_LEGACY_ON) || inText.GetLength() > VTEXTLAYOUT_DIRECT2D_MAX_TEXT_SIZE || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
+	if (inNoBreakWord || (fTextRenderingMode & TRM_LEGACY_ON) || ((!(fTextRenderingMode & TRM_LEGACY_OFF)) && (!UseFontTrueTypeOnly( inStyles))))
 	{
 		//DWrite breaks words if max width is too small so fallback on generic method
 		StParentContextNoDraw hdcNoDraw(this);
@@ -6340,11 +6490,20 @@ void VWinD2DGraphicContext::GetTextBoxLines( const VString& inText, const GReal 
 void VWinD2DGraphicContext::FrameRect(const VRect& _inHwndBounds)
 {
 	StUseContext_NoRetain	context(this);
-	FlushGDI();
-	VRect inHwndBounds(_inHwndBounds);
 
-	if (fShapeCrispEdgesEnabled)
-		_CEAdjustRectInTransformedSpace( inHwndBounds);
+	if (fGDI_Fast && fGDI_HDC && fDrawingMode != DM_SHADOW && fGlobalAlpha == 1.0f 
+		&& 
+		!fGDI_HasStrokeCustomDashesInherit.back() && fGDI_HasSolidStrokeColorInherit.back())
+	{
+		fGDI_GC->FrameRect( _inHwndBounds);
+		return;
+	}
+
+	FlushGDI();
+
+	VRect inHwndBounds(_inHwndBounds);
+	if ((fShapeCrispEdgesEnabled || fGDI_Fast) && !fGDI_QDCompatible)
+		CEAdjustRectInTransformedSpace( inHwndBounds);
 
 	if (fDrawingMode == DM_SHADOW)
 	{
@@ -6367,8 +6526,8 @@ void VWinD2DGraphicContext::FrameOval(const VRect& _inHwndBounds)
 	FlushGDI();
 	VRect inHwndBounds(_inHwndBounds);
 
-	if (fShapeCrispEdgesEnabled)
-		_CEAdjustRectInTransformedSpace( inHwndBounds);
+	if ((fShapeCrispEdgesEnabled || fGDI_Fast) && !fGDI_QDCompatible)
+		CEAdjustRectInTransformedSpace( inHwndBounds);
 
 	GReal radiusX = inHwndBounds.GetWidth()*0.5f;
 	GReal radiusY = inHwndBounds.GetHeight()*0.5f;
@@ -6400,39 +6559,33 @@ void VWinD2DGraphicContext::FrameRegion(const VRegion& inHwndRegion)
 VGraphicPath *VWinD2DGraphicContext::_BuildPathFromPolygon(const VPolygon& inPolygon, bool inFillOnly)
 {
 	VGraphicPath *path = NULL;
-	POINT *points = const_cast<VPolygon&>(inPolygon).WIN_LockPolygon();
-	if (points != NULL)
+	sLONG pc = inPolygon.GetPointCount();
+	if (pc >= 1)
 	{
-		sLONG pc = inPolygon.GetPointCount();
-		if (pc >= 1)
+		path = new VGraphicPath();
+		path->Begin();
+
+		VPoint start, cur;
+		VPoint curpoint;
+		bool crispEdges = (fShapeCrispEdgesEnabled || fGDI_Fast) && !fGDI_QDCompatible;
+		for(VIndex n = 0; n < pc; n++) 
 		{
-			path = new VGraphicPath();
-			path->Begin();
-
-			VPoint start, cur;
-			POINT *p = points;
-			for(VIndex n = 0; n < pc; n++, p++) 
+			inPolygon.GetNthPoint(n+1, cur); 
+			if (crispEdges)
+				CEAdjustPointInTransformedSpace( cur, inFillOnly);
+			
+			if (n == 0)
 			{
-				cur.SetX(p->x);
-				cur.SetY(p->y);
-
-				if (fShapeCrispEdgesEnabled)
-					_CEAdjustPointInTransformedSpace( cur, inFillOnly);
-				
-				if (n == 0)
-				{
-					start = cur;
-					path->BeginSubPathAt( cur);
-				}
-				else
-					path->AddLineTo( cur);
+				start = cur;
+				path->BeginSubPathAt( cur);
 			}
-			if (cur != start)
-				//ensure polygon is closed
-				path->CloseSubPath();
-			path->End();
+			else
+				path->AddLineTo( cur);
 		}
-		const_cast<VPolygon&>(inPolygon).WIN_UnlockPolygon();
+		if (cur != start)
+			//ensure polygon is closed
+			path->CloseSubPath();
+		path->End();
 	}
 	return path;
 }
@@ -6500,11 +6653,20 @@ void VWinD2DGraphicContext::FramePath(const VGraphicPath& inHwndPath)
 void VWinD2DGraphicContext::FillRect(const VRect& _inHwndBounds)
 {
 	StUseContext_NoRetain	context(this);
-	FlushGDI();
-	VRect inHwndBounds(_inHwndBounds);
 
-	if (fShapeCrispEdgesEnabled)
-		_CEAdjustRectInTransformedSpace( inHwndBounds, true);
+	if (fGDI_Fast && fGDI_HDC && fDrawingMode != DM_SHADOW && fGlobalAlpha == 1.0f 
+		&& 
+		fGDI_HasSolidFillColorInherit.back())
+	{
+		fGDI_GC->FillRect( _inHwndBounds);
+		return;
+	}
+
+	FlushGDI();
+
+	VRect inHwndBounds(_inHwndBounds);
+	if ((fShapeCrispEdgesEnabled || fGDI_Fast) && !fGDI_QDCompatible)
+		CEAdjustRectInTransformedSpace( inHwndBounds, true);
 
 	if (fDrawingMode == DM_SHADOW)
 	{
@@ -6528,8 +6690,8 @@ void VWinD2DGraphicContext::FillOval(const VRect& _inHwndBounds)
 	FlushGDI();
 	VRect inHwndBounds(_inHwndBounds);
 
-	if (fShapeCrispEdgesEnabled)
-		_CEAdjustRectInTransformedSpace( inHwndBounds, true);
+	if ((fShapeCrispEdgesEnabled || fGDI_Fast) && !fGDI_QDCompatible)
+		CEAdjustRectInTransformedSpace( inHwndBounds, true);
 
 	GReal radiusX = inHwndBounds.GetWidth()*0.5f;
 	GReal radiusY = inHwndBounds.GetHeight()*0.5f;
@@ -6617,15 +6779,35 @@ void VWinD2DGraphicContext::FillPath(VGraphicPath& inHwndPath)
 }
 
 
+void VWinD2DGraphicContext::_BuildRoundRectPath(const VRect _inBounds,GReal inWidth,GReal inHeight,VGraphicPath& outPath, bool inFillOnly)
+{
+	VRect inBounds(_inBounds);
+	if ((fShapeCrispEdgesEnabled || fGDI_Fast) && !fGDI_QDCompatible)
+		CEAdjustRectInTransformedSpace(inBounds, inFillOnly);
+
+	bool isCrispEdgesEnabled = fShapeCrispEdgesEnabled;
+	fShapeCrispEdgesEnabled = false;
+	VGraphicContext::_BuildRoundRectPath( inBounds, inWidth, inHeight, outPath, inFillOnly);
+	fShapeCrispEdgesEnabled = isCrispEdgesEnabled;
+}
+
+
 void VWinD2DGraphicContext::DrawRect(const VRect& inHwndBounds)
 {
-	if (fShapeCrispEdgesEnabled)
+	StUseContext_NoRetain	context(this);
+	if (fGDI_Fast && fGDI_HDC && fDrawingMode != DM_SHADOW && fGlobalAlpha == 1.0f
+		&& 
+		!fGDI_HasStrokeCustomDashesInherit.back() && fGDI_HasSolidStrokeColorInherit.back() && fGDI_HasSolidFillColorInherit.back())
 	{
-		StUseContext_NoRetain	context(this);
-		FlushGDI();
+		fGDI_GC->DrawRect( inHwndBounds);
+		return;
+	}
 
+	FlushGDI();
+	if (fShapeCrispEdgesEnabled && !fGDI_Fast && !fGDI_QDCompatible)
+	{
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		fShapeCrispEdgesEnabled = false;
 		FillRect(bounds);
@@ -6642,13 +6824,13 @@ void VWinD2DGraphicContext::DrawRect(const VRect& inHwndBounds)
 
 void VWinD2DGraphicContext::DrawOval(const VRect& inHwndBounds)
 {
-	if (fShapeCrispEdgesEnabled)
+	if (fShapeCrispEdgesEnabled && !fGDI_Fast && !fGDI_QDCompatible)
 	{
 		StUseContext_NoRetain	context(this);
 		FlushGDI();
 
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		fShapeCrispEdgesEnabled = false;
 		FillOval(bounds);
@@ -6759,17 +6941,25 @@ void VWinD2DGraphicContext::InvertRegion(const VRegion& inHwndRegion)
 void VWinD2DGraphicContext::DrawLine(const VPoint& inHwndStart, const VPoint& inHwndEnd)
 {
 	StUseContext_NoRetain	context(this);
+
+	if (fGDI_Fast && fGDI_HDC && fDrawingMode != DM_SHADOW && fGlobalAlpha == 1.0f 
+		&& 
+		!fGDI_HasStrokeCustomDashesInherit.back() && fGDI_HasSolidStrokeColorInherit.back())
+	{
+		fGDI_GC->DrawLine( inHwndStart, inHwndEnd);
+		return;
+	}
 	FlushGDI();
 
 	D2D1_POINT_2F start;
 	D2D1_POINT_2F end; 
 
-	if (fShapeCrispEdgesEnabled)
+	if ((fShapeCrispEdgesEnabled || fGDI_Fast) && !fGDI_QDCompatible)
 	{
 		VPoint _start = inHwndStart;
 		VPoint _end = inHwndEnd;
-		_CEAdjustPointInTransformedSpace( _start);
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _start);
+		CEAdjustPointInTransformedSpace( _end);
 		start = D2D1::Point2F( _start.GetX(), _start.GetY());
 		end	= D2D1::Point2F( _end.GetX(), _end.GetY());
 	}
@@ -6807,19 +6997,29 @@ void VWinD2DGraphicContext::DrawLines(const GReal* inCoords, sLONG inCoordCount)
 {
 	if (inCoordCount<4)
 		return;
+
+	StUseContext_NoRetain	context(this);
+	if (fGDI_Fast && fGDI_HDC && fDrawingMode != DM_SHADOW && fGlobalAlpha == 1.0f 
+		&& 
+		!fGDI_HasStrokeCustomDashesInherit.back() && fGDI_HasSolidStrokeColorInherit.back())
+	{
+		fGDI_GC->DrawLines( inCoords, inCoordCount);
+		return;
+	}
+
 	FlushGDI();
 
-	if (fShapeCrispEdgesEnabled)
+	if (fShapeCrispEdgesEnabled && !fGDI_Fast && !fGDI_QDCompatible)
 	{
 		fShapeCrispEdgesEnabled = false;
 
 		VPoint last( inCoords[0], inCoords[1]);
-		_CEAdjustPointInTransformedSpace( last);
+		CEAdjustPointInTransformedSpace( last);
 
 		for(VIndex n=2; n<inCoordCount; n+=2)
 		{
 			VPoint cur( inCoords[n], inCoords[n+1]);
-			_CEAdjustPointInTransformedSpace( cur);
+			CEAdjustPointInTransformedSpace( cur);
 
 			DrawLine( last, cur);
 
@@ -6870,6 +7070,13 @@ void VWinD2DGraphicContext::MoveBrushBy(GReal inWidth, GReal inHeight)
 void VWinD2DGraphicContext::DrawIcon(const VIcon& inIcon, const VRect& inHwndBounds, PaintStatus /*inState*/, GReal /*inScale*/)
 {
 	StUseContext_NoRetain	context(this);
+
+	if (fGDI_Fast && fGDI_HDC && fGlobalAlpha == 1.0f)
+	{
+		fGDI_GC->DrawIcon( inIcon, inHwndBounds);
+		return;
+	}
+
 	FlushGDI();
 
 	Gdiplus::Bitmap *bitmap = fCachedIcons[inIcon];
@@ -6952,6 +7159,13 @@ void VWinD2DGraphicContext::DrawIcon(const VIcon& inIcon, const VRect& inHwndBou
 void VWinD2DGraphicContext::DrawPicture (const VPicture& inPicture,const VRect& inHwndBounds,VPictureDrawSettings *inSet)
 {
 	StUseContext_NoRetain	context(this);
+
+	if (fGDI_Fast && fGDI_HDC && fGlobalAlpha == 1.0f)
+	{
+		fGDI_GC->DrawPicture( inPicture, inHwndBounds, inSet);
+		return;
+	}
+
 	FlushGDI();
 
 	VPictureDrawSettings settings( inSet);
@@ -6970,6 +7184,13 @@ void VWinD2DGraphicContext::DrawPictureData (const VPictureData *inPictureData, 
 	xbox_assert(inPictureData);
 	
 	StUseContext_NoRetain	context(this);
+
+	if (fGDI_Fast && fGDI_HDC && fGlobalAlpha == 1.0f)
+	{
+		fGDI_GC->DrawPictureData( inPictureData, inHwndBounds, inSet);
+		return;
+	}
+
 	FlushGDI();
 
 	VPictureDrawSettings settings( inSet);
@@ -6994,6 +7215,7 @@ void VWinD2DGraphicContext::DrawPictureData (const VPictureData *inPictureData, 
 void VWinD2DGraphicContext::DrawFileBitmap(const VFileBitmap *inFileBitmap, const VRect& inHwndBounds)
 {
 	StUseContext_NoRetain	context(this);
+
 	FlushGDI();
 
 	//create D2D bitmap from gdiplus bitmap
@@ -7672,7 +7894,7 @@ void VWinD2DGraphicContext::_ClipRect(const VRect& inHwndBounds, Boolean inAddTo
 
 		//as ClipRect adjusts clip box with viewport offset, we need to set clip region in transformed space
 		{
-		StGDIResetTransform resetCTM(fGDI_GC->_GetParentPort());
+		StGDIResetTransform resetCTM(fGDI_GC->GetParentPort());
 		fGDI_GC->ClipRect( boundsTransformed, inAddToPrevious, inIntersectToPrevious);
 		}
 
@@ -7773,7 +7995,7 @@ void VWinD2DGraphicContext::ClipRegion(const VRegion& inHwndRegion, Boolean inAd
 
 		//as ClipRegion adjusts region with viewport offset, we need to set clip region in transformed space
 		{
-		StGDIResetTransform resetCTM(fGDI_GC->_GetParentPort());
+		StGDIResetTransform resetCTM(fGDI_GC->GetParentPort());
 		fGDI_GC->ClipRegion( region, inAddToPrevious, inIntersectToPrevious);
 		}
 
@@ -7876,7 +8098,7 @@ void VWinD2DGraphicContext::GetClip(VRegion& outHwndRgn) const
 	{
 		//as GetClip adjusts region with viewport offset, we need to get clip region in transformed space
 		{
-		StGDIResetTransform resetCTM(fGDI_GC->_GetParentPort());
+		StGDIResetTransform resetCTM(fGDI_GC->GetParentPort());
 		fGDI_GC->GetClip( outHwndRgn);
 		}
 
@@ -7945,7 +8167,7 @@ void VWinD2DGraphicContext::GetClip(VRegion& outHwndRgn) const
 }
 
 
-void VWinD2DGraphicContext::_RevealClipping(ContextRef inContext)
+void VWinD2DGraphicContext::RevealClipping(ContextRef inContext)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealClipping)
@@ -7976,7 +8198,7 @@ void VWinD2DGraphicContext::_RevealCurClipping() const
 		if (fUseCount <= 0) //reveal GDI clipping
 		{
 			HDC hdc = _GetHDC();
-			_RevealClipping( hdc);
+			RevealClipping( hdc);
 			_ReleaseHDC( hdc);
 			return;
 		}
@@ -7986,7 +8208,7 @@ void VWinD2DGraphicContext::_RevealCurClipping() const
 
 		if (fGDI_HDC)
 		{
-			_RevealClipping( fGDI_HDC);
+			RevealClipping( fGDI_HDC);
 			return;
 		}
 
@@ -8006,7 +8228,7 @@ void VWinD2DGraphicContext::_RevealCurClipping() const
 #endif
 }
 
-void VWinD2DGraphicContext::_RevealUpdate(HWND inWindow)
+void VWinD2DGraphicContext::RevealUpdate(HWND inWindow)
 {
 	//Please call this BEFORE BeginPaint
 #if VERSIONDEBUG
@@ -8042,12 +8264,12 @@ void VWinD2DGraphicContext::_RevealUpdate(HWND inWindow)
 }
 
 
-void VWinD2DGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRef inHwndRegion)
+void VWinD2DGraphicContext::RevealBlitting(ContextRef inContext, const RgnRef inHwndRegion)
 {
 }
 
 
-void VWinD2DGraphicContext::_RevealInval(ContextRef inContext, const RgnRef inHwndRegion)
+void VWinD2DGraphicContext::RevealInval(ContextRef inContext, const RgnRef inHwndRegion)
 {
 }
 
@@ -8565,7 +8787,7 @@ void VWinD2DGraphicContext::_GetClipBoundingBox( VRect& outBounds) const
 		VRegion region;
 		//as GetClip adjusts clip box with viewport offset, we need to get clip region in transformed space
 		{
-		StGDIResetTransform resetCTM(fGDI_GC->_GetParentPort());
+		StGDIResetTransform resetCTM(fGDI_GC->GetParentPort());
 		fGDI_GC->GetClip( region);
 		}
 		outBounds = region.GetBounds();
@@ -8630,6 +8852,14 @@ void VWinD2DGraphicContext::_GetClipBoundingBox( VRect& outBounds) const
 		outBounds.FromRect( fHDCBounds);
 }
 
+bool VWinD2DGraphicContext::ShouldDrawTextOnTransparentLayer() const
+{
+	TextRenderingMode trm = GetTextRenderingMode();
+	if (!(trm & TRM_WITHOUT_ANTIALIASING))
+		if (!(trm & TRM_WITH_ANTIALIASING_NORMAL))
+			return false;
+	return true;
+}
 
 /** get next layer from internal cache or create new one */
 ID2D1Layer *VWinD2DGraphicContext::_AllocateLayer() const
@@ -8964,9 +9194,9 @@ bool VWinD2DGraphicContext::_BeginLayer(const VRect& _inBounds, GReal inAlpha, V
 		//	fRenderTarget->SetTextRenderingParams( textRenderingParams);
 
 		D2D1_TEXT_ANTIALIAS_MODE antialiasMode = rtParent->GetTextAntialiasMode();
-		if (antialiasMode != D2D1_TEXT_ANTIALIAS_MODE_ALIASED)
-			if (fIsTransparent || (!ownBackBuffer))
-				//disable ClearType on alpha render target or for re-usable offscreen
+		if (antialiasMode == D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE)
+			if (fIsTransparent)
+				//disable ClearType on alpha render target 
 				antialiasMode = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
 		fRenderTarget->SetTextAntialiasMode( antialiasMode);
 
@@ -9616,6 +9846,7 @@ void VWinD2DGraphicContext::QDFrameRect (const VRect& inHwndRect)
 {
 	//crisp Edges is not compatible with QD methods so disable it locally
 	StDisableShapeCrispEdges disableCrispEdges(static_cast<VGraphicContext *>(this));
+	fGDI_QDCompatible = true;
 
 	VRect r=inHwndRect;
 	GReal penSize = fStrokeWidth;
@@ -9631,13 +9862,14 @@ void VWinD2DGraphicContext::QDFrameRect (const VRect& inHwndRect)
 	}
 	FrameRect(r);
 
-	
+	fGDI_QDCompatible = false;
 }
 
 void VWinD2DGraphicContext::QDFrameRoundRect (const VRect& inHwndRect,GReal inOvalWidth,GReal inOvalHeight)
 {
 	//crisp Edges is not compatible with QD methods so disable it locally
 	StDisableShapeCrispEdges disableCrispEdges(static_cast<VGraphicContext *>(this));
+	fGDI_QDCompatible = true;
 
 	VRect r=inHwndRect;
 	GReal penSize = fStrokeWidth;
@@ -9652,12 +9884,14 @@ void VWinD2DGraphicContext::QDFrameRoundRect (const VRect& inHwndRect,GReal inOv
 		r.SetSizeBy(-penSize,-penSize);
 	}
 	FrameRoundRect(r,inOvalWidth,inOvalHeight);
+	fGDI_QDCompatible = false;
 }
 
 void VWinD2DGraphicContext::QDFrameOval (const VRect& inHwndRect)
 {
 	//crisp Edges is not compatible with QD methods so disable it locally
 	StDisableShapeCrispEdges disableCrispEdges(static_cast<VGraphicContext *>(this));
+	fGDI_QDCompatible = true;
 
 	VRect r=inHwndRect;
 	GReal penSize = fStrokeWidth;
@@ -9672,6 +9906,7 @@ void VWinD2DGraphicContext::QDFrameOval (const VRect& inHwndRect)
 		r.SetSizeBy(-penSize,-penSize);
 	}
 	FrameOval(r);
+	fGDI_QDCompatible = false;
 }
 
 void VWinD2DGraphicContext::QDDrawRect (const VRect& inHwndRect)
@@ -9696,35 +9931,53 @@ void VWinD2DGraphicContext::QDFillRect (const VRect& inHwndRect)
 {
 	//crisp Edges is not compatible with QD methods so disable it locally
 	StDisableShapeCrispEdges disableCrispEdges(static_cast<VGraphicContext *>(this));
+	fGDI_QDCompatible = true;
 
 	FillRect(inHwndRect);
+
+	fGDI_QDCompatible = false;
 }
 
 void VWinD2DGraphicContext::QDFillRoundRect (const VRect& inHwndRect,GReal inOvalWidth,GReal inOvalHeight)
 {
 	//crisp Edges is not compatible with QD methods so disable it locally
 	StDisableShapeCrispEdges disableCrispEdges(static_cast<VGraphicContext *>(this));
+	fGDI_QDCompatible = true;
 
 	FillRoundRect (inHwndRect,inOvalWidth,inOvalHeight);
+
+	fGDI_QDCompatible = false;
 }
 
 void VWinD2DGraphicContext::QDFillOval (const VRect& inHwndRect)
 {
 	//crisp Edges is not compatible with QD methods so disable it locally
 	StDisableShapeCrispEdges disableCrispEdges(static_cast<VGraphicContext *>(this));
+	fGDI_QDCompatible = true;
 
 	FillOval(inHwndRect);
+
+	fGDI_QDCompatible = false;
 }
 
 
 void VWinD2DGraphicContext::QDDrawLine(const GReal inHwndStartX,const GReal inHwndStartY, const GReal inHwndEndX,const GReal inHwndEndY)
 {
+	StUseContext_NoRetain	context(this);
+
+	if (fGDI_Fast && fGDI_HDC && fDrawingMode != DM_SHADOW && fGlobalAlpha == 1.0f 
+		&& 
+		!fGDI_HasStrokeCustomDashesInherit.back() && fGDI_HasSolidStrokeColorInherit.back())
+	{
+		fGDI_GC->QDDrawLine( inHwndStartX, inHwndStartY, inHwndEndX, inHwndEndY);
+		return;
+	}
+
 	FlushGDI();
 
 	//crisp Edges is not compatible with QD methods so disable it locally
 	StDisableShapeCrispEdges disableCrispEdges(static_cast<VGraphicContext *>(this));
-
-	StUseContext_NoRetain	context(this);
+	fGDI_QDCompatible = true;
 
 	GReal HwndStartX=inHwndStartX;
 	GReal HwndStartY=inHwndStartY; 
@@ -9765,12 +10018,23 @@ void VWinD2DGraphicContext::QDDrawLine(const GReal inHwndStartX,const GReal inHw
 	
 	//restore stroke style
 	fStrokeStyle = strokeStyleBackup;
+
+	fGDI_QDCompatible = false;
 }
 
 void VWinD2DGraphicContext::QDDrawLines(const GReal* inCoords, sLONG inCoordCount)
 {
 	if (inCoordCount<4)
 		return;
+
+	if (fGDI_Fast && fGDI_HDC && fDrawingMode != DM_SHADOW && fGlobalAlpha == 1.0f 
+		&& 
+		!fGDI_HasStrokeCustomDashesInherit.back() && fGDI_HasSolidStrokeColorInherit.back())
+	{
+		fGDI_GC->QDDrawLines( inCoords, inCoordCount);
+		return;
+	}
+
 	FlushGDI();
 
 	StUseContext_NoRetain	context(this);

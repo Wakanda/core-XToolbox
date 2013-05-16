@@ -67,7 +67,7 @@ bool VXMLParser::Parse( VFile *inFile, IXMLHandler *inHandler, XMLParsingOptions
 {
 	XBOX::VString full_path;
 
-	#if VERSIONMAC
+	#if VERSIONMAC || VERSION_LINUX
 	inFile->GetPath(full_path,FPS_POSIX);
 	#else
 	inFile->GetPath(full_path);

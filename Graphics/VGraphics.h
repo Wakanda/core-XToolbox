@@ -23,7 +23,23 @@
 #endif
 
 
-#if !VERSION_LINUX  // Postponed Linux Implementation !
+#if VERSION_LINUX
+//jmo - Temporary stuff : Include minimal header set on Linux
+
+#include "Graphics/Sources/VGraphicsTypes.h"
+#include "Graphics/Sources/VPoint.h"
+#include "Graphics/Sources/VRect.h"
+#include "Graphics/Sources/VPolygon.h"
+#include "Graphics/Sources/VColor.h"
+#include "Graphics/Sources/VAffineTransform.h"
+#include "Graphics/Sources/V4DPictureTools.h"
+#include "Graphics/Sources/V4DPictureDecoder.h"
+#include "Graphics/Sources/V4DPictureData.h"
+#include "Graphics/Sources/V4DPictureDataSource.h"
+
+#include "Graphics/Sources/V4DPicture.h"
+
+#else
 
 // Kernel Headers Required
 #include "KernelIPC/VKernelIPC.h"
@@ -86,7 +102,7 @@
 #include "Graphics/Sources/VFontMgr.h"
 #include "Graphics/Sources/VFont.h"
 #include "Graphics/Sources/VStyledTextBox.h"
-	
+
 
 #endif  //(Postponed Linux Implementation !)
 

@@ -31,6 +31,7 @@ public:
 	bool						Has (const XBOX::VString& inName) const;
 
 	ConstIterator				find (const XBOX::VString& inName) const;
+	Iterator					find (const XBOX::VString& inName);
 
 	ConstIterator				begin() const;
 	Iterator					begin();

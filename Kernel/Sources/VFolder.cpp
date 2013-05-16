@@ -15,40 +15,57 @@
 */
 #include "VKernelPrecompiled.h"
 #include "VFolder.h"
-#include "VValueBag.h"
 #include "VFile.h"
 #include "VURL.h"
+#include "VValueBag.h"
+#include "VArrayValue.h"
+#include "VFileSystem.h"
 
 
-VFolder::VFolder( const VFilePath& inPath)
+VFolder::VFolder( const VFilePath& inPath, VFileSystem *inFileSystem)
+: fFileSystem( RetainRefCountable( inFileSystem))
+, fPath( inPath)
 {
-	fPath = inPath;
 	xbox_assert( fPath.IsFolder());
 	fFolder.Init( this);
 }
 
 
 VFolder::VFolder( const VFolder& inSource)
+: fFileSystem( RetainRefCountable( inSource.GetFileSystem()))
+, fPath( inSource.GetPath())
 {
-	fPath = inSource.GetPath();
 	xbox_assert( fPath.IsFolder());
 	fFolder.Init( this);
 }
 
 
-VFolder::VFolder( const VString& inFullPath)
+VFolder::VFolder( const VString& inFullPath, FilePathStyle inPathStyle)
+: fFileSystem( NULL)
 {
-	fPath.FromFullPath(inFullPath);
+	fPath.FromFullPath( inFullPath, inPathStyle);
 //	xbox_assert( fPath.IsFolder());
 	fFolder.Init( this);
 }
 
 
-VFolder::VFolder( const VFolder& inParentFolder, const VString& inFolderName)
+VFolder::VFolder( const VFolder& inParentFolder, const VString& inRelativePath, FilePathStyle inRelativePathStyle)
+: fFileSystem( RetainRefCountable( inParentFolder.GetFileSystem()))
 {
-	fPath = inParentFolder.GetPath();
-	xbox_assert( fPath.IsFolder());
-	fPath.ToSubFolder( inFolderName);
+	xbox_assert( inRelativePathStyle == FPS_SYSTEM || inRelativePathStyle == FPS_POSIX);
+	UniChar separator = (inRelativePathStyle == FPS_SYSTEM) ? FOLDER_SEPARATOR : '/';
+	
+	if (!inRelativePath.IsEmpty() && (inRelativePath[inRelativePath.GetLength()-1] != separator) )
+	{
+		VString path( inRelativePath);
+		path += separator;
+		fPath.FromRelativePath( inParentFolder.GetPath(), path, inRelativePathStyle);
+	}
+	else
+	{
+		fPath.FromRelativePath( inParentFolder.GetPath(), inRelativePath, inRelativePathStyle);
+	}
+	
 	xbox_assert( fPath.IsFolder());
 	fFolder.Init( this);
 }
@@ -56,6 +73,7 @@ VFolder::VFolder( const VFolder& inParentFolder, const VString& inFolderName)
 
 #if VERSIONMAC
 VFolder::VFolder( const FSRef& inRef)
+: fFileSystem( NULL)
 {
 	VString fullPath;
 	XMacFile::FSRefToHFSPath( inRef, fullPath);
@@ -474,7 +492,11 @@ VError VFolder::CopyContentsTo( const VFolder& inDestinationFolder, FileCopyOpti
 	{
 		bool ok = true;
 		
-		for( VFolderIterator folderIterator( this, FI_WANT_FOLDERS | FI_WANT_INVISIBLES) ; folderIterator.IsValid() && ok ; ++folderIterator)
+		FileIteratorOptions flags = FI_WANT_FOLDERS;
+		if ((inOptions & FCP_SkipInvisibles) == 0)
+			flags |= FI_WANT_INVISIBLES;
+		
+		for( VFolderIterator folderIterator( this, flags) ; folderIterator.IsValid() && ok ; ++folderIterator)
 		{
 			VError err2 = folderIterator->CopyTo( inDestinationFolder, NULL, inOptions);
 			if (err == VE_OK)
@@ -482,7 +504,11 @@ VError VFolder::CopyContentsTo( const VFolder& inDestinationFolder, FileCopyOpti
 			ok = (err == VE_OK) | ((inOptions & FCP_ContinueOnError) != 0);
 		}
 		
-		for( VFileIterator fileIterator( this, FI_WANT_FILES | FI_WANT_INVISIBLES) ; fileIterator.IsValid() && ok ; ++fileIterator)
+		flags = FI_WANT_FILES;
+		if ((inOptions & FCP_SkipInvisibles) == 0)
+			flags |= FI_WANT_INVISIBLES;
+
+		for( VFileIterator fileIterator( this, flags) ; fileIterator.IsValid() && ok ; ++fileIterator)
 		{
 			VError err2 = fileIterator->CopyTo( inDestinationFolder, NULL, inOptions);
 			if (err == VE_OK)
@@ -495,16 +521,65 @@ VError VFolder::CopyContentsTo( const VFolder& inDestinationFolder, FileCopyOpti
 }
 
 
-VFolder *VFolder::RetainParentFolder() const
+VFolder *VFolder::RetainParentFolder( bool inSandBoxed) const
 {
 	VFolder *folder;
 	VFilePath fullPath;
 	if (fPath.GetParent( fullPath ))
-		folder = new VFolder( fullPath);
+	{
+		if ( (fFileSystem == NULL) || !inSandBoxed || (fFileSystem->IsAuthorized( fullPath) == VE_OK) )
+			folder = new VFolder( fullPath, fFileSystem);
+		else
+			folder = NULL;
+	}
 	else
 		folder = NULL;
 
 	return folder;
+}
+
+
+VFolder *VFolder::RetainRelativeFolder( const VString& inRelativePath, FilePathStyle inRelativePathStyle) const
+{
+	xbox_assert( inRelativePathStyle == FPS_SYSTEM || inRelativePathStyle == FPS_POSIX);
+	UniChar separator = (inRelativePathStyle == FPS_SYSTEM) ? FOLDER_SEPARATOR : '/';
+	
+	VFilePath path;
+	
+	if (!inRelativePath.IsEmpty() && (inRelativePath[inRelativePath.GetLength()-1] != separator) )
+	{
+		VString pathString( inRelativePath);
+		pathString += separator;
+		path.FromRelativePath( GetPath(), pathString, inRelativePathStyle);
+	}
+	else
+	{
+		path.FromRelativePath( GetPath(), inRelativePath, inRelativePathStyle);
+	}
+	
+	if (!testAssert( path.IsFolder()))
+		return NULL;
+	
+	if ( (fFileSystem != NULL) && (fFileSystem->IsAuthorized( path) != VE_OK) )
+		return NULL;
+	
+	return new VFolder( path, fFileSystem);
+}
+
+
+VFile *VFolder::RetainRelativeFile( const VString& inRelativePath, FilePathStyle inRelativePathStyle) const
+{
+	xbox_assert( inRelativePathStyle == FPS_SYSTEM || inRelativePathStyle == FPS_POSIX);
+
+	VFilePath path( GetPath(), inRelativePath, inRelativePathStyle);
+	
+	if (!testAssert( path.IsFile()))
+		return NULL;
+	
+	if ( (fFileSystem != NULL) && (fFileSystem->IsAuthorized( path) != VE_OK))
+		return NULL;
+	
+	return new VFile( path, fFileSystem);
 }
 
 

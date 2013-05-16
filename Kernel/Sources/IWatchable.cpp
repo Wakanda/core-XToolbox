@@ -70,6 +70,9 @@ void IWatchable_Reg_Base::Dump()
 	#if VERSIONDEBUG
 	for(_IWatchableTypeObjectMap_Iterrator typiter=IWatchable_Reg_Base::sObjectMap.begin();typiter!=IWatchable_Reg_Base::sObjectMap.end();typiter++)
 	{
+		if ((*typiter).second.empty())
+			continue;
+		
 		#if VERSIONWIN
 		OutputDebugString((*typiter).first.c_str());
 		OutputDebugString("\r\n");

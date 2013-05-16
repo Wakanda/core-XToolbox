@@ -45,7 +45,7 @@ VMemImplBlock* VMemImplAllocation::AllocateAtTheEnd(VSize inSize, VSize& ioUsedM
 		VSize plus = isAnObject ? 1 : 0;
 		VSize plus2 = ForceInMem ? 2 : 0;
 		((VMemImplBlock*)p)->SetLen(inSize + plus + plus2);
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 		((VMemImplBlock*)p)->SetTag(inTag);
 #endif
 		((VMemImplBlock*)p)->SetOwner(this);
@@ -89,10 +89,10 @@ Boolean VMemImplAllocation::Contains(const VMemImplBlock* inBlock) const
 
 void VMemImplAllocation::ReduceFrom(const VMemImplBlock* inBlock)
 {
-	VSize newend = (char*)inBlock - GetDataStart();
-	assert(newend >= 0 && newend < fDataEnd && newend < fAllocationSize);
-	if (newend >= 0)
+	if ((char*)inBlock >= GetDataStart())
 	{
+		VSize newend = (char*)inBlock - GetDataStart();
+		xbox_assert(newend >= 0 && newend < fDataEnd && newend < fAllocationSize);
 		LastLen = inBlock->GetPreviousLen();
 		fDataEnd = newend;
 	}
@@ -174,7 +174,7 @@ void* VPageAllocationImpl::Malloc( VSize inSize, Boolean isAnObject, sLONG inTag
 		offset = (-offset) & -2;
 		sLONG plus = isAnObject ? 1 : 0;
 		x->SetOffset(-(offset + plus));
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 		x->SetTag(inTag);
 #endif
 		result = (void*) (((char*)x) + VMemThreadImpl::SizeSmallHeader);
@@ -188,7 +188,7 @@ void* VPageAllocationImpl::Malloc( VSize inSize, Boolean isAnObject, sLONG inTag
 			x = (VMemImplSmallBlock*) ( ((char*)this)+fDataEnd );
 			sLONG plus = isAnObject ? 1 : 0;
 			x->SetOffset(-((sLONG)fDataEnd + plus));
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 			x->SetTag(inTag);
 #endif
 			result = (void*) (((char*)x) + VMemThreadImpl::SizeSmallHeader);
@@ -367,7 +367,7 @@ void VPageAllocationImpl::GetStats(VMemStats& stats, bool& isfull)
 			if (isanobject)
 			{
 				stats.fNbObjects++;
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 				VObject* p = (VObject*)(((char*)pblock) + VMemThreadImpl::SizeSmallHeader);
 				try
 				{
@@ -390,7 +390,7 @@ void VPageAllocationImpl::GetStats(VMemStats& stats, bool& isfull)
 				}
 #endif
 			}
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 			else
 			{
 				sLONG tag = pblock->GetTag();
@@ -950,7 +950,7 @@ void* VMemCppImpl::Malloc( VSize inSize, Boolean inForceinMain, Boolean isAnObje
 							VSize plus = isAnObject ? 1 : 0;
 							VSize plus2 = inForceinMain ? 2 : 0;
 							goodone->SetLen(goodone->GetLen() + plus + plus2); // on la remet en positif, pour montrer que le block est occupe
-	#if WITH_ASSERT
+	#if CPPMEM_CACHE_INFO
 							goodone->SetTag(inTag);
 	#endif
 							result = ((char*)goodone) + SizeHeader;
@@ -1021,7 +1021,7 @@ void* VMemCppImpl::Malloc( VSize inSize, Boolean inForceinMain, Boolean isAnObje
 							VSize plus = isAnObject ? 1 : 0;
 							VSize plus2 = inForceinMain ? 2 : 0;
 							goodone->SetLen(goodone->GetLen() + plus + plus2); // on la remet en positif, pour montrer que le block est occupe
-	#if WITH_ASSERT
+	#if CPPMEM_CACHE_INFO
 							goodone->SetTag(inTag);
 	#endif
 							result = ((char*)goodone) + SizeHeader;
@@ -1039,7 +1039,7 @@ void* VMemCppImpl::Malloc( VSize inSize, Boolean inForceinMain, Boolean isAnObje
 						VSize plus = isAnObject ? 1 : 0;
 						VSize plus2 = inForceinMain ? 2 : 0;
 						x->SetLen(x->GetLen() + plus + plus2); // on la remet en positif, pour montrer que le block est occupe
-	#if WITH_ASSERT
+	#if CPPMEM_CACHE_INFO
 						x->SetTag(inTag);
 	#endif
 						assert(fUsedMem >= 0);
@@ -1301,7 +1301,7 @@ void VMemCppImpl::Free( void *inBlock)
 void* VMemCppImpl::Realloc( void *inData, VSize inNewSize)
 {
 	sLONG oldTag = 0;
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 	VMemImplBlock *x = (VMemImplBlock*) ( ((char*)inData) - SizeHeader );
 	if (x->IsASmallBlock())
 	{
@@ -1492,7 +1492,7 @@ void VMemCppImpl::GetStats(VMemStats& stats, sWORD blocknumber)
 					if (pblock->IsAnObject())
 					{
 						stats.fNbObjects++;
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 						VObject* p = (VObject*)(((char*)pblock) + SizeHeader);
 						try
 						{
@@ -1516,7 +1516,7 @@ void VMemCppImpl::GetStats(VMemStats& stats, sWORD blocknumber)
 						}
 #endif
 					}
-#if WITH_ASSERT
+#if CPPMEM_CACHE_INFO
 					else
 					{
 						sLONG tag = pblock->GetTag();

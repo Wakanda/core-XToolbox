@@ -31,8 +31,12 @@ void XWinFileSystemNotification::XWinChangeData::ReadDirectoryChanges()
 {
 	if (!fIsCanceled)
 	{
+		// retain the data. It will be released in CompletionRoutine.
+		Retain();
 		BOOL ok = ::ReadDirectoryChangesW( fFolderHandle, fBuffer, sizeof( fBuffer ), true, fThisPointer->MakeFilter( fFilters ), NULL, &fOverlapped, XWinFileSystemNotification::CompletionRoutine);
 		xbox_assert( ok);
+		if (!ok)
+			Release();
 	}
 }
 
@@ -125,53 +129,61 @@ void CALLBACK XWinFileSystemNotification::CompletionRoutine( DWORD inErrorCode, 
 	// of which the OVERLAPPED part happens to be first.  This gives us access to all of the information
 	// we need to care about.
 
-	if (!inBytesTransferred || VTask::GetCurrent()->IsDying() || inErrorCode==ERROR_OPERATION_ABORTED)
-		return;
-
 	XWinChangeData *data = (XWinChangeData *) ( (char*) inOverlapped - offsetof(XWinChangeData,fOverlapped));
-	
-	// We have all of the data from a complete event sitting in our buffer.  We need to copy out
-	// the data that we care about.  However, we may get more than one notification for a single
-	// pass through the loop.  So we need to loop over the result set as well.
-	char *bufferptr = (char *)data->fBuffer;
-	bool done = false;
-	do {
-		FILE_NOTIFY_INFORMATION *finfo = (FILE_NOTIFY_INFORMATION *)bufferptr;
-		VString filePath;
-		filePath.FromBlock( finfo->FileName, finfo->FileNameLength, VTC_UTF_16_SMALLENDIAN );
 
-		// Add the result to the proper vector of results
-		data->fThisPointer->AddResultToProperList( data, filePath, finfo->Action );
+	xbox_assert( data->GetRefCount() > 0);
 
-		// Either advance to the next record, or we're done reporting changes for this folder
-		if (finfo->NextEntryOffset) {
-			bufferptr += finfo->NextEntryOffset;
-		} else {
-			done = true;
+	if (!VTask::GetCurrent()->IsDying() && (inBytesTransferred != 0) && (inErrorCode != ERROR_OPERATION_ABORTED) )
+	{
+		// We have all of the data from a complete event sitting in our buffer.  We need to copy out
+		// the data that we care about.  However, we may get more than one notification for a single
+		// pass through the loop.  So we need to loop over the result set as well.
+		char *bufferptr = (char *)data->fBuffer;
+		bool done = false;
+		do {
+			FILE_NOTIFY_INFORMATION *finfo = (FILE_NOTIFY_INFORMATION *)bufferptr;
+			VString fileName;
+			fileName.FromBlock( finfo->FileName, finfo->FileNameLength, VTC_UTF_16_SMALLENDIAN );
+
+			// Add the result to the proper vector of results
+			data->fThisPointer->AddResultToProperList( data, fileName, finfo->Action );
+
+			// Either advance to the next record, or we're done reporting changes for this folder
+			if (finfo->NextEntryOffset) {
+				bufferptr += finfo->NextEntryOffset;
+			} else {
+				done = true;
+			}
+		} while (!done);
+
+		// Check to see whether we need to create a latency timer or not.  If we don't, we can fire the events
+		// manually from here.  But if we have a latency, we need to make a timer to handle it.  If we already
+		// have a timer created -- then we need to cancel the old one and reset the new one!
+		if (!data->fLatency)
+		{
+			data->fThisPointer->fOwner->SignalChange( data );
 		}
-	} while (!done);
+		else if (data->fTimer)
+		{
+			// We already have a timer, so we want to cancel it -- we'll be resetting it as needed
+			::CancelWaitableTimer( data->fTimer );
 
-	// Check to see whether we need to create a latency timer or not.  If we don't, we can fire the events
-	// manually from here.  But if we have a latency, we need to make a timer to handle it.  If we already
-	// have a timer created -- then we need to cancel the old one and reset the new one!
-	if (!data->fLatency) {
-		data->fThisPointer->fOwner->SignalChange( data );
-	} else if (data->fTimer) {
-		// We already have a timer, so we want to cancel it -- we'll be resetting it as needed
-		::CancelWaitableTimer( data->fTimer );
+			// Set the period of the timer to our latency.  Our latency is in milliseconds, but the timer is
+			// in 100-nanosecond intervals.  A negative value denotes a relative time, which is what we're interested
+			// in.  There are 10,000 100-nanosecond intervals in a millisecond.
+			LARGE_INTEGER dueTime = { 0 };
+			dueTime.QuadPart = -data->fLatency * 10000;
+			::SetWaitableTimer( data->fTimer, &dueTime, 0, TimerProc, (LPVOID)data, FALSE );
+		}
+		else
+		{
+			// We should never get here as that means we have a non-zero latency but no timer to fire the events
+			xbox_assert( false );
+		}
 
-		// Set the period of the timer to our latency.  Our latency is in milliseconds, but the timer is
-		// in 100-nanosecond intervals.  A negative value denotes a relative time, which is what we're interested
-		// in.  There are 10,000 100-nanosecond intervals in a millisecond.
-		LARGE_INTEGER dueTime = { 0 };
-		dueTime.QuadPart = -data->fLatency * 10000;
-		::SetWaitableTimer( data->fTimer, &dueTime, 0, TimerProc, (LPVOID)data, FALSE );
-	} else {
-		// We should never get here as that means we have a non-zero latency but no timer to fire the events
-		xbox_assert( false );
+		data->ReadDirectoryChanges();
 	}
-
-	data->ReadDirectoryChanges();
+	data->Release();	// data has been retained by ReadDirectoryChanges()
 }
 
 
@@ -189,9 +201,24 @@ void XWinFileSystemNotification::RunTask()
 		{
 			{
 				VTaskLock lock( &fOwner->fMutex);
-				for( std::vector<VRefPtr<XWinChangeData> >::iterator i = fCanceledChanges.begin() ; i != fCanceledChanges.end() ; ++i)
-					PrepareDeleteChangeData( *i);
-				fCanceledChanges.clear();
+				{
+					for( std::vector<VRefPtr<XWinChangeData> >::iterator i = fCanceledChanges.begin() ; i != fCanceledChanges.end() ; ++i)
+					{
+						// cancel io
+						PrepareDeleteChangeData( *i);
+	
+						// remove from pending list if any
+						std::vector<VRefPtr<XWinChangeData> >::iterator j = std::find( fPendingChanges.begin(), fPendingChanges.end(), *i);
+						if (j != fPendingChanges.end())
+							fPendingChanges.erase( j);
+					}
+					fCanceledChanges.clear();
+
+					// start pending changes
+					for( std::vector<VRefPtr<XWinChangeData> >::iterator i = fPendingChanges.begin() ; i != fPendingChanges.end() ; ++i)
+						(*i)->ReadDirectoryChanges();
+					fPendingChanges.clear();
+				}
 			}
 
 			if (VTask::GetCurrent()->IsDying() || msg.message == WM_QUIT)
@@ -207,25 +234,15 @@ void XWinFileSystemNotification::RunTask()
 }
 
 
-void XWinFileSystemNotification::AddResultToProperList( XWinChangeData *inData, const VString& inFilePath, int inAction )
+void XWinFileSystemNotification::AddResultToProperList( XWinChangeData *inData, const VString& inFileName, int inAction )
 {
-	// The name we get back from the ReadDirectoryChangesW API is always relative to the
-	// initial folder.  So we want to construct a relative file path so that the user gets
-	// back a path that fully describes the file.
-	VString fullpath(inData->fPath.GetPath());
-	fullpath += inFilePath;
-
-	DWORD retval = ::GetFileAttributesW( fullpath.GetCPointer());
-	if (retval & FILE_ATTRIBUTE_DIRECTORY)
-		fullpath.AppendUniChar( '\\');
-	VFilePath path( fullpath, FPS_SYSTEM);
-
 	// Note that we may get notifications for things the user never asked us to report on.  
 	// That is because the filters for the OS are different from the filters for the user,
 	// and there can be a bit of overlap.  So we have to test whether we want the change
 	// to be pushed onto a list or not, as well as which list to push onto.
 	int listIndex = -1;		// No list!
-	switch (inAction) {
+	switch (inAction)
+	{
 		case FILE_ACTION_ADDED:				listIndex = 1; break;
 		case FILE_ACTION_REMOVED:			listIndex = 2; break;
 		case FILE_ACTION_MODIFIED:			listIndex = 0; break;
@@ -238,6 +255,23 @@ void XWinFileSystemNotification::AddResultToProperList( XWinChangeData *inData, 
 	// Check to see whether we care about events for this list index before pushing the data
 	if (inData->fFilters & VFileSystemNotifier::DataIndexToEventKind( listIndex ))
 	{
+		// The name we get back from the ReadDirectoryChangesW API is always relative to the
+		// initial folder.  So we want to construct a relative file path so that the user gets
+		// back a path that fully describes the file.
+		
+		VString fullpath( inData->fPath.GetPath());
+		fullpath += inFileName;
+
+		// needs to know if it's a file or a folder 
+		if ( (inAction != FILE_ACTION_REMOVED) && (inAction != FILE_ACTION_RENAMED_OLD_NAME) )
+		{
+			DWORD retval = ::GetFileAttributesW( fullpath.GetCPointer());
+			if ( (retval != INVALID_FILE_ATTRIBUTES) && ( (retval & FILE_ATTRIBUTE_DIRECTORY) != 0) )
+				fullpath += FOLDER_SEPARATOR;
+		}
+
+		VFilePath path( fullpath, FPS_SYSTEM);
+
 		// protect access to VChangeData::fData
 		VTaskLock lock( &fOwner->fMutex);
 
@@ -265,16 +299,13 @@ DWORD XWinFileSystemNotification::MakeFilter( VFileSystemNotifier::EventKind inF
 	return ret;
 }
 
-void CALLBACK XWinFileSystemNotification::WatchForChangesCompletionRoutine( ULONG_PTR inCookie )
-{
-	XWinChangeData *inData = (XWinChangeData*) inCookie;
-	inData->ReadDirectoryChanges();
-}
 
 void XWinFileSystemNotification::WatchForChanges( XWinChangeData *inData )
 {
 	// ask secondary thread to call ReadDirectoryChanges
-	::QueueUserAPC( WatchForChangesCompletionRoutine, fTask->GetImpl()->GetThreadHandle(), (ULONG_PTR) inData);
+	VTaskLock lock( &fOwner->fMutex);
+	fPendingChanges.push_back( inData);
+	::PostThreadMessage( fTask->GetSystemID(), WM_APP, 0, 0 );
 }
 
 VError XWinFileSystemNotification::StartWatchingForChanges( const VFolder &inFolder, VFileSystemNotifier::EventKind inKindFilter, VFileSystemNotifier::IEventHandler *inHandler, sLONG inLatency )
@@ -318,9 +349,6 @@ VError XWinFileSystemNotification::StartWatchingForChanges( const VFolder &inFol
 
 void XWinFileSystemNotification::PrepareDeleteChangeData(XWinChangeData *inData )
 {
-	DWORD NumberOfBytesTransferred;
-	char buff[1024];
-
 	// cancel pending io operation
 	inData->fIsCanceled = true;
 	if (inData->fTimer)
@@ -332,24 +360,15 @@ void XWinFileSystemNotification::PrepareDeleteChangeData(XWinChangeData *inData 
 	BOOL ok = CancelIo( inData->fFolderHandle);
 
 #if WITH_ASSERT
-	if (!ok && GetLastError() != ERROR_NOT_FOUND)
+	DWORD err = GetLastError();
+	if (!ok && err != ERROR_NOT_FOUND)
 	{
-		sprintf(buff,"CancelIoEx err=%i\r\n",GetLastError());
+		char buff[1024];
+		sprintf(buff,"CancelIoEx err=%i\r\n", err);
 		OutputDebugString(buff);
 	}
 #endif
 	
-	// call GetOverlappedResult with the wait flag, if any io opertion is in progress the function will not return untill io operation end
-	ok = GetOverlappedResult(inData->fFolderHandle,&inData->fOverlapped,&NumberOfBytesTransferred,true);
-
-#if WITH_ASSERT
-	if (!ok && GetLastError() != ERROR_NOT_FOUND)
-	{
-		sprintf(buff,"GetOverlappedResult LastError %i\r\n",GetLastError());
-		OutputDebugString(buff);
-	}
-#endif
-
 	inData->fCallback = NULL;
 }
 

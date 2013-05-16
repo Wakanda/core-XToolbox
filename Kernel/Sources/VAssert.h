@@ -260,6 +260,22 @@ inline void DoNothingInline()	{ return; }
 
 #define assert(_test_) xbox_assert(_test_)
 
+#if COMPIL_CLANG
+	#if __has_feature(cxx_static_assert)
+		#define WITH_STATIC_ASSERT 1
+	#else
+		#define WITH_STATIC_ASSERT 0
+	#endif
+#else
+	#define WITH_STATIC_ASSERT 0
+#endif
+
+#if WITH_STATIC_ASSERT
+
+#define assert_compile(_test_)	static_assert(_test_,#_test_)
+
+#else
+
 template <bool b> struct compile_assert_template;
 template <> struct compile_assert_template<true> {};
 
@@ -268,6 +284,7 @@ template <> struct compile_assert_template<true> {};
 	{ XBOX::compile_assert_template<bool(_test_)> __attribute__((__unused__)) _a;}
 #else
 #define assert_compile(_test_)	while(false) {XBOX::compile_assert_template<bool(_test_)> _a;}
+#endif
 #endif
 	
 #if VERSION_LINUX

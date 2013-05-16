@@ -33,6 +33,8 @@ class XTOOLBOX_API XWinStackCrawl
 public:
 	XWinStackCrawl () { fNumFrames = -1; };
 
+	bool operator < (const XWinStackCrawl& other) const;
+
 	// Stack frames support
 	void LoadFrames (uLONG inStartFrame, uLONG inNumFrames);
 	void UnloadFrames()	{ fNumFrames = -1; };

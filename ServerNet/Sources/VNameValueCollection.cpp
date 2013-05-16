@@ -45,9 +45,9 @@ VNameValueCollection::~VNameValueCollection()
 
 void VNameValueCollection::Set (const VString& inName, const VString& inValue)
 {
-	Iterator it = std::find_if (fMap.begin(), fMap.end(), HTTPTools::EqualFirstVStringFunctor<VString> (inName));
+	Iterator it = fMap.find(inName);
 	if (it != fMap.end())
-		it->second = inValue;
+		it->second.FromString (inValue);
 	else
 		fMap.insert (NameValueMap::value_type (inName, inValue));
 }
@@ -61,7 +61,7 @@ void VNameValueCollection::Add (const VString& inName, const VString& inValue)
 
 const VString& VNameValueCollection::Get (const VString& inName) const
 {
-	ConstIterator it = std::find_if (fMap.begin(), fMap.end(), HTTPTools::EqualFirstVStringFunctor<VString> (inName));
+	ConstIterator it = fMap.find (inName);
 	if (it != fMap.end())
 		return it->second;
 	else
@@ -71,13 +71,19 @@ const VString& VNameValueCollection::Get (const VString& inName) const
 
 bool VNameValueCollection::Has (const VString& inName) const
 {
-	return (std::find_if (fMap.begin(), fMap.end(), HTTPTools::EqualFirstVStringFunctor<VString> (inName)) != fMap.end());
+	return (fMap.count (inName) > 0);
 }
 
 
 VNameValueCollection::ConstIterator VNameValueCollection::find (const VString& inName) const
 {
-	return std::find_if (fMap.begin(), fMap.end(), HTTPTools::EqualFirstVStringFunctor<VString> (inName));
+	return fMap.find (inName);
+}
+
+
+VNameValueCollection::Iterator VNameValueCollection::find (const VString& inName)
+{
+	return fMap.find (inName);
 }
 
 

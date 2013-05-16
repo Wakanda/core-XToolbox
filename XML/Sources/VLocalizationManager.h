@@ -187,7 +187,7 @@ public:
 	* You can get the localization language but not set it. If you want to set it, destroy the localization manager and create another one.
 	* @return the current used language
 	*/
-	DialectCode								GetLocalizationLanguage();
+	virtual DialectCode						GetLocalizationLanguage();
 	
 	/**
 	* @brief Insert a string relative to a STR# code

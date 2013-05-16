@@ -54,6 +54,8 @@ public:
 
 		eTYPE_W3C_FS,			// Events for W3C File System API.
 
+		eTYPE_EVENT_EMITTER,	// Implements the "newListener" event.
+
 		eTYPE_CALLBACK			// Generic callback.
 				
 	};
@@ -337,7 +339,7 @@ public:
 
 	// LocalFileSystem interface operations.
 	
-	static VJSW3CFSEvent	*RequestFS (VJSLocalFileSystem *inLocalFileSystem, sLONG inType, VSize inQuota, const XBOX::VJSObject &inSuccessCallback, const XBOX::VJSObject &inErrorCallback);
+	static VJSW3CFSEvent	*RequestFS (VJSLocalFileSystem *inLocalFileSystem, sLONG inType, VSize inQuota, const XBOX::VString &inFileSystemName, const XBOX::VJSObject &inSuccessCallback, const XBOX::VJSObject &inErrorCallback);
 	static VJSW3CFSEvent	*ResolveURL (VJSLocalFileSystem *inLocalFileSystem, const XBOX::VString &inURL, const XBOX::VJSObject &inSuccessCallback, const XBOX::VJSObject &inErrorCallback);
 	
 	// Entry interface common operations.
@@ -408,10 +410,32 @@ private:
 	VJSEntry				*fTargetEntry;		
 	
 	XBOX::VString			fURL;				// URL or new name.
+	XBOX::VString			fFileSystemName;	// For NAMED_FS type.
 	sLONG					fFlags;	
 	
 							VJSW3CFSEvent (sLONG inSubType, const XBOX::VJSObject &inSuccessCallback, const XBOX::VJSObject &inErrorCallback);
 };
+
+// EventEmitter's "newListener" event.
+
+class XTOOLBOX_API VJSNewListenerEvent : public XBOX::IJSEvent
+{
+public:
+
+	static VJSNewListenerEvent	*Create (VJSEventEmitter *inEventEmitter, const XBOX::VString &inEvent, XBOX::JS4D::ObjectRef inListener);
+	void						Process (XBOX::VJSContext inContext, VJSWorker *inWorker);
+	void						Discard ();
+
+private:
+	
+	VJSEventEmitter				*fEventEmitter;		// EventEmitter object.
+	XBOX::VString				fEvent;				// Name of the event having a newly added listener.
+	XBOX::JS4D::ObjectRef		fListener;			// Listener of the event.
+	
+								VJSNewListenerEvent ()	{}
+	virtual						~VJSNewListenerEvent ()	{}
+};
+
 
 END_TOOLBOX_NAMESPACE
 

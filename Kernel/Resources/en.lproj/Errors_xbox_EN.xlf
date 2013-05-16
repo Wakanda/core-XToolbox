@@ -21,19 +21,19 @@
 			   <source>Memory allocation failed</source>
 			   <target>Memory allocation failed</target>
 			</trans-unit>
-      <trans-unit id="33" resname="ERR_xbox_107">
-        <source>String allocation failed</source>
-        <target>String allocation failed</target>
-      </trans-unit>
-      <trans-unit id="32" resname="ERR_xbox_200">
+			<trans-unit id="33" resname="ERR_xbox_107">
+			   <source>String allocation failed</source>
+			   <target>String allocation failed</target>
+			</trans-unit>
+			<trans-unit id="32" resname="ERR_xbox_200">
 			   <source>Attempt to read beyond end of stream</source>
 			   <target>Attempt to read beyond end of stream</target>
 			</trans-unit>
-      <trans-unit id="39" resname="ERR_xbox_208">
-        <source>No text converter to read the stream</source>
-        <target>No text converter to read the stream</target>
-      </trans-unit>
-      <trans-unit id="29" resname="ERR_xbox_300">
+			<trans-unit id="39" resname="ERR_xbox_208">
+				<source>No text converter to read the stream</source>
+				<target>No text converter to read the stream</target>
+			</trans-unit>
+			<trans-unit id="29" resname="ERR_xbox_300">
 			   <source>Text conversion failed</source>
 			   <target>Text conversion failed</target>
 			</trans-unit>
@@ -46,7 +46,28 @@
 			   <target>Regex error {message} while parsing pattern "{pattern}"</target>
 			   <note>regex pattern matching error. Error message is provided by ICU</note>
 			</trans-unit>
-			<trans-unit id="1" resname="ERR_xbox_600">
+			<trans-unit id="56" resname="ERR_xbox_550">
+			   <source>JSON malformed in {source}line {line}, position {position}.</source>
+			   <target>JSON malformed in {source}line {line}, position {position}.</target>
+        <note>{source} can be empty or a file path or url.</note>
+      </trans-unit>
+      <trans-unit id="57" resname="ERR_xbox_551">
+        <source>JSON malformed. Found '{found}', was expecting: {expected}.</source>
+        <target>JSON malformed. Found '{found}', was expecting: {expected}.</target>
+      </trans-unit>
+      <trans-unit id="58" resname="ERR_xbox_552">
+        <source>JSON malformed. Unterminated {token}.</source>
+        <target>JSON malformed. Unterminated {token}.</target>
+      </trans-unit>
+      <trans-unit id="59" resname="ERR_xbox_553">
+        <source>JSON malformed. Extra comma before {token}.</source>
+        <target>JSON malformed. Extra comma before {token}.</target>
+      </trans-unit>
+      <trans-unit id="60" resname="ERR_xbox_554">
+        <source>JSON malformed. Was expecting: {expected}.</source>
+        <target>JSON malformed. Was expecting: {expected}.</target>
+      </trans-unit>
+      <trans-unit id="1" resname="ERR_xbox_600">
 			   <source>File &quot;{name}&quot; not found ({path})</source>
 			   <target>File &quot;{name}&quot; not found ({path})</target>
 			</trans-unit>
@@ -150,25 +171,49 @@
 			   <source>Disk full ({path})</source>
 			   <target>Disk full ({path})</target>
 			</trans-unit>
-		  <trans-unit id="36" resname="ERR_xbox_659">
-			<source>Folder {path} already exists.</source>
-			<target>Folder {path} already exists.</target>
-		  </trans-unit>
-		  <trans-unit id="37" resname="ERR_xbox_660">
-			<source>Can't copy {path} into child folder {destination}.</source>
-			<target>Can't copy {path} into child folder {destination}.</target>
-		  </trans-unit>
-		  <trans-unit id="40" resname="ERR_xbox_661">
-			<source>Can't move {path} into trash.</source>
-			<target>Can't move {path} into trash.</target>
-		  </trans-unit>
+			<trans-unit id="36" resname="ERR_xbox_659">
+				<source>Folder {path} already exists.</source>
+				<target>Folder {path} already exists.</target>
+			</trans-unit>
+			<trans-unit id="37" resname="ERR_xbox_660">
+				<source>Can't copy {path} into child folder {destination}.</source>
+				<target>Can't copy {path} into child folder {destination}.</target>
+			</trans-unit>
+			<trans-unit id="40" resname="ERR_xbox_661">
+				<source>Can't move {path} into trash.</source>
+				<target>Can't move {path} into trash.</target>
+			</trans-unit>
+			<trans-unit id="50" resname="ERR_xbox_680">
+				<source>Path to file system is not correctly encoded!</source>
+				<target>Path to file system is not correctly encoded!</target>
+			</trans-unit>
+			<trans-unit id="51" resname="ERR_xbox_681">
+				<source>Operation is not authorized on this file system!</source>
+				<target>Operation is not authorized on this file system!</target>
+			</trans-unit>
+			<trans-unit id="52" resname="ERR_xbox_682">
+				<source>File or folder not found!</source>
+				<target>File or folder not found!</target>
+			</trans-unit>
+			<trans-unit id="53" resname="ERR_xbox_683">
+				<source>File system is not in valid state!</source>
+				<target>File system is not in valid state!</target>
+			</trans-unit>
+			<trans-unit id="54" resname="ERR_xbox_684">
+				<source>Attempting to write or modify a non-writable file system!</source>
+				<target>Attempting to write or modify a non-writable file system!</target>
+			</trans-unit>
+			<trans-unit id="55" resname="ERR_xbox_685">
+				<source>File system is full!</source>
+				<target>File system is full!</target>
+			</trans-unit>
 			<trans-unit id="38" resname="ERR_xbox_900">
 			   <source>JSON cannot stringify cyclic structures.</source>
 			   <target>JSON cannot stringify cyclic structures.</target>
 			</trans-unit>
-		  <trans-unit id="25" resname="ERR_xmlc_1">
-        		<source>{systemID}, line:{line}, column:{column}</source>
-			    <target>{systemID}, line:{line}, column:{column}</target>
+			<trans-unit id="25" resname="ERR_xmlc_1">
+			   <source>{systemID}, line:{line}, column:{column}</source>
+			   <target>{systemID}, line:{line}, column:{column}</target>
 				<note>Location of error during xerces parsing.</note>
 			</trans-unit>
 			<trans-unit id="26" resname="ERR_xmlc_2">
@@ -182,7 +227,7 @@
 				<note>xerces parsing fatal error.</note>
 			</trans-unit>
 		</group>
-
+      
     </body>
    </file>
 </xliff>

@@ -413,7 +413,7 @@ void VJSNetServerClass::_listen (XBOX::VJSParms_callStaticFunction &ioParms, VJS
 			
 		if (hasCallback) 
 			
-			inServer->AddListener("listening", callback, false);
+			inServer->AddListener(worker, "listening", callback, false);
 		
 		worker->QueueEvent(VJSNetEvent::Create(inServer, "listening"));
 

@@ -26,14 +26,14 @@ VPictureCacheBlock::VPictureCacheBlock()
 }
 VPictureCacheBlock::VPictureCacheBlock(class VPicture& inPict,uLONG8 inDataTimeStamp,uLONG inParentTimeStamp)
 {
-	fPicture.FromVPicture_Retain(inPict);
+	fPicture.FromVPicture_Retain(inPict,false);
 	fDataTimeStamp=inDataTimeStamp;
 	fParentTimeStamp=inParentTimeStamp;
 	UpdateLastAccess();
 }
 VPictureCacheBlock::VPictureCacheBlock(const VPictureCacheBlock& inBlock)
 {
-	fPicture.FromVPicture_Retain(inBlock.fPicture);
+	fPicture.FromVPicture_Retain(inBlock.fPicture,false);
 	fDataTimeStamp=inBlock.fDataTimeStamp;
 	fParentTimeStamp=inBlock.fParentTimeStamp;
 	fLastAccess=inBlock.fLastAccess;
@@ -44,14 +44,14 @@ VPictureCacheBlock::~VPictureCacheBlock()
 }
 void  VPictureCacheBlock::GetPicture(VPicture& outPict,uLONG8 *outStamp)const
 {
-	outPict.FromVPicture_Retain(fPicture);
+	outPict.FromVPicture_Retain(fPicture,false);
 	if(outStamp)
 		*outStamp=fDataTimeStamp;
 	fLastAccess=VSystem::GetCurrentTime();
 }
 void VPictureCacheBlock::UpdatePicture(VPicture& inPict,uLONG8 inDataTimeStamp,uLONG inParentTimeStamp)
 {
-	fPicture.FromVPicture_Retain(inPict);
+	fPicture.FromVPicture_Retain(inPict,false);
 	fDataTimeStamp=inDataTimeStamp;
 	fParentTimeStamp=inParentTimeStamp;
 	UpdateLastAccess();

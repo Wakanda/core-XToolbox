@@ -22,7 +22,7 @@
 #include "VJSRuntime_file.h"
 #include "VJSW3CFileSystem.h"
 
-#if VERSIONMAC == 1
+#if VERSIONMAC
 
 #include <sys/types.h>
 #include <dirent.h>
@@ -31,7 +31,7 @@
 
 USING_TOOLBOX_NAMESPACE
 
-#if VERSIONMAC == 1
+#if VERSIONMAC
 
 XBOX::VCriticalSection	VJSPath::sMutex;
 XBOX::VString			VJSPath::sStartupVolumePrefix;
@@ -124,7 +124,7 @@ void VJSPath::CleanPath (XBOX::VString *ioPath)
 
 #endif
 
-#if VERSIONMAC == 1 || VERSION_LINUX == 1
+#if VERSIONMAC || VERSION_LINUX
 
 void VJSPath::ResolvePath (XBOX::VString *ioPath)
 {
@@ -390,7 +390,7 @@ XBOX::VJSObject	VJSFolderIterator::_Construct (VJSParms_withArguments &ioParms)
 	if (ioParms.IsStringParam(1) && ioParms.GetStringParam(1, folderurl))
 	{
 		if (!folderurl.IsEmpty() && folderurl[folderurl.GetLength()-1] != '/')
-			folderurl += L"/";
+			folderurl += '/';
 		//VURL url(folderurl, eURL_POSIX_STYLE, L"file://");
 		VURL url;
 		JS4D::GetURLFromPath( folderurl, url);
@@ -413,7 +413,7 @@ XBOX::VJSObject	VJSFolderIterator::_Construct (VJSParms_withArguments &ioParms)
 				VString foldername;
 				if (ioParms.IsStringParam(2) && ioParms.GetStringParam(2, foldername))
 				{
-					VFolder* subfolder = new VFolder(*folder, foldername);
+					VFolder* subfolder = folder->RetainRelativeFolder( foldername, FPS_POSIX);
 					constructedObject.MakeFolder( subfolder);
 					ReleaseRefCountable( &subfolder);
 				}
@@ -434,123 +434,88 @@ XBOX::VJSObject	VJSFolderIterator::_Construct (VJSParms_withArguments &ioParms)
 //	new Folder(directoryEntry, path);
 //	new Folder(directoryEntry);
 
-XBOX::VJSObject VJSFolderIterator::_ConstructFromW3CFS (VJSParms_withArguments &ioParms)
+VJSObject VJSFolderIterator::_ConstructFromW3CFS( VJSParms_withArguments &ioParms)
 {
-	XBOX::VJSObject constructedObject(ioParms.GetContext());
-	XBOX::VJSObject	object(ioParms.GetContext());
-
+	bool isOk = true;
+	VJSObject constructedObject(ioParms.GetContext());
 	constructedObject.SetNull();
-	if (!ioParms.GetParamObject(1, object)) 
 
-		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
-	
-	else if (object.IsOfClass(VJSDirectoryEntryClass::Class())
-	|| object.IsOfClass(VJSDirectoryEntrySyncClass::Class())) {
+	// get a directory or a fileSystem as first parameter
+	VJSObject object(ioParms.GetContext());
+	ioParms.GetParamObject(1, object);
 
+	VJSFileSystem*	fileSystem = NULL;
+	VFilePath		rootPath;				
+
+	if (object.IsOfClass(VJSFileSystemClass::Class()) || object.IsOfClass(VJSFileSystemSyncClass::Class()))
+	{
+		if (object.IsOfClass(VJSFileSystemClass::Class()))
+			fileSystem = object.GetPrivateData<VJSFileSystemClass>();
+		else
+			fileSystem = object.GetPrivateData<VJSFileSystemSyncClass>();
+
+		xbox_assert(fileSystem != NULL);
+		rootPath = fileSystem->GetRoot();
+		isOk = true;
+	}
+	else if (object.IsOfClass(VJSDirectoryEntryClass::Class()) || object.IsOfClass(VJSDirectoryEntrySyncClass::Class()))
+	{
 		VJSEntry	*entry;
 
 		if (object.IsOfClass(VJSDirectoryEntryClass::Class()))
-
 			entry = object.GetPrivateData<VJSDirectoryEntryClass>();
-
 		else
-
 			entry = object.GetPrivateData<VJSDirectoryEntrySyncClass>();
 
 		xbox_assert(entry != NULL);
-		
-		if (entry->IsFile())
+		fileSystem = entry->GetFileSystem();
+		rootPath = entry->GetPath();
+		isOk = true;
+	}
+	else
+	{
+		vThrowError( VE_JVSC_WRONG_PARAMETER, "1");
+		isOk = false;
+	}
 
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
-
-		else if (entry->Folder(ioParms.GetContext(), &constructedObject) != VJSFileErrorClass::OK) {
-
-			ioParms.SetException(constructedObject);
-			constructedObject.SetNull();
-
-		}		
-
-	} else {
-
-		bool			isOk;
-		sLONG			code;
-		XBOX::VString	url;
-		XBOX::VFilePath	filePath;				
-		bool			isFile;	
-
-		if (!ioParms.GetStringParam(2, url)) {
-
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
+	// get optionnal relative path
+	VString	 relativePath;
+	if (isOk)
+	{
+		if ( (ioParms.CountParams() >= 2) && !ioParms.GetStringParam(2, relativePath))
+		{
+			vThrowError( VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
 			isOk = false;
-
-		} else if (object.IsOfClass(VJSFileSystemClass::Class()) 
-		|| object.IsOfClass(VJSFileSystemSyncClass::Class())) {
-
-			VJSFileSystem	*fileSystem;
-
-			if (object.IsOfClass(VJSFileSystemClass::Class()))
-
-				fileSystem = object.GetPrivateData<VJSFileSystemClass>();
-
-			else
-
-				fileSystem = object.GetPrivateData<VJSFileSystemSyncClass>();
-
-			xbox_assert(fileSystem != NULL);
-
-			filePath = fileSystem->GetRoot();
-			isOk = (code = fileSystem->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
-				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
-			
-		} else if (object.IsOfClass(VJSDirectoryEntryClass::Class())
-		|| object.IsOfClass(VJSDirectoryEntrySyncClass::Class())) {
-
-			VJSEntry	*entry;
-
-			if (object.IsOfClass(VJSDirectoryEntryClass::Class()))
-
-				entry = object.GetPrivateData<VJSDirectoryEntryClass>();
+		}
+	}
 	
+	if (isOk)
+	{
+		if (!relativePath.IsEmpty() && relativePath.GetUniChar( relativePath.GetLength()) != '/')
+			relativePath += '/';
+
+		VFilePath path( rootPath, relativePath, FPS_POSIX);
+		if (!path.IsFolder())
+		{
+			vThrowError( VE_JVSC_NOT_A_FOLDER);
+		}
+		else if ( (fileSystem != NULL) && (fileSystem->GetFileSystem()->IsAuthorized( path) != VE_OK) )
+		{
+			ioParms.SetException( VJSFileErrorClass::NewInstance( ioParms.GetContext(), VJSFileErrorClass::SECURITY_ERR));
+		}
+		else
+		{
+			VFolder	*folder = new VFolder( path, fileSystem->GetFileSystem());
+			if (folder == NULL)
+			{ 
+				vThrowError( VE_MEMORY_FULL);
+			}
 			else
-
-				entry = object.GetPrivateData<VJSDirectoryEntrySyncClass>();
-
-			xbox_assert(entry != NULL);
-			
-			filePath = entry->GetPath();
-			isOk = (code = entry->GetFileSystem()->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
-				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
-
-		} else {
-
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
-			isOk = false;
-
+			{
+				constructedObject.MakeFolder( folder);
+			}
+			ReleaseRefCountable(&folder);
 		}
-
-		if (isOk) {
-
-			if (code == VJSFileErrorClass::NOT_FOUND_ERR || !isFile) {
-
-				XBOX::VFolder	*folder;
-				
-				if ((folder = new XBOX::VFolder(filePath)) == NULL) 
-
-					XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
-
-				else {
-
-					constructedObject.MakeFolder(folder);
-					XBOX::ReleaseRefCountable(&folder);
-
-				}
-
-			} else
-
-				XBOX::vThrowError(XBOX::VE_JVSC_NOT_A_FOLDER);
-
-		}
-
 	}
 
 	return constructedObject;
@@ -777,14 +742,14 @@ void VJSFolderIterator::_SetReadOnly(VJSParms_callStaticFunction& ioParms, JS4DF
 {
 #if !VERSION_LINUX  // Postponed Linux Implementation ! (Need refactoring)
 	VFolder* folder = inFolderIter->GetFolder();
-	if (folder != NULL)
-	{
-		if (ioParms.GetBoolParam( 1, L"ReadOnly", L"ReadWrite"))
-		{
-			// a faire 
-		}
-		else
-			folder->MakeWritableByAll();
+
+	if (folder != NULL) {
+	
+		bool	isReadOnly;
+
+		isReadOnly = ioParms.GetBoolParam( 1, L"ReadOnly", L"ReadWrite"); 
+		_SetReadOnly(folder, isReadOnly);
+
 	}
 #endif
 }
@@ -859,9 +824,9 @@ void VJSFolderIterator::_GetVolumeSize(VJSParms_callStaticFunction& ioParms, JS4
 	VFolder* folder = inFolderIter->GetFolder();
 	if (folder != NULL)
 	{
-		sLONG8 freebytes = - 1;
-		//folder->GetVolumeFreeSpace(&freebytes,  ! ioParms.GetBoolParam( 1, L"NoQuotas", L"WithQuotas"));
-		ioParms.ReturnNumber(freebytes);
+		sLONG8 volumeSize = - 1;
+		folder->GetVolumeCapacity(&volumeSize);
+		ioParms.ReturnNumber(volumeSize);
 	}
 }
 
@@ -891,7 +856,7 @@ void VJSFolderIterator::_GetParent(VJSParms_callStaticFunction& ioParms, JS4DFol
 	VFolder* folder = inFolderIter->GetFolder();
 	if (folder != NULL)
 	{
-		VFolder* parent = folder->RetainParentFolder();
+		VFolder* parent = folder->RetainParentFolder( true);
 		ioParms.ReturnFolder( parent);
 		ReleaseRefCountable( &parent);
 	}
@@ -925,7 +890,10 @@ void VJSFolderIterator::_eachFile(VJSParms_callStaticFunction& ioParms, JS4DFold
 				bool cont = true;
 				while (iter.IsValid() && cont)
 				{
-					params[1].SetNumber(counter);
+					VJSValue indiceVal2(ioParms.GetContextRef());
+					indiceVal2.SetNumber(counter);
+					params[1] = indiceVal2;
+					//params[1].SetNumber(counter);
 					VFile* file = iter.Current();
 					JS4DFileIterator* ifile = new JS4DFileIterator(file);
 					VJSObject thisobj(VJSFileIterator::CreateInstance(ioParms.GetContextRef(), ifile));
@@ -976,7 +944,10 @@ void VJSFolderIterator::_eachFolder(VJSParms_callStaticFunction& ioParms, JS4DFo
 				bool cont = true;
 				while (iter.IsValid() && cont)
 				{
-					params[1].SetNumber(counter);
+					VJSValue indiceVal2(ioParms.GetContextRef());
+					indiceVal2.SetNumber(counter);
+					params[1] = indiceVal2;
+					//params[1].SetNumber(counter);
 
 					VFolder* subfolder = iter.Current();
 					JS4DFolderIterator* ifolder = new JS4DFolderIterator(subfolder);
@@ -1123,7 +1094,10 @@ bool parseFolder (VFolder* folder, VJSParms_callStaticFunction& ioParms, VJSObje
 			JS4D::ExceptionRef	except = nil;
 
 			params[0] = thisobj;
-			params[1].SetNumber(counter);
+			VJSValue indiceVal2(ioParms.GetContextRef());
+			indiceVal2.SetNumber(counter);
+			params[1] = indiceVal2;
+			//params[1].SetNumber(counter);
 			params[2] = folderObject;
 
 			thisParam.CallFunction(objfunc, &params, &result, &except);
@@ -1413,17 +1387,48 @@ void VJSFolderIterator::_valid(VJSParms_getProperty& ioParms, JS4DFolderIterator
 
 void VJSFolderIterator::_readOnly(VJSParms_getProperty& ioParms, JS4DFolderIterator* inFolderIter)
 {
-	VFolder* folder = inFolderIter->GetFolder();
-	if (folder != NULL)
-	{
-#if !VERSION_LINUX  // Postponed Linux Implementation ! (Need refactoring)
-		bool readonly = folder->IsWritableByAll();
-#else
-        bool readonly=false;
+	VFolder	*folder	= inFolderIter->GetFolder();
+
+	if (folder != NULL) {
+
+		bool	readonly;
+
+#if VERSIONWIN
+
+		// Should always set readonly to false, see comment for _SetReadOnly() function.
+
+		DWORD	attributes;
+
+		if (folder->WIN_GetAttributes(&attributes) == XBOX::VE_OK)
+
+			readonly = attributes & FILE_ATTRIBUTE_READONLY;
+
+		else
+
+			readonly = false;
+
+#elif VERSIONMAC
+
+		uWORD	mode;
+
+		if (folder->MAC_GetPermissions(&mode) == XBOX::VE_OK) 
+
+			readonly = !(mode & 0400);
+
+		else
+
+			readonly = false;
+
+#else	// Postponed Linux Implementation ! (Need refactoring)
+	
+		readonly = false;
+
 #endif
+
 		ioParms.ReturnBool(readonly);
-	}
-	else
+
+	} else
+
 		ioParms.ReturnNullValue();
 }
 
@@ -1436,12 +1441,7 @@ bool VJSFolderIterator::_setreadOnly(VJSParms_setProperty& ioParms, JS4DFolderIt
 	{
 		bool readonly;
 		ioParms.GetPropertyValue().GetBool(&readonly);
-		if (readonly)
-		{
-			// a faire
-		}
-		else
-			folder->MakeWritableByAll();
+		_SetReadOnly(folder, readonly);
 	}
 #endif
 	return true;
@@ -1483,7 +1483,7 @@ void VJSFolderIterator::_parent(VJSParms_getProperty& ioParms, JS4DFolderIterato
 	VFolder* folder = inFolderIter->GetFolder();
 	if (folder != NULL)
 	{
-		VFolder* parent = folder->RetainParentFolder();
+		VFolder* parent = folder->RetainParentFolder( true);
 		ioParms.ReturnFolder( parent);
 		ReleaseRefCountable( &parent);
 	}
@@ -1519,6 +1519,59 @@ void VJSFolderIterator::_firstFolder(VJSParms_getProperty& ioParms, JS4DFolderIt
 	}
 	else
 		ioParms.ReturnNullValue();
+}
+
+void VJSFolderIterator::_SetReadOnly (XBOX::VFolder *inFolder, bool inIsReadOnly)
+{
+// For integration in WAK3, do nothing for now. Need discussion regarding read-only folder behavior.
+
+/*
+#if VERSIONWIN
+
+		// See : http://support.microsoft.com/kb/326549
+
+		DWORD	attributes;
+
+		if (inFolder->WIN_GetAttributes(&attributes) == XBOX::VE_OK) {
+
+			if (inIsReadOnly) 
+
+				attributes |= FILE_ATTRIBUTE_READONLY;
+
+			else
+
+				attributes &= ~FILE_ATTRIBUTE_READONLY;
+
+			inFolder->WIN_SetAttributes(attributes);
+
+		}
+
+#elif VERSIONMAC
+
+		// Enable or disable owner read bit. 
+	
+		uWORD	mode;
+
+		if (inFolder->MAC_GetPermissions(&mode) == XBOX::VE_OK) {
+
+			if (inIsReadOnly)
+
+				mode &= ~0400;
+
+			else
+
+				mode |= 0400;
+
+			inFolder->MAC_SetPermissions(mode);
+
+		}
+
+#else	
+
+	// TODO.		
+
+#endif
+*/
 }
 
 void VJSFolderIterator::GetDefinition( ClassDefinition& outDefinition)
@@ -1813,7 +1866,7 @@ void VJSFileIterator::_SetReadOnly(VJSParms_callStaticFunction& ioParms, JS4DFil
 		if (readonly)
 			attrib = attrib | FATT_LockedFile;
 		else
-			attrib = attrib ^ FATT_LockedFile;
+			attrib = attrib & ~FATT_LockedFile;
 		file->SetFileAttributes(attrib);
 	}
 }
@@ -1903,9 +1956,13 @@ void VJSFileIterator::_GetVolumeSize(VJSParms_callStaticFunction& ioParms, JS4DF
 	VFile* file = inFileIter->GetFile();
 	if (file != NULL)
 	{
-		sLONG8 freebytes, totalbytes;
-		file->GetVolumeFreeSpace(&freebytes, &totalbytes, ! ioParms.GetBoolParam( 1, L"NoQuotas", L"WithQuotas"), 0);
-		ioParms.ReturnNumber(totalbytes);
+		sLONG8			volumeSize	= -1;
+		XBOX::VFolder	*folder		= file->RetainParentFolder();
+
+		folder->GetVolumeCapacity(&volumeSize);
+		XBOX::ReleaseRefCountable<XBOX::VFolder>(&folder);
+
+		ioParms.ReturnNumber(volumeSize);
 	}	
 }
 
@@ -1935,7 +1992,7 @@ void VJSFileIterator::_GetParent(VJSParms_callStaticFunction& ioParms, JS4DFileI
 	VFile* file = inFileIter->GetFile();
 	if (file != NULL)
 	{
-		VFolder* parent = file->RetainParentFolder();
+		VFolder* parent = file->RetainParentFolder( true);
 		ioParms.ReturnFolder( parent);
 		ReleaseRefCountable( &parent);
 	}	
@@ -2207,7 +2264,7 @@ bool VJSFileIterator::_setreadOnly(VJSParms_setProperty& ioParms, JS4DFileIterat
 		if (readonly)
 			attrib = attrib | FATT_LockedFile;
 		else
-			attrib = attrib ^ FATT_LockedFile;
+			attrib = attrib & ~FATT_LockedFile;
 		file->SetFileAttributes(attrib);
 	}
 	return true;
@@ -2249,7 +2306,7 @@ void VJSFileIterator::_parent(VJSParms_getProperty& ioParms, JS4DFileIterator* i
 	VFile* file = inFileIter->GetFile();
 	if (file != NULL)
 	{
-		VFolder* parent = file->RetainParentFolder();
+		VFolder* parent = file->RetainParentFolder( true);
 		ioParms.ReturnFolder( parent);
 		ReleaseRefCountable( &parent);
 	}
@@ -2312,7 +2369,7 @@ XBOX::VJSObject VJSFileIterator::_Construct (VJSParms_withArguments &ioParms)
 			VString filename;
 			if (ioParms.IsStringParam(2) && ioParms.GetStringParam(2, filename))
 			{
-				VFile* file = new VFile(*folder, filename);
+				VFile* file = folder->RetainRelativeFile( filename, FPS_POSIX);
 				constructedObject.MakeFile( file);
 				ReleaseRefCountable( &file);
 			}
@@ -2333,121 +2390,103 @@ XBOX::VJSObject VJSFileIterator::_Construct (VJSParms_withArguments &ioParms)
 
 XBOX::VJSObject VJSFileIterator::_ConstructFromW3CFS (VJSParms_withArguments &ioParms)
 {
-	XBOX::VJSObject constructedObject(ioParms.GetContext());
-	XBOX::VJSObject	object(ioParms.GetContext());
-
+	VJSObject constructedObject(ioParms.GetContext());
 	constructedObject.SetNull();
-	if (!ioParms.GetParamObject(1, object)) 
 
-		XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
-	
-	else if (object.IsOfClass(VJSFileEntryClass::Class())
-	|| object.IsOfClass(VJSFileEntrySyncClass::Class())) {
+	VJSObject	object(ioParms.GetContext());
+	ioParms.GetParamObject(1, object);
 
+	if (object.IsOfClass(VJSFileEntryClass::Class()) || object.IsOfClass(VJSFileEntrySyncClass::Class()))
+	{
 		VJSEntry	*entry;
 
 		if (object.IsOfClass(VJSFileEntryClass::Class()))
-
 			entry = object.GetPrivateData<VJSFileEntryClass>();
-
 		else
-
 			entry = object.GetPrivateData<VJSFileEntrySyncClass>();
 
 		xbox_assert(entry != NULL);
 		
 		if (!entry->IsFile())
-
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
-
-		else if (entry->File(ioParms.GetContext(), &constructedObject) != VJSFileErrorClass::OK) {
-
+		{
+			vThrowError( VE_JVSC_WRONG_PARAMETER, "1");
+		}
+		else if (entry->File(ioParms.GetContext(), &constructedObject) != VJSFileErrorClass::OK)
+		{
 			ioParms.SetException(constructedObject);
 			constructedObject.SetNull();
-
 		}		
-
-	} else {
-
+	}
+	else
+	{
 		bool			isOk;
-		sLONG			code;
-		XBOX::VString	url;
-		XBOX::VFilePath	filePath;				
-		bool			isFile;	
+		VString			relativePath;
+		VFilePath		rootPath;				
+		VJSFileSystem*	fileSystem = NULL;
 
-		if (!ioParms.GetStringParam(2, url)) {
-
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
-			isOk = false;
-
-		} else if (object.IsOfClass(VJSFileSystemClass::Class()) 
-		|| object.IsOfClass(VJSFileSystemSyncClass::Class())) {
-
-			VJSFileSystem	*fileSystem;
-
+		if (object.IsOfClass(VJSFileSystemClass::Class()) || object.IsOfClass(VJSFileSystemSyncClass::Class()))
+		{
 			if (object.IsOfClass(VJSFileSystemClass::Class()))
-
 				fileSystem = object.GetPrivateData<VJSFileSystemClass>();
-
 			else
-
 				fileSystem = object.GetPrivateData<VJSFileSystemSyncClass>();
 
 			xbox_assert(fileSystem != NULL);
-
-			filePath = fileSystem->GetRoot();
-			isOk = (code = fileSystem->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
-				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
-			
-		} else if (object.IsOfClass(VJSDirectoryEntryClass::Class())
-		|| object.IsOfClass(VJSDirectoryEntrySyncClass::Class())) {
-
+			rootPath = fileSystem->GetRoot();
+			isOk = true;
+		}
+		else if (object.IsOfClass(VJSDirectoryEntryClass::Class()) || object.IsOfClass(VJSDirectoryEntrySyncClass::Class()))
+		{
 			VJSEntry	*entry;
 
 			if (object.IsOfClass(VJSDirectoryEntryClass::Class()))
-
 				entry = object.GetPrivateData<VJSDirectoryEntryClass>();
-	
 			else
-
 				entry = object.GetPrivateData<VJSDirectoryEntrySyncClass>();
 
 			xbox_assert(entry != NULL);
-			
-			filePath = entry->GetPath();
-			isOk = (code = entry->GetFileSystem()->ParseURL(url, &filePath, &isFile)) == VJSFileErrorClass::OK
-				|| code == VJSFileErrorClass::NOT_FOUND_ERR;
-
-		} else {
-
-			XBOX::vThrowError(XBOX::VE_JVSC_WRONG_PARAMETER, "1");
+			fileSystem = entry->GetFileSystem();
+			rootPath = entry->GetPath();
+			isOk = true;
+		}
+		else
+		{
+			vThrowError( VE_JVSC_WRONG_PARAMETER, "1");
 			isOk = false;
-
 		}
 
-		if (isOk) {
-
-			if (code == VJSFileErrorClass::NOT_FOUND_ERR || isFile) {
-
-				XBOX::VFile	*file;
+		// get mandatory relative file path
+		if (isOk && !ioParms.GetStringParam(2, relativePath))
+		{
+			vThrowError( VE_JVSC_WRONG_PARAMETER_TYPE_STRING, "2");
+			isOk = false;
+		}
 				
-				if ((file = new XBOX::VFile(filePath)) == NULL) 
-
-					XBOX::vThrowError(XBOX::VE_MEMORY_FULL);
-
-				else {
-
-					constructedObject.MakeFile(file);
-					XBOX::ReleaseRefCountable(&file);
-
+		if (isOk)
+		{
+			VFilePath path( rootPath, relativePath, FPS_POSIX);
+			if (!path.IsFile())
+			{
+				vThrowError( VE_JVSC_NOT_A_FILE);
+			}
+			else if ( (fileSystem != NULL) && (fileSystem->GetFileSystem()->IsAuthorized( path) != VE_OK) )
+			{
+				ioParms.SetException( VJSFileErrorClass::NewInstance( ioParms.GetContext(), VJSFileErrorClass::SECURITY_ERR));
+			}
+			else
+			{
+				VFile *file = new VFile( path, fileSystem->GetFileSystem());
+				if (file == NULL) 
+				{
+					vThrowError( VE_MEMORY_FULL);
 				}
-
-			} else
-
-				XBOX::vThrowError(XBOX::VE_JVSC_NOT_A_FILE);
-
+				else
+				{
+					constructedObject.MakeFile(file);
+				}
+				ReleaseRefCountable(&file);
+			}
 		}
-
 	}
 
 	return constructedObject;

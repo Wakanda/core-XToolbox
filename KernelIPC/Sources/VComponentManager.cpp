@@ -59,12 +59,21 @@ BEGIN_TOOLBOX_NAMESPACE
 	char	kDEFAULT_CREATE_SYMBOL[] = "CreateComponent__17VComponentLibraryFUlUl";
 	char	kDEFAULT_GET_TYPES_SYMBOL[] = "GetNthComponentType__17VComponentLibraryFlRUl";
 #elif VERSION_LINUX
+	#if ARCH_64
 	char	kDEFAULT_MAIN_SYMBOL[]          = "_ZN4xbox17VComponentLibrary4MainEjPNS_8VLibraryE";
 	char	kDEFAULT_LOCK_SYMBOL[]          = "_ZN4xbox17VComponentLibrary4LockEv";
 	char	kDEFAULT_UNLOCK_SYMBOL[]        = "_ZN4xbox17VComponentLibrary6UnlockEv";
 	char	kDEFAULT_CAN_UNLOAD_SYMBOL[]    = "_ZN4xbox17VComponentLibrary16CanUnloadLibraryEv";
 	char	kDEFAULT_CREATE_SYMBOL[]        = "_ZN4xbox17VComponentLibrary15CreateComponentEjj";
 	char	kDEFAULT_GET_TYPES_SYMBOL[]     = "_ZN4xbox17VComponentLibrary19GetNthComponentTypeEiRj";
+	#else
+	char	kDEFAULT_MAIN_SYMBOL[]          = "_ZN4xbox17VComponentLibrary4MainEmPNS_8VLibraryE";
+	char	kDEFAULT_LOCK_SYMBOL[]          = "_ZN4xbox17VComponentLibrary4LockEv";
+	char	kDEFAULT_UNLOCK_SYMBOL[]        = "_ZN4xbox17VComponentLibrary6UnlockEv";
+	char	kDEFAULT_CAN_UNLOAD_SYMBOL[]    = "_ZN4xbox17VComponentLibrary16CanUnloadLibraryEv";
+	char	kDEFAULT_CREATE_SYMBOL[]        = "_ZN4xbox17VComponentLibrary15CreateComponentEmm";
+	char	kDEFAULT_GET_TYPES_SYMBOL[]     = "_ZN4xbox17VComponentLibrary19GetNthComponentTypeElRm";
+	#endif
 #endif
 
 

@@ -127,9 +127,11 @@ void VDuration::GetDuration(VDuration& outValue) const
 void VDuration::GetString(VString& inValue) const
 {
 	inValue.Clear();
-
+	
 	if (! IsNull())
 	{
+		inValue.FromLong8(fMilliseconds);
+		/*
 		sLONG days, hours, minutes, seconds, milliseconds;
 
 		GetDuration(days, hours, minutes, seconds, milliseconds);
@@ -143,6 +145,7 @@ void VDuration::GetString(VString& inValue) const
 		inValue.AppendLong(seconds);
 		inValue.AppendCString(":");
 		inValue.AppendLong(milliseconds);
+		*/
 	}
 }
 
@@ -364,6 +367,7 @@ void VDuration::FromDuration(const VDuration& inValue)
 
 void VDuration::FromString(const VString& inValue)
 {
+	/*
 	sLONG ar[] = { 0, 0, 0, 0, 0 };
 	UniChar c;
 	uLONG pos = 0;
@@ -393,6 +397,9 @@ void VDuration::FromString(const VString& inValue)
 	}
 
 	SetDuration(ar[0], ar[1], ar[2], ar[3], ar[4]);
+	*/
+	fMilliseconds = inValue.GetLong8();
+	GotValue();
 }
 
 
@@ -1035,13 +1042,24 @@ void VTime::GetString( VString& outValue) const
 	FormatByOS( outValue, true);
 }
 
+void VTime::toSimpleDateString(VString& outString) const
+{
+	if (IsNull())
+		outString.SetNull(true);
+	else
+	{
+		outString = ToString((sLONG)fDay) + "!" + ToString((sLONG)fMonth) + "!" + ToString((sLONG)fYear);
+	}
+}
+
+
 void VTime::FormatByOS(VString& outDateValue,VString& outTimeValue,bool useGMT)const
 {
 	if (! IsNull())
 	{
 		VIntlMgr *intl = VTask::GetCurrentIntlManager();
-		intl->FormatTimeByOS( *this, outTimeValue, eOS_SHORT_FORMAT, useGMT); 
-		intl->FormatDateByOS( *this, outDateValue, eOS_SHORT_FORMAT, useGMT); 
+		intl->FormatTime( *this, outTimeValue, eOS_SHORT_FORMAT, useGMT); 
+		intl->FormatDate( *this, outDateValue, eOS_SHORT_FORMAT, useGMT); 
 	}
 	else
 	{
@@ -1416,6 +1434,7 @@ void VTime::FromString(const VString& inValue)
 	bool inNumber = false;
 	VIndex i;
 	VString num;
+	bool simpleDate = false;
 
 	for (i = 0; (pos < 7) && (i < inValue.GetLength()); i++)
 	{
@@ -1428,6 +1447,8 @@ void VTime::FromString(const VString& inValue)
 		}
 		else
 		{
+			if (c == '!')
+				simpleDate = true;
 			if (inNumber)
 			{
 				ar[ pos ] = (sWORD) (num.GetLong());
@@ -1442,7 +1463,10 @@ void VTime::FromString(const VString& inValue)
 	if (inNumber && pos < 7)
 		ar[ pos ] = (sWORD) (num.GetLong());
 
-	FromUTCTime(ar[0], ar[1], ar[2], ar[3], ar[4], ar[5], ar[6]);
+	if (simpleDate)
+		FromUTCTime(ar[2], ar[1], ar[0], 0, 0, 0, 0);
+	else
+		FromUTCTime(ar[0], ar[1], ar[2], ar[3], ar[4], ar[5], ar[6]);
 }
 
 
@@ -1734,16 +1758,38 @@ void VTime::FromUTCTime(sWORD inYear, sWORD inMonth, sWORD inDay, sWORD inHour, 
 }
 
 
-sWORD VTime::GetWeekDay() const
+sLONG VTime::GetWeekDay() const
 {
 	if ( IsNull() )
 		return -1;
 
 	sLONG jd = GetJulianDay();
-	return (sWORD) ((jd + 2) % 7);
+	return (jd + 2) % 7;
 }
 
-sWORD VTime::GetYearDay() const
+
+/*
+	static
+*/
+sLONG VTime::ComputeWeekDay( sLONG inYear, sLONG inMonth, sLONG inDay)
+{
+	sLONG jd = ComputeJulianDay( inYear, inMonth, inDay);
+	return (jd + 2) % 7;
+}
+
+
+/*
+	static
+*/
+sLONG VTime::ComputeYearDay( sLONG inYear, sLONG inMonth, sLONG inDay)
+{
+	sLONG jd = ComputeJulianDay( inYear, inMonth, inDay);
+	sLONG jdsy = ComputeJulianDay( inYear, 1, 1);
+	return jd - jdsy + 1;
+}
+
+
+sLONG VTime::GetYearDay() const
 {
 	if ( IsNull() )
 		return -1;
@@ -1753,8 +1799,9 @@ sWORD VTime::GetYearDay() const
 	startOfYear.FromUTCTime( fYear, 1, 1, 0, 0, 0, 0 );
 	sLONG jdsy = startOfYear.GetJulianDay();
 
-	return (sWORD) (jd - jdsy + 1);
+	return jd - jdsy + 1;
 }
+
 
 void VTime::FromSystemTime()
 {
@@ -2371,24 +2418,35 @@ void VTime::SetLocalMillisecond(sLONG inMillisecond)
 }
 
 
-sLONG VTime::GetJulianDay() const
+/*
+	static
+*/
+sLONG VTime::ComputeJulianDay( sLONG inYear, sLONG inMonth, sLONG inDay)
 {
 	sWORD z, f;
+	sLONG jd;
+
+	if (inMonth < 3)
+		z = (sWORD) (inYear - 1);
+	else
+		z = inYear;
+
+	f = sNbDayInMonthArray[ inMonth ];
+
+	jd = (sLONG) (inDay + f + 365 * z + floor((double) z / 4.0) - floor((double) z / 100.0) + floor((double) z / 400.0) + 1721118);
+
+	return jd;
+}
+
+
+sLONG VTime::GetJulianDay() const
+{
 	sLONG jd;
 
 	if (IsNull())
 		jd = -1;
 	else
-	{
-		if (fMonth < 3)
-			z = (sWORD) (fYear - 1);
-		else
-			z = fYear;
-
-		f = sNbDayInMonthArray[ fMonth ];
-
-		jd = (sLONG) (fDay + f + 365 * z + floor((double) z / 4.0) - floor((double) z / 100.0) + floor((double) z / 400.0) + 1721118);
-	}
+		jd = ComputeJulianDay( fYear, fMonth, fDay);
 
 	return jd;
 }

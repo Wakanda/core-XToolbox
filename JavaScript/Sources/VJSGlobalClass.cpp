@@ -47,6 +47,7 @@
 #include "VJSBuffer.h"
 #include "VJSNet.h"
 #include "VJSModule.h"
+#include "VJSEventEmitter.h"
 
 USING_TOOLBOX_NAMESPACE
 
@@ -85,6 +86,30 @@ bool VJSSpecifics::Set( key_type inKey, void *inValue, value_destructor_type inD
 		fMap.insert( MapOfValues::value_type( inKey, value));
 	}
 	return ok;
+}
+
+
+//======================================================
+
+
+XBOX::VFileSystemNamespace* IJSRuntimeDelegate::RetainRuntimeFileSystemNamespace()
+{
+	return NULL;
+}
+
+
+void IJSRuntimeDelegate::SetRuntimeSpecific( const XBOX::VString& inSignature, XBOX::IRefCountable *inObject)
+{
+	VTaskLock lock( &fMutex);
+	fSpecifics[inSignature] = inObject;
+}
+
+
+XBOX::IRefCountable *IJSRuntimeDelegate::RetainRuntimeSpecific( const XBOX::VString& inSignature) const
+{
+	VTaskLock lock( &fMutex);
+	MapOfSpecifics::const_iterator i = fSpecifics.find( inSignature);
+	return (i == fSpecifics.end()) ? NULL : i->second.Retain();
 }
 
 
@@ -211,6 +236,22 @@ void VJSGlobalObject::UnuseContext()
 	}
 }
 
+bool VJSGlobalObject::TryToUseContext ()
+{
+	VTaskLock lock(&fUseMutex);
+
+	if (fContextUseTaskID == NULL_TASK_ID) {
+		
+		xbox_assert(!fContextUseCount);
+		fContextUseTaskID = VTask::GetCurrentID();
+		fContextUseCount = 1;
+
+		return true;
+
+	} else 
+
+		return false;
+}
 
 void VJSGlobalObject::GarbageCollect()
 {
@@ -252,35 +293,28 @@ void VJSGlobalObject::GarbageCollectIfNecessary()
 	}
 }
 
-XBOX::VJSObject VJSGlobalObject::Require (XBOX::VJSContext inContext, const XBOX::VString &inClassName)
+XBOX::VJSObject VJSGlobalObject::RequireNative (const XBOX::VJSContext &inContext, const XBOX::VString &inClassName)
 {
-	XBOX::VJSObject							object(inContext, NULL);
-	VJSGlobalObject::SObjectMap::iterator	it;
+	XBOX::VJSObject	object(inContext);
+	
+	if (inClassName.EqualToString("net", true)) {
 
-	if ((it = fRequireMap.find(inClassName)) != fRequireMap.end()) {
+		VJSNetClass::Class();
+		object = VJSNetClass::CreateInstance(inContext, NULL);
 
-		xbox_assert(it->second != NULL);
-		object.SetObjectRef(it->second);
+	} else if (inClassName.EqualToString("tls", true)) {
 
-	} else {
+		VJSTLSClass::Class();
+		object = VJSTLSClass::CreateInstance(inContext, NULL);
 
-		if (inClassName.EqualToString("net", true)) {
+	} else if (inClassName.EqualToString("events", true)) {
 
-			VJSNetClass::Class();
-			object = VJSNetClass::CreateInstance(inContext, NULL);
+		VJSEventEmitterClass::Class();
+		object = VJSEventEmitterClass::MakeModuleObject(inContext);
 
-		} else if (inClassName.EqualToString("tls", true)) {
+	} else
 
-			VJSTLSClass::Class();
-			object = VJSTLSClass::CreateInstance(inContext, NULL);
-
-		}
- 
-		if (object.GetObjectRef() != NULL)
-
-			fRequireMap[inClassName] = object.GetObjectRef();
-
-	}
+		object.SetUndefined();	
 
 	return object;
 }
@@ -313,13 +347,13 @@ void VJSGlobalClass::Initialize( const VJSParms_initialize& inParms, VJSGlobalOb
 
 	globalObject.SetProperty("Worker", VJSDedicatedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 	globalObject.SetProperty("SharedWorker", VJSSharedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	// VJSRequireClass::MakeObject may return null object
+	VJSObject requireObject( VJSRequireClass::MakeObject(context));
+	if (requireObject.IsOfClass(VJSRequireClass::Class()))
+		globalObject.SetProperty("require", requireObject, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 
-//** WIP
-	globalObject.SetProperty("studio_require", VJSRequireClass::MakeObject(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
-//** WIP
-
-	// Add LocalFileSystem and LocalFileSystemSync interfaces support.
-
+	// Add LocalFileSystem and LocalFileSystemSync interfaces support
+	
 	VJSLocalFileSystem::AddInterfacesSupport(inParms.GetContext());
 }
 
@@ -789,8 +823,6 @@ void VJSGlobalClass::do_loadImage(VJSParms_callStaticFunction& ioParms, VJSGloba
 {
 	bool okloaded = false;
 
-#if !VERSION_LINUX   // Postponed Linux Implementation !
-
 	VFile* file = ioParms.RetainFileParam(1);
 
 	if (file != nil)
@@ -815,11 +847,8 @@ void VJSGlobalClass::do_loadImage(VJSParms_callStaticFunction& ioParms, VJSGloba
 	else
 		vThrowError(VE_JVSC_WRONG_PARAMETER_TYPE_FILE, "1");
 
-#endif
-
 	if (!okloaded)
 		ioParms.ReturnNullValue();
-
 }
 
 
@@ -1197,7 +1226,7 @@ void VJSGlobalClass::requireNative (VJSParms_callStaticFunction& ioParms, VJSGlo
 
 	else
 
-		ioParms.ReturnValue(inGlobalObject->Require(ioParms.GetContext(), className));
+		ioParms.ReturnValue(inGlobalObject->RequireNative(ioParms.GetContext(), className));
 }
 
 void VJSGlobalClass::_requireFile (VJSParms_callStaticFunction &ioParms, VJSGlobalObject *)

@@ -265,7 +265,6 @@ bool VLexerBase::ConsumeString( VString* vstrBuffer, TokenList *ioTokens, sLONG 
 			UniChar characterToAdd;
 
 			ConsumeEscapeSequence( inType, characterToAdd );
-			AppendUniCharWithBuffer( c, vstrBuffer, szUCharBuffer, nBufferSize, 256 );
 			AppendUniCharWithBuffer( characterToAdd, vstrBuffer, szUCharBuffer, nBufferSize, 256 );
 
 			// Disable for now while syntax coloring is buggy when string contains escape sequence...

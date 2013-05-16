@@ -440,7 +440,7 @@ namespace HTTPTools {
 
 		if (inString.GetSubStrings (CHAR_EQUALS_SIGN, nameValueStrings, true, true))
 		{
-			if (nameValueStrings.size())
+			if (!nameValueStrings.empty())
 				outName = nameValueStrings.at (0);
 
 			if (nameValueStrings.size() > 1)

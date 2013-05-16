@@ -691,6 +691,10 @@ VError XMacFolder::RetainSystemFolder( ESystemFolderKind inFolderKind, bool inCr
 
 				break;
 			}
+			
+		case eFK_StartupItemsFolder:
+			macError = ::FSFindFolder( kLocalDomain, kBootTimeStartupItemsFolderType, inCreateFolder ? kCreateFolder : kDontCreateFolder, &folderRef);
+			break;
 		
 	}
 	

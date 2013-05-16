@@ -52,6 +52,9 @@ public:
 	bool								GetContentType (XBOX::VString& outContentType, XBOX::CharSet *outCharSet = NULL) const;
 	bool								SetContentType (const XBOX::VString& inContentType, const XBOX::CharSet& inCharSet = XBOX::VTC_UNKNOWN);
 	
+	bool								GetContentLength (XBOX::VSize& outValue) const;
+	bool								SetContentLength (const XBOX::VSize& inValue);
+
 	bool								GetHeaderValues (const HTTPCommonHeaderCode inHeaderCode, XBOX::VectorOfVString& outValues) const;
 	
 	bool								IsCookieSet (const XBOX::VString& inCookieName) const;

@@ -39,7 +39,7 @@ namespace SslFramework
 	VError AddCertificateDirectory(const VFolder& inCertFolder);
 
 	VKeyCertChain* RetainKeyCertificateChain(const VMemoryBuffer<>& inKeyBuffer, const VMemoryBuffer<>& inCertBuffer);
-	void ReleaseKeyCertificateChain(VKeyCertChain* inKeyCertChain);
+	void ReleaseKeyCertificateChain(VKeyCertChain** inKeyCertChain);
 
 	VError PushIntermediateCertificate(VKeyCertChain* inKeyCertChain, const VMemoryBuffer<>& inCertBuffer);
 
@@ -55,8 +55,8 @@ class XTOOLBOX_API VSslDelegate : public XBOX::VObject
 {
 public :
 	
-	static VSslDelegate* NewClientDelegate(Socket inRawSocket /*, VKeyCertChain* inKeyCertChain*/);
-	static VSslDelegate* NewServerDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain);
+	static VSslDelegate* NewClientDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain=NULL);
+	static VSslDelegate* NewServerDelegate(Socket inRawSocket, VKeyCertChain* inKeyCertChain, bool inAskClientCertificate=false);
 	
 	virtual ~VSslDelegate();	
 
@@ -72,9 +72,10 @@ public :
 	void Clear()		{fIOState=kBlank;}
 
 	VError HandShake ();
-		
+
+
 private :
-	
+
 	typedef enum {kBlank=0, kWantRead, kWantWrite, kOver} IOState;
 	IOState fIOState;
 	

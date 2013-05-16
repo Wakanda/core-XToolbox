@@ -34,6 +34,23 @@ std::list<VJSWorker *>	VJSWorker::sSharedWorkers;
 std::list<VJSWorker *>	VJSWorker::sRootWorkers;
 IJSWorkerDelegate*		VJSWorker::sDelegate = NULL;
 
+VJSHasEventMessage::VJSHasEventMessage (VJSWorker *inWorker)
+{
+	xbox_assert(inWorker != NULL);
+
+	fWorker = XBOX::RetainRefCountable<VJSWorker>(inWorker);
+}
+
+VJSHasEventMessage::~VJSHasEventMessage ()
+{
+	XBOX::ReleaseRefCountable<VJSWorker>(&fWorker);
+}
+
+void VJSHasEventMessage::DoExecute ()
+{
+	fWorker->ExecuteHasEventMessage(this);
+}
+
 void VJSWorker::SetDelegate (IJSWorkerDelegate *inDelegate)
 {
 	// Set to NULL when finishing.
@@ -58,6 +75,8 @@ VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &in
 	fWorkerType = TYPE_DEDICATED;
 	fURL = inURL;
 	fOnMessagePort = NULL;
+
+	fRootVTask = NULL;
 
 	fLocalFileSystem = NULL;
 			
@@ -191,6 +210,8 @@ void VJSWorker::Run ()
 
 sLONG VJSWorker::WaitFor (XBOX::VJSContext &inContext, sLONG inWaitingDuration, IJSEventGenerator *inEventGenerator, sLONG inEventType)
 {
+	XBOX::StLocker<XBOX::VCriticalSection>	lock(&fWaitForMutex);	
+	
 	fInsideWaitCount++;
 
 	bool		isEventMatched;
@@ -465,6 +486,22 @@ void VJSWorker::QueueEvent (IJSEvent *inEvent)
 
 	fEventQueue.insert(i, inEvent);	
 
+	// Send a VMessage to running VTask, only in studio and for SystemWorker events.
+
+	if (sDelegate != NULL && sDelegate->GetType() == IJSWorkerDelegate::TYPE_WAKANDA_STUDIO
+	&& inEvent->GetType() == IJSEvent::eTYPE_SYSTEM_WORKER && fRootVTask != NULL) {
+
+		VJSHasEventMessage	*message;
+
+		if ((message = new VJSHasEventMessage(this)) != NULL) {
+
+			message->PostTo(fRootVTask);
+			XBOX::ReleaseRefCountable<VJSHasEventMessage>(&message);
+
+		}
+
+	}
+
 	// If locked waiting for an event, send signal.
 
 	if (fIsLockedWaiting)
@@ -605,6 +642,34 @@ sLONG VJSWorker::GetNumberRunning (sLONG inType)
 	}
 }
 
+void VJSWorker::ExecuteHasEventMessage (VJSHasEventMessage *inMessage)
+{
+	if (fWaitForMutex.TryToLock()) {
+	
+		if (!fInsideWaitCount && fEventQueue.size()) {
+
+			XBOX::VJSContext		context((XBOX::JS4D::ContextRef) fRootGlobalContext);
+			XBOX::VJSGlobalObject	*globalObject	= context.GetGlobalObjectPrivateInstance();
+
+			xbox_assert(globalObject != NULL);
+
+			// If the interpreter is running (probably in a wait()), "drop" the message but do not modify the event queue.
+			// So even if the message is dropped, the event is still there.
+
+			if (globalObject->TryToUseContext()) {
+
+				WaitFor(context, 10, NULL, 0);
+				globalObject->UnuseContext();
+
+			}
+
+		}
+		fWaitForMutex.Unlock();
+
+	}
+	inMessage->AnswerIt();
+}
+
 // sMutex must be locked before creating a new shared worker.
 
 VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext)
@@ -623,6 +688,8 @@ VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &in
 	fWorkerType = TYPE_SHARED;	
 	fURL = inURL;
 	fName = inName;
+
+	fRootVTask = NULL;
 
 	XBOX::VJSContext	context(fGlobalContext);
 	XBOX::VJSObject		globalObject	= context.GetGlobalObject();
@@ -664,6 +731,8 @@ VJSWorker::VJSWorker (const XBOX::VJSContext &inContext)
 	fClosingFlag = fIsLockedWaiting = fExitWaitFlag = false;
 
 	fWorkerType = TYPE_ROOT;
+	fRootVTask = XBOX::VTask::GetCurrent();
+	fRootGlobalContext = inContext.GetGlobalObjectPrivateInstance()->GetContext();
 
 	fLocalFileSystem = NULL;
 
@@ -830,11 +899,22 @@ bool VJSWorker::_LoadAndCheckScript ()
 {
 	xbox_assert(fGlobalContext != NULL);
 
-	XBOX::VString		fullPath;
-		
+	XBOX::VString	fullPath;
+
+#if VERSIONWIN
+
+	if (fURL.GetLength() > 3 
+	&& ::isalpha(fURL.GetUniChar(1))
+	&& fURL.GetUniChar(2) == ':' 
+	&& fURL.GetUniChar(3) == '/')
+
+#else 
+
 	if (fURL.GetUniChar(1) == '/') 
 
-		fullPath = fURL;			
+#endif
+
+		fullPath = fURL;
 
 	else {
 
@@ -877,7 +957,7 @@ bool VJSWorker::_LoadAndCheckScript ()
 		XBOX::VJSContext	context(fGlobalContext);
 		JS4D::ExceptionRef	exception;
 		
-		fURLObject = XBOX::VURL(fullPath, eURL_NATIVE_STYLE, CVSTR ("file://"));
+		fURLObject = XBOX::VURL(fullPath, eURL_POSIX_STYLE, CVSTR ("file://"));
 
 		exception = NULL;				
 		if (!context.CheckScriptSyntax(fScript, &fURLObject, &exception)) {

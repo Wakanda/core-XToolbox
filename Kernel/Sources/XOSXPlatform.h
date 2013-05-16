@@ -33,14 +33,16 @@
 		#define ARCH_64			0
 	#endif
 	
-#if defined(__MWERKS__)
-	#define COMPIL_VISUAL	0
-	#define COMPIL_GCC	0
-#elif defined(__GNUC__) && (defined(__APPLE_CPP__) || defined(__APPLE_CC__) || defined(__MACOS_CLASSIC__))
+#if defined(__GNUC__) && (defined(__APPLE_CPP__) || defined(__APPLE_CC__) || defined(__MACOS_CLASSIC__))
 	#define COMPIL_VISUAL	0
 	#define COMPIL_GCC	1
 #endif
-	
+
+#if defined(__clang__)
+	#define COMPIL_CLANG	1
+#else
+	#define COMPIL_CLANG	0
+#endif
 
 // Guess VERSIONDEBUG if not defined yet
 #ifndef VERSIONDEBUG

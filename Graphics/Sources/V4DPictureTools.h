@@ -60,11 +60,6 @@ typedef struct xENHMETAHEADER
 
 
 #pragma pack(pop)
-
-
-
-
-
 #pragma pack(push, 2)
 
 
@@ -109,11 +104,11 @@ typedef struct xMacPictureHeader
 
 typedef char **xMacHandle;
 		
-class XTOOLBOX_API VMacPictureAllocatorBase:public VObject , public IRefCountable
+class XTOOLBOX_API VMacHandleAllocatorBase:public VObject , public IRefCountable
 {
 	public:
-	VMacPictureAllocatorBase(){;};
-	virtual ~VMacPictureAllocatorBase(){;}
+	VMacHandleAllocatorBase(){;};
+	virtual ~VMacHandleAllocatorBase(){;}
 	virtual void*	Allocate(VSize inSize)=0;
 	virtual void*	AllocateFromBuffer(void* inBuff,VSize inSize)=0;
 	virtual void*	Duplicate(void* inHandle)=0;
@@ -124,15 +119,13 @@ class XTOOLBOX_API VMacPictureAllocatorBase:public VObject , public IRefCountabl
 	virtual void	Unlock(void* inHandle)=0;
 	virtual bool	CheckBlock(void* inHandle)=0;
 	virtual VHandle ToVHandle(void* inHandle)=0;
+	virtual XBOX::VPtr	ToVPtr(void* inHandle,XBOX::VSize& outSize)=0;
 	virtual bool	IsLocked(void* inHandle)=0;
 	virtual short	MemError()=0;
 };
 
 
 #pragma pack(pop)
-
-
-
 
 class V4DPictureDataPrefetchedInformation:public VObject
 {
@@ -341,6 +334,7 @@ class XTOOLBOX_API VPictureDrawSettings_Base :public VObject ,public IBaggable
 		fFrameNumber=inFrame;
 	}
 	
+#if !VERSION_LINUX
 	VPolygon TransformRect(const VRect& inRect)
 	{
 		VPolygon result(inRect);
@@ -353,6 +347,7 @@ class XTOOLBOX_API VPictureDrawSettings_Base :public VObject ,public IBaggable
 		result=fPictureMatrix*result;
 		return result;
 	}
+#endif
 	
 	
 	inline VAffineTransform&	GetPictureMatrix(){return fPictureMatrix;};
@@ -813,7 +808,7 @@ typedef struct _ARGBPix
 	VBitmapData(const class VPictureData& inData,VPictureDrawSettings* inSet=0);
 	#if VERSIONWIN
 	VBitmapData(Gdiplus::Bitmap& inBitmap,Gdiplus::Bitmap* inMask=0);
-	#else
+	#elif VERSIONMAC
 	VBitmapData(CGImageRef inCGImage,CGImageRef inMask);
 	#endif
 	VBitmapData(void* pixbuffer,sLONG width,sLONG height,sLONG byteperrow,VBitmapData::VPixelFormat pixelsformat,std::vector<VColor> *inColortable=0);
@@ -842,7 +837,7 @@ typedef struct _ARGBPix
 	void MergeMask(VBitmapData& inMask);
 	#if VERSIONWIN
 	Gdiplus::Bitmap* CreateNativeBitmap();
-	#else
+	#elif VERSIONMAC
 	CGImageRef CreateNativeBitmap();
 
 	//create a bitmap graphic context associated with the internal pixel buffer

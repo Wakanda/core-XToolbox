@@ -987,14 +987,58 @@ XMacFont::XMacFont( VFont* inFont, const VString& inFontFamilyName, const VFontF
 			return;
 		}
 		
+        //backup base font traits (might be not null as font name passed to this method might be a postcript name - i.e. with stylistic name)
+        CTFontSymbolicTraits baseFontTraits = CTFontGetSymbolicTraits(fontBaseRef);
+        
 		//determine symbolic traits from face
 		CTFontSymbolicTraits fontTraits = FontFaceToCTFontSymbolicTraits( inFace);
-			
+        
 		//create new font desc with desired size and/or traits
 		if (fontTraits)
 		{
-			//try to create derived font with new traits 
-			fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, fontTraits, fontTraits);
+            //fixed ACI0080070: never return a substituted font with another family name but try to return a font in the same family which matches most desired traits
+            //                  (consistent with system text edit behavior)
+            
+			
+            CTFontSymbolicTraits desiredTraits = fontTraits | baseFontTraits;
+            
+            //try to create derived font with new traits
+			fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, desiredTraits, desiredTraits);
+
+            if (fCTFontRef == NULL)
+                 if (desiredTraits & (kCTFontExpandedTrait|kCTFontCondensedTrait))
+                    //try without expanded/condensed traits
+                    fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, desiredTraits & ~(kCTFontExpandedTrait|kCTFontCondensedTrait), desiredTraits);
+            
+            if (fCTFontRef == NULL)
+            {
+                if ((desiredTraits & (kCTFontItalicTrait|kCTFontBoldTrait)) == (kCTFontItalicTrait|kCTFontBoldTrait))
+                {
+                    //try removing bold trait (keep only italic)
+                    fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, desiredTraits & ~kCTFontBoldTrait, desiredTraits);
+                    
+                    if (fCTFontRef == NULL)
+                        //try removing italic trait (keep only bold)
+                        fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, desiredTraits & ~kCTFontItalicTrait, desiredTraits);
+                    
+                    if (fCTFontRef == NULL && (desiredTraits & (kCTFontExpandedTrait|kCTFontCondensedTrait)))
+                    {
+                        //try again without expanded/condensed traits & italic and bold combinations
+                        
+                        //try removing bold trait (keep only italic)
+                        fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, desiredTraits & ~(kCTFontExpandedTrait|kCTFontCondensedTrait|kCTFontBoldTrait), desiredTraits);
+                        
+                        if (fCTFontRef == NULL)
+                            //try removing italic trait (keep only bold)
+                            fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, desiredTraits & ~(kCTFontExpandedTrait|kCTFontCondensedTrait|kCTFontItalicTrait), desiredTraits);
+                    }
+               }
+            }
+            
+            if (fCTFontRef == NULL)
+                //derive current font with only base traits & new size (should succeed most of time)
+                fCTFontRef = CTFontCreateCopyWithSymbolicTraits(fontBaseRef, inSize, NULL, baseFontTraits, baseFontTraits);
+            /*
 			if (fCTFontRef == NULL)
 			{
 				//try again using only true family name & new font traits
@@ -1014,14 +1058,14 @@ XMacFont::XMacFont( VFont* inFont, const VString& inFontFamilyName, const VFontF
 					fontBaseFamily->Release();
 					if (newfontBaseRef)
 					{
-						fCTFontRef = CTFontCreateCopyWithSymbolicTraits(newfontBaseRef, inSize, NULL, fontTraits, fontTraits);
+						fCTFontRef = CTFontCreateCopyWithSymbolicTraits(newfontBaseRef, inSize, NULL, fontTraits | baseFontTraits, fontTraits | baseFontTraits); //we need to keep base font traits 
 						CFRelease(fontBaseRef);
 						fontBaseRef=newfontBaseRef;
 					}
 				}
 				if (fCTFontRef == NULL)
 				{
-					//get base font stylistic class (serif, sans-serif, monospace, script or symbolic styles)
+ 					//get base font stylistic class (serif, sans-serif, monospace, script or symbolic styles)
 					CFDictionaryRef baseTraitsAtt = CTFontCopyTraits(fontBaseRef);
 					xbox_assert(baseTraitsAtt);
 #if VERSIONDEBUG
@@ -1056,10 +1100,11 @@ XMacFont::XMacFont( VFont* inFont, const VString& inFontFamilyName, const VFontF
 					
 					CFRelease(descriptor);
 					CFRelease(traitsAtt);
-					//CFRelease(nameStyle);
+					//CFRelease(nameStyle);     
 					CFRelease(descAtt);
 				}
-			}
+ 			}
+            */
 		}
 			
 		if (fCTFontRef == NULL)
@@ -1093,6 +1138,26 @@ XMacFont::XMacFont( VFont* inFont, const VString& inFontFamilyName, const VFontF
 		//set strikeout style
 		if ((inFace & KFS_STRIKEOUT) != 0)
 			CTHelper::SetAttribute( fCTStringAttributes, CFSTR("NSStrikethrough"), (int32_t)kCTUnderlineStyleSingle);
+        
+#if WITH_DEBUGMSG
+        VString msg = "\ndesired font: name:";
+        msg.AppendString(inFontFamilyName);
+        msg.AppendCString(" face:");
+        msg.AppendLong(inFace);
+        msg.AppendCString(" size:");
+        msg.AppendReal( (Real)inSize);
+        msg.AppendCString("\n");
+        XBOX::DebugMsg(msg);
+        
+        XBOX::DebugMsg("font successfully created:\npostScript name:\n");
+        CFStringRef name = CTFontCopyPostScriptName(fCTFontRef);
+        CFShow(name);
+        CFRelease(name);
+        XBOX::DebugMsg("family name:\n");
+        name = CTFontCopyFamilyName(fCTFontRef);
+        CFShow(name);
+        CFRelease(name);
+#endif        
 	}
 }
 

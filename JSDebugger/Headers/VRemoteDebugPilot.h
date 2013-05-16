@@ -25,207 +25,256 @@
 class VRemoteDebugPilot : public XBOX::VObject {
 
 public:
-									VRemoteDebugPilot(	CHTTPServer*			inHTTPServer,
-														const XBOX::VString		inIP,
-														sLONG					inPort);
+									VRemoteDebugPilot(	CHTTPServer*			inHTTPServer);
 
 									~VRemoteDebugPilot() {;}
 	
-	bool							IsActive() { return (fState == WORKING_STATE); }
+			void					GetStatus(bool&	outPendingContexts,bool& outConnected,sLONG& outDebuggingEventsTimeStamp);
 
-	XBOX::VError					Check(WAKDebuggerContext_t inContext);
+			bool					IsActive() {
+										return (fState == STARTED_STATE || fState == CONNECTING_STATE || fState == CONNECTED_STATE); }
 
-	void							SetWS(IHTTPWebsocketHandler* inWS) { fWS = inWS; }
+			void					SetWS(IHTTPWebsocketServer* inWS) { fWS = inWS; }
 	
-	XBOX::VError					TreatRemoteDbg(IHTTPResponse* ioResponse);
+			XBOX::VError			TreatRemoteDbg(IHTTPResponse* ioResponse, bool inNeedsAuthentication);
 
-	XBOX::VError					TreatWS(IHTTPResponse* ioResponse, uLONG inPageNb );
+			XBOX::VError			TreatWS(IHTTPResponse* ioResponse, uLONG inPageNb );
 
-	WAKDebuggerServerMessage*		WaitFrom(WAKDebuggerContext_t inContext);
+			void					SetSolutionName(const XBOX::VString& inSolutionName) {fSolutionName = inSolutionName;}
 
-	XBOX::VError					SendEval( WAKDebuggerContext_t inContext, void* inVars );
+			WAKDebuggerServerMessage*		WaitFrom(OpaqueDebuggerContext inContext);
 
-	XBOX::VError					SendSource(	WAKDebuggerContext_t inContext,
-												intptr_t inSrcId,
-												const char *inData,
-												int inLength,
-												const char* inUrl,
-												unsigned int inUrlLen );
+			XBOX::VError			SendEval( OpaqueDebuggerContext inContext, const XBOX::VString& inEvaluationResult, const XBOX::VString& inRequestId );
 
-	XBOX::VError					SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize );
+			XBOX::VError			SendLookup( OpaqueDebuggerContext inContext, const XBOX::VString& inLookupResult );
 
-	XBOX::VError					SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength );
-
-	XBOX::VError					SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state);
+			XBOX::VError			SendCallStack(
+											OpaqueDebuggerContext				inContext,
+											const XBOX::VString&				inCallstackStr,
+											const XBOX::VString&				inExceptionInfosStr,
+											const CallstackDescriptionMap&		inCallstackDesc);
 	
-	XBOX::VError					BreakpointReached(
-											WAKDebuggerContext_t	inContext,
-											int						inLineNumber,
-											int						inExceptionHandle,
-											char*					inURL,
-											int						inURLLength,
-											char*					inFunction,
-											int 					inFunctionLength,
-											char*					inMessage,
-											int 					inMessageLength,
-											char* 					inName,
-											int 					inNameLength,
-											long 					inBeginOffset,
-											long 					inEndOffset );
+			XBOX::VError			BreakpointReached(
+											OpaqueDebuggerContext		inContext,
+											int							inLineNumber,
+											RemoteDebuggerPauseReason	inDebugReason,
+											XBOX::VString&				inException,
+											XBOX::VString&				inSourceUrl,
+											XBOX::VectorOfVString&		inSourceData);
 
-	XBOX::VError					NewContext(WAKDebuggerContext_t* outContext) {
-		RemoteDebugPilotMsg_t	l_msg;
-		*outContext = NULL;
-		l_msg.type = NEW_CONTEXT_MSG;
-		l_msg.outctx = outContext;
-		XBOX::VError l_err = Send( l_msg );
-		if (!l_err)
-		{
-			return l_err;
-		}
-		xbox_assert(false);//TBC
-		return l_err;
-	}
+			XBOX::VError			NewContext(OpaqueDebuggerContext* outContext);
 	
-	XBOX::VError					ContextRemoved(WAKDebuggerContext_t inContext) {
-		RemoteDebugPilotMsg_t	l_msg;
-		l_msg.type = REMOVE_CONTEXT_MSG;
-		l_msg.ctx = inContext;
-		return Send( l_msg );
-	}
+			XBOX::VError			ContextRemoved(OpaqueDebuggerContext inContext);
 
+			XBOX::VError			DeactivateContext( OpaqueDebuggerContext inContext, bool inHideOnly );
+
+			XBOX::VError			Start();
+
+			XBOX::VError			Stop();
+			
+			XBOX::VError			AbortAll();
 
 private:
-	
-	XBOX::VError					ContextUpdated(WAKDebuggerContext_t inContext, XBOX::VSemaphore* inSem, bool* outWait) {
-		RemoteDebugPilotMsg_t	l_msg;
-		l_msg.type = UPDATE_CONTEXT_MSG;
-		l_msg.ctx = inContext;
-		l_msg.sem = inSem;
-		l_msg.outwait = outWait;
-		return Send( l_msg );
-	}
+			XBOX::VString						fSolutionName;
+			XBOX::VSemaphore					fPendingContextsNumberSem;
+			sLONG								fDebuggingEventsTimeStamp;
+
+	class VContextDebugInfos : public XBOX::VObject {
+	public:
+		VContextDebugInfos() : fLineNb(0) {;} 
+		sLONG					fLineNb;
+		XBOX::VString			fFileName;
+		XBOX::VString			fReason;
+		XBOX::VString			fComment;
+		XBOX::VString			fSourceLine;
+	};
+
+	virtual XBOX::VError			ContextUpdated(	OpaqueDebuggerContext		inContext,
+													const VContextDebugInfos&	inDebugInfos,
+													XBOX::VSemaphore**			outSem);
 
 #define K_NB_MAX_CTXS		(1024)
 
 typedef enum RemoteDebugPilotMsgType_enum {
 		NEW_CONTEXT_MSG=10000,
 		REMOVE_CONTEXT_MSG,
+		DEACTIVATE_CONTEXT_MSG,
 		UPDATE_CONTEXT_MSG,
-		SET_STATE_MSG,
 		TREAT_WS_MSG,
 		BREAKPOINT_REACHED_MSG,
 		WAIT_FROM_MSG,
-		SEND_CALLSTACK_MSG,
-		SEND_LOOKUP_MSG,
-		SEND_EVAL_MSG,
-		TREAT_CLIENT_MSG,
+		TREAT_NEW_CLIENT_MSG,
+		START_MSG,
+		STOP_MSG,
+		ABORT_ALL_MSG
 } RemoteDebugPilotMsgType_t;
 
 typedef struct RemoteDebugPilotMsg_st {
 	RemoteDebugPilotMsgType_t		type;
-	WAKDebuggerContext_t			ctx;
-	WAKDebuggerContext_t*			outctx;
+	OpaqueDebuggerContext			ctx;
+	OpaqueDebuggerContext*			outctx;
 	XBOX::VString					url;
 	IHTTPResponse*					response;
 	WAKDebuggerState_t				state;
-	XBOX::VSemaphore*				sem;
 	uLONG							pagenb;
 	VChromeDbgHdlPage**				outpage;
 	XBOX::VSemaphore**				outsem;
 	XBOX::VString					datastr;
+	XBOX::VectorOfVString			datavectstr;
 	XBOX::VString					urlstr;
 	int								linenb;
 	intptr_t						srcid;
-	bool*							outwait;
+	bool							needsAuthentication;
+	bool							hideOnly;
+	VContextDebugInfos				debugInfos;
 } RemoteDebugPilotMsg_t;
 
+// the order of declaration is important: STPPED then STARTED then all the others states which are sub-states of STARTED
 typedef enum RemoteDebugPilotState_enum {
+		// pilot is stopped, waits to be started
 		STOPPED_STATE,
+		// pilot is started, waits for a (browser) client connection
 		STARTED_STATE,
-		WORKING_STATE,
+		// pilot waits connected client disconnection
+		DISCONNECTING_STATE,
+		// client has created a WS to communicate but connexion os not complete (e.g. authentication needed)
+		CONNECTING_STATE,
+		// pilot is working for a connected client, treats the requests coming through the WS
+		CONNECTED_STATE
 } RemoteDebugPilotState_t;
 
-static sLONG InnerTaskProc(XBOX::VTask* inTask);
+	static	sLONG					InnerTaskProc(XBOX::VTask* inTask);
 
-	XBOX::VCppMemMgr*							fMemMgr;
-	IHTTPWebsocketHandler*						fWS;
-	XBOX::VTask*								fTask;
-	XBOX::VSemaphore							fSem;
-	XBOX::VSemaphore							fCompletedSem;
-	sBYTE										fData[K_MAX_SIZE];
-	RemoteDebugPilotState_t						fState;
-	XBOX::VCriticalSection						fPipeLock;
-	XBOX::VSemaphore							fPipeInSem;
-	XBOX::VSemaphore							fPipeOutSem;
-	RemoteDebugPilotMsg_t						fPipeMsg;
-	XBOX::VError								fPipeStatus;
+	#define K_NB_MAX_PAGES		(16)
 
-	XBOX::VError Send( const RemoteDebugPilotMsg_t& inMsg ) {
-		XBOX::VError	l_err;
-		
-		fPipeLock.Lock();
-		fPipeMsg = inMsg;
-		fPipeInSem.Unlock();
-		fPipeOutSem.Lock();
-		l_err = fPipeStatus;
-		xbox_assert( l_err == XBOX::VE_OK );
-		fPipeLock.Unlock();
-		return l_err;
-	}
-	XBOX::VError Get(RemoteDebugPilotMsg_t* outMsg, bool* outFound, uLONG inTimeoutMs) {
-		bool			l_ok;
-		XBOX::VError	l_err;
-
-		*outFound = false;
-		l_err = XBOX::VE_UNKNOWN_ERROR;
-
-		if (!inTimeoutMs)
+	class VContextDescriptor : public XBOX::VObject, public XBOX::IRefCountable {
+	public:
+		VContextDescriptor() : fSem(NULL) , fPage(NULL), fUpdated(false)
 		{
-			l_ok = fPipeInSem.Lock();
+			fTraceContainer = new VChromeDbgHdlPage::VTracesContainer();
 		}
-		else
-		{
-			l_ok = fPipeInSem.Lock((sLONG)inTimeoutMs);
-		}
-		if (l_ok)
-		{
-			*outMsg = fPipeMsg;
-			*outFound = true;
-			l_err = XBOX::VE_OK;
-		}
-		else
-		{
-			if (inTimeoutMs)
-			{
-				l_err = XBOX::VE_OK;
-			}
-		}
-		return l_err;
-	}
+		~VContextDescriptor() {
+			fUpdated = false;
+			//testAssert( (void*)fSem == NULL );
+			ReleaseRefCountable(&fSem);
+			(void*)fPage;
+			ReleaseRefCountable(&fTraceContainer);
+		};
+		XBOX::VSemaphore*							fSem;
+		VChromeDbgHdlPage*							fPage;
+		VChromeDbgHdlPage::VTracesContainer*		fTraceContainer;
+		bool										fUpdated;
+		VContextDebugInfos							fDebugInfos;
+	private:
+		VContextDescriptor(const VContextDescriptor& inContextDescriptor);
+	};
 
-static XBOX::VError SendToBrowser( VRemoteDebugPilot* inThis, const XBOX::VString& inResp )
+	// perform an hysteresis on status to compensate WAKstudio polling mecanism
+	class VStatusHysteresis : public XBOX::VObject {
+	public:
+		VStatusHysteresis();
+		void					Get(bool& ioConnected);
+	private:
+		XBOX::VCriticalSection	fLock;
+		XBOX::VTime				fLastConnectedTime;
+	};
+
+	class VPilotLogListener : public XBOX::VObject, public XBOX::ILogListener
 	{
-		XBOX::VSize	l_size;
-		l_size = inResp.GetLength() * 3; /* overhead between VString's UTF_16 to CHAR* UTF_8 */
-		if (l_size >= K_MAX_SIZE)
-		{
-				l_size = K_MAX_SIZE;
-				xbox_assert(false);
-		}
-		l_size = inResp.ToBlock(inThis->fData,l_size,XBOX::VTC_UTF_8,false,false);
-		XBOX::VError l_err = inThis->fWS->WriteMessage((void*)inThis->fData,l_size,true);
-		return l_err;
-	}
+	public:
+						VPilotLogListener(VRemoteDebugPilot* inPilot);
+		virtual	void	Put( std::vector< const XBOX::VValueBag* >& inValuesVector );
+	private:
+			VRemoteDebugPilot*		fPilot;
+	};
 
-#define K_NB_MAX_PAGES		(8)
+			XBOX::VCppMemMgr*							fMemMgr;
+			IHTTPWebsocketServer*						fWS;
+			XBOX::VTask*								fTask;
+			XBOX::VSemaphore							fUniqueClientConnexionSemaphore;
+			XBOX::VSemaphore							fClientCompletedSemaphore;
+			RemoteDebugPilotState_t						fState;
+			XBOX::VCriticalSection						fPipeLock;
+			XBOX::VSemaphore							fPipeInSem;
+			XBOX::VSemaphore							fPipeOutSem;
+			RemoteDebugPilotMsg_t						fPipeMsg;
+			XBOX::VError								fPipeStatus;
+			XBOX::VTime									fDisconnectTime;
+			bool										fNeedsAuthentication;
+			std::map< OpaqueDebuggerContext, VContextDescriptor*>	fContextArray;
+			sBYTE*										fTmpData;
+			XBOX::VString								fClientId;
+			CHTTPServer*								fHTTPServer;
+			VStatusHysteresis							fStatusHysteresis;
+			XBOX::VCriticalSection						fLock;
+			std::vector<const XBOX::VValueBag*>			fTraces;
+			XBOX::VCriticalSection						fTracesLock;
 
-typedef struct PageDescriptor_st {
-	bool				used;
-	VChromeDbgHdlPage	value;
-} PageDescriptor_t;
+			XBOX::VError					Send( const RemoteDebugPilotMsg_t& inMsg );
 
-	static PageDescriptor_t*						sPages;
+			XBOX::VError					Get(RemoteDebugPilotMsg_t& outMsg, bool& outFound, uLONG inTimeoutMs);
+
+			XBOX::VError					SendToBrowser( const XBOX::VString& inResp );
+	
+			void							DisconnectBrowser();
+
+			void							RemoveContext(std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator&	inCtxIt);
+
+			void							TreatStartMsg(RemoteDebugPilotMsg_t& ioMsg,VPilotLogListener* inLogListener);
+			void							TreatAbortAllMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatStopMsg(RemoteDebugPilotMsg_t& ioMsg,VPilotLogListener* inLogListener);
+			void							TreatNewClientMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatNewContextMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatRemoveContextMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatDeactivateContextMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatUpdateContextMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatTreatWSMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatBreakpointReachedMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatWaitFromMsg(RemoteDebugPilotMsg_t& ioMsg);
+			void							TreatTraces();
+		
+			void							HandleDisconnectingState();
+			void							HandleConnectedState();
+			void							HandleConnectingState();
+
+
+			XBOX::VError					SendContextToBrowser(
+														std::map< OpaqueDebuggerContext,VContextDescriptor* >::iterator& inCtxIt);
+
+			void							AbortContexts(bool inOnlyDebuggedOnes);
+
+			void DisplayContexts() {
+				XBOX::VString	K_EMPTY("empty");
+				XBOX::DebugMsg("\ndisplay ctxs\n");
+				std::map< OpaqueDebuggerContext, VContextDescriptor* >::iterator	ctxIt = fContextArray.begin();
+				while( ctxIt != fContextArray.end() )
+				{
+					sLONG8 id = (sLONG8)((*ctxIt).first);
+					int updated = 0;
+					if ((*ctxIt).second->fUpdated)
+					{
+						updated = 1;
+					}
+					XBOX::VString tmp = (*ctxIt).second->fDebugInfos.fFileName;
+					if (tmp.GetLength() <= 0)
+					{
+						XBOX::DebugMsg("  id->%lld , name=empty, updated=%d\n",
+								id,
+								updated );
+					}
+					else
+					{
+						XBOX::DebugMsg("  id->%lld , name=%S, updated=%d\n",
+								id,
+								&tmp,
+								updated );
+					}
+					ctxIt++;
+				}
+				XBOX::DebugMsg("\n\n");
+			}
+
+	static	sLONG							sRemoteDebugPilotContextId;
 
 };
 

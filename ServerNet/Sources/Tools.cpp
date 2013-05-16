@@ -24,6 +24,7 @@
 
 #include "VTCPEndPoint.h"
 
+#include "VProxyManager.h"
 
 #if VERSIONMAC || VERSION_LINUX
 	#include <netdb.h>
@@ -112,8 +113,30 @@ void VServerNetManager::Init(ICriticalError* inCriticalError, IpPolicy inIpPolic
 		manager->fCriticalError=inCriticalError;
 
 	
-	if(manager!=NULL)
+	if(manager!=NULL && manager->fIpStacks==0)
 	{
+		
+#if VERSIONMAC
+#	if VERSIONDEBUG
+		if(getenv("SERVERNET_WASTE_SOCKETS")!=NULL)
+		{
+			sLONG min=kMAX_sLONG, max=-1, count=1234, s;
+
+			for(int i=0 ; i<count ; i++)
+			{
+				s=socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+				min = min<s ? min : s ;
+				max = max>s ? max : s ;
+			}
+
+			sLONG tbl=getdtablesize();
+
+			DebugMsg ("[%d] VServerNetManager::Init() : Waste %d sockets from %d to %d (table size is %d)\n",
+					  VTask::GetCurrentID(), count, min, max, tbl);
+		}
+#	endif
+#endif
+
 		//See if we suport IP v4 and v6 and translate 'auto' to some appropriate policy
 		
 		//First, pretend we support v4 only and count local interfaces
@@ -199,7 +222,9 @@ void VServerNetManager::Init(ICriticalError* inCriticalError, IpPolicy inIpPolic
 		DebugMsg ("[%d] VServerNetManager::Init() : ServerNet IP Policy is %s\n",
 				  VTask::GetCurrentID(), policyLabel);
 		
-		xbox_assert(verr==VE_OK);		
+		xbox_assert(verr==VE_OK);	
+
+		VProxyManager::Init();
 	}
 }
 
@@ -660,10 +685,26 @@ bool ServerNetTools::IsLocalInterface(const VString& inIP)
 	VNetAddressList::const_iterator cit=addrs.begin();
 
 	while(cit!=addrs.end())
+	{
 		if(inIP==cit->GetIP())
 			return true;
+		++cit;
+	}
 
 	return false;
+}
+
+
+bool ServerNetTools::IsLoopBack(const VString& inIP)
+{
+	StKillErrorContext errCtx;
+
+	VString ip=XBOX::ServerNetTools::RemoveIPv6Brackets(inIP);
+
+	//ip may be any string - we might throw an error !
+	VNetAddress addr(ip);
+
+	return addr.IsLoopBack();
 }
 
 
@@ -732,7 +773,7 @@ VString ServerNetTools::GetLoopbackIP(bool inWithBrackets)
 }
 
 
-VString ServerNetTools::AddIPv6Brackets(VString inIP)
+VString ServerNetTools::AddIPv6Brackets(const VString& inIP)
 {
 	StSilentErrorContext errCtx;
 
@@ -741,6 +782,19 @@ VString ServerNetTools::AddIPv6Brackets(VString inIP)
 
 	if(verr==VE_OK && addr.IsV6())
 		return VString("[")+addr.GetIP()+VString("]");
+
+	return inIP;
+}
+
+
+VString ServerNetTools::RemoveIPv6Brackets(const VString& inIP)
+{
+	if(inIP.BeginsWith("[") && inIP.EndsWith("]"))
+	{
+		VString tmp(inIP);
+		tmp.SubString(2, tmp.GetLength()-2);
+		return tmp;
+	}
 
 	return inIP;
 }

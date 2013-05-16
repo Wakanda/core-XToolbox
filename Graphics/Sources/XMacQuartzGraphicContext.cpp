@@ -52,11 +52,6 @@ const GReal	kSMALLEST_TXN_WIDTH		= 8;	// This value is in fact the size of the l
 
 // Static
 
-VGraphicContext* VMacQuartzGraphicContext::CreateBitmapContext(VRect inBounds)
-{
-	return NULL;
-}
-
 Boolean VMacQuartzGraphicContext::Init()
 {
 	return true;
@@ -93,6 +88,10 @@ VMacQuartzGraphicContext::VMacQuartzGraphicContext(CGContextRef inContext, Boole
 
 	CGContextSetFlatness(fContext, 2);
 	CGContextSetInterpolationQuality(fContext, kCGInterpolationLow);
+    CGContextSetAllowsAntialiasing( fContext, true);
+    CGContextSetShouldAntialias(fContext, true);
+    CGContextSetAllowsFontSmoothing( fContext, true);
+    CGContextSetShouldSmoothFonts( fContext, true);
 	SetLineWidth((GReal)1.0);
 	SaveContext();
 }
@@ -123,6 +122,10 @@ VMacQuartzGraphicContext::VMacQuartzGraphicContext( VMacQDPortBridge* inQDPort, 
 	
 	CGContextSetFlatness(fContext, 2);
 	CGContextSetInterpolationQuality(fContext, kCGInterpolationLow);
+    CGContextSetAllowsAntialiasing( fContext, true);
+    CGContextSetShouldAntialias(fContext, true);
+    CGContextSetAllowsFontSmoothing( fContext, true);
+    CGContextSetShouldSmoothFonts( fContext, true);
 	SetLineWidth((GReal)1.0);
 	
 	SetPrinterScale(inForPrinting,1,1);
@@ -159,6 +162,10 @@ VMacQuartzGraphicContext::VMacQuartzGraphicContext(const VMacQuartzGraphicContex
 	
 	CGContextSetFlatness(fContext, 2);
 	CGContextSetInterpolationQuality(fContext, kCGInterpolationLow);
+    CGContextSetAllowsAntialiasing( fContext, true);
+    CGContextSetShouldAntialias(fContext, true);
+    CGContextSetAllowsFontSmoothing( fContext, true);
+    CGContextSetShouldSmoothFonts( fContext, true);
 	SetLineWidth(inOriginal.fLineWidth);
 	
 	SaveContext();
@@ -441,7 +448,7 @@ void VMacQuartzGraphicContext::SetFillRule( FillRuleType inFillRule)
 void VMacQuartzGraphicContext::SetLineWidth(GReal inWidth, VBrushFlags* /*ioFlags*/)
 {
 	if(fHairline && fPrinterScale)
-		::CGContextSetLineWidth(fContext, 0.01f); // pas trouvŽ d'autre moyen pour faire du hairline
+		::CGContextSetLineWidth(fContext, 0.01f); // pas trouv d'autre moyen pour faire du hairline
 	else
 		::CGContextSetLineWidth(fContext, inWidth);
 	fLineWidth=inWidth;
@@ -678,10 +685,10 @@ TextRenderingMode VMacQuartzGraphicContext::SetTextRenderingMode( TextRenderingM
 		if (fFontMetrics)
 			GetCoreTextFactory()->SetRenderingMode( inMode);
 		
-		if (fTextRenderingMode & (TRM_WITH_ANTIALIASING|TRM_WITH_ANTIALIASING_NORMAL))
-			CGContextSetShouldSmoothFonts( fContext, true);
-		else if (fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)
+        if (fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)
 			CGContextSetShouldSmoothFonts( fContext, false);
+        else
+            CGContextSetShouldSmoothFonts( fContext, true);
 	}
 	return oldMode;
 }
@@ -778,21 +785,6 @@ uBYTE VMacQuartzGraphicContext::SetAlphaBlend(uBYTE inAlphaBlend)
 	return oldBlend;
 }
 
-
-TransferMode VMacQuartzGraphicContext::SetPixelTransferMode(TransferMode inMode)
-{	
-	switch (inMode)
-	{
-		case TM_COPY:
-			break;
-
-		default:
-			assert(false);
-			break;
-	}
-	
-	return TM_COPY;
-}
 
 
 #pragma mark-
@@ -1422,15 +1414,12 @@ void VMacQuartzGraphicContext::DrawStyledText( const VString& inText, VTreeTextS
 	newBounds.SetHeight(inHwndBounds.GetHeight());
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inText, inStyles, inHoriz, inVert);
-	
-	VStyledTextBox *textBox = new XMacStyledTextBox(contextRef, inText, styles ? styles : inStyles, newBounds, textColor, font, fTextRenderingMode, inMode, fCharKerning+fCharSpacing, inRefDocDPI);
-
-	if (styles)
-		styles->Release();
+	VStyledTextBox *textBox = new XMacStyledTextBox(contextRef, inText, inStyles, newBounds, textColor, font, fTextRenderingMode, inMode, fCharKerning+fCharSpacing, inRefDocDPI);
 
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHoriz);
+		textBox->SetParaAlign( inVert);
 		textBox->Draw(newBounds);
 		textBox->Release();
 	}
@@ -1475,8 +1464,14 @@ bool VMacQuartzGraphicContext::GetStyledTextBoxCharIndexFromCoord( const VString
 	}
 	
 	VFont *font = RetainFont();
-	_UseQuartzAxis();
-
+    bool doRestoreContext = false;
+    if (fAxisInverted)
+    {
+        doRestoreContext = true;
+        SaveContext();
+        _UseQuartzAxis();
+    }
+    
 	ContextRef contextRef = BeginUsingParentContext();
 	
 	VRect newBounds;
@@ -1489,15 +1484,13 @@ bool VMacQuartzGraphicContext::GetStyledTextBoxCharIndexFromCoord( const VString
 	pos.SetY(fQDBounds.size.height-inPos.GetY());
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inText, inStyles, inHoriz, inVert);
-	
-	XMacStyledTextBox *textBox = new XMacStyledTextBox(contextRef, *text, styles ? styles : inStyles, newBounds, VColor::sBlackColor, font, fTextRenderingMode, inLayoutMode, fCharKerning+fCharSpacing, inRefDocDPI);
-
-	if (styles)
-		styles->Release();
+	XMacStyledTextBox *textBox = new XMacStyledTextBox(contextRef, *text, inStyles, newBounds, VColor::sBlackColor, font, fTextRenderingMode, inLayoutMode, fCharKerning+fCharSpacing, inRefDocDPI);
 
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHoriz);
+		textBox->SetParaAlign( inVert);
+
 		CFMutableAttributedStringRef attributedString = textBox->GetAttributedString();
 		if (attributedString)
 		{
@@ -1571,6 +1564,9 @@ bool VMacQuartzGraphicContext::GetStyledTextBoxCharIndexFromCoord( const VString
 
 	font->Release();
 	EndUsingParentContext(contextRef);
+    
+    if (doRestoreContext)
+        RestoreContext();
 	return true;
 }
 
@@ -1617,7 +1613,13 @@ void VMacQuartzGraphicContext::GetStyledTextBoxCaretMetricsFromCharIndex( const 
 		// there is no easy drawback but to ensure we do not draw caret on the trailing side) 
 		leading = true;
 	
-	_UseQuartzAxis();
+    bool doRestoreContext = false;
+    if (fAxisInverted)
+    {
+        doRestoreContext = true;
+        SaveContext();
+        _UseQuartzAxis();
+    }
 
 	outCaretPos.SetPos(inHwndBounds.GetTopLeft().GetX(), fQDBounds.size.height-inHwndBounds.GetTopLeft().GetY()); //default output caret pos in Quartz coord space
 	outTextHeight = 0.0f;
@@ -1631,15 +1633,13 @@ void VMacQuartzGraphicContext::GetStyledTextBoxCaretMetricsFromCharIndex( const 
 	newBounds.SetHeight(inHwndBounds.GetHeight());
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inText, inStyles, inHoriz, inVert);
-	
-	XMacStyledTextBox *textBox = new XMacStyledTextBox(contextRef, *text, styles ? styles : inStyles, newBounds, VColor::sBlackColor, font, fTextRenderingMode, inLayoutMode, fCharKerning+fCharSpacing, inRefDocDPI);
-
-	if (styles)
-		styles->Release();
+	XMacStyledTextBox *textBox = new XMacStyledTextBox(contextRef, *text, inStyles, newBounds, VColor::sBlackColor, font, fTextRenderingMode, inLayoutMode, fCharKerning+fCharSpacing, inRefDocDPI);
 
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHoriz);
+		textBox->SetParaAlign( inVert);
+
 		CFMutableAttributedStringRef attributedString = textBox->GetAttributedString();
 		if (attributedString)
 		{
@@ -1727,6 +1727,9 @@ void VMacQuartzGraphicContext::GetStyledTextBoxCaretMetricsFromCharIndex( const 
 
 	font->Release();
 	EndUsingParentContext(contextRef);
+    
+    if (doRestoreContext)
+        RestoreContext();
 }
 
 
@@ -1746,7 +1749,13 @@ void VMacQuartzGraphicContext::GetStyledTextBoxRunBoundsFromRange( const VString
 	if (inStart < inText.GetLength() && inText[inStart] == 13)
 		inStart++;
 
-	_UseQuartzAxis();
+    bool doRestoreContext = false;
+    if (fAxisInverted)
+    {
+        doRestoreContext = true;
+        SaveContext();
+        _UseQuartzAxis();
+    }
 
 	ContextRef contextRef = BeginUsingParentContext();
 	
@@ -1757,15 +1766,13 @@ void VMacQuartzGraphicContext::GetStyledTextBoxRunBoundsFromRange( const VString
 	newBounds.SetHeight(inHwndBounds.GetHeight());
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inText, inStyles, inHAlign, inVAlign);
-	
-	XMacStyledTextBox *textBox = new XMacStyledTextBox(contextRef, inText, styles ? styles : inStyles, newBounds, VColor::sBlackColor, font, fTextRenderingMode, inMode, fCharKerning+fCharSpacing, inRefDocDPI);
-
-	if (styles)
-		styles->Release();
+	XMacStyledTextBox *textBox = new XMacStyledTextBox(contextRef, inText, inStyles, newBounds, VColor::sBlackColor, font, fTextRenderingMode, inMode, fCharKerning+fCharSpacing, inRefDocDPI);
 
 	if (textBox)
 	{
+		textBox->SetTextAlign( inHAlign);
+		textBox->SetParaAlign( inVAlign);
+
 		CFMutableAttributedStringRef attributedString = textBox->GetAttributedString();
 		if (attributedString)
 		{
@@ -1906,6 +1913,9 @@ void VMacQuartzGraphicContext::GetStyledTextBoxRunBoundsFromRange( const VString
 
 	font->Release();
 	EndUsingParentContext(contextRef);
+    
+    if (doRestoreContext)
+        RestoreContext();
 }
 
 
@@ -1918,7 +1928,7 @@ void VMacQuartzGraphicContext::FrameRect(const VRect& inHwndBounds)
 	{
 		_UseQDAxis();
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		_CreatePathFromRect(bounds);
 		_StrokePath();
@@ -1937,7 +1947,7 @@ void VMacQuartzGraphicContext::FrameOval(const VRect& inHwndBounds)
 	{
 		_UseQDAxis();
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		_CreatePathFromOval(bounds);
 		_StrokePath();
@@ -2003,7 +2013,7 @@ void VMacQuartzGraphicContext::FillRect(const VRect& inHwndBounds)
 	{
 		_UseQDAxis();
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds, true);
+		CEAdjustRectInTransformedSpace( bounds, true);
 
 		_CreatePathFromRect(bounds);
 		_FillPath();
@@ -2022,7 +2032,7 @@ void VMacQuartzGraphicContext::FillOval(const VRect& inHwndBounds)
 	{
 		_UseQDAxis();
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds, true);
+		CEAdjustRectInTransformedSpace( bounds, true);
 
 		_CreatePathFromOval(bounds);
 		_FillPath();
@@ -2088,7 +2098,7 @@ void VMacQuartzGraphicContext::DrawRect(const VRect& inHwndBounds)
 	{
 		_UseQDAxis();
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		_CreatePathFromRect(bounds);
 		_FillStrokePath();
@@ -2107,7 +2117,7 @@ void VMacQuartzGraphicContext::DrawOval(const VRect& inHwndBounds)
 	{
 		_UseQDAxis();
 		VRect bounds( inHwndBounds);
-		_CEAdjustRectInTransformedSpace( bounds);
+		CEAdjustRectInTransformedSpace( bounds);
 
 		_CreatePathFromOval(bounds);
 		_FillStrokePath();
@@ -2199,8 +2209,8 @@ void VMacQuartzGraphicContext::DrawLine(const VPoint& inHwndStart, const VPoint&
 		VPoint _start, _end;
 		_start = inHwndStart;
 		_end = inHwndEnd;
-		_CEAdjustPointInTransformedSpace( _start);
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _start);
+		CEAdjustPointInTransformedSpace( _end);
 
 		::CGContextMoveToPoint(fContext, _start.GetX(), _start.GetY());
 		::CGContextAddLineToPoint(fContext, _end.GetX(), _end.GetY());
@@ -2223,8 +2233,8 @@ void VMacQuartzGraphicContext::DrawLine(const GReal inHwndStartX,const GReal inH
 
 		VPoint _start( inHwndStartX, inHwndStartY);
 		VPoint _end( inHwndEndX, inHwndEndY);
-		_CEAdjustPointInTransformedSpace( _start);
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _start);
+		CEAdjustPointInTransformedSpace( _end);
 
 		::CGContextMoveToPoint(fContext, _start.GetX(), _start.GetY());
 		::CGContextAddLineToPoint(fContext, _end.GetX(), _end.GetY());
@@ -2248,13 +2258,13 @@ void VMacQuartzGraphicContext::DrawLines(const GReal* inCoords, sLONG inCoordCou
 		_UseQDAxis();
 
 		VPoint pos( inCoords[0], inCoords[1]);
-		_CEAdjustPointInTransformedSpace( pos);
+		CEAdjustPointInTransformedSpace( pos);
 		::CGContextMoveToPoint(fContext, pos.GetX(), pos.GetY());
 
 		for (sLONG index = 2; index < (inCoordCount - 1); index += 2)
 		{
 			pos.SetPos( inCoords[index], inCoords[index + 1]);
-			_CEAdjustPointInTransformedSpace( pos);
+			CEAdjustPointInTransformedSpace( pos);
 			::CGContextAddLineToPoint(fContext, pos.GetX(), pos.GetY());
 		}
 
@@ -2280,7 +2290,7 @@ void VMacQuartzGraphicContext::DrawLineTo(const VPoint& inHwndEnd)
 		_UseQDAxis();
 
 		VPoint _end = inHwndEnd;
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _end);
 
 		::CGContextAddLineToPoint(fContext, _end.GetX(), _end.GetY());
 		_StrokePath();
@@ -2308,7 +2318,7 @@ void VMacQuartzGraphicContext::DrawLineBy(GReal inWidth, GReal inHeight)
 		_UseQDAxis();
 		CGPoint	curPos = ::CGContextGetPathCurrentPoint(fContext);
 		VPoint _end( curPos.x + inWidth, curPos.y + inHeight);
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _end);
 
 		::CGContextAddLineToPoint(fContext, _end.GetX(), _end.GetY());
 		_StrokePath();
@@ -2336,7 +2346,7 @@ void VMacQuartzGraphicContext::MoveBrushTo(const VPoint& inHwndPos)
 	{
 		_UseQDAxis();
 		VPoint _end = inHwndPos;
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _end);
 
 		::CGContextMoveToPoint(fContext, _end.GetX(), _end.GetY());
 		return;
@@ -2354,7 +2364,7 @@ void VMacQuartzGraphicContext::MoveBrushBy(GReal inWidth, GReal inHeight)
 		CGPoint	curPos = ::CGContextGetPathCurrentPoint(fContext);
 
 		VPoint _end( curPos.x + inWidth, curPos.y + inHeight);
-		_CEAdjustPointInTransformedSpace( _end);
+		CEAdjustPointInTransformedSpace( _end);
 
 		::CGContextMoveToPoint(fContext, _end.GetX(), _end.GetY());
 		return;
@@ -2388,7 +2398,7 @@ void VMacQuartzGraphicContext::DrawIcon(const VIcon& inIcon, const VRect& inHwnd
 		y = ::lrint( fQDBounds.size.height  - inHwndBounds.GetBottom());
 	}
 	
-	CGRect	cgRect = { { x , y } , { w, h } };
+	CGRect	cgRect = { { static_cast<CGFloat>(x) , static_cast<CGFloat>(y) } , { static_cast<CGFloat>(w), static_cast<CGFloat>(h) } };
 	::PlotIconRefInContext(fContext, &cgRect, inIcon.MAC_GetAlignmentType(), inIcon.MAC_GetTransformType(), NULL, kPlotIconRefNormalFlags, inIcon);
 }
 
@@ -2557,7 +2567,7 @@ void VMacQuartzGraphicContext::ClipPath (const VGraphicPath& inPath, Boolean inA
 	//Quartz2D constraint: always intersect with current clipping path
 	::CGContextClip(fContext);
 
-	_RevealClipping(fContext);
+	RevealClipping(fContext);
 }
 
 /** add or intersect the specified clipping path outline with the current clipping path 
@@ -2582,7 +2592,7 @@ void VMacQuartzGraphicContext::ClipPathOutline (const VGraphicPath& inPath, Bool
 	//Quartz2D constraint: always intersect with current clipping path
 	::CGContextClip(fContext);
 
-	_RevealClipping(fContext);
+	RevealClipping(fContext);
 }
 
 
@@ -2602,7 +2612,7 @@ void VMacQuartzGraphicContext::ClipRect(const VRect& inHwndBounds, Boolean inAdd
 	else*/
 		//Quartz2D constraint: always intersect with current clipping path
 		::CGContextClipToRect(fContext, inHwndBounds);
-	_RevealClipping(fContext);
+	RevealClipping(fContext);
 }
 
 
@@ -2622,9 +2632,17 @@ void VMacQuartzGraphicContext::ClipRegion(const VRegion& inHwndRegion, Boolean i
 	//::ClipCGContextToRegion(fContext, inHwndRegion.GetBounds().MAC_ToQDRect(macRect), inHwndRegion);
 
 	//Quartz2D constraint: always intersect with current clipping path
-	_CreatePathFromRegion(inHwndRegion);
-	::CGContextClip(fContext);
-	_RevealClipping(fContext);
+    if(inHwndRegion.IsEmpty())
+    {
+        CGRect reclip = CGRectMake(0,0,0,0);
+        ::CGContextClipToRect(fContext,reclip);
+    }
+    else
+    {
+        _CreatePathFromRegion(inHwndRegion);
+        ::CGContextClip(fContext);
+    }
+	RevealClipping(fContext);
 }
 
 
@@ -2635,7 +2653,7 @@ void VMacQuartzGraphicContext::GetClip(VRegion& outHwndRgn) const
 }
 
 
-void VMacQuartzGraphicContext::_RevealUpdate(WindowRef inWindow)
+void VMacQuartzGraphicContext::RevealUpdate(WindowRef inWindow)
 {	
 #if VERSIONDEBUG && WITH_QUICKDRAW
 //	if (sDebugRevealUpdate)
@@ -2644,7 +2662,7 @@ void VMacQuartzGraphicContext::_RevealUpdate(WindowRef inWindow)
 }
 
 
-void VMacQuartzGraphicContext::_RevealClipping(ContextRef inContext)
+void VMacQuartzGraphicContext::RevealClipping(ContextRef inContext)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealClipping)
@@ -2663,7 +2681,7 @@ void VMacQuartzGraphicContext::_RevealClipping(ContextRef inContext)
 }
 
 
-void VMacQuartzGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRef inRegion)
+void VMacQuartzGraphicContext::RevealBlitting(ContextRef inContext, const RgnRef inRegion)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealBlitting)
@@ -2698,7 +2716,7 @@ void VMacQuartzGraphicContext::_RevealBlitting(ContextRef inContext, const RgnRe
 }
 
 
-void VMacQuartzGraphicContext::_RevealInval(ContextRef inContext, const RgnRef inRegion)
+void VMacQuartzGraphicContext::RevealInval(ContextRef inContext, const RgnRef inRegion)
 {
 #if VERSIONDEBUG
 	if (sDebugRevealInval)
@@ -2805,13 +2823,12 @@ void VMacQuartzGraphicContext::_CreatePathFromOval(const VRect& inHwndBounds)
 
 void VMacQuartzGraphicContext::_CreatePathFromPolygon(const VPolygon& inHwndPolygon, bool inFillOnly)
 {
-	::CGContextConcatCTM(fContext, inHwndPolygon);
 	::CGContextBeginPath(fContext);
 	if (fShapeCrispEdgesEnabled)
 	{
-		const CGPoint *points = (const CGPoint *)inHwndPolygon;
+		const CGPoint *points = (const CGPoint *)inHwndPolygon.GetNativePoints();
 		sLONG numPoint = inHwndPolygon.GetPointCount();
-		if (numPoint >= 3)
+		if (numPoint >= 2)
 		{
 			CGPoint pointsMemStack[16];
 			CGPoint *pointsCE = numPoint <= 16 ? pointsMemStack : new CGPoint [numPoint];
@@ -2821,7 +2838,7 @@ void VMacQuartzGraphicContext::_CreatePathFromPolygon(const VPolygon& inHwndPoly
 			for (int i = 0; i < numPoint; i++, ptSrc++, ptDst++)
 			{
 				VPoint pt( ptSrc->x, ptSrc->y);
-				_CEAdjustPointInTransformedSpace( pt, inFillOnly);
+				CEAdjustPointInTransformedSpace( pt, inFillOnly);
 				ptDst->x = pt.GetX();
 				ptDst->y = pt.GetY();
 			}
@@ -2833,7 +2850,7 @@ void VMacQuartzGraphicContext::_CreatePathFromPolygon(const VPolygon& inHwndPoly
 		}
 	}
 	else
-		::CGContextAddLines(fContext, inHwndPolygon, inHwndPolygon.GetPointCount());
+		::CGContextAddLines(fContext, inHwndPolygon.GetNativePoints(), inHwndPolygon.GetPointCount());
 	::CGContextClosePath(fContext);
 }
 
@@ -3587,6 +3604,14 @@ bool VMacQuartzGraphicContext::_BeginLayer(const VRect& _inBounds, GReal inAlpha
 				boundsClipLocal.Intersect(boundsClip);
 			::CGContextClipToRect( fContext, boundsClipLocal);
 
+            CGContextSetAllowsAntialiasing( fContext, true);
+            CGContextSetShouldAntialias(fContext, fIsHighQualityAntialiased && !GetMaxPerfFlag());
+            CGContextSetAllowsFontSmoothing( fContext, true);
+            if (fTextRenderingMode & TRM_WITHOUT_ANTIALIASING)
+                CGContextSetShouldSmoothFonts( fContext, false);
+            else
+                CGContextSetShouldSmoothFonts( fContext, true);
+           
 			//set layer transform
 			ctm.Translate( -bounds.GetX(), -bounds.GetY(),
 						   VAffineTransform::MatrixOrderAppend);
@@ -3970,7 +3995,7 @@ void VMacQuartzGraphicContext::GetTransformToLayer(VAffineTransform &outTransfor
 	GetTransform(outTransform);
 	std::vector<VRect>::reverse_iterator itBounds = fStackLayerBounds.rbegin();
 	std::vector<bool>::const_reverse_iterator itOwnBackground = fStackLayerOwnBackground.rbegin();
-	std::vector<VGraphicContextNativeRef>::reverse_iterator itGC = fStackLayerGC.rbegin();
+	std::vector<VGCNativeRef>::reverse_iterator itGC = fStackLayerGC.rbegin();
 	sLONG index = fStackLayerBounds.size()-1;
 	for (;itBounds != fStackLayerBounds.rend(); itBounds++, itOwnBackground++, itGC++, index--)
 	{
@@ -4285,6 +4310,7 @@ void VMacQuartzGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const
 	if (!inTextLayout->_BeginDrawLayer( inTopLeft))
 	{
 		//text has been refreshed from layer: we do not need to redraw text content
+		inTextLayout->_EndDrawLayer();
 		inTextLayout->EndUsingContext();
 		return;
 	}
@@ -4296,7 +4322,10 @@ void VMacQuartzGraphicContext::_DrawTextLayout( VTextLayout *inTextLayout, const
 
 	ContextRef contextRef = BeginUsingParentContext();
 
-	VRect bounds( inTopLeft.GetX(), fQDBounds.size.height - inTopLeft.GetY() - inTextLayout->fCurLayoutHeight, inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
+	VRect bounds(	inTopLeft.GetX()+inTextLayout->fMarginLeft, 
+					fQDBounds.size.height - (inTopLeft.GetY()+inTextLayout->fMarginTop+inTextLayout->_GetLayoutHeightMinusMargin()), 
+					inTextLayout->_GetLayoutWidthMinusMargin(), 
+					inTextLayout->_GetLayoutHeightMinusMargin());
 	inTextLayout->fTextBox->SetDrawContext( contextRef);
 	inTextLayout->fTextBox->Draw( bounds);
 
@@ -4373,16 +4402,22 @@ void VMacQuartzGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *in
 //	if (inStart < inTextLayout->fTextLength && inTextLayout->GetText()[inStart] == 13)
 //		inStart++;
 
-	_UseQuartzAxis();
+    bool doRestoreContext = false;
+    if (fAxisInverted)
+    {
+        doRestoreContext = true;
+        SaveContext();
+        _UseQuartzAxis();
+    }
 
 	VPoint frameOrigin;
-	frameOrigin.SetX(inTopLeft.GetX());
-	frameOrigin.SetY(fQDBounds.size.height - inTopLeft.GetY() - inTextLayout->fCurLayoutHeight);
+	frameOrigin.SetX(inTopLeft.GetX()+inTextLayout->fMarginLeft);
+	frameOrigin.SetY(fQDBounds.size.height - (inTopLeft.GetY()+inTextLayout->fMarginTop+inTextLayout->_GetLayoutHeightMinusMargin()));
 		
 	//get frame
-	CTFrameRef frame = textBox->GetCurLayoutFrame( inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
-	frameOrigin.SetPosBy(textBox->GetLayoutOffset().GetX(), 0.0f);
-	
+	CTFrameRef frame = textBox->GetCurLayoutFrame( inTextLayout->_GetLayoutWidthMinusMargin(), inTextLayout->_GetLayoutHeightMinusMargin());
+	frameOrigin += textBox->GetLayoutOffset();
+ 	
 	//get frame path
 	CGPathRef framePath = CTFrameGetPath(frame);
 	
@@ -4495,7 +4530,6 @@ void VMacQuartzGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *in
 				if (i > 0)
 				{
 					CTLineRef linePrev = (CTLineRef) CFArrayGetValueAtIndex(lines, i-1);
-					ascent, descent, externalLeading;
 					CTLineGetTypographicBounds(linePrev, &ascent,  &descent, &externalLeading);
 					GReal extraLeading = ceil(frameOrigin.GetY() + lineOrigin[i-1].y + ascent + externalLeading)-ceil(ascent+descent+externalLeading)-y;
 					if (extraLeading != 0.0f && height+extraLeading >= 0)
@@ -4517,6 +4551,9 @@ void VMacQuartzGraphicContext::_GetTextLayoutRunBoundsFromRange( VTextLayout *in
 		}
 	}
 
+    if (doRestoreContext)
+        RestoreContext();
+    
 	inTextLayout->EndUsingContext();
 }
 
@@ -4562,21 +4599,27 @@ void VMacQuartzGraphicContext::_GetTextLayoutCaretMetricsFromCharIndex( VTextLay
 		// there is no easy drawback but to ensure we do not draw caret on the trailing side) 
 		leading = true;
 	
-	_UseQuartzAxis();
+    bool doRestoreContext = false;
+    if (fAxisInverted)
+    {
+        doRestoreContext = true;
+        SaveContext();
+        _UseQuartzAxis();
+    }
 
 	outCaretPos.SetPos(inTopLeft.GetX(), fQDBounds.size.height-inTopLeft.GetY()); //default output caret pos in Quartz coord space
 	outTextHeight = 0.0f;
 
 	VPoint frameOrigin;
-	frameOrigin.SetX(inTopLeft.GetX());
-	frameOrigin.SetY(fQDBounds.size.height - inTopLeft.GetY() - inTextLayout->fCurLayoutHeight);
-
+	frameOrigin.SetX(inTopLeft.GetX()+inTextLayout->fMarginLeft);
+	frameOrigin.SetY(fQDBounds.size.height - (inTopLeft.GetY()+inTextLayout->fMarginTop+inTextLayout->_GetLayoutHeightMinusMargin()));
+		
 	XMacStyledTextBox *textBox = static_cast<XMacStyledTextBox *>(inTextLayout->fTextBox);
 	if (textBox)
 	{
 		//get frame 
-		CTFrameRef frame = textBox->GetCurLayoutFrame( inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
-		frameOrigin.SetPosBy(textBox->GetLayoutOffset().GetX(), 0.0f);
+		CTFrameRef frame = textBox->GetCurLayoutFrame( inTextLayout->_GetLayoutWidthMinusMargin(), inTextLayout->_GetLayoutHeightMinusMargin());
+        frameOrigin += textBox->GetLayoutOffset();
 		
 		CGPathRef framePath = CTFrameGetPath(frame);
 		
@@ -4655,6 +4698,9 @@ void VMacQuartzGraphicContext::_GetTextLayoutCaretMetricsFromCharIndex( VTextLay
 
 	outCaretPos.SetY( fQDBounds.size.height-outCaretPos.GetY());
 
+    if (doRestoreContext)
+        RestoreContext();
+    
 	inTextLayout->EndUsingContext();
 }
 
@@ -4687,11 +4733,17 @@ bool VMacQuartzGraphicContext::_GetTextLayoutCharIndexFromPos( VTextLayout *inTe
 
 	xbox_assert(inTextLayout->fTextBox);
 	
-	_UseQuartzAxis();
+    bool doRestoreContext = false;
+    if (fAxisInverted)
+    {
+        doRestoreContext = true;
+        SaveContext();
+        _UseQuartzAxis();
+    }
 
 	VPoint frameOrigin;
-	frameOrigin.SetX(inTopLeft.GetX());
-	frameOrigin.SetY(fQDBounds.size.height - inTopLeft.GetY() - inTextLayout->fCurLayoutHeight);
+	frameOrigin.SetX(inTopLeft.GetX()+inTextLayout->fMarginLeft);
+	frameOrigin.SetY(fQDBounds.size.height - (inTopLeft.GetY()+inTextLayout->fMarginTop+inTextLayout->_GetLayoutHeightMinusMargin()));
 
 	VPoint pos( inPos);
 	pos.SetY(fQDBounds.size.height-inPos.GetY());
@@ -4702,8 +4754,8 @@ bool VMacQuartzGraphicContext::_GetTextLayoutCharIndexFromPos( VTextLayout *inTe
 	if (textBox)
 	{
 		//get frame 
-		CTFrameRef frame = textBox->GetCurLayoutFrame( inTextLayout->fCurLayoutWidth, inTextLayout->fCurLayoutHeight);
-		frameOrigin.SetPosBy(textBox->GetLayoutOffset().GetX(), 0.0f);
+		CTFrameRef frame = textBox->GetCurLayoutFrame( inTextLayout->_GetLayoutWidthMinusMargin(), inTextLayout->_GetLayoutHeightMinusMargin());
+        frameOrigin += textBox->GetLayoutOffset();
 
 		CGPathRef framePath = CTFrameGetPath(frame);
 		
@@ -4777,6 +4829,9 @@ bool VMacQuartzGraphicContext::_GetTextLayoutCharIndexFromPos( VTextLayout *inTe
 		}
 	}
 
+    if (doRestoreContext)
+        RestoreContext();
+    
 	inTextLayout->EndUsingContext();
 	return true;
 }
@@ -4811,14 +4866,25 @@ void VMacQuartzGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 
 				//store text layout metrics (including overhangs)
 				//here we ensure layout metrics are not lower than typo metrics
-				inTextLayout->fCurLayoutWidth = inTextLayout->fMaxWidth  && inTextLayout->fMaxWidth > width ? inTextLayout->fMaxWidth : width;
-				inTextLayout->fCurLayoutHeight = inTextLayout->fMaxHeight && inTextLayout->fMaxHeight > height ? inTextLayout->fMaxHeight : height;
+				inTextLayout->fCurLayoutWidth = inTextLayout->fMaxWidth  && inTextLayout->fMaxWidth > width ? std::floor(inTextLayout->fMaxWidth) : width; //might be ~0 otherwise it is always rounded yet
+				inTextLayout->fCurLayoutHeight = inTextLayout->fMaxHeight ? std::floor(inTextLayout->fMaxHeight) : height; //might be ~0 otherwise it is always rounded yet
 
 				//store text layout overhang metrics (with CoreText, overhangs are included in typo metrics yet so no need to deal with it here)
 				inTextLayout->fCurOverhangLeft = 0;
 				inTextLayout->fCurOverhangRight = 0;
 				inTextLayout->fCurOverhangTop = 0;
 				inTextLayout->fCurOverhangBottom = 0;
+
+				if (inTextLayout->fMarginLeft != 0.0f || inTextLayout->fMarginRight != 0.0f)
+				{
+					inTextLayout->fCurWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+					inTextLayout->fCurLayoutWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+				}
+				if (inTextLayout->fMarginTop != 0.0f || inTextLayout->fMarginBottom != 0.0f)
+				{
+					inTextLayout->fCurHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+					inTextLayout->fCurLayoutHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+				}
 			}
 			inTextLayout->fNeedUpdateBounds = false;
 			return;
@@ -4827,31 +4893,15 @@ void VMacQuartzGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 	ReleaseRefCountable(&(inTextLayout->fTextBox));
 
 	//apply custom alignment 
-	VTreeTextStyle *styles = _StylesWithCustomAlignment( inTextLayout->GetText(), inTextLayout->fStyles, inTextLayout->fHAlign, inTextLayout->fVAlign);
 
 	//compute layout & determine actual bounds
 	VRect bounds(0.0f, 0.0f, inTextLayout->fMaxWidth ? inTextLayout->fMaxWidth : 100000.0f, inTextLayout->fMaxHeight ? inTextLayout->fMaxHeight : 100000.0f);
 
-
-	VFont *font = inTextLayout->RetainDefaultFont(72.0f);
-	if (!font)
-		font = RetainFont();
-	xbox_assert(font);
-	VColor textColor = VColor::sBlackColor;
-	inTextLayout->GetDefaultTextColor(textColor);
-
 	ContextRef contextRef = BeginUsingParentContext();
 	
-	XMacStyledTextBox* textBox = new XMacStyledTextBox(	contextRef, inTextLayout->GetText(), 
-													styles ? styles : inTextLayout->fStyles, 
-													bounds, textColor, font, 
-													GetTextRenderingMode(), inTextLayout->GetLayoutMode(), fCharKerning+fCharSpacing, 
-													inTextLayout->fDPI);
-	if (styles)
-		styles->Release();
+	VStyledTextBox *textBox = VStyledTextBox::CreateImpl( contextRef, *inTextLayout, &bounds, GetTextRenderingMode(), NULL, NULL, fCharKerning+fCharSpacing);
 	
 	EndUsingParentContext(contextRef);
-	font->Release();
 
 	if (textBox)
 	{
@@ -4866,14 +4916,45 @@ void VMacQuartzGraphicContext::_UpdateTextLayout( VTextLayout *inTextLayout)
 
 		//store text layout metrics (including overhangs)
 		//here we ensure layout metrics are not lower than typo metrics
-		inTextLayout->fCurLayoutWidth = inTextLayout->fMaxWidth  && inTextLayout->fMaxWidth > width ? inTextLayout->fMaxWidth : width;
-		inTextLayout->fCurLayoutHeight = inTextLayout->fMaxHeight && inTextLayout->fMaxHeight > height ? inTextLayout->fMaxHeight : height;
+		inTextLayout->fCurLayoutWidth = inTextLayout->fMaxWidth  && inTextLayout->fMaxWidth > width ? std::floor(inTextLayout->fMaxWidth) : width; //might be ~0 otherwise it is always rounded yet
+        inTextLayout->fCurLayoutHeight = inTextLayout->fMaxHeight ? std::floor(inTextLayout->fMaxHeight) : height; //might be ~0 otherwise it is always rounded yet
 
 		//store text layout overhang metrics (with CoreText, overhangs are included in typo metrics yet so no need to deal with it here)
 		inTextLayout->fCurOverhangLeft = 0;
 		inTextLayout->fCurOverhangRight = 0;
 		inTextLayout->fCurOverhangTop = 0;
 		inTextLayout->fCurOverhangBottom = 0;
+
+		if (inTextLayout->fMarginLeft != 0.0f || inTextLayout->fMarginRight != 0.0f)
+		{
+			inTextLayout->fCurWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+			inTextLayout->fCurLayoutWidth += inTextLayout->fMarginLeft+inTextLayout->fMarginRight;
+		}
+		if (inTextLayout->fMarginTop != 0.0f || inTextLayout->fMarginBottom != 0.0f)
+		{
+			inTextLayout->fCurHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+			inTextLayout->fCurLayoutHeight += inTextLayout->fMarginTop+inTextLayout->fMarginBottom;
+		}
+	}
+}
+
+/** internally called while replacing text in order to update impl-specific stuff */
+void VMacQuartzGraphicContext::_PostReplaceText( VTextLayout *inTextLayout)
+{
+	if (inTextLayout->fTextLength != 0)
+	{
+        //appending a dummy CR seems to be a good workaround to avoid text wobble CoreText bug while mixing japanese/chinese text & latin:
+        //as this last CR is ignored by CoreText layout metrics it does not change layout size too;
+        //we use fTextLength to backup the actual text length
+		if (inTextLayout->fTextPtr != &(inTextLayout->fText))
+		{
+			//use local text copy 
+			inTextLayout->fText.FromString(*(inTextLayout->fTextPtr));
+			inTextLayout->fText.AppendChar(13);
+			inTextLayout->fTextPtr = &(inTextLayout->fText);
+		}
+		else
+			inTextLayout->fText.AppendChar(13);
 	}
 }
 
@@ -5373,7 +5454,7 @@ Boolean VMacQuartzBitmapContext::CreateBitmap(const VRect& inHwndBounds)
 			SaveContext();
 	}
 	
-	fQDBounds=inHwndBounds;
+	inHwndBounds.MAC_ToCGRect( fQDBounds);
 	fQDBounds.origin.x=0;
 	fQDBounds.origin.y=0;
 	fQDBounds.size.width+=inHwndBounds.GetX();

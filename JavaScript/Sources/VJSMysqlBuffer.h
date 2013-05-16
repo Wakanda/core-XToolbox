@@ -1,3 +1,18 @@
+/*
+* This file is part of Wakanda software, licensed by 4D under
+*  (i) the GNU General Public License version 3 (GNU GPL v3), or
+*  (ii) the Affero General Public License version 3 (AGPL v3) or
+*  (iii) a commercial license.
+* This file remains the exclusive property of 4D and/or its licensors
+* and is protected by national and international legislations.
+* In any event, Licensee's compliance with the terms and conditions
+* of the applicable license constitutes a prerequisite to any use of this file.
+* Except as otherwise expressly stated in the applicable license,
+* such license does not include any other license or rights on this file,
+* 4D's and/or its licensors' trademarks and/or other proprietary rights.
+* Consequently, no title, copyright or other proprietary rights
+* other than those specified in the applicable license is granted.
+*/
 
 #ifndef __VJSMYSQLBUFFER__
 #define __VJSMYSQLBUFFER__
@@ -13,7 +28,8 @@ The aim of the VJSMysqlBufferObject class is to provide an efficient way
 of reading and retreiving results from a MySQL database.
 */
 
-enum {
+enum
+{
     eFIELD_TYPE_DECIMAL      = 0x00,
     eFIELD_TYPE_TINY         = 0x01,
     eFIELD_TYPE_SHORT        = 0x02,
@@ -43,7 +59,8 @@ enum {
     eFIELD_TYPE_GEOMETRY     = 0xff
 };
 
-class VJSMysqlBufferObject : public IRefCountable {
+class VJSMysqlBufferObject : public IRefCountable
+{
 public:
 
     //Default constructor
@@ -57,7 +74,7 @@ public:
     @param: targetBuffer as a pointer to VJSBufferObject
     @return: Boolean that determines if we there is still buffers to add or not
     */
-    Boolean AddBuffer(VJSBufferObject* targetBuffer);
+    Boolean AddBuffer ( VJSBufferObject *targetBuffer );
 
     /*
 
@@ -65,7 +82,7 @@ public:
     @param: targetBuffer as a pointer to VJSBufferObject
     @return: void
     */
-    void    AddBufferSimple(VJSBufferObject* targetBuffer);
+    void    AddBufferSimple ( VJSBufferObject *targetBuffer );
 
 
     /*
@@ -96,14 +113,14 @@ public:
     TODO(no docs found about this)
     @return: void
     */
-    void    __SaveRows(VJSContext &inContext, sLONG fieldCount,  VJSArray titles, VJSArray types);
+    void    __SaveRows ( VJSContext &inContext, sLONG fieldCount,  VJSArray titles, VJSArray types );
 
     /*
     advance in buffer with len places
     @param: len as uLONG
     @return: void
     */
-    void    Advance(uLONG len);
+    void    Advance ( uLONG len );
 
     /*
     Tests if the next bytes are for an EOF Packet (The end of a series of
@@ -116,7 +133,7 @@ public:
     moves to the next result if any
     @return: Boolean
     */
-    Boolean GoNext(uLONG len);
+    Boolean GoNext ( uLONG len );
 
     /*
     tells if there is next result to retreive
@@ -132,7 +149,7 @@ public:
     @param: inBuffer as VJSBufferObject pointer
     @return: Boolean
     */
-    Boolean ReadNext(VJSBufferObject* inBuffer);
+    Boolean ReadNext ( VJSBufferObject *inBuffer );
 
     /*
     get the select result count
@@ -201,7 +218,7 @@ public:
     @param: bytesLength as uLONG
     @return: VString
     */
-    VString ReadString(uLONG bytesLength);
+    VString ReadString ( uLONG bytesLength );
 
 
     /*
@@ -210,7 +227,7 @@ public:
     @param: lcb as uLONG
     @return: VString
     */
-    VString ReadLCBString(uLONG lcb);
+    VString ReadLCBString ( uLONG lcb );
 
 
     /*
@@ -237,14 +254,14 @@ public:
     @param: types as VJSArray
     @return: VJSArray
     */
-    VJSArray Fetch(VJSContext &inContext, sLONG count, uLONG inFieldCount, VJSArray &titles, VJSArray &types);
+    VJSArray Fetch ( VJSContext &inContext, sLONG count, uLONG inFieldCount, VJSArray &titles, VJSArray &types );
 
     /*
     advance fetch with inCount
     @param: inCount as sLONG
     @return: void
     */
-    void     AdvanceFetch(sLONG inCount);
+    void     AdvanceFetch ( sLONG inCount );
 
     /*
     skip rows data from fetch
@@ -254,14 +271,15 @@ public:
 
 private:
 
-    void SetToRead(uLONG inValue) {
+    void SetToRead ( uLONG inValue )
+    {
         fToRead = inValue;
-        fRead=0;
-        fReaded=0;
+        fRead = 0;
+        fReaded = 0;
     }
 
     //to format a property value according to its raw value and its mysql type
-    void FormatPropertyValue(VJSContext &inContext, VJSObject &row, VString &value, VString &title, uLONG type);
+    void FormatPropertyValue ( VJSContext &inContext, VJSObject &row, VString &value, VString &title, uLONG type );
 
     //The position in current buffer at which to begin copying bytes.
     uLONG fOffset;
@@ -287,11 +305,11 @@ private:
     //total number of rows
     uLONG fRowCount;
     //vector of buffers' pointers
-    std::vector<VJSBufferObject*> fBuffer;
+    std::vector<VJSBufferObject *> fBuffer;
     //current buffer position
     uLONG  fpos ;
 
-    std::vector <std::pair<uLONG, uLONG> > fRowsStart,fRowsEnd;
+    std::vector <std::pair<uLONG, uLONG> > fRowsStart, fRowsEnd;
     //vector of the number of rows data of a ResultSet
     std::vector <uLONG> fRowsCount;
     //ResultSet statement position for iterating between multiple ResultSets
@@ -299,56 +317,57 @@ private:
 };
 
 
-class XTOOLBOX_API VJSMysqlBufferClass : public VJSClass<VJSMysqlBufferClass, VJSMysqlBufferObject> {
+class XTOOLBOX_API VJSMysqlBufferClass : public VJSClass<VJSMysqlBufferClass, VJSMysqlBufferObject>
+{
 public:
 
     typedef VJSClass<VJSMysqlBufferClass, VJSMysqlBufferObject> inherited;
 
-    static void GetDefinition           (ClassDefinition& outDefinition);
-    static void Initialize              (const VJSParms_initialize& inParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void Finalize                (const VJSParms_finalize& inParms,  VJSMysqlBufferObject *inMysqlBuffer);
-    static void Construct               (VJSParms_construct& inParms);
+    static void GetDefinition           ( ClassDefinition &outDefinition );
+    static void Initialize              ( const VJSParms_initialize &inParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void Finalize                ( const VJSParms_finalize &inParms,  VJSMysqlBufferObject *inMysqlBuffer );
+    static void Construct               ( VJSParms_construct &inParms );
 
 private:
 
-    static void     _addBuffer( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _addBuffer ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
-    static void     _initList(VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _initFetch(VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _initList ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _initFetch ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
-    static void     _isRow(VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _hasNext(VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _isRow ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _hasNext ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
-    static void     _prepareSelectFetch( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _getRowsCount( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _getSelectResultCount( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _getSize( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _prepareSelectFetch ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _getRowsCount ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _getSelectResultCount ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _getSize ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
-    static void     _getOffsetRead( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _readNextHex( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-
-
-    static void     _readUInt8 (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _readUInt16LE (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _readUInt24LE (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _readUInt32LE (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _readUInt64LE (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _getOffsetRead ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _readNextHex ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
 
-    static void     _readString (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _saveRowsPosition (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _readUInt8 ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _readUInt16LE ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _readUInt24LE ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _readUInt32LE ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _readUInt64LE ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
-    static void     _readLCBString (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _readLCBStringPlus (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
 
-    static void     _readLCB (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _readLCBPlus (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _advance (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
-    static void     _fetch (VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _readString ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _saveRowsPosition ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
-    static void     _advanceFetch( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _readLCBString ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _readLCBStringPlus ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
-    static void     _skipRowsData( VJSParms_callStaticFunction& ioParms, VJSMysqlBufferObject *inMysqlBuffer);
+    static void     _readLCB ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _readLCBPlus ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _advance ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+    static void     _fetch ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+
+    static void     _advanceFetch ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
+
+    static void     _skipRowsData ( VJSParms_callStaticFunction &ioParms, VJSMysqlBufferObject *inMysqlBuffer );
 
 };
 END_TOOLBOX_NAMESPACE

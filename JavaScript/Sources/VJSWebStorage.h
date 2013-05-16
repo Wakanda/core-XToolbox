@@ -26,9 +26,9 @@
 
 BEGIN_TOOLBOX_NAMESPACE
 
-// Storage object interface, subclass it to implement sessionStorage or localStorage attributes.
+// Storage object, subclass it to implement sessionStorage or localStorage attributes.
 
-class XTOOLBOX_API IJSStorageObject : public XBOX::VObject , public XBOX::IRefCountable
+class XTOOLBOX_API VJSStorageObject : public XBOX::VObject, public XBOX::IRefCountable	
 {
 public:
 
@@ -59,7 +59,7 @@ public:
 
 // Object to implement the sessionStorage attribute.
 
-class XTOOLBOX_API VJSSessionStorageObject : public IJSStorageObject
+class XTOOLBOX_API VJSSessionStorageObject : public VJSStorageObject
 {
 public:
 
@@ -107,15 +107,15 @@ public:
 	
 private:
 
-	typedef	std::map< XBOX::VString , VRefPtr<VJSStructuredClone> , XBOX::VStringLessCompareStrict>	SMap;
-
+	typedef unordered_map_VString<VRefPtr<VJSStructuredClone> >	SMap;
+	
 	XBOX::VCriticalSection	fMutex;
 	SMap					fKeysValues;
 };
 
 // Storage interface implementation (see section 4.1 "The Storage interface" of specification).
 
-class XTOOLBOX_API VJSStorageClass : public XBOX::VJSClass<VJSStorageClass, IJSStorageObject>
+class XTOOLBOX_API VJSStorageClass : public XBOX::VJSClass<VJSStorageClass, VJSStorageObject>
 {
 public:
 
@@ -135,25 +135,25 @@ private:
 
 	typedef XBOX::VJSClass<VJSStorageClass, VJSSessionStorageObject> inherited;
 
-	static	void		_Initialize( const XBOX::VJSParms_initialize& inParms, IJSStorageObject *inStorageObject);
-	static	void		_Finalize( const XBOX::VJSParms_finalize& inParms, IJSStorageObject *inStorageObject);
-	static void			_HasProperty (XBOX::VJSParms_hasProperty &ioParms, IJSStorageObject *inStorageObject);
-	static void			_GetProperty (XBOX::VJSParms_getProperty &ioParms, IJSStorageObject *inStorageObject);
-	static bool			_SetProperty (XBOX::VJSParms_setProperty &ioParms, IJSStorageObject *inStorageObject);
-	static void			_GetPropertyNames (XBOX::VJSParms_getPropertyNames &ioParms, IJSStorageObject *inStorageObject);
-	static void			_DeleteProperty (XBOX::VJSParms_deleteProperty &ioParms, IJSStorageObject *inStorageObject);
+	static	void		_Initialize( const XBOX::VJSParms_initialize& inParms, VJSStorageObject *inStorageObject);
+	static	void		_Finalize( const XBOX::VJSParms_finalize& inParms, VJSStorageObject *inStorageObject);
+	static void			_HasProperty (XBOX::VJSParms_hasProperty &ioParms, VJSStorageObject *inStorageObject);
+	static void			_GetProperty (XBOX::VJSParms_getProperty &ioParms, VJSStorageObject *inStorageObject);
+	static bool			_SetProperty (XBOX::VJSParms_setProperty &ioParms, VJSStorageObject *inStorageObject);
+	static void			_GetPropertyNames (XBOX::VJSParms_getPropertyNames &ioParms, VJSStorageObject *inStorageObject);
+	static void			_DeleteProperty (XBOX::VJSParms_deleteProperty &ioParms, VJSStorageObject *inStorageObject);
 	
-	static void			_key (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
-	static void			_getItem (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
-	static void			_setItem (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
-	static void			_removeItem (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
-	static void			_clear (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
+	static void			_key (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
+	static void			_getItem (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
+	static void			_setItem (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
+	static void			_removeItem (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
+	static void			_clear (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
 
 	// Add-ons, not in specification.
 
-	static void			_tryLock (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
-	static void			_lock (VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
-	static void			_unlock(VJSParms_callStaticFunction &ioParms, IJSStorageObject *inStorageObject);
+	static void			_tryLock (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
+	static void			_lock (VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
+	static void			_unlock(VJSParms_callStaticFunction &ioParms, VJSStorageObject *inStorageObject);
 };
 
 END_TOOLBOX_NAMESPACE

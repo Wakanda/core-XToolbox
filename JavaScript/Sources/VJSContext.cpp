@@ -17,9 +17,12 @@
 
 #if VERSIONMAC
 #include <4DJavaScriptCore/JavaScriptCore.h>
+#include <4DJavaScriptCore/JS4D_Tools.h>
 #else
 #include <JavaScriptCore/JavaScript.h>
+#include <JavaScriptCore/4D/JS4D_Tools.h>
 #endif
+
 
 #include "JS4D.h"
 #include "VJSContext.h"
@@ -27,7 +30,7 @@
 #include "VJSClass.h"
 #include "VJSGlobalClass.h"
 #include "VJSJSON.h"
-
+#include "VJSModule.h"
 
 USING_TOOLBOX_NAMESPACE
 
@@ -101,22 +104,6 @@ bool VJSContext::EvaluateScript( const VString& inScript, const VURL *inSource, 
 	VJSGlobalObject	*globalObject = GetGlobalObjectPrivateInstance();
 
 	// globalObject might be NULL when used on a WebView context.
-	
-	XBOX::VFilePath	*fullPath = (globalObject == NULL) ? NULL : (XBOX::VFilePath *)globalObject->GetSpecific(kURLSpecificKey);
-	XBOX::VFilePath	previousFullPath;
-
-	if (fullPath == NULL)
-	{
-		if (globalObject != NULL)
-		{
-			fullPath = new XBOX::VFilePath;
-			globalObject->SetSpecific( kURLSpecificKey, fullPath, VJSSpecifics::DestructorVObject);		
-		}
-	}
-	else
-	{
-		previousFullPath = *fullPath;
-	}
 
 	JSStringRef jsUrl;
 	if (inSource != NULL)
@@ -124,28 +111,18 @@ bool VJSContext::EvaluateScript( const VString& inScript, const VURL *inSource, 
 		VString url;
 		inSource->GetAbsoluteURL( url, true);
 		jsUrl = JS4D::VStringToString( url);
-
-		if (fullPath != NULL)
-			inSource->GetFilePath(*fullPath);	
 	}
 	else
 	{
-		jsUrl = NULL;
-		if (fullPath != NULL)
-			fullPath->Clear();
+		jsUrl = NULL;	
 	}
 	
 	JSValueRef exception = NULL;
     JSStringRef jsScript = JS4D::VStringToString( inScript);
 	int nStartingLineNumber = fDebuggerAllowed ? 0 : -1;
-	JSValueRef result = JSEvaluateScript( fContext, jsScript, inThisObject == NULL ? NULL : inThisObject->GetObjectRef()/*thisObject*/, jsUrl, nStartingLineNumber, &exception);
+	JSValueRef result = JS4DEvaluateScript( fContext, jsScript, inThisObject == NULL ? NULL : inThisObject->GetObjectRef()/*thisObject*/, jsUrl, nStartingLineNumber, &exception);
     JSStringRelease( jsScript);
-		
-	// Restore previous full path, this allows for recursive script evaluation.
 	
-	if (fullPath != NULL)
-		*fullPath = previousFullPath;
-
 	if (jsUrl != NULL)
 		JSStringRelease( jsUrl);
 	
@@ -263,9 +240,31 @@ UniChar VJSContext::GetWildChar() const
 VJSGlobalContext::~VJSGlobalContext()
 {
 	// Pending fix. (replace with xbox_assert(fContext != NULL)).
-	if (fContext != NULL)
+
+	if (fContext != NULL) {
+
+		// require() function object is protected from garbage collection.
+		// Unprotect it before the global context is released.
+
+		XBOX::VJSContext	context(fContext);
+		XBOX::VJSObject		globalObject(context.GetGlobalObject());
+		XBOX::VJSObject		requireObject(context);
+		
+		requireObject = globalObject.GetPropertyAsObject("require");
+		if (requireObject.IsOfClass(VJSRequireClass::Class())) {
+
+			VJSModuleState	*moduleState;
+
+			moduleState = requireObject.GetPrivateData<VJSRequireClass>();
+			xbox_assert(moduleState);
+
+			JS4D::UnprotectValue(fContext, moduleState->GetRequireFunctionRef());
+
+		}
 	
-		JSGlobalContextRelease( fContext);
+		JSGlobalContextRelease(fContext);
+
+	}
 }
 
 
@@ -339,26 +338,18 @@ void VJSGlobalContext::ForbidDebuggerLaunch ( )
 	JSForbidDebuggerLaunch ( );
 }
 
-IWAKDebuggerServer* VJSGlobalContext::sWAKDebuggerServer = NULL;
+IRemoteDebuggerServer* VJSGlobalContext::sWAKDebuggerServer = NULL;
 
-#if 0//!defined(WKA_USE_UNIFIED_DBG)
-void VJSGlobalContext::SetDebuggerServer ( IJSWDebugger* inDebuggerServer )
+void VJSGlobalContext::SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer, IChromeDebuggerServer* inChromeDebuggerServer )
 {
-	JSSetDebuggerServer ( inDebuggerServer );
+
+	JS4DSetDebuggerServer( inDebuggerServer,inChromeDebuggerServer );
+	sWAKDebuggerServer = (inDebuggerServer ? (IRemoteDebuggerServer*)inDebuggerServer : (IRemoteDebuggerServer*)inChromeDebuggerServer);
 }
-#else
-void VJSGlobalContext::SetDebuggerServer( IWAKDebuggerServer* inDebuggerServer )
-{
-	JS4DActivateUnifiedDebugger();
-	//JSSetDebuggerServer(inDebuggerServer);
-	JS4DSetDebuggerServer( inDebuggerServer );
-	sWAKDebuggerServer = inDebuggerServer;
-}
-IWAKDebuggerServer* VJSGlobalContext::GetDebuggerServer( )
+IRemoteDebuggerServer* VJSGlobalContext::GetDebuggerServer( )
 {
 	return sWAKDebuggerServer;
 }
-#endif
 
 
 JS4D::ContextRef VJSGlobalContext::Use() const

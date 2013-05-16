@@ -17,32 +17,9 @@
 #ifndef __VDocText__
 #define __VDocText__
 
-#include "VString.h"
-#include "VTime.h"
-#include "VJSONValue.h"
-#include "VTextStyle.h"
+#include <map>
 
 BEGIN_TOOLBOX_NAMESPACE
-
-//CSS unit types (alias of XBOX::CSSProperty::eUnit - make sure it is consistent with XML enum)
-//note: kDOC_CSSUNIT_EM, kDOC_CSSUNIT_EX, kDOC_CSSUNIT_FONTSIZE_LARGER & kDOC_CSSUNIT_FONTSIZE_SMALLER are not supported
-//		so we assume lengths & coords are not font-size dependent
-//		(such CSS length or coord is ignored on parsing) 
-
-typedef enum eDocPropCSSUnit
-{
-	kDOC_CSSUNIT_PERCENT = 0,			/* percentage (number range is [0.0, 1.0]) */
-	kDOC_CSSUNIT_PX,					/* pixels */
-	kDOC_CSSUNIT_PC,					/* picas */
-	kDOC_CSSUNIT_PT,					/* points */
-	kDOC_CSSUNIT_MM,					/* millimeters */
-	kDOC_CSSUNIT_CM,					/* centimeters */
-	kDOC_CSSUNIT_IN,					/* inchs */
-	kDOC_CSSUNIT_EM,					/* size of the current font */
-	kDOC_CSSUNIT_EX,					/* x-height of the current font */
-	kDOC_CSSUNIT_FONTSIZE_LARGER,		/* larger than the parent node font size (used by FONTSIZE only) */
-	kDOC_CSSUNIT_FONTSIZE_SMALLER		/* smaller than the parent node font size (used by FONTSIZE only) */
-} eDocPropCSSUnit;
 
 /** padding or margin type definition (in TWIPS) */
 typedef struct sDocPropPaddingMargin
@@ -53,23 +30,36 @@ typedef struct sDocPropPaddingMargin
 	sLONG bottom;
 } sDocPropPaddingMargin;
 
-/** color definition */
-typedef struct sDocPropColor
-{
-	RGBAColor color;
-	bool transparent;
-} sDocPropColor;
-
 /** layout mode */
-typedef enum eDocPropLayoutMode
+typedef enum
 {
 	kDOC_LAYOUT_MODE_NORMAL = 0,
 	kDOC_LAYOUT_MODE_PAGE = 1
 } eDocPropLayoutMode;
 
+/** text align */
+typedef eStyleJust eDocPropTextAlign;
+
+/** text direction (alias for CSSProperty::eDirection) */
+typedef enum
+{
+	kTEXT_DIRECTION_LTR,
+	kTEXT_DIRECTION_RTL
+} eDocPropDirection;
+
+/** tab stop type (alias for CSSProperty::eTabStopType) */
+typedef enum
+{
+	kTEXT_TAB_STOP_TYPE_LEFT,
+	kTEXT_TAB_STOP_TYPE_RIGHT,
+	kTEXT_TAB_STOP_TYPE_CENTER,
+	kTEXT_TAB_STOP_TYPE_DECIMAL,
+	kTEXT_TAB_STOP_TYPE_BAR
+} eDocPropTabStopType;
+
 
 /** document node type */
-typedef enum eDocNodeType
+typedef enum
 {
 	kDOC_NODE_TYPE_DOCUMENT = 0,
 	kDOC_NODE_TYPE_PARAGRAPH,
@@ -84,7 +74,7 @@ typedef enum eDocNodeType
 
 
 /** document properties */
-typedef enum eDocProperty
+typedef enum
 {
 	//document properties
 	kDOC_PROP_ID,
@@ -103,37 +93,44 @@ typedef enum eDocProperty
 
 	kDOC_PROP_DATETIMECREATION,
 	kDOC_PROP_DATETIMEMODIFIED,
-	kDOC_PROP_TITLE,
-	kDOC_PROP_SUBJECT,
-	kDOC_PROP_AUTHOR,
-	kDOC_PROP_COMPANY,
-	kDOC_PROP_NOTES,
+
+	//kDOC_PROP_TITLE,		//user properties: stored only in JSON object (not managed internally by the document but only by 4D language)
+	//kDOC_PROP_SUBJECT,
+	//kDOC_PROP_AUTHOR,
+	//kDOC_PROP_COMPANY,
+	//kDOC_PROP_NOTES,
+
+	//common properties
+
+	kDOC_PROP_TEXT_ALIGN,
+	kDOC_PROP_VERTICAL_ALIGN,
+	kDOC_PROP_MARGIN,
+	kDOC_PROP_BACKGROUND_COLOR,
+
+	//paragraph properties
+
+	kDOC_PROP_DIRECTION,
+	kDOC_PROP_LINE_HEIGHT,
+	kDOC_PROP_PADDING_FIRST_LINE,
+	kDOC_PROP_TAB_STOP_OFFSET,
+	kDOC_PROP_TAB_STOP_TYPE,
+
+	//span properties (character style properties)
+	//(managed through VTreeTextStyle)
+
+	kDOC_PROP_FONT_FAMILY,		
+	kDOC_PROP_FONT_SIZE,			
+	kDOC_PROP_COLOR,				
+	kDOC_PROP_FONT_STYLE,		
+	kDOC_PROP_FONT_WEIGHT,		
+	kDOC_PROP_TEXT_DECORATION,
+	kDOC_PROP_4DREF,		// '-d4-ref'
+	kDOC_PROP_4DREF_USER,	// '-d4-ref-user'
 
 	kDOC_NUM_PROP,
+
 	kDOC_PROP_ALL
-};
-
-class VDocNode;
-class IDocProperty
-{
-public:
-	/** property accessors */
-	template <class Type>
-	static Type GetProperty( const VDocNode *inNode, const eDocProperty inProperty);
-	template <class Type>
-	static const Type& GetPropertyRef( const VDocNode *inNode, const eDocProperty inProperty);
-
-	template <class Type>
-	static void SetProperty( VDocNode *inNode, const eDocProperty inProperty, const Type inValue);
-	template <class Type>
-	static void SetPropertyPerRef( VDocNode *inNode, const eDocProperty inProperty, const Type& inValue);
-
-	template <class Type>
-	static Type GetPropertyDefault( const eDocProperty inProperty);
-
-	template <class Type>
-	static const Type& GetPropertyDefaultRef( const eDocProperty inProperty);
-};
+} eDocProperty;
 
 
 /** property class (polymorph type) 
@@ -141,12 +138,12 @@ public:
 	it is used internally by VDocNode to stored parsed properties
 
 	note that parsed CSS coords & lengths if not percentage are stored in TWIPS as SLONG (coords) or ULONG (lengths) (unparsed value is converted to TWIPS according to document DPI)
-	CSS percentage value is stored as a SmallReal with range constrained to [0,1] - relative values are computed only by GUI classes for layout
+	CSS percentage value is stored as a SmallReal with 100% mapped to 1.0 - some relative values might be computed only by GUI classes for final layout (if relative value depends on some layout properties)
 */
-class VDocProperty : public VObject 
+class XTOOLBOX_API VDocProperty : public VObject 
 {
 public:
-	typedef enum eType
+	typedef enum
 	{
 		kPROP_TYPE_BOOL,
 		kPROP_TYPE_ULONG,			//used also for storing parsed CSS lengths in TWIPS
@@ -155,13 +152,10 @@ public:
 		kPROP_TYPE_REAL,	
 
 		kPROP_TYPE_PERCENT,			//CSS percentage (SmallReal on range [0,1])
-		kPROP_TYPE_LAYOUTMODE,		//VDocument layout mode
-		kPROP_TYPE_CSSUNIT,			//eDocPropCSSUnit
 		kPROP_TYPE_PADDINGMARGIN,	//sDocPropPaddingMargin 
 		kPROP_TYPE_VECTOR_SLONG,	//tab stops offsets in TWIPS or other vector of lengths or coords in TWIPS
 		kPROP_TYPE_VSTRING, 
 		kPROP_TYPE_VTIME,			//storage for date & time
-		kPROP_TYPE_COLOR,			//sDocPropColor (color+transparent flag)
 
 		kPROP_TYPE_INHERIT			//inherited property (might be used for properties which are not inherited on default - like margin, padding, etc...)
 	} eType;
@@ -170,7 +164,9 @@ public:
 
 	eType GetType() const { return fType; }
 
-	VDocProperty() { fType = kPROP_TYPE_INHERIT; fValue.fBool = true; } //default constructor -> inherited property ("inherit" CSS value)
+	VDocProperty() { fType = kPROP_TYPE_INHERIT; fValue.fULong = 0; } //default constructor -> inherited property ("inherit" CSS value)
+																	  //(we set default ULONG value to 0 to ensure methods which store enum value in ULONG will not fail if called
+																	  // - because 0 is valid for all enum types)
 
 	bool IsInherited() const { return fType == kPROP_TYPE_INHERIT; }
 
@@ -189,13 +185,6 @@ public:
 	{ 
 		fType = isPercent ? kPROP_TYPE_PERCENT : kPROP_TYPE_SMALLREAL; 
 		fValue.fSmallReal = inValue; 
-		if (isPercent)
-		{
-			if (fValue.fSmallReal < 0.0f)
-				fValue.fSmallReal = 0.0f;
-			else if (fValue.fSmallReal > 1.0f)
-				fValue.fSmallReal = 1.0f;
-		}
 	}
 	operator SmallReal() const { return fValue.fSmallReal; }
 	bool IsSmallReal() const { return fType == kPROP_TYPE_SMALLREAL; }
@@ -204,14 +193,6 @@ public:
 	VDocProperty( const Real inValue) { fType = kPROP_TYPE_REAL; fValue.fReal = inValue; }
 	operator Real() const { return fValue.fReal; }
 	bool IsReal() const { return fType == kPROP_TYPE_REAL; }
-
-	VDocProperty( const eDocPropLayoutMode inValue) { fType = kPROP_TYPE_LAYOUTMODE; fValue.fLayoutMode = inValue; }
-	operator eDocPropLayoutMode() const { return fValue.fLayoutMode; }
-	bool IsLayoutMode() const { return fType == kPROP_TYPE_LAYOUTMODE; }
-
-	VDocProperty( const eDocPropCSSUnit inValue) { fType = kPROP_TYPE_CSSUNIT; fValue.fCSSUnit = inValue; }
-	operator eDocPropCSSUnit() const { return fValue.fCSSUnit; }
-	bool IsCSSUnit() const { return fType == kPROP_TYPE_CSSUNIT; }
 
 	VDocProperty( const sDocPropPaddingMargin& inValue) { fType = kPROP_TYPE_PADDINGMARGIN; fValue.fPaddingMargin = inValue; }
 	const sDocPropPaddingMargin& GetPaddingMargin() const { return fValue.fPaddingMargin; }
@@ -224,7 +205,7 @@ public:
 	bool IsVectorOfSLONG() const { return fType == kPROP_TYPE_VECTOR_SLONG; }
 
 	VDocProperty( const VString& inValue) { fType = kPROP_TYPE_VSTRING; fString = inValue; }
-	const VString &GetString() const { fString; } 
+	const VString &GetString() const { return fString; } 
 	operator const VString&() const { return fString; }
 	bool IsString() const { return fType == kPROP_TYPE_VSTRING; }
 
@@ -232,12 +213,6 @@ public:
 	const VTime &GetTime() const { return fTime; } 
 	operator const VTime&() const { return fTime; }
 	bool IsTime() const { return fType == kPROP_TYPE_VTIME; }
-
-	VDocProperty( const sDocPropColor& inValue) { fType = kPROP_TYPE_COLOR; fValue.fColor = inValue; }
-	operator const sDocPropColor&() const { return fValue.fColor; }
-	bool IsColor() const { return fType == kPROP_TYPE_COLOR; }
-	RGBAColor GetRGBAColor() const { return fValue.fColor.color; } 
-	bool IsTransparent() const { return fValue.fColor.transparent; }
 
 	VDocProperty( const VDocProperty& inValue)
 	{
@@ -260,10 +235,7 @@ private:
 		sLONG fSLong;
 		SmallReal fSmallReal;
 		Real fReal;
-		eDocPropLayoutMode fLayoutMode;
-		eDocPropCSSUnit fCSSUnit;
 		sDocPropPaddingMargin fPaddingMargin;
-		sDocPropColor fColor;
 	} VALUE;
 
 	VString fString;
@@ -274,22 +246,17 @@ private:
 	VALUE fValue;
 };
 
+class VDocNode;
+
+
 /** JSON document node property class 
 @remarks
 	this class is instanciated as needed by VDocNode (normally only while communicating with 4D language)
-	and maintained synchronous with VDocNode parsed properties
 */
-class VDocNode;
-class VJSONDocProps: public VJSONObject
+class XTOOLBOX_API VJSONDocProps: public VJSONObject
 {
 public:
 			VJSONDocProps(VDocNode *inNode);
-
-			/** return current dirty stamp 
-			@remarks
-				used to sync with VDocNode if JSONObject has been modified by 4D language
-			*/
-			uLONG					GetDirtyStamp() const { return fDirtyStamp; }
 
 			///////////////////////////////////////////////////////////////////////////////////////////////////////
 			//
@@ -308,22 +275,23 @@ public:
 			// Remove all properties.
 			void					Clear();
 protected:
-	uLONG fDirtyStamp;
 	VRefPtr<VDocNode> fDocNode;
 };
 
 
 /** document node class */
-class VDocNode : public VObject, public IRefCountable, public IDocProperty
+class IDocProperty;
+class VDocText;
+class XTOOLBOX_API VDocNode : public VObject, public IRefCountable
 {
 public:
 	friend class IDocProperty;
 
-	/** vector of nodes */
-	typedef std::vector< VRefPtr<VDocNode> > VectorOfNode;
-
 	/** map of properties */
 	typedef std::map<uLONG, VDocProperty> MapOfProp;
+
+	/** vector of nodes */
+	typedef std::vector< VRefPtr<VDocNode> > VectorOfNode;
 
 	static void Init();
 	static void DeInit();
@@ -335,11 +303,13 @@ public:
 		fDoc = NULL; 
 		if (!sPropInitDone) 
 			Init();
-		fID = "0";
+		fID = "1";
 		fDirtyStamp = 0;
 	}
-	
+
 	virtual ~VDocNode() {}
+
+	eDocNodeType GetType() const { return fType; }
 
 	/** retain node which matches the passed ID (will return always NULL if node first parent is not a VDocText) */
 	virtual VDocNode *RetainNode(const VString& inID)
@@ -350,27 +320,22 @@ public:
 			return NULL;
 	}
 
-	/** create JSONDocProps & sync it with this node
+	/** retain document node */
+	VDocText *RetainDocumentNode();
+
+	/** get document node */
+	const VDocText *GetDocumentNode() const;
+
+	/** get document node for write */
+	VDocText *GetDocumentNodeForWrite();
+
+	/** create JSONDocProps object
 	@remarks
 		should be called only if needed (for instance if caller need com with 4D language through C_OBJECT)
-		(will do nothing if internal JSON object is created yet)
 
-		after this command is called (& until ClearJSONProps is called)
-		the internal JSON props are synchronized with this node properties:
 		caller might also get/set properties using the JSON object returned by RetainJSONProps
 	*/
-	void InitJSONProps();
-
-	/** release internal JSONDocProps object */
-	void ClearJSONProps() { fJSONProps = NULL; }
-
-	/** return retained JSON property object 
-	@remarks
-		might be NULL if InitJSONDocProps() has not been called first
-
-		caller can use it to set/get this node properties with JSON
-	*/
-	VJSONDocProps *RetainJSONProps() { return fJSONProps.Retain(); } 
+	VJSONDocProps *CreateAndRetainJSONProps();
 
 	/** add child node */
 	void AddChild( VDocNode *inNode);
@@ -378,19 +343,28 @@ public:
 	/** detach child node from parent */
 	void Detach();
 
+	/** remove Nth child node (0-based index) */
+	void RemoveNthChild( VIndex inIndex)
+	{
+		xbox_assert(inIndex >= 0 && inIndex < fChildren.size());
+
+		VRefPtr<VDocNode> nodeToRemove = fChildren[inIndex];
+		nodeToRemove->Detach(); //is detached from this node (removed from fChildren) so maybe destroyed on nodeToRemove release
+	}
+
 	/** get children count */
 	VIndex GetChildCount() const { return (VIndex)fChildren.size(); }
 
-	/** get Nth child (0-based) */
-	VDocNode *operator [](VIndex inIndex) 
-	{ 
+	/** get Nth child node (0-based index) */
+	const VDocNode *GetChild(VIndex inIndex) const
+	{
 		if (testAssert(inIndex >= 0 && inIndex < fChildren.size())) 
 			return fChildren[inIndex].Get();  
 		else
 			return NULL;
 	}
 
-	/** retain Nth child node (0-based) */
+	/** retain Nth child node (0-based index) */
 	VDocNode *RetainChild(VIndex inIndex)
 	{
 		if (testAssert(inIndex >= 0 && inIndex < fChildren.size())) 
@@ -408,22 +382,61 @@ public:
 		VDocNode *node = RetainNode(inValue);
 		if (node)
 		{
+			xbox_assert(false); //ID is used yet (!)
 			ReleaseRefCountable(&node);
 			return false;
 		}
 		fID = inValue; 
 		fDirtyStamp++; 
+		return true;
 	}
 
 	/** dirty stamp counter accessor */
 	uLONG GetDirtyStamp() const { return fDirtyStamp; }
 
-	/** synchronize the passed property or all properties to JSON (only if JSON object is created) */
-	void _SyncToJSON(const eDocProperty inPropID = kDOC_PROP_ALL);
+	/** append properties from the passed node
+	@remarks
+		if inOnlyIfInheritOrNotOverriden == true, local properties which are defined locally and not inherited are not overriden by inNode properties
+	*/
+	virtual void AppendPropsFrom( const VDocNode *inNode, bool inOnlyIfInheritOrNotOverriden = false, bool inNoAppendSpanStyles = false); 
 
-	/** synchronize the passed property (using JSON prop name) or all properties from JSON object to this node */
-	void _SyncFromJSON( const VString& inPropJSONName = "");
+	/** common element properties */
+
+	/** return true if at least one property is overriden locally */
+	bool HasProps() const { return fProps.size() > 0; }	
+
+	/** force a property to be inherited */
+	void SetInherit( const eDocProperty inProp);
+
+	/** return true if property value is inherited */ 
+	bool IsInherited( const eDocProperty inProp) const;
+
+	/** return true if property value is overriden locally 
+		(if IsInherited() == true, it is a force inherit (that is CSS value = "inherit"), otherwise it is a value override) */ 
+	bool IsOverriden( const eDocProperty inProp) const;
+
+	/** remove local property */
+	void RemoveProp( const eDocProperty inProp);
+
+	/** get default property value */
+	const VDocProperty& GetDefaultPropValue( const eDocProperty inProp) const;
+
+	eDocPropTextAlign GetTextAlign() const; 
+	void SetTextAlign(const eDocPropTextAlign inValue);
+
+	eDocPropTextAlign GetVerticalAlign() const; 
+	void SetVerticalAlign(const eDocPropTextAlign inValue);
+
+	const sDocPropPaddingMargin& GetMargin() const;
+	void SetMargin(const sDocPropPaddingMargin& inValue);
+
+	RGBAColor GetBackgroundColor() const;
+	void SetBackgroundColor(const RGBAColor inValue);
+
 protected:
+	virtual VDocNode *Clone() const {	return NULL; }
+	VDocNode( const VDocNode* inNode);
+
 	void _GenerateID(VString& outID);
 	void _OnAttachToDocument(VDocNode *inDocumentNode);
 	void _OnDetachFromDocument(VDocNode *inDocumentNode);
@@ -449,13 +462,6 @@ protected:
 	/** dirty stamp counter */
 	uLONG fDirtyStamp;
 
-	/** ref on JSON object 
-	@remarks
-		it is instanciated only if needed
-	*/
-	VRefPtr<VJSONDocProps> fJSONProps;
-	uLONG fJSONPropsDirtyStamp;
-
 	static bool sPropInitDone;
 
 	/** map of inherited properties */
@@ -471,9 +477,9 @@ protected:
 @remarks
 	it is used for both full document or document fragment
 	(if AddChild adds/inserts a VDocText, it is assumed to be a document fragment & so only VDocText child nodes are added:
-	 on attach or detach, ids are updated in order to ensure ids are unique in one document)
+	 on attach, ids are updated in order to ensure ids are unique in one document)
 */
-class VDocText : public VDocNode
+class XTOOLBOX_API VDocText : public VDocNode
 {
 public:
 	typedef unordered_map_VString< VRefPtr<VDocNode> > MapOfNodePerID;
@@ -487,84 +493,272 @@ public:
 		fParent = NULL;
 		fNextIDCount = 1;
 		_GenerateID(fID);
-		fMapOfNodePerID[fID] = static_cast<VDocNode *>(this);
 	}
 	virtual ~VDocText() 
 	{
 	}
+
+	virtual VDocNode *Clone() const {	return static_cast<VDocNode *>(new VDocText(this)); }
 
 	/** retain node which matches the passed ID (will return always NULL if node first parent is not a VDocText) */
 	VDocNode *RetainNode(const VString& inID);
 
 	//document properties
 
-	uLONG GetVersion() const { return GetProperty<uLONG>( static_cast<const VDocNode *>(this), kDOC_PROP_VERSION); }
-	void SetVersion(const uLONG inValue) { SetProperty<uLONG>( static_cast<VDocNode *>(this), kDOC_PROP_VERSION, inValue); }
+	uLONG GetVersion() const;
+	void SetVersion(const uLONG inValue);
 
-	bool GetWidowsAndOrphans() const { return GetProperty<bool>( static_cast<const VDocNode *>(this), kDOC_PROP_WIDOWSANDORPHANS); }
-	void SetWidowsAndOrphans(const bool inValue) { SetProperty<bool>( static_cast<VDocNode *>(this), kDOC_PROP_WIDOWSANDORPHANS, inValue); }
+	bool GetWidowsAndOrphans() const;
+	void SetWidowsAndOrphans(const bool inValue);
 
-	eDocPropCSSUnit GetUserUnit() const { return GetProperty<eDocPropCSSUnit>( static_cast<const VDocNode *>(this), kDOC_PROP_USERUNIT); }
-	void SetUserUnit(const eDocPropCSSUnit inValue) { SetProperty<eDocPropCSSUnit>( static_cast<VDocNode *>(this), kDOC_PROP_USERUNIT, inValue); }
+	eCSSUnit GetUserUnit() const;
+	void SetUserUnit(const eCSSUnit inValue);
 
-	uLONG GetDPI() const { return GetProperty<uLONG>( static_cast<const VDocNode *>(this), kDOC_PROP_DPI); }
-	void SetDPI(const uLONG inValue) { SetProperty<uLONG>( static_cast<VDocNode *>(this), kDOC_PROP_DPI, inValue); }
+	uLONG GetDPI() const;
+	void SetDPI(const uLONG inValue);
 
-	SmallReal GetZoom() const { return GetProperty<SmallReal>( static_cast<const VDocNode *>(this), kDOC_PROP_ZOOM); }
-	void SetZoom(const SmallReal inValue) { SetProperty<SmallReal>( static_cast<VDocNode *>(this), kDOC_PROP_ZOOM, inValue); }
+	/** get zoom percentage 
+	@remarks
+		100 -> 100%
+		250 -> 250%
+	*/
+	uLONG GetZoom() const;
 
-	bool GetCompatV13() const { return GetProperty<bool>( static_cast<const VDocNode *>(this), kDOC_PROP_COMPAT_V13); }
-	void SetCompatV13(const bool inValue) { SetProperty<bool>( static_cast<VDocNode *>(this), kDOC_PROP_COMPAT_V13, inValue); }
-	
-	eDocPropLayoutMode GetLayoutMode() const { return GetProperty<eDocPropLayoutMode>( static_cast<const VDocNode *>(this), kDOC_PROP_LAYOUT_MODE); }
-	void SetLayoutMode(const eDocPropLayoutMode inValue) { SetProperty<eDocPropLayoutMode>( static_cast<VDocNode *>(this), kDOC_PROP_LAYOUT_MODE, inValue); }
+	void SetZoom(const uLONG inValue);
 
-	bool ShouldShowImages() const { return GetProperty<bool>( static_cast<const VDocNode *>(this), kDOC_PROP_SHOW_IMAGES); }
-	void ShouldShowImages(const bool inValue) { SetProperty<bool>( static_cast<VDocNode *>(this), kDOC_PROP_SHOW_IMAGES, inValue); }
+	bool GetCompatV13() const;
+	void SetCompatV13(const bool inValue);
 
-	bool ShouldShowReferences() const { return GetProperty<bool>( static_cast<const VDocNode *>(this), kDOC_PROP_SHOW_REFERENCES); }
-	void ShouldShowReferences(const bool inValue) { SetProperty<bool>( static_cast<VDocNode *>(this), kDOC_PROP_SHOW_REFERENCES, inValue); }
+	eDocPropLayoutMode GetLayoutMode() const;
+	void SetLayoutMode(const eDocPropLayoutMode inValue);
 
-	bool ShouldShowHiddenCharacters() const { return GetProperty<bool>( static_cast<const VDocNode *>(this), kDOC_PROP_SHOW_HIDDEN_CHARACTERS); }
-	void ShouldShowHiddenCharacters(const bool inValue) { SetProperty<bool>( static_cast<VDocNode *>(this), kDOC_PROP_SHOW_HIDDEN_CHARACTERS, inValue); }
+	bool ShouldShowImages() const;
+	void ShouldShowImages(const bool inValue);
 
-	DialectCode GetLang() const { return GetProperty<DialectCode>( static_cast<const VDocNode *>(this), kDOC_PROP_LANG); }
-	void SetLang(const DialectCode inValue) { SetProperty<DialectCode>( static_cast<VDocNode *>(this), kDOC_PROP_LANG, inValue); }
+	bool ShouldShowReferences() const;
+	void ShouldShowReferences(const bool inValue);
 
-	const VTime& GetDateTimeCreation() const { return GetPropertyRef<VTime>( static_cast<const VDocNode *>(this), kDOC_PROP_DATETIMECREATION); }
-	void SetDateTimeCreation(const VTime& inValue) { SetPropertyPerRef<VTime>( static_cast<VDocNode *>(this), kDOC_PROP_DATETIMECREATION, inValue); }
+	bool ShouldShowHiddenCharacters() const;
+	void ShouldShowHiddenCharacters(const bool inValue);
 
-	const VTime& GetDateTimeModified() const { return GetPropertyRef<VTime>( static_cast<const VDocNode *>(this), kDOC_PROP_DATETIMEMODIFIED); }
-	void SetDateTimeModified(const VTime& inValue) { SetPropertyPerRef<VTime>( static_cast<VDocNode *>(this), kDOC_PROP_DATETIMEMODIFIED, inValue); }
+	DialectCode GetLang() const;
+	void SetLang(const DialectCode inValue);
 
-	const VString& GetTitle() const { return GetPropertyRef<VString>( static_cast<const VDocNode *>(this), kDOC_PROP_TITLE); }
-	void SetTitle(const VString& inValue) { SetPropertyPerRef<VString>( static_cast<VDocNode *>(this), kDOC_PROP_TITLE, inValue); }
+	const VTime& GetDateTimeCreation() const;
+	void SetDateTimeCreation(const VTime& inValue);
 
-	const VString& GetSubject() const { return GetPropertyRef<VString>( static_cast<const VDocNode *>(this), kDOC_PROP_SUBJECT); }
-	void SetSubject(const VString& inValue) { SetPropertyPerRef<VString>( static_cast<VDocNode *>(this), kDOC_PROP_SUBJECT, inValue); }
+	const VTime& GetDateTimeModified() const;
+	void SetDateTimeModified(const VTime& inValue);
 
-	const VString& GetAuthor() const { return GetPropertyRef<VString>( static_cast<const VDocNode *>(this), kDOC_PROP_AUTHOR); }
-	void SetAuthor(const VString& inValue) { SetPropertyPerRef<VString>( static_cast<VDocNode *>(this), kDOC_PROP_AUTHOR, inValue); }
+	//const VString& GetTitle() const;
+	//void SetTitle(const VString& inValue);
 
-	const VString& GetCompany() const { return GetPropertyRef<VString>( static_cast<const VDocNode *>(this), kDOC_PROP_COMPANY); }
-	void SetCompany(const VString& inValue) { SetPropertyPerRef<VString>( static_cast<VDocNode *>(this), kDOC_PROP_COMPANY, inValue); }
+	//const VString& GetSubject() const;
+	//void SetSubject(const VString& inValue);
 
-	const VString& GetNotes() const { return GetPropertyRef<VString>( static_cast<const VDocNode *>(this), kDOC_PROP_NOTES); }
-	void SetNotes(const VString& inValue) { SetPropertyPerRef<VString>( static_cast<VDocNode *>(this), kDOC_PROP_NOTES, inValue); }
+	//const VString& GetAuthor() const;
+	//void SetAuthor(const VString& inValue);
+
+	//const VString& GetCompany() const;
+	//void SetCompany(const VString& inValue);
+
+	//const VString& GetNotes() const;
+	//void SetNotes(const VString& inValue);
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//
+	// following methods are helper methods to set/get document text & character styles (for setting/getting document or paragraph properties, use property accessors)
+	// remark: for now VDocText contains only one VDocParagraph child node & so methods are for now redirected to the VDocParagraph node
+	//
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	/** replace current text & character styles 
+	@remarks
+		if inCopyStyles == true, styles are copied
+		if inCopyStyles == false (default), styles are retained: in that case, if you modify passed styles you should call this method again 
+	*/
+	void SetText( const VString& inText, VTreeTextStyle *inStyles = NULL, bool inCopyStyles = false);
+	const VString& GetText() const;
+
+	void SetStyles( VTreeTextStyle *inStyles = NULL, bool inCopyStyles = false);
+	const VTreeTextStyle *GetStyles() const;
+	VTreeTextStyle *RetainStyles() const;
+
+	VDocParagraph *RetainFirstParagraph(); 
+
+	/** replace plain text with computed or source span references 
+	@param inShowSpanRefs
+		false (default): plain text contains span ref computed values if any (4D expression result, url link user text, etc...)
+		true: plain text contains span ref source if any (tokenized 4D expression, the actual url, etc...) 
+	*/
+	void UpdateSpanRefs( bool inShowSpanRefs = false);
+
+	/** replace text with span text reference on the specified range
+	@remarks
+		span ref plain text is set here to uniform non-breaking space: 
+		user should call UpdateSpanRefs to replace span ref plain text by computed value or reference value depending on show ref flag
+
+		you should no more use or destroy passed inSpanRef even if method returns false
+	*/
+	bool ReplaceAndOwnSpanRef( VDocSpanTextRef* inSpanRef, sLONG inStart = 0, sLONG inEnd = -1, bool inAutoAdjustRangeWithSpanRef = true, bool inNoUpdateRef = true);
+
+	/** replace 4D expressions references with evaluated plain text & discard 4D expressions references on the passed range	 
+
+		return true if any 4D expression has been replaced with plain text
+	*/
+	bool FreezeExpressions( VDBLanguageContext *inLC, sLONG inStart = 0, sLONG inEnd = -1);
+
+	/** return the first span reference which intersects the passed range */
+	const VTextStyle *GetStyleRefAtRange(const sLONG inStart = 0, const sLONG inEnd = -1);
 
 protected:
+	VDocText( const VDocText* inNodeText):VDocNode(static_cast<const VDocNode *>(inNodeText))	{}
+
 	uLONG _AllocID() { return fNextIDCount++; }
 
 	/** document next ID number 
 	@remarks
 		it is impossible for one document to have more than kMAX_uLONG nodes
 		so incrementing ID is enough to ensure ID is unique
-		(if a node is added to a element, new node ID (& new node children nodes IDs) are generated again to ensure new nodes IDs are unique for this document)
+		(if a node is added to a parent node, ID is checked & generated again if node ID is used yet)
 	*/ 
 	uLONG fNextIDCount;
 
-	MapOfNodePerID fMapOfNodePerID;
+	mutable MapOfNodePerID fMapOfNodePerID;
 };
+
+class IDocProperty
+{
+public:
+	/** property accessors */
+	template <class Type>
+	static Type GetProperty( const VDocNode *inNode, const eDocProperty inProperty);
+
+	template <class Type>
+	static const Type& GetPropertyRef( const VDocNode *inNode, const eDocProperty inProperty);
+
+	template <class Type>
+	static void SetProperty( VDocNode *inNode, const eDocProperty inProperty, const Type inValue);
+	
+	template <class Type>
+	static void SetPropertyPerRef( VDocNode *inNode, const eDocProperty inProperty, const Type& inValue);
+
+	template <class Type>
+	static Type GetPropertyDefault( const eDocProperty inProperty);
+
+	template <class Type>
+	static const Type& GetPropertyDefaultRef( const eDocProperty inProperty);
+};
+
+template <class Type>
+Type IDocProperty::GetPropertyDefault( const eDocProperty inProperty) 
+{
+	xbox_assert(VDocNode::sPropInitDone);
+
+	switch (inProperty)
+	{
+	case kDOC_PROP_DATETIMECREATION:
+	case kDOC_PROP_DATETIMEMODIFIED:
+		{
+			VTime time;
+			time.FromSystemTime();
+			*(VDocNode::sPropDefault[kDOC_PROP_DATETIMECREATION])	= VDocProperty(time);
+			*(VDocNode::sPropDefault[kDOC_PROP_DATETIMEMODIFIED])	= VDocProperty(time);
+		}
+		break;
+	default:
+		break;
+	}
+	return *(VDocNode::sPropDefault[ (uLONG)inProperty]);
+}
+
+
+template <class Type>
+const Type& IDocProperty::GetPropertyDefaultRef( const eDocProperty inProperty) 
+{
+	xbox_assert(VDocNode::sPropInitDone);
+
+	switch (inProperty)
+	{
+	case kDOC_PROP_DATETIMECREATION:
+	case kDOC_PROP_DATETIMEMODIFIED:
+		{
+			VTime time;
+			time.FromSystemTime();
+			*(VDocNode::sPropDefault[kDOC_PROP_DATETIMECREATION])	= VDocProperty(time);
+			*(VDocNode::sPropDefault[kDOC_PROP_DATETIMEMODIFIED])	= VDocProperty(time);
+		}
+		break;
+	default:
+		break;
+	}
+	return *(VDocNode::sPropDefault[ (uLONG)inProperty]);
+}
+
+
+
+/** property accessors */
+template <class Type>
+Type IDocProperty::GetProperty( const VDocNode *inNode, const eDocProperty inProperty) 
+{
+	//search first in local node properties
+	VDocNode::MapOfProp::const_iterator it = inNode->fProps.find( (uLONG)inProperty);
+	bool isInherited = false;
+	if (it != inNode->fProps.end())
+	{	
+		isInherited = it->second.IsInherited(); //explicitly inherited (CSS 'inherit' value) - override default CSS inherited status
+		if (!isInherited)
+			return (Type)(it->second);
+	}
+
+	//then check inherited properties
+	if (inNode->fParent && (isInherited || inNode->sPropInherited[(uLONG)inProperty]))
+		return GetProperty<Type>( inNode->fParent, inProperty);
+
+	//finally return global default value 
+	return GetPropertyDefault<Type>( inProperty);
+}
+
+template <class Type>
+const Type& IDocProperty::GetPropertyRef( const VDocNode *inNode, const eDocProperty inProperty) 
+{
+	//search first local property
+	VDocNode::MapOfProp::const_iterator it = inNode->fProps.find( (uLONG)inProperty);
+	bool isInherited = false;
+	if (it != inNode->fProps.end())
+	{	
+		isInherited = it->second.IsInherited(); //explicitly inherited (CSS 'inherit' value) - override default CSS inherited status
+		if (!isInherited)
+			return it->second;
+	}
+
+	//then check inherited properties
+	if (inNode->fParent && (isInherited || inNode->sPropInherited[(uLONG)inProperty]))
+		return GetPropertyRef<Type>( inNode->fParent, inProperty);
+
+	//finally return global default value 
+	return GetPropertyDefaultRef<Type>( inProperty);
+}
+
+template <class Type>
+void IDocProperty::SetProperty( VDocNode *inNode, const eDocProperty inProperty, const Type inValue)
+{
+	VDocProperty value( inValue);
+	if (inNode->fProps[ (uLONG)inProperty] == value)
+		return;
+	inNode->fProps[ (uLONG)inProperty] = value;
+	inNode->fDirtyStamp++;
+}
+
+template <class Type>
+void IDocProperty::SetPropertyPerRef( VDocNode *inNode, const eDocProperty inProperty, const Type& inValue)
+{
+	VDocProperty value( inValue);
+	if (inNode->fProps[ (uLONG)inProperty] == value)
+		return;
+	inNode->fProps[ (uLONG)inProperty] = value;
+	inNode->fDirtyStamp++;
+}
 
 
 END_TOOLBOX_NAMESPACE

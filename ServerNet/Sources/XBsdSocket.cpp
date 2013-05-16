@@ -123,27 +123,32 @@ VError XBsdTCPSocket::Close(bool inWithRecvLoop)
 	sLONG realSocket=XBOX::VInterlocked::Exchange(&fSock, invalidSocket);
 	
 	if(fSslDelegate!=NULL)
-		fSslDelegate->Shutdown();
+	{
+		//Make sure the socket is blocking, SSL shutdown will be easier
+		int flags=fcntl(realSocket, F_GETFL);
+	
+		if(flags!=-1)
+		{
+			flags&=~O_NONBLOCK;
 
-	//Changed behavior : We are a well-behaved server now !
-	//(And we don't want our peer's OS to discard valid but unread data)
-	int err=shutdown(realSocket, SHUT_RDWR);
+			int err=fcntl(realSocket, F_SETFL, flags);
+			xbox_assert(err!=-1);
+		}
+		
+		fSslDelegate->Shutdown();
+	}
+
+	int err=shutdown(realSocket, SHUT_WR);
 			
-	if(inWithRecvLoop)
+	if(err==0 && inWithRecvLoop)
 	{
 		// Now we treat some remaining data that might have arrived late
 		// They are lost, but it helps preventing a connection RESET
 		// to be sent
-		
-		//jmo - We try to protect IE clients from a page loading failure, with
-		//a 30s "security" timeout. IMHO we should get rid of that !
 			
 		StDropErrorContext errCtxRcvLoop;
 
-		char garbage[512];
-		uLONG len=sizeof(garbage);
-		
-		ReadWithTimeout(garbage, &len, 30);
+		TrashWithTimeout(realSocket, 3000 /*3s timeout*/);
 	}
 
 	// Finally, we close the socket.
@@ -301,7 +306,10 @@ VError XBsdTCPSocket::Connect(const VNetAddress& inAddr, sLONG inMsTimeout)
 
 	//If for any reason the socket is already connected, we take a shortcut to save a select syscall.
 	if(err==0)
+	{
+		verr=SetBlocking(true);
 		return verr;
+	}
 	
 	verr=WaitForConnect(inMsTimeout);
 	
@@ -324,7 +332,7 @@ VError XBsdTCPSocket::Connect(const VNetAddress& inAddr, sLONG inMsTimeout)
 }
 
 
-VError XBsdTCPSocket::Listen(const VNetAddress& inAddr, bool inAlreadyBound)
+VError XBsdTCPSocket::Listen (const VNetAddress& inAddr, bool inAlreadyBound, bool inReuseAddress)
 {
 	xbox_assert(fProfile==NewSock);
 
@@ -342,11 +350,14 @@ VError XBsdTCPSocket::Listen(const VNetAddress& inAddr, bool inAlreadyBound)
 		
 	if(!inAlreadyBound)
 	{	
-		int opt=true;
-		err=setsockopt(fSock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-		
-		if(err!=0)
-			return vThrowNativeError(errno);
+		if (inReuseAddress)
+		{
+			int opt=true;
+			err=setsockopt(fSock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+			if(err!=0)
+				return vThrowNativeError(errno);
+		}
 		
 		err=bind(fSock, inAddr.GetAddr(), inAddr.GetAddrLen());
 		
@@ -712,7 +723,7 @@ VError XBsdTCPSocket::DoReadWithTimeout(void* outBuff, uLONG* ioLen, sLONG inMsT
 	if(verr==VE_OK || verr==VE_SOCK_TIMED_OUT || verr==VE_SOCK_PEER_OVER)
 		return verr;
 		
-	return vThrowError(verr);	//might be VE_OK, which throws nothing.
+	return vThrowError(verr);
 }
 
 
@@ -801,6 +812,65 @@ VError XBsdTCPSocket::DoWriteWithTimeout(const void* inBuff, uLONG* ioLen, sLONG
 	*ioLen=len;
 	
 	return vThrowError(verr);	//might be VE_OK, which throws nothing.
+}
+
+
+//static
+void XBsdTCPSocket::TrashWithTimeout(Socket inFd, sLONG inMsTimeout, sLONG* outMsSpent)
+{
+	if(inFd==kBAD_SOCKET)
+		return;
+	
+	if(inMsTimeout<0)
+		return;
+	
+	sLONG start=VSystem::GetCurrentTime();
+	sLONG stop=start+inMsTimeout;
+	sLONG now=start;
+	
+	for(;;)
+	{
+		sLONG msTimeout=stop-now;
+		
+		timeval timeout={0};
+		
+		timeout.tv_sec=msTimeout/1000;
+		timeout.tv_usec=1000*(msTimeout%1000);
+		
+        fd_set rs;
+        FD_ZERO(&rs);
+        FD_SET(inFd, &rs);
+				
+        int res=select(inFd+1, &rs, NULL, NULL, &timeout);
+		
+		if(res==-1 && errno==EINTR)
+		{
+			now=VSystem::GetCurrentTime();
+			continue;
+		}
+		
+		if(outMsSpent!=NULL)
+		{
+			now=VSystem::GetCurrentTime();
+			*outMsSpent=now-start;
+		}
+		
+		//select failed, or timedout
+		if(res!=1)
+			break;
+		
+		char buf[1024];
+		int len=sizeof(buf);
+		int n=0;
+		
+		do
+			n=recv(inFd, buf, len, 0 /*flags*/);
+		while(n==-1 && errno==EINTR);
+
+		//recv failed, or all data is read.
+		if(n<=0)
+			break;
+	}
 }
 
 
@@ -925,7 +995,7 @@ XBsdTCPSocket* XBsdTCPSocket::NewClientConnectedSock(const VString& inDnsName, P
 #if WITH_DEPRECATED_IPV4_API
 
 //static
-XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock)
+XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber inPort, Socket inBoundSock, bool inReuseAddress)
 {
 	sockaddr_in v4={0};
 	v4.sin_family=AF_INET;
@@ -955,7 +1025,7 @@ XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber in
 	
 	VNetAddress addr(v4);
 	
-	VError verr=xsock->Listen(addr, alreadyBound);
+	VError verr=xsock->Listen(addr, alreadyBound, inReuseAddress);
 	
 	if(verr!=VE_OK)
 	{
@@ -977,7 +1047,7 @@ XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(uLONG inIPv4, PortNumber in
 #else
 
 //static
-XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock)
+XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, Socket inBoundSock, bool inReuseAddress)
 {
 	bool alreadyBound=(inBoundSock!=kBAD_SOCKET) ? true : false;
 	
@@ -1002,7 +1072,7 @@ XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, 
 	{
 		xsock->SetServicePort(inAddr.GetPort());
 		
-		verr=xsock->Listen(inAddr, alreadyBound);
+		verr=xsock->Listen(inAddr, alreadyBound, inReuseAddress);
 	}
 	
 	if(verr==VE_OK)
@@ -1030,17 +1100,17 @@ XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(const VNetAddress& inAddr, 
 
 
 //static
-XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(PortNumber inPort, Socket inBoundSock)
+XBsdTCPSocket* XBsdTCPSocket::NewServerListeningSock(PortNumber inPort, Socket inBoundSock, bool inReuseAddress)
 {
 #if WITH_DEPRECATED_IPV4_API
-	return NewServerListeningSock(INADDR_ANY, inPort, inBoundSock);
+	return NewServerListeningSock(INADDR_ANY, inPort, inBoundSock, inReuseAddress);
 #else
 	VNetAddress anyAddr;
 	VError verr=anyAddr.FromAnyIpAndPort(inPort);
 	
 	xbox_assert(verr==VE_OK);
 	
-	return NewServerListeningSock(anyAddr, inBoundSock);
+	return NewServerListeningSock(anyAddr, inBoundSock, inReuseAddress);
 #endif	
 }
 
@@ -1101,7 +1171,14 @@ bool XBsdTCPSocket::IsSSL()
 XBsdAcceptIterator::XBsdAcceptIterator()
 {
 	fSockIt=fSocks.end();
-	FD_ZERO(&fReadSet);
+	fReadSet=new fd_set;
+	FD_ZERO(fReadSet);
+}
+
+
+XBsdAcceptIterator::~XBsdAcceptIterator()
+{
+	delete fReadSet;
 }
 
 
@@ -1163,7 +1240,7 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 		//We need to issue a new select call, with timeout
 		*outShouldRetry=false;
 
-        FD_ZERO(&fReadSet);
+        FD_ZERO(fReadSet);
 		
 		sLONG maxFd=-1;
 		
@@ -1176,9 +1253,15 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 			if(fd>maxFd)
 				maxFd=fd;
 			
-			FD_SET(fd, &fReadSet);
+			FD_SET(fd, fReadSet);
 		}
 		
+        //Ensure we have something to watch
+        xbox_assert(maxFd!=-1);
+
+        if(maxFd==-1)
+            return vThrowError(VE_INVALID_PARAMETER);
+        
 		sLONG now=VSystem::GetCurrentTime();
 		sLONG stop=now+inMsTimeout;
 		
@@ -1191,7 +1274,7 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 			timeout.tv_sec=msTimeout/1000;
 			timeout.tv_usec=1000*(msTimeout%1000);
 		
-			int res=select(maxFd+1, &fReadSet, NULL, NULL, &timeout);
+			int res=select(maxFd+1, fReadSet, NULL, NULL, &timeout);
 	
 			if(res==0)
 				return VE_SOCK_TIMED_OUT;
@@ -1217,7 +1300,7 @@ VError XBsdAcceptIterator::GetNewConnectedSocket(XBsdTCPSocket** outSock, sLONG 
 	{		
 		sLONG fd=(*fSockIt)->GetRawSocket();
 		
-		if(FD_ISSET(fd, &fReadSet))
+		if(FD_ISSET(fd, fReadSet))
 		{
 			*outSock=(*fSockIt)->Accept(0 /*No timeout*/);
 						

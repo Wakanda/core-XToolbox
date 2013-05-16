@@ -22,8 +22,6 @@
 BEGIN_TOOLBOX_NAMESPACE
 
 
-#if !VERSION_LINUX   // Postponed Linux Implementation !
-
 class XTOOLBOX_API VJSImage : public XBOX::VJSClass<VJSImage, VJSPictureContainer>
 {
 public:
@@ -40,7 +38,10 @@ public:
 	static void _setPath(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureContainer* inPict);  // setPath(File : path, {string : mime/type})
 	static void _saveMeta(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureContainer* inPict);  // saveMeta({metadata})
 	static void _save(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureContainer* inPict);  // bool : save(File, string : mime type)
+
+#if !VERSION_LINUX
 	static void _thumbnail(XBOX::VJSParms_callStaticFunction& ioParms, VJSPictureContainer* inPict);  // Image : thumbnail(number : widht, number : heigth,  mode)
+#endif
 
 	static void _getSize( XBOX::VJSParms_getProperty& ioParms, VJSPictureContainer* inPict);
 	static void _getWidth( XBOX::VJSParms_getProperty& ioParms, VJSPictureContainer* inPict);
@@ -48,8 +49,6 @@ public:
 	static void _getMeta( XBOX::VJSParms_getProperty& ioParms, VJSPictureContainer* inPict);
 
 };
-
-#endif
 
 END_TOOLBOX_NAMESPACE
 

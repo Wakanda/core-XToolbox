@@ -21,7 +21,6 @@
 #include "JSDebugger/Interfaces/CJSWDebuggerFactory.h"
 #include "HTTPServer/Interfaces/CHTTPServer.h"
 
-#include "ServerNet/VServerNet.h"
 
 #ifdef JSDEBUGGER_EXPORTS
     #define JSDEBUGGER_API __declspec(dllexport)
@@ -36,29 +35,192 @@
 
 
 
-#if 1//defined(WKA_USE_UNIFIED_DBG)
+template <class Elt>
+class TemplProtectedFifo	{
+public:
+	#define K_NB_MAX_MSGS	(4)
+	
+	TemplProtectedFifo(unsigned int inMaxSize=K_NB_MAX_MSGS, bool inAssertWhenFull=true) :
+					fSem(0,inMaxSize+1), fMaxSize(inMaxSize), fAssertWhenFull(inAssertWhenFull) {;}
 
+	void							Reset()	{
+		if (!testAssert(fLock.Lock()))
+		{
+			// trace
+		}
+		while (!fMsgs.empty())
+		{
+			fMsgs.pop();
+		}
+		while(fSem.TryToLock())
+		{
+		}
+		if (!testAssert(fLock.Unlock()))
+		{
+			// trace
+		}
+	}
+	XBOX::VError					Put(Elt& inMsg)
+	{
+		XBOX::VError	err;
+		size_t			size;
+		err = XBOX::VE_UNKNOWN_ERROR;
+		if (!testAssert(fLock.Lock()))
+		{
+			// trace
+		}
+		size = fMsgs.size();
+		if (size < fMaxSize)
+		{
+			fMsgs.push(inMsg);
+			if (!fSem.Unlock())
+			{
+				xbox_assert(false);
+			}
+			else
+			{
+				err = XBOX::VE_OK;
+			}
+		}
+		else
+		{
+			err = XBOX::VE_MEMORY_FULL;
+			if (fAssertWhenFull)
+			{
+				xbox_assert(false);
+			}
+		}
+		if (!testAssert(fLock.Unlock()))
+		{
+			// trace
+		}
+		return err;
+	}
+	XBOX::VError					Get(Elt& outMsg, bool& outFound, uLONG inTimeoutMs) {
+		bool			ok;
+		XBOX::VError	err;
 
-#endif
+		outFound = false;
+		err = XBOX::VE_UNKNOWN_ERROR;
+
+		if (!inTimeoutMs)
+		{
+			ok = fSem.Lock();
+		}
+		else
+		{
+			ok = fSem.Lock((sLONG)inTimeoutMs);
+		}
+		if (ok)
+		{
+			if (!testAssert(fLock.Lock()))
+			{
+				// trace
+			}
+			outMsg = (Elt)fMsgs.front();
+			fMsgs.pop();
+			if (!testAssert(fLock.Unlock()))
+			{
+				// trace
+			}
+			outFound = true;
+			err = XBOX::VE_OK;
+		}
+		else
+		{
+			if (inTimeoutMs)
+			{
+				err = XBOX::VE_OK;
+			}
+		}
+		return err;
+	}
+
+	// waits infinitely if inTimeoutMs<0, waits inTimeoutMs ms when >0, does not wait when inTimeoutMs is null
+	XBOX::VError					Get2(Elt& outMsg, bool& outFound, sLONG inTimeoutMs) {
+		bool			ok;
+		XBOX::VError	err;
+
+		outFound = false;
+		err = XBOX::VE_UNKNOWN_ERROR;
+
+		if (!inTimeoutMs)
+		{
+			ok = fSem.TryToLock();
+			if (!ok)
+			{
+				return XBOX::VE_OK;
+			}
+		}
+		else
+		{
+			if (inTimeoutMs > 0)
+			{
+				ok = fSem.Lock(inTimeoutMs);
+			}
+			else
+			{
+				ok = fSem.Lock();
+			}
+		}
+		if (ok)
+		{
+			if (!testAssert(fLock.Lock()))
+			{
+				// trace
+			}
+			outMsg = (Elt)fMsgs.front();
+			fMsgs.pop();
+			if (!testAssert(fLock.Unlock()))
+			{
+				// trace
+			}
+			outFound = true;
+			err = XBOX::VE_OK;
+		}
+		else
+		{
+			if (inTimeoutMs > 0)
+			{
+				err = XBOX::VE_OK;
+			}
+		}
+		return err;
+	}
+private:
+	unsigned int					fMaxSize;
+	bool							fAssertWhenFull;
+	std::queue<Elt>					fMsgs;
+	XBOX::VCriticalSection			fLock;
+	XBOX::VSemaphore				fSem;
+};
 
 class VRemoteDebugPilot;
 
+
+class VCallstackDescription : public XBOX::VObject {
+public:
+	VCallstackDescription() {;}
+	bool						fSourceSent;
+	XBOX::VString				fFileName;
+	XBOX::VectorOfVString		fSourceCode;
+};
+
+typedef std::map< XBOX::VString, VCallstackDescription> CallstackDescriptionMap;
+
 class JSDEBUGGER_API VChromeDebugHandler :
 						public IHTTPRequestHandler,
-#if 1//defined(WKA_USE_UNIFIED_DBG)
-						public IWAKDebuggerServer,
-#endif
+						public IChromeDebuggerServer,
 						public XBOX::VObject
 {
 public:
 
-	static VChromeDebugHandler*			Get();
+	static VChromeDebugHandler*			Get(const XBOX::VString&	inSolutionName);
 
 	static VChromeDebugHandler*			Get(
-											const XBOX::VString inIP,
-											sLONG				inPort,
-											const XBOX::VString inDebuggerHTMLSkeleton,
-											const XBOX::VString inTracesHTMLSkeleton);
+											const XBOX::VString&	inSolutionName,
+											const XBOX::VString&	inTracesHTMLSkeleton);
+
 	virtual bool						HasClients();
 	virtual XBOX::VError				GetPatterns(XBOX::VectorOfVString* outPatterns) const;
 	virtual XBOX::VError				HandleRequest(IHTTPResponse* ioResponse);
@@ -70,83 +232,93 @@ public:
 	virtual short						GetServerPort();
 	virtual void						SetSettings( IWAKDebuggerSettings* inSettings );
 	virtual void						SetInfo( IWAKDebuggerInfo* inInfo );
-	virtual bool						Lock();
-	virtual bool						Unlock();
-	virtual WAKDebuggerContext_t		AddContext( uintptr_t inContext );
-	virtual bool						RemoveContext( WAKDebuggerContext_t inContext );
-	virtual bool						SetState(WAKDebuggerContext_t inContext, WAKDebuggerState_t state);
-	virtual bool						SendLookup( WAKDebuggerContext_t inContext, void* inVars, unsigned int inSize );
-	virtual bool						SendEval( WAKDebuggerContext_t inContext, void* inVars );
+
+	virtual void						GetStatus(
+											bool&			outStarted,
+											bool&			outConnected,
+											long long&		outDebuggingEventsTimeStamp,
+											bool&			outPendingContexts);
+
+	virtual OpaqueDebuggerContext		AddContext();
+	virtual bool						RemoveContext( OpaqueDebuggerContext inContext );
+	virtual bool						DeactivateContext( OpaqueDebuggerContext inContext, bool inHideOnly = false );
+	virtual bool						SendLookup( OpaqueDebuggerContext inContext, void* inLookupResultVStringPtr );
+	virtual bool						SendEval(	OpaqueDebuggerContext	inContext,
+													void*					inEvaluationResultVStringPtr,
+													intptr_t				inRequestId  );
 	virtual bool						BreakpointReached(
-											WAKDebuggerContext_t	inContext,
-											int						inLineNumber,
-											int						inExceptionHandle = -1/* -1 ? notException : ExceptionHandle */,
-											char*					inURL  = NULL,
-											int						inURLLength = 0/* in bytes */,
-											char*					inFunction = NULL,
-											int 					inFunctionLength = 0 /* in bytes */,
-											char*					inMessage = NULL,
-											int 					inMessageLength = 0 /* in bytes */,
-											char* 					inName = NULL,
-											int 					inNameLength = 0 /* in bytes */,
-											long 					inBeginOffset = 0,
-											long 					inEndOffset = 0 /* in bytes */ );
-	virtual void						SetSourcesRoot( char* inRoot, int inLength );
-	virtual char*						GetAbsolutePath (
-											const unsigned short* inAbsoluteRoot, int inRootSize,
-											const unsigned short* inRelativePath, int inPathSize,
-											int& outSize );
-	virtual char*						GetRelativeSourcePath (
-											const unsigned short* inAbsoluteRoot, int inRootSize,
-											const unsigned short* inAbsolutePath, int inPathSize,
-											int& outSize );
-	virtual void						Reset();
-	virtual void						WakeUpAllWaiters();
-	virtual bool						SendCallStack( WAKDebuggerContext_t inContext, const char *inData, int inLength );
-	virtual bool						SendSource( WAKDebuggerContext_t inContext, intptr_t inSrcId, const char *inData, int inLength, const char* inUrl, unsigned int inUrlLen );
-	virtual WAKDebuggerServerMessage*	WaitFrom(WAKDebuggerContext_t inContext);
+											OpaqueDebuggerContext		inContext,
+											intptr_t					inSourceId,
+											int							inLineNumber,
+											RemoteDebuggerPauseReason	inPauseReason,
+											char* 						inExceptionName  = NULL,
+											int 						inExceptionNameLength = 0  );
+
+	virtual void						AbortAll();
+	virtual bool						SendCallStack(				OpaqueDebuggerContext	inContext,
+											const char*				inCallstackStr,
+											int						inCallstackStrLength,
+											const char*				inExceptionInfos = NULL,
+											int						inExceptionInfosLength = 0 );
+
+	virtual bool						SendSource(
+											OpaqueDebuggerContext	inContext,
+											intptr_t				inSourceId,
+											char*					inFileName = NULL,
+											int						inFileNameLength = 0,
+											const char*				inData = NULL,
+											int						inDataLength = 0 );
+
+	virtual WAKDebuggerServerMessage*	WaitFrom(OpaqueDebuggerContext inContext);
 	virtual void						DisposeMessage(WAKDebuggerServerMessage* inMessage);
-	virtual WAKDebuggerServerMessage*	GetNextBreakPointCommand();
-	virtual WAKDebuggerServerMessage*	GetNextSuspendCommand( WAKDebuggerContext_t inContext );
-	virtual WAKDebuggerServerMessage*	GetNextAbortScriptCommand ( WAKDebuggerContext_t inContext );
-	virtual long long					GetMilliseconds();
 
 	virtual WAKDebuggerUCharPtr_t		EscapeForJSON( const unsigned char* inString, int inSize, int& outSize );
 	virtual void						DisposeUCharPtr( WAKDebuggerUCharPtr_t inUCharPtr );
 
-	virtual void*						UStringToVString( const void* inString, int inSize );
+	virtual void*						UStringToVStringPtr( const void* inString, int inSize );
 
-	virtual int							Write ( const char * inData, long inLength, bool inToUTF8 = false );
-	virtual int							WriteFileContent ( long inCommandID, uintptr_t inContext, const unsigned short* inFilePath, int inPathSize );
-	virtual int							WriteSource ( long inCommandID, uintptr_t inContext, const unsigned short* inSource, int inSize );
-
-	virtual void						Trace(	WAKDebuggerContext_t	inContext,
+	virtual void						Trace(	OpaqueDebuggerContext	inContext,
 												const void*				inString,
 												int						inSize,
 												WAKDebuggerTraceLevel_t inTraceLevel = WAKDBG_ERROR_LEVEL );
 
 	// to be removed after clean start/stop of dbgr server
-	static void							StaticSetSettings( IWAKDebuggerSettings* inSettings );
+	static	void						StaticSetSettings( IWAKDebuggerSettings* inSettings );
+
+	virtual bool						HasBreakpoint(
+											OpaqueDebuggerContext				inContext,
+											intptr_t							inSourceId,
+											int									inLineNumber);
+
+	virtual	bool						GetFilenameFromId(
+											OpaqueDebuggerContext				inContext,
+											intptr_t							inSourceId,
+											char*								ioFileName,
+											int&								ioFileNameLength);
+
+	virtual void						Lock();
+	virtual void						Unlock();
+
+	static	void						GetJSONBreakpoints(XBOX::VString& outJSONBreakPoints);
+	static	void						AddBreakPoint(OpaqueDebuggerContext inContext,intptr_t inSourceId,int inLineNumber);
+	static	void						RemoveBreakPoint(OpaqueDebuggerContext inContext,intptr_t inSourceId,int inLineNumber);
+
 private:
 										VChromeDebugHandler();
 										VChromeDebugHandler(
-											const XBOX::VString inIP, sLONG inPort, const XBOX::VString inDebuggerHTML, const XBOX::VString inTracesHTML);
+											const XBOX::VString&	inSolutionName,
+											const XBOX::VString&	inTracesHTML);
 	virtual								~VChromeDebugHandler();
 										VChromeDebugHandler( const VChromeDebugHandler& inChromeDebugHandler);
 
 	XBOX::VError						TreatJSONFile(IHTTPResponse* ioResponse);
-	XBOX::VError						TreatDebuggerHTML(IHTTPResponse* ioResponse);
 	XBOX::VError						TreatTracesHTML(IHTTPResponse* ioResponse);
 
 	XBOX::VError						TreatRemoteTraces(IHTTPResponse* ioResponse);
 
 	bool								fStarted;
 	VRemoteDebugPilot*					fPilot;
-	sLONG								fPort;
-	XBOX::VString						fIPAddr;
-	XBOX::VString						fDebuggerHTML;
 	XBOX::VString						fTracesHTML;
-	//IWAKDebuggerSettings*				fDebuggerSettings;
 
 #endif	//WKA_USE_UNIFIED_DBG
 
@@ -155,6 +327,7 @@ private:
 	// to be removed after clean start/stop of dbgr server
 	static								IWAKDebuggerSettings*			sStaticSettings;
 
+	static								intptr_t						sSrcId_GH_TEST;
 //#define UNIFIED_DEBUGGER_NET_DEBUG
 
 };

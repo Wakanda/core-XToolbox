@@ -32,11 +32,11 @@ class XTOOLBOX_API XSBind
 public:
 
 #if WITH_DEPRECATED_IPV4_API
-	XSBind(IP4 inAddr, PortNumber inPort, IRequestLogger* inRequestLogger=NULL, Socket inBoundSock=kBAD_SOCKET) :
-	fAddr(inAddr), fPort(inPort), fRequestLogger(inRequestLogger), fIsSSL(false), fBoundSock(inBoundSock), fSock(NULL) { }
+	XSBind(IP4 inAddr, PortNumber inPort, IRequestLogger* inRequestLogger=NULL, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true) :
+	fAddr(inAddr), fPort(inPort), fRequestLogger(inRequestLogger), fIsSSL(false), fBoundSock(inBoundSock), fSock(NULL), fReuseAddress (inReuseAddress) { }
 #else
-	XSBind(const VNetAddress& inAddr, IRequestLogger* inRequestLogger=NULL, Socket inBoundSock=kBAD_SOCKET) :
-	fAddr(inAddr), fRequestLogger(inRequestLogger), fIsSSL(false), fBoundSock(inBoundSock), fSock(NULL) { }
+	XSBind(const VNetAddress& inAddr, IRequestLogger* inRequestLogger=NULL, Socket inBoundSock=kBAD_SOCKET, bool inReuseAddress=true) :
+	fAddr(inAddr), fRequestLogger(inRequestLogger), fIsSSL(false), fBoundSock(inBoundSock), fSock(NULL), fReuseAddress (inReuseAddress) { }
 #endif	
 	
 	virtual ~XSBind()						{ if(fSock!=NULL) fSock->Close(), delete fSock; }
@@ -66,9 +66,9 @@ public:
 		StTmpErrorContext errCtx;
 
 #if WITH_DEPRECATED_IPV4_API
-		XTCPSock* sock=XTCPSock::NewServerListeningSock(GetAddress(), GetPort(), fBoundSock);
+		XTCPSock* sock=XTCPSock::NewServerListeningSock(GetAddress(), GetPort(), fBoundSock, fReuseAddress);
 #else
-		XTCPSock* sock=XTCPSock::NewServerListeningSock(fAddr, fBoundSock);
+		XTCPSock* sock=XTCPSock::NewServerListeningSock(fAddr, fBoundSock, fReuseAddress);
 #endif
 		SetSock(sock);
 		
@@ -94,24 +94,27 @@ private:
 	IRequestLogger* fRequestLogger;
 	bool			fIsSSL;
 	Socket			fBoundSock;
-	XTCPSock*	fSock;
+	XTCPSock*		fSock;
+	bool			fReuseAddress;
 };
 
 
 VSockListener::VSockListener(IRequestLogger* inRequestLogger) :
-fRequestLogger(inRequestLogger), fListenStarted(false), fAcceptTimeout(0), fKeyCertChain(NULL)
+fRequestLogger(inRequestLogger), fListenStarted(false), fKeyCertChain(NULL)
 {}
 
 
 VSockListener::~VSockListener()
 {
 	StopListeningAndClearPorts();
+	
+	SslFramework::ReleaseKeyCertificateChain(&fKeyCertChain);
 }
 
 
 #if WITH_DEPRECATED_IPV4_API
 
-bool VSockListener::AddListeningPort(uLONG iAddr, PortNumber iPort, bool iSsl, Socket inBoundSock)
+bool VSockListener::AddListeningPort(uLONG iAddr, PortNumber iPort, bool iSsl, Socket inBoundSock, bool inReuseAddress)
 {	
 	assert(!fListenStarted);
 	
@@ -119,7 +122,7 @@ bool VSockListener::AddListeningPort(uLONG iAddr, PortNumber iPort, bool iSsl, S
 	
 	try
 	{
-		XSBind*	newBind = new XSBind ( iAddr, iPort, fRequestLogger, inBoundSock );
+		XSBind*	newBind = new XSBind ( iAddr, iPort, fRequestLogger, inBoundSock, inReuseAddress);
 		
 		if(iSsl)
 			newBind-> SetSSL();
@@ -135,13 +138,13 @@ bool VSockListener::AddListeningPort(uLONG iAddr, PortNumber iPort, bool iSsl, S
 
 #else
 
-bool VSockListener::AddListeningPort(VString inAddr, PortNumber inPort, bool iSsl, Socket inBoundSock)
+bool VSockListener::AddListeningPort(VString inAddr, PortNumber inPort, bool iSsl, Socket inBoundSock, bool inReuseAddress)
 {
-	return AddListeningPort(VNetAddress(inAddr, inPort), iSsl, inBoundSock);
+	return AddListeningPort(VNetAddress(inAddr, inPort), iSsl, inBoundSock, inReuseAddress);
 }
 
 
-bool VSockListener::AddListeningPort(const VNetAddress& inAddr, bool iSsl, Socket inBoundSock)
+bool VSockListener::AddListeningPort(const VNetAddress& inAddr, bool iSsl, Socket inBoundSock, bool inReuseAddress)
 {	
 	assert(!fListenStarted);
 	
@@ -149,7 +152,7 @@ bool VSockListener::AddListeningPort(const VNetAddress& inAddr, bool iSsl, Socke
 	
 	try
 	{
-		XSBind*	newBind = new XSBind (inAddr, fRequestLogger, inBoundSock);
+		XSBind*	newBind = new XSBind (inAddr, fRequestLogger, inBoundSock, inReuseAddress);
 		
 		if(iSsl)
 			newBind-> SetSSL();
@@ -316,7 +319,7 @@ VError VSockListener::SetCertificateFolder(const VFilePath& inCertFolderPath, co
 
 VError VSockListener::SetKeyAndCertificate(const VMemoryBuffer<>& inKey, const VMemoryBuffer<>& inCertificate)
 {
-	SslFramework::ReleaseKeyCertificateChain(fKeyCertChain);
+	SslFramework::ReleaseKeyCertificateChain(&fKeyCertChain);
 	
 	fKeyCertChain=SslFramework::RetainKeyCertificateChain(inKey, inCertificate);
 	
@@ -456,12 +459,6 @@ void VSockListener::StopListeningAndClearPorts()
 	fAcceptIterator.ClearServiceSockets();
 	
 	fListenStarted = false;
-}
-
-
-void VSockListener::setAcceptTimeout(uLONG inMsTimeout)
-{
-	fAcceptTimeout=inMsTimeout;
 }
 
 

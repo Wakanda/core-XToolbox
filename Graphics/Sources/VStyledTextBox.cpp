@@ -14,6 +14,7 @@
 * other than those specified in the applicable license is granted.
 */
 #include "VGraphicsPrecompiled.h"
+#include "VGraphicContext.h"
 #include "VRect.h"
 #include "vfont.h"
 #include "vcolor.h"
@@ -27,26 +28,81 @@
 
 
 #if VERSIONMAC
-VStyledTextBox *VStyledTextBox::CreateImpl(ContextRef inContextRef, const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, const GReal inRefDocDPI, bool inUseNSAttributes)
+VStyledTextBox *VStyledTextBox::CreateImpl(ContextRef inContextRef, 
+										   const VString& inText, const VTreeTextStyle *inStyles, 
+										   const VRect& inHwndBounds, 
+										   const VColor& inTextColor, 
+										   VFont *inFont, 
+										   const TextRenderingMode inMode, 
+										   const TextLayoutMode inLayoutMode, 
+										   const GReal inRefDocDPI, 
+										   const GReal inCharKerning,
+										   bool inUseNSAttributes)
 #else
-VStyledTextBox *VStyledTextBox::CreateImpl(ContextRef inContextRef, const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont, const GReal inRefDocDPI, bool /*inUseNSAttributes*/)
+VStyledTextBox *VStyledTextBox::CreateImpl(ContextRef inContextRef, 
+										   const VString& inText, const VTreeTextStyle *inStyles, 
+										   const VRect& inHwndBounds, 
+										   const VColor& inTextColor, 
+										   VFont *inFont, 
+										   const TextRenderingMode /*inMode*/, 
+										   const TextLayoutMode inLayoutMode, 
+										   const GReal inRefDocDPI, 
+										   const GReal /*inCharKerning*/,
+										   bool /*inUseNSAttributes*/)
 #endif
 {
 #if VERSIONWIN
-	return static_cast<VStyledTextBox *>(new XWinStyledTextBox( inContextRef, inText, inStyles, inHwndBounds, inTextColor, inFont, TLM_NORMAL, inRefDocDPI));
+	return static_cast<VStyledTextBox *>(new XWinStyledTextBox( inContextRef, inText, inStyles, inHwndBounds, inTextColor, inFont, inLayoutMode, inRefDocDPI));
 #elif VERSIONMAC
-	return static_cast<VStyledTextBox *>(new XMacStyledTextBox( inContextRef, inText, inStyles, inHwndBounds, inTextColor, inFont, TRM_NORMAL, TLM_NORMAL, 0.0f, inRefDocDPI, inUseNSAttributes));
+	return static_cast<VStyledTextBox *>(new XMacStyledTextBox( inContextRef, inText, inStyles, inHwndBounds, inTextColor, inFont, inMode, inLayoutMode, inCharKerning, inRefDocDPI, inUseNSAttributes));
 #else
 	return NULL;
 #endif
 }
 
-VStyledTextBox::VStyledTextBox(const VString& inText, VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont)
+
+VStyledTextBox *VStyledTextBox::CreateImpl(	ContextRef inContextRef, 
+											const VTextLayout& inTextLayout, 
+											const VRect* inBounds, 
+											const TextRenderingMode inMode, 
+											const VColor* inTextColor, VFont *inFont, 
+											const GReal inCharKerning,
+											bool inUseNSAttributes)
+{
+	VRect bounds;
+	if (inBounds)
+		bounds = *inBounds;
+	else
+		bounds = VRect(0.0f, 0.0f, inTextLayout.GetMaxWidth() ? inTextLayout.GetMaxWidth() : 100000.0f, inTextLayout.GetMaxHeight() ? inTextLayout.GetMaxHeight() : 100000.0f);
+	VColor textColor;
+	if (inTextColor)
+		textColor = *inTextColor;
+	else
+		inTextLayout.GetDefaultTextColor( textColor);
+	VFont *font = inFont ? RetainRefCountable(inFont) : inTextLayout.RetainDefaultFont();
+	xbox_assert(font);
+	VStyledTextBox *textBox = CreateImpl(	inContextRef, inTextLayout.GetText(), inTextLayout.GetStyles(), bounds, 
+											textColor, font, inMode, inTextLayout.GetLayoutMode(), inTextLayout.GetDPI(), inCharKerning, inUseNSAttributes);
+	if (inTextLayout.GetTextAlign() != AL_DEFAULT)
+		textBox->SetTextAlign( inTextLayout.GetTextAlign());
+	if (inTextLayout.GetParaAlign() != AL_DEFAULT)
+		textBox->SetParaAlign( inTextLayout.GetParaAlign());
+	if (inTextLayout.GetLineHeight() != -1)
+		textBox->SetLineHeight( inTextLayout.GetLineHeight());
+	if (inTextLayout.GetPaddingFirstLine() != 0.0f)
+		textBox->SetPaddingFirstLine( 0.0f);
+	textBox->SetTabStop( inTextLayout.GetTabStopOffset(), inTextLayout.GetTabStopType());
+
+	ReleaseRefCountable(&font);
+	return textBox;
+}
+
+VStyledTextBox::VStyledTextBox(const VString& inText, const VTreeTextStyle *inStyles, const VRect& inHwndBounds, const VColor& inTextColor, VFont *inFont)
 {
 	fInitialized = false;
 }
 
-void VStyledTextBox::Initialize(const VString& inText, VTreeTextStyle *inStyles, const VColor& inTextColor, VFont *inFont)
+void VStyledTextBox::Initialize(const VString& inText, const VTreeTextStyle *inStyles, const VColor& inTextColor, VFont *inFont)
 {
 	DoInitialize();
 	_SetText(inText);
@@ -68,6 +124,8 @@ Boolean VStyledTextBox::Draw(const VRect& inBounds)
 */
 sLONG VStyledTextBox::_GetUniformStyle(VTextStyle *styleUniform, sLONG inStart, sLONG inEnd)
 {
+	if (inEnd == -1)
+		inEnd = GetPlainTextLength();
 	if (inStart >= inEnd)
 	{
 		styleUniform->Reset();
@@ -127,6 +185,9 @@ sLONG VStyledTextBox::_GetUniformStyle(VTextStyle *styleUniform, sLONG inStart, 
 sLONG VStyledTextBox::GetAllStyles(std::vector<VTextStyle*>& outStyles, sLONG inStart, sLONG inEnd)
 {
 	xbox_assert(outStyles.size() == 0);
+	if (inEnd == -1)
+		inEnd = GetPlainTextLength();
+
 	if (inStart >= inEnd)
 		return 0;
 
@@ -143,7 +204,25 @@ sLONG VStyledTextBox::GetAllStyles(std::vector<VTextStyle*>& outStyles, sLONG in
 	return (sLONG)outStyles.size();
 }
 
-void VStyledTextBox::_ApplyAllStyles(XBOX::VTreeTextStyle* inStyles, VTextStyle *inStyleInherit)
+void VStyledTextBox::_DoApplyStyleRef( const VTextStyle *inStyle)
+{
+	if (inStyle->IsSpanRef())
+	{
+		const VTextStyle *styleRef = inStyle->GetSpanRef()->GetStyle();
+		if (styleRef)
+		{
+			xbox_assert(!styleRef->IsSpanRef()); 
+
+			VTextStyle *style = new VTextStyle( styleRef);
+			sLONG start, end;
+			inStyle->GetRange( start, end);
+			style->SetRange( start, end);
+			DoApplyStyle( style);
+		}
+	}
+}
+
+void VStyledTextBox::_ApplyAllStyles(const XBOX::VTreeTextStyle* inStyles, VTextStyle *inStyleInherit)
 {
 	if(inStyles)
 	{
@@ -189,4 +268,20 @@ void VStyledTextBox::DoOnRefCountZero ()
 void VStyledTextBox::GetSize(GReal &ioWidth, GReal &outHeight)
 {
 	DoGetSize(ioWidth, outHeight);
+}
+
+
+/** set text horizontal alignment (default is AL_DEFAULT) */
+void VStyledTextBox::SetTextAlign( AlignStyle inHAlign, sLONG inStart, sLONG inEnd)
+{
+	//default impl: should be derived in impl to optimize
+	if (inEnd == -1)
+		inEnd = GetPlainTextLength();
+	if (inEnd < inStart)
+		return;
+	VTextStyle *style = new VTextStyle();
+	style->SetJustification( VTextLayout::JustFromAlignStyle( inHAlign));
+	style->SetRange(inStart, inEnd);
+	ApplyStyle( style);
+	delete style;
 }

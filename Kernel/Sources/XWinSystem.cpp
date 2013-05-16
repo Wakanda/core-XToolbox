@@ -216,48 +216,64 @@ SystemVersion XWinSystem::GetSystemVersion()
 		ZeroMemory(&OSversion, sizeof(OSVERSIONINFOEX));
 		OSversion.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
 		
-		// set Windows Seven
+		// set Windows 8
 		OSversion.dwMajorVersion = 6;
-		OSversion.dwMinorVersion = 1;
+		OSversion.dwMinorVersion = 2;
 		if ( VerifyVersionInfo(&OSversion, VER_MAJORVERSION | VER_MINORVERSION , dwlConditionMask) )
 		{
-			sWinVersion = WIN_SEVEN;
-			
+			sWinVersion = WIN_EIGHT;
+				
 			if(::GetVersionEx((LPOSVERSIONINFO)&OSversion))
 			{
 				if(OSversion.wProductType!=VER_NT_WORKSTATION)
-					sWinVersion = WIN_SERVER_2008R2;
+					sWinVersion = WIN_SERVER_2012;
 			}
 		}
 		else
 		{
-			// set Windows Vista Version
+			// set Windows 7
 			OSversion.dwMajorVersion = 6;
-			OSversion.dwMinorVersion = 0;
+			OSversion.dwMinorVersion = 1;
 			if ( VerifyVersionInfo(&OSversion, VER_MAJORVERSION | VER_MINORVERSION , dwlConditionMask) )
 			{
-				sWinVersion = WIN_VISTA;
+				sWinVersion = WIN_SEVEN;
 				
 				if(::GetVersionEx((LPOSVERSIONINFO)&OSversion))
 				{
 					if(OSversion.wProductType!=VER_NT_WORKSTATION)
-						sWinVersion = WIN_SERVER_2008;
+						sWinVersion = WIN_SERVER_2008R2;
 				}
 			}
 			else
 			{
-				// set Windows 2003 Server
-				OSversion.dwMajorVersion = 5;
-				OSversion.dwMinorVersion = 2;
+				// set Windows Vista Version
+				OSversion.dwMajorVersion = 6;
+				OSversion.dwMinorVersion = 0;
 				if ( VerifyVersionInfo(&OSversion, VER_MAJORVERSION | VER_MINORVERSION , dwlConditionMask) )
-					sWinVersion = WIN_SERVER_2003;
+				{
+					sWinVersion = WIN_VISTA;
+					
+					if(::GetVersionEx((LPOSVERSIONINFO)&OSversion))
+					{
+						if(OSversion.wProductType!=VER_NT_WORKSTATION)
+							sWinVersion = WIN_SERVER_2008;
+					}
+				}
 				else
 				{
 					// set Windows 2003 Server
 					OSversion.dwMajorVersion = 5;
-					OSversion.dwMinorVersion = 1;
+					OSversion.dwMinorVersion = 2;
 					if ( VerifyVersionInfo(&OSversion, VER_MAJORVERSION | VER_MINORVERSION , dwlConditionMask) )
-						sWinVersion = WIN_XP;
+						sWinVersion = WIN_SERVER_2003;
+					else
+					{
+						// set Windows 2003 Server
+						OSversion.dwMajorVersion = 5;
+						OSversion.dwMinorVersion = 1;
+						if ( VerifyVersionInfo(&OSversion, VER_MAJORVERSION | VER_MINORVERSION , dwlConditionMask) )
+							sWinVersion = WIN_XP;
+					}
 				}
 			}
 		}
@@ -308,6 +324,8 @@ bool XWinSystem::GetMajorAndMinorFromSystemVersion( SystemVersion inSystemVersio
 	case WIN_SERVER_2008:	*outMajor = 6; *outMinor = 0; break;
 	case WIN_SERVER_2008R2:	*outMajor = 6; *outMinor = 1; break;
 	case WIN_SEVEN:			*outMajor = 6; *outMinor = 1; break;
+	case WIN_EIGHT:			*outMajor = 6; *outMinor = 2; break;
+	case WIN_SERVER_2012:	*outMajor = 6; *outMinor = 2; break;
 	default:
 		xbox_assert( false);
 		ok = false;
@@ -349,7 +367,7 @@ void XWinSystem::GetProcessList(std::vector<pid> &pids)
 #if PSAPI_VERSION >= 2
 		sPGPMI = (ENUMPROCESSES) GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "K32EnumProcesses");
 #else
-		sPGPMI = (ENUMPROCESSES) GetProcAddress(GetModuleHandle(TEXT("psapi.dll")), "EnumProcesses");
+		sPGPMI = (ENUMPROCESSES) GetProcAddress(GetPSAPIModule(), "EnumProcesses");
 #endif
 	}
 

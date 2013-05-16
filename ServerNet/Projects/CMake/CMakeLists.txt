@@ -21,4 +21,4 @@ include_directories(${IcuIncludeDir}
   ${OpenSSLIncludeDir})
 
 
-target_link_libraries(ServerNet Kernel KernelIPC Xml crypto ssl)
+target_link_libraries(ServerNet crypto Kernel KernelIPC ssl Xml)

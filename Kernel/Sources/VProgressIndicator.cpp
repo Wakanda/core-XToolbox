@@ -293,6 +293,49 @@ VError	VProgressIndicatorInfo::LoadFromBag( const VValueBag& inBag)
 	}
 	return VE_OK;
 }
+
+VError VProgressIndicatorInfo::GetJSONObject(VJSONObject& outObject)const
+{
+	VError error = VE_OK;
+	VString value;
+	outObject.Clear();
+	GetMessage(value);
+	outObject.SetProperty(CVSTR("Message"),VJSONValue(value));
+	outObject.SetProperty(CVSTR("MaxValue"),VJSONValue(fMax));
+	outObject.SetProperty(CVSTR("CurrentValue"),VJSONValue(fValue));
+	outObject.SetProperty(CVSTR("Interruptible"),VJSONValue(fCanInterrupt));
+	outObject.SetProperty(CVSTR("Remote"),VJSONValue(fIsRemote));
+	
+	value.Clear();	
+	fUUID.GetString(value);
+	outObject.SetProperty(CVSTR("UID"),VJSONValue(value));
+	outObject.SetProperty(CVSTR("TaskID"),VJSONValue(fTaskID));
+	
+	VJSONValue startTime(XBOX::JSON_number),duration(XBOX::JSON_number);
+	VTime t;
+	VDuration d;
+	GetDuration(d);
+	t.FromMilliseconds(fStartTime);
+	error = t.GetJSONValue(startTime);
+	if (error == VE_OK)
+	{
+		outObject.SetProperty(CVSTR("StartTime"),startTime);
+	}
+	duration.SetNumber(d.GetLong());
+	outObject.SetProperty(CVSTR("Duration"),duration);
+	if (fActivityInfoCollector)
+	{
+		XBOX::VJSONObject* extraInfo = XBOX::RetainRefCountable(fActivityInfo);
+		if(extraInfo)
+		{
+			XBOX::VJSONValue val(extraInfo);
+			outObject.SetProperty("extraInfo",val);
+			extraInfo->Release();
+		}
+	}
+	return error;
+}
+
 VError	VProgressIndicatorInfo::SaveToBag( VValueBag& ioBag, VString& outKind,const VProgressIndicatorInfo* inPrevious) const
 {
 	uLONG flags=0;
@@ -383,7 +426,10 @@ void VProgressIndicatorInfo::UpdateFromRemoteInfo(const VProgressIndicatorInfo& 
 		}
 	}
 }
-VProgressIndicatorInfo::VProgressIndicatorInfo(const VProgressIndicatorInfo &inInfo)
+VProgressIndicatorInfo::VProgressIndicatorInfo(const VProgressIndicatorInfo &inInfo):
+	fExtraInfoBag(NULL),
+	fActivityInfoCollector(NULL),
+	fActivityInfo(NULL)
 {
 	fIsRemote=inInfo.fIsRemote;
 	fMessage=inInfo.fMessage;
@@ -396,11 +442,18 @@ VProgressIndicatorInfo::VProgressIndicatorInfo(const VProgressIndicatorInfo &inI
 		fExtraInfoBag = inInfo.fExtraInfoBag->Clone();
 	else
 		fExtraInfoBag=NULL;
+
+	fActivityInfoCollector = inInfo.fActivityInfoCollector;
+	XBOX::CopyRefCountable(&fActivityInfo,inInfo.fActivityInfo);
+	
+	fTaskID = inInfo.fTaskID;
+	fUUID = inInfo.fUUID;
 }
 
 VProgressIndicatorInfo::~VProgressIndicatorInfo()
 {
 	ReleaseRefCountable(&fExtraInfoBag);
+	ReleaseRefCountable(&fActivityInfo);
 }
 
 void VProgressIndicatorInfo::Reset()										
@@ -411,6 +464,8 @@ void VProgressIndicatorInfo::Reset()
 	fStartTime=0;
 	ReleaseRefCountable(&fExtraInfoBag);
 	fExtraInfoBagVersion++;
+	fActivityInfoCollector = NULL;
+	XBOX::ReleaseRefCountable(&fActivityInfo);
 }
 
 void VProgressIndicatorInfo::SetAttribute(const VString& inAttrName,const VValueSingle& inVal)
@@ -431,28 +486,42 @@ void VProgressIndicatorInfo::RemoveAttribute(const VString& inAttrName)
 		fExtraInfoBagVersion++;
 	}
 }
+
 void VProgressIndicatorInfo::GetMessage(VString& outMess) const
 {
-	VValueBag parameterbag;
-	VString	tmpstr;	
-	VTime t;
-	VDuration dur;
+/*	outMess.Clear();
+	if (fMessage.IsEmpty() && fActivityInfoCollector != NULL )
+	{
+		fActivityInfoCollector->LoadMessageString(outMess);
+	}
+	else
+	{
+		outMess=fMessage;
+	}
+	*/
 	
-	parameterbag.SetLong8("maxValue",fMax);
-	parameterbag.SetLong8("curValue",fValue);
-	parameterbag.SetLong8("rateValue",(sLONG8)( Max((Real) fValue / (Real) fMax * 100.0, 0.0)));
+	if (/*!outMess.IsEmpty()*/ !fMessage.IsEmpty())
+	{
+		VValueBag parameterbag;
+		VString	tmpstr;	
+		VTime t;
+		VDuration dur;
+
+		outMess = fMessage;
+
+		parameterbag.SetLong8("maxValue",fMax);
+		parameterbag.SetLong8("curValue",fValue);
+		parameterbag.SetLong8("rateValue",(sLONG8)( Max((Real) fValue / (Real) fMax * 100.0, 0.0)));
 	
-	t.FromMilliseconds(fStartTime);
-	t.GetString(tmpstr);
-	parameterbag.SetTime("startTime",t);
+		t.FromMilliseconds(fStartTime);
+		t.GetString(tmpstr);
+		parameterbag.SetTime("startTime",t);
 	
-	VTime now( eInitWithCurrentTime);
-	now.Substract (t, dur);
-	parameterbag.SetDuration("duration",dur);
-	
-	outMess=fMessage;
-	outMess.Format(&parameterbag);
-	
+		VTime now( eInitWithCurrentTime);
+		now.Substract (t, dur);
+		parameterbag.SetDuration("duration",dur);
+		outMess.Format(&parameterbag);
+	}
 }
 
 VProgressIndicatorInfo& VProgressIndicatorInfo::operator = ( const VProgressIndicatorInfo* inOther)
@@ -468,6 +537,11 @@ VProgressIndicatorInfo& VProgressIndicatorInfo::operator = ( const VProgressIndi
 		fExtraInfoBagVersion=inOther->fExtraInfoBagVersion;
 		if(inOther->fExtraInfoBag)
 			fExtraInfoBag = inOther->fExtraInfoBag->Clone();
+
+		fTaskID = inOther->fTaskID;
+		fUUID = inOther->fUUID;
+		fActivityInfoCollector = inOther->fActivityInfoCollector;
+		XBOX::CopyRefCountable(&fActivityInfo,inOther->fActivityInfo);
 	}
 	else
 	{
@@ -478,6 +552,8 @@ VProgressIndicatorInfo& VProgressIndicatorInfo::operator = ( const VProgressIndi
 		fCanInterrupt = true;
 		fExtraInfoBagVersion=0;
 		ReleaseRefCountable(&fExtraInfoBag);
+		fActivityInfoCollector = NULL;
+		XBOX::ReleaseRefCountable(&fActivityInfo);
 	}
 	return *this;
 };
@@ -493,6 +569,10 @@ VProgressIndicatorInfo& VProgressIndicatorInfo::operator = ( const VProgressIndi
 	fExtraInfoBagVersion=inOther.fExtraInfoBagVersion;
 	if(inOther.fExtraInfoBag)
 		fExtraInfoBag = inOther.fExtraInfoBag->Clone();
+	fTaskID = inOther.fTaskID;
+	fUUID =  inOther.fUUID;
+	fActivityInfoCollector = inOther.fActivityInfoCollector;
+	XBOX::CopyRefCountable(&fActivityInfo,inOther.fActivityInfo);
 	
 	return *this;
 }
@@ -520,8 +600,47 @@ VProgressSessionInfo&		VProgressSessionInfo::operator = ( const VProgressSession
 	return *this;
 }
 
+
+/************************************************************************/
+// RefCounted progress info
+/************************************************************************/
+VRefCountedSessionInfo::VRefCountedSessionInfo(std::vector<XBOX::VProgressIndicatorInfo*> & inVector):
+	fRefCountedArray(&inVector)
+{
+}
+
+VRefCountedSessionInfo::~VRefCountedSessionInfo()
+{
+	if(fRefCountedArray != NULL)
+	{
+		std::vector<XBOX::VProgressIndicatorInfo*>::iterator it = fRefCountedArray->begin();
+		while (it != fRefCountedArray->end())
+		{
+			delete *it;
+			fRefCountedArray->erase(it);
+			it = fRefCountedArray->begin();
+		}
+	}
+	fRefCountedArray = NULL;
+}
+
+/************************************************************************/
+// Progress indicator 
+/************************************************************************/
+
+#if defined(VERSIONDEBUG)
+#define CHECK_CALLING_TASK_IS_OWNER if(fSessionCount > 0){xbox_assert(fDbgOwnerTaskId == VTask::GetCurrentID());}
+#else
+#define CHECK_CALLING_TASK_IS_OWNER
+#endif //VERSIONDEBUG
+
+
 VProgressIndicator::VProgressIndicator()
 :fUUID(true)
+#if defined(VERSIONDEBUG)
+	,fDbgOwnerTaskId(0)
+#endif //VERSIONDEBUG
+
 {
 	_Init();
 	VProgressManager::RegisterProgress(this);
@@ -529,6 +648,10 @@ VProgressIndicator::VProgressIndicator()
 
 VProgressIndicator::VProgressIndicator(const VUUID& inUUID,sLONG inSessionVersion)
 :fUUID(inUUID)
+#if defined(VERSIONDEBUG)
+	,fDbgOwnerTaskId(0)
+#endif //VERSIONDEBUG
+
 {
 	_Init();
 	fSessionVersion = inSessionVersion;
@@ -537,7 +660,26 @@ VProgressIndicator::VProgressIndicator(const VUUID& inUUID,sLONG inSessionVersio
 
 VProgressIndicator::~VProgressIndicator()
 {
+	//If we come here as a result of ReleaseRefCountable()
+	//we must ensure that no threads can access using VPRogressManager APIs
+	//so w
+	//Unregister from progress manager first
+	//so that other VProgressManager api (e.g. GetProgressInfo())
+	//do not retain this progress instance while it is being destroyed
 	VProgressManager::UnregisterProgress(this);
+
+	if (fCollectedInfoEvent)
+	{
+		fCollectedInfoEvent->Reset();
+		fCollectedInfoEvent->Release();
+	}
+
+	if (fLastCollectedSessionInfo)
+	{
+		fLastCollectedSessionInfo->Release();
+	}
+
+	
 }
 
 void VProgressIndicator::_Init()
@@ -552,7 +694,9 @@ void VProgressIndicator::_Init()
 	fGUIEnable=true;
 	fUserAbort=0;
 	fChangesVersion=0;
-	
+	fDefaultInfoCollector = NULL;
+	fCollectedInfoEvent = NULL;
+	fLastCollectedSessionInfo = NULL;
 }
 
 void VProgressIndicator::WriteInfoForRemote(VStream& inStream)
@@ -567,6 +711,7 @@ void VProgressIndicator::WriteInfoForRemote(VValueBag& inBag,VString& outKind)
 	inBag.SetLong(L"version",fSessionVersion);
 	outKind=L"VProgressIndicator";
 }
+
 void VProgressIndicator::Lock()const 
 {
 	fCrit.Lock();
@@ -576,19 +721,95 @@ void VProgressIndicator::Unlock()const
 	fCrit.Unlock();
 }
 
+void VProgressIndicator::_CheckCollectInfo()
+{
+	CHECK_CALLING_TASK_IS_OWNER;
+	
+	if (fNeedCollectInfoStamp != fCollectedInfoStamp)
+	{
+		std::vector<VProgressIndicatorInfo*> *infos = NULL;
+		if (fSessionCount >= 1) 
+		{
+			IProgressInfoCollector* collector = NULL;
+			infos = new std::vector<VProgressIndicatorInfo*>();
+			
+			if(infos != NULL)
+			{
+				_ProgressSessionInfoStack_Iterrator it = fSessionStack.begin();
+				for(;it != fSessionStack.end();it++)
+				{
+					collector = it->GetInfoCollector();
+					if(collector)
+					{
+						VJSONObject* collectedInfo = collector->CollectInfo(this);
+						it->SetCollectedInfo(collectedInfo);
+						XBOX::ReleaseRefCountable(&collectedInfo);
+					}
+					VProgressIndicatorInfo *item = new VProgressIndicatorInfo( *it);
+					infos->push_back( item);
+				}
+				collector = fCurrent.GetInfoCollector();
+				if(collector)
+				{
+					VJSONObject* collectedInfo = collector->CollectInfo(this);
+					fCurrent.SetCollectedInfo(collectedInfo);
+					XBOX::ReleaseRefCountable(&collectedInfo);
+				}
+				VProgressIndicatorInfo *item = new VProgressIndicatorInfo(fCurrent);
+				infos->push_back(item);
+			}
+		}
+		if (infos != NULL)
+		{
+			VTaskLock lock(&fCollectedInfoMutex);
+			VRefCountedSessionInfo* newSessionsInfo = new VRefCountedSessionInfo(*infos);
+			CopyRefCountable( &fLastCollectedSessionInfo, newSessionsInfo);
+			ReleaseRefCountable( &newSessionsInfo);
+			fCollectedInfoStamp = fNeedCollectInfoStamp;
+		}
+	}
+}
+
 sLONG VProgressIndicator::GetSessionCount()const 
 {
 	return fSessionCount;
 }
+
+VRefCountedSessionInfo* VProgressIndicator::RetainSessionsInfos()const
+{
+	VTaskLock lock(&fCollectedInfoMutex);
+	
+	VRefCountedSessionInfo* sessions = NULL;
+	if(fLastCollectedSessionInfo)
+	{
+		fLastCollectedSessionInfo->Retain();
+		sessions = fLastCollectedSessionInfo;
+	}
+	return sessions;
+}
+
+void VProgressIndicator::UpdateSessionsInfos()
+{
+	if (fSessionCount > 0)
+	{
+		VInterlocked::Increment(&fNeedCollectInfoStamp);
+	}
+}
+
+
 bool VProgressIndicator::Increment(sLONG8 inInc)
 {
+	CHECK_CALLING_TASK_IS_OWNER;
 	bool	result = true;
 	
-	assert(fSessionCount);
-	if (fSessionCount)
+	_CheckCollectInfo();
+
+	
+	if (testAssert(fSessionCount>0))
 	{	
 		fChangesVersion++;
 		fCurrent.Increment(inInc);
+
 		result = DoProgress();
 		if (fCanInterrupt && (VTask::GetCurrent()->GetState() >= TS_DYING))
 			result = false;
@@ -598,10 +819,12 @@ bool VProgressIndicator::Increment(sLONG8 inInc)
 }
 bool VProgressIndicator::Decrement(sLONG8 inDec)
 {
+	CHECK_CALLING_TASK_IS_OWNER;
 	bool	result = true;
 	
-	assert(fSessionCount);
-	if (fSessionCount)
+	_CheckCollectInfo();
+
+	if (testAssert(fSessionCount>0))
 	{
 		fChangesVersion++;
 		fCurrent.Decrement(inDec);	
@@ -614,9 +837,13 @@ bool VProgressIndicator::Decrement(sLONG8 inDec)
 
 bool VProgressIndicator::Progress(sLONG8 inCurValue)
 {
+	CHECK_CALLING_TASK_IS_OWNER;
+
 	bool	result = true;
-	assert(fSessionCount);
-	if (fSessionCount)
+
+	_CheckCollectInfo();
+
+	if (testAssert(fSessionCount>0))
 	{
 		fChangesVersion++;
 		fCurrent.SetValue(inCurValue);
@@ -630,6 +857,8 @@ bool VProgressIndicator::Progress(sLONG8 inCurValue)
 
 bool VProgressIndicator::DoProgress()
 {
+	CHECK_CALLING_TASK_IS_OWNER;
+
 	VTask::Yield ( ); // Sergiy - 2009 July 31 - Bug fix ACI0062831. Progress called for long operations calls "Yield" to avoid blocking cooperative tasks.
 
 	return !IsInterrupted();
@@ -648,63 +877,55 @@ void VProgressIndicator::Reset(const VString& inMessage,sLONG8 inMaxValue,sLONG8
 }	
 void VProgressIndicator::SetMaxValue (sLONG8 inMaxValue) 
 {
-	Lock();
-	fChangesVersion++;
-	fCurrent.SetMax(inMaxValue);
-	Unlock();
+	CHECK_CALLING_TASK_IS_OWNER;
+	
+	if(testAssert(fSessionCount>0))
+	{
+		fChangesVersion++;
+		fCurrent.SetMax(inMaxValue);
+	}
+	
 }
 sLONG8	VProgressIndicator::GetMaxValue () const 
 { 
-	return fCurrent.GetMax(); 
+	if(testAssert(fSessionCount>0))
+	{
+		return fCurrent.GetMax(); 
+	}
+	return 0;
 }
 
-bool VProgressIndicator::GetProgressInfo(VProgressIndicatorInfo& outInfo) const
+bool VProgressIndicator::GetProgressInfo(VProgressSessionInfo& outInfo)
 {
 	bool result=false;
-	if(fCrit.TryToLock()) // pour eviter les dead lock,
+	
+	UpdateSessionsInfos();
+	VRefCountedSessionInfo* infos = RetainSessionsInfos();
+	if(infos != NULL)
 	{
-		if(fSessionCount)
+		const VProgressIndicatorInfo *n0 = NULL, *n1 = NULL, *n2 = NULL;
+		const std::vector<VProgressIndicatorInfo*> &sessions = infos->GetSessionInfo();
+		sLONG count = sessions.size();
+		if(count==1)
 		{
-			outInfo=fCurrent;
+			n0 =sessions[count - 1];
 		}
-		result = fSessionCount>0;
-		Unlock();
+		else if(count==2)
+		{
+			n0=sessions[0];
+			n1=sessions[count - 1];
+		}
+		else if(count > 2)
+		{
+			n0=sessions[0];
+			n1=sessions[count - 2];
+			n2=sessions[count - 1];
+		}
+		outInfo.SetInfo(fChangesVersion,count,ComputePercentDone(),n0,n1,n2);
+		result = true;
+		infos->Release();
 	}
 	return result;
-	
-}
-
-bool VProgressIndicator::GetProgressInfo(VProgressSessionInfo& outInfo)const
-{
-	bool result=false;
-	if(fCrit.TryToLock()) // pour eviter les dead lock,
-	{
-		if(fSessionCount)
-		{
-			const VProgressIndicatorInfo *n0=NULL,*n1=NULL,*n2=NULL;
-			
-			if(fSessionCount==1)
-			{
-				n0=&fCurrent;
-			}
-			else if(fSessionCount==2)
-			{
-				n0=&fSessionStack[0];
-				n1=&fCurrent;
-			}
-			else
-			{
-				n0=&fSessionStack[0];
-				n1=&fSessionStack[fSessionCount-2];
-				n2=&fCurrent;
-			}
-			outInfo.SetInfo(fChangesVersion,fSessionCount,ComputePercentDone(),n0,n1,n2);
-		}
-		result = fSessionCount>0;
-		Unlock();
-	}
-	return result;
-	
 }
 
 bool VProgressIndicator::GetProgressInfo(VRemoteProgressSessionInfo& outInfo,VRemoteProgressSessionInfo* inPrevious)const
@@ -765,7 +986,32 @@ bool VProgressIndicator::GetProgressInfo(VRemoteProgressSessionInfo& outInfo,VRe
 		Unlock();
 	}
 	return result;
-	
+}
+
+bool VProgressIndicator::GetProgressInfo(const XBOX::VUUID& inSessionId,VProgressIndicatorInfo& outInfo)const
+{
+	bool found =false;
+	VProgressIndicatorInfo* theOne = NULL;
+	Lock(); 
+	if (fCurrent.GetUUID() == inSessionId)
+	{
+		outInfo = fCurrent;
+		found = true;
+	}
+	else
+	{
+		_ProgressSessionInfoStack_Const_Iterrator it = fSessionStack.begin();
+		for(;it != fSessionStack.end();it++)
+		{
+			if(it->GetUUID() == inSessionId)
+			{
+				outInfo = *it;
+				found = true;
+			}
+		}
+	}
+	Unlock();
+	return found;
 }
 
 void VProgressIndicator::SetProgressInfo(const VProgressIndicatorInfo& inInfo) 
@@ -914,32 +1160,63 @@ void VProgressIndicator::UpdateFromRemoteInfo(const VRemoteProgressSessionInfo& 
 	Unlock();
 }
 
+
 void VProgressIndicator::BeginUndeterminedSession ( const VString& inMessage)
 {
-	BeginSession(-1,inMessage,fCanInterrupt);
+	BeginSession(-1,inMessage,fCanInterrupt,fDefaultInfoCollector);
 }
-void VProgressIndicator::BeginUndeterminedSession ( const VString& inMessage,bool inCanInterrupt)
+void VProgressIndicator::BeginUndeterminedSession ( const VString& inMessage,bool inCanInterrupt,IProgressInfoCollector* inCollector)
 {
 	BeginSession(-1,inMessage,inCanInterrupt);
 }
 void VProgressIndicator::BeginSession (sLONG8 inMaxValue, const VString& inMessage)
 {
-	BeginSession(inMaxValue,inMessage,fCanInterrupt);
+	BeginSession(inMaxValue,inMessage,fCanInterrupt,fDefaultInfoCollector);
 }
-void VProgressIndicator::BeginSession(sLONG8 inMaxValue, const VString& inMessage,bool inCanInterrupt)
+void VProgressIndicator::BeginSession(sLONG8 inMaxValue, const VString& inMessage,bool inCanInterrupt,XBOX::IProgressInfoCollector* inCollector)
 {
+#if defined(VERSIONDEBUG)
+	{
+		if(fSessionCount == 0)
+		{
+			fDbgOwnerTaskId = VTask::GetCurrentID();
+		}
+		CHECK_CALLING_TASK_IS_OWNER
+	}
+#endif //VERSIONDEBUG
+
+
 	Lock();
 	sLONG tmpsession;
 	
 	fChangesVersion++;
 	if(fSessionCount==0)
+	{
 		fSessionVersion++;
+		if(inCollector == NULL)
+		{
+			inCollector = fDefaultInfoCollector;
+		}
+	}
 	
 	if(fSessionCount>=1)
+	{
+		if(inCollector == NULL)
+		{
+			//If no collector specified for a nested session, reuse the parent session's.
+			//The contract is that a collector's lifetime must at least match the progress indicator's.
+			//As long as caller respects this, we can reuse collector instances w/o ref counting
+			inCollector = fCurrent.GetInfoCollector();
+			if(inCollector == NULL)
+			{
+				inCollector = fDefaultInfoCollector;
+			}
+		}
 		fSessionStack.push_back(fCurrent);
+	}
 	
-	fCurrent.Set(inMessage,0,inMaxValue,inCanInterrupt);
-	
+	fCurrent.Set(inMessage,0,inMaxValue,inCanInterrupt,true,inCollector);
+
 	fSessionCount++;
 	
 	DoBeginSession(fSessionCount);
@@ -962,6 +1239,9 @@ void VProgressIndicator::_CloseRemoteSession()
 }
 void VProgressIndicator::_EndSession()
 {
+	Lock();
+	_CheckCollectInfo();//unlocks threads in GetSessionsInfo() in case no Progress()-like calls were issued
+
 	fChangesVersion++;
 
 	if(!fSessionStack.empty())
@@ -975,12 +1255,17 @@ void VProgressIndicator::_EndSession()
 	fSessionCount--;
 
 	if(fSessionCount==0)
+	{
 		fSessionVersion++;
+	}
+	Unlock();
 }
+
 void VProgressIndicator::EndSession()
 {
-	Lock();
-	if (testAssert(fSessionCount))
+	CHECK_CALLING_TASK_IS_OWNER;
+	
+	if (testAssert(fSessionCount>0))
 	{	
 		if(fRemoteSessionOpen)
 		{
@@ -988,83 +1273,86 @@ void VProgressIndicator::EndSession()
 		}
 		_EndSession();
 	}
-	Unlock();
 }
 
 void VProgressIndicator::SetCanInterrupt (bool inSet,bool inCurrentSessionOnly) 
 { 
+	CHECK_CALLING_TASK_IS_OWNER;
 	if(!inCurrentSessionOnly)
 		fCanInterrupt = inSet; 
 	else
 	{
-		Lock();
-		if(testAssert(fSessionCount))
+		if(testAssert(fSessionCount>0))
 		{
 			fChangesVersion++;
 			fCurrent.SetCanInterrupt(inSet);
 		}
-		Unlock();
 	}
 }
 
 void VProgressIndicator::SetMessageAndIncrementValue (const VString& inMessage,sLONG8 inIncrement)
 {
-	Lock();
-	if(testAssert(fSessionCount))
+	CHECK_CALLING_TASK_IS_OWNER;
+	_CheckCollectInfo();
+	if(testAssert(fSessionCount>0))
 	{
 		fChangesVersion++;
 		fCurrent.SetMessage(inMessage);
 		fCurrent.Increment(inIncrement);
 	}
-	Unlock();
 }
 
 void VProgressIndicator::SetAttribute (const VString& inAttr,const VValueSingle& inVal)
 {
-	Lock();
-	if(testAssert(fSessionCount))
+	CHECK_CALLING_TASK_IS_OWNER;
+	if(testAssert(fSessionCount>0))
 	{
 		fChangesVersion++;
 		fCurrent.SetAttribute(inAttr,inVal);
 	}
-	Unlock();
+	
 }
 
 void VProgressIndicator::RemoveAttribute (const VString& inAttr)
 {
-	Lock();
-	if(testAssert(fSessionCount))
+	CHECK_CALLING_TASK_IS_OWNER;
+	
+	if(testAssert(fSessionCount>0))
 	{
 		fChangesVersion++;
 		fCurrent.RemoveAttribute(inAttr);
 	}
-	Unlock();
+	
 }
 
 void VProgressIndicator::SetMessageAndValue (const VString& inMessage,sLONG8 inValue)
 {
-	Lock();
-	if(testAssert(fSessionCount))
+	CHECK_CALLING_TASK_IS_OWNER;
+	
+	_CheckCollectInfo();
+	if(testAssert(fSessionCount>0))
 	{
 		fChangesVersion++;
 		fCurrent.SetMessage(inMessage);
 		fCurrent.SetValue(inValue);
 	}
-	Unlock();
+	
 }
 void VProgressIndicator::SetMessage(const VString& inMessage)
 {
-	Lock();
-	if(testAssert(fSessionCount))
+	CHECK_CALLING_TASK_IS_OWNER;
+	
+	_CheckCollectInfo();
+	if(testAssert(fSessionCount>0))
 	{
 		fChangesVersion++;
 		fCurrent.SetMessage(inMessage);
 	}
-	Unlock();
+	
 }
 void VProgressIndicator::GetMessage(VString& outMess) const
 {
-	if(testAssert(fSessionCount))
+	if(testAssert(fSessionCount>0))
 	{
 		fCurrent.GetMessage(outMess);
 	}
@@ -1073,9 +1361,9 @@ void VProgressIndicator::GetMessage(VString& outMess) const
 SmallReal VProgressIndicator::ComputePercentDone() const
 {
 	SmallReal	result = 0;
-	Lock();
+	
 	result=_ComputePercentDone();
-	Unlock();
+	
 	return result;
 }
 SmallReal VProgressIndicator::_ComputePercentDone() const
@@ -1147,6 +1435,7 @@ void VProgressManager::UnregisterProgress(VProgressIndicator* inProgress)
 	if(sProgressManager)
 		sProgressManager->_UnregisterProgress(inProgress);
 }
+
 VProgressIndicator* VProgressManager::RetainProgress(const VUUID& inUUID)
 {
 	if(sProgressManager)
@@ -1154,6 +1443,7 @@ VProgressIndicator* VProgressManager::RetainProgress(const VUUID& inUUID)
 	else
 		return NULL;
 }
+
 void VProgressManager::_RegisterProgress(VProgressIndicator* inProgress)
 {
 	VTaskLock lock(&fCrit);
@@ -1172,6 +1462,29 @@ void VProgressManager::_UnregisterProgress(VProgressIndicator* inProgress)
 	{
 		fMap.erase(it);
 	}
+}
+
+VError VProgressManager::GetAllProgressInfo(std::vector< VRefPtr<VRefCountedSessionInfo> >& outCollection)
+{
+	XBOX::VError error = VE_OK;
+	VTaskLock lock(&fCrit);
+	_VProgressIndicatorMap_Iterrator it = fMap.begin();
+	_VProgressIndicatorMap_Iterrator end = fMap.end();
+	for(; (it != end) ; ++it)
+	{
+		XBOX::VProgressIndicator* pi = it->second;
+		if (pi && pi->GetSessionCount() > 0)
+		{
+			VRefCountedSessionInfo* sessionsInfos = pi->RetainSessionsInfos();
+			if(sessionsInfos)
+			{
+				VRefPtr<VRefCountedSessionInfo> item(sessionsInfos);
+				outCollection.push_back(item);
+				sessionsInfos->Release();
+			}
+		}
+	}
+	return error;
 }
 
 VProgressIndicator* VProgressManager::_RetainProgress(const VUUID& inUUID)
@@ -1210,45 +1523,37 @@ VProgressIndicator* VProgressManager::_RetainProgressIndicator(const VString& us
 			break;
 		}
 	}
-
 	return result;
 }
 
 
+
 VError VProgressManager::_GetProgressInfo(VValueBag& outBag, const VString* userinfo) // if userinfo == nil then get all progress infos
 {
+	/* WAK0080283, Feb 01st 2013, O.R.: do not retain instances in critical section and process them outside critical section.
+	That critical section is also used by VPRogressManager::Unregister() when a progress indicator is being destroyed.
+	If you retain a progress indicator in the critical section, and that same instance is actually being destroyed, the
+	destructor codepath may be waiting for the critical section in Unregister(). Once you're out of that critical section, destructor
+	code may resume and finally destroy your retained instance, and you will crash when you attempts to access its members.
+	*/
 	VError err = VE_OK;
-	std::vector<VProgressIndicator*> allprogress;
+	VTaskLock lock(&fCrit);
+	for (_VProgressIndicatorMap::iterator cur = fMap.begin(), end = fMap.end(); cur != end; ++cur)
 	{
-		VTaskLock lock(&fCrit);
-		allprogress.reserve(fMap.size());
-		for (_VProgressIndicatorMap::iterator cur = fMap.begin(), end = fMap.end(); cur != end; cur++)
+		VProgressIndicator* p = cur->second;
+		if (userinfo)
 		{
-			allprogress.push_back(RetainRefCountable(cur->second));
+			if (p->GetUserInfo() == *userinfo)
+			{
+				_ProgressInfoToBag(outBag, p);
+				break;
+			}
+		}
+		else
+		{
+			_ProgressInfoToBag(outBag, p);
 		}
 	}
-
-	if (userinfo != NULL)
-	{
-		for (std::vector<VProgressIndicator*>::iterator cur = allprogress.begin(), end = allprogress.end(); cur != end; cur++)
-		{
-			if ((*cur)->GetUserInfo() == *userinfo)
-				_ProgressInfoToBag(outBag, *cur);
-		}
-	}
-	else
-	{
-		for (std::vector<VProgressIndicator*>::iterator cur = allprogress.begin(), end = allprogress.end(); cur != end; cur++)
-		{
-			_ProgressInfoToBag(outBag, *cur);
-		}
-	}
-
-	for (std::vector<VProgressIndicator*>::iterator cur = allprogress.begin(), end = allprogress.end(); cur != end; cur++)
-	{
-		(*cur)->Release();
-	}
-
 	return err;
 }
 

@@ -6091,7 +6091,7 @@ Gdiplus::Bitmap *VPictureCodec_WIC::Decode( VPictureDataProvider& inDataProvider
 		//if dest pixel format is not supported by gdiplus, convert to supported pixel format
 		pf = PixelFormat32bppARGB;
 	
-	if(pfSource==PixelFormat32bppCMYK) // pp bug gdi+/wic avec certaine jpeg en CMYK : on converti en 32rgb
+	if(pfSource==PixelFormat32bppCMYK || pfSource==PixelFormat16bppGrayScale) // pp bug gdi+/wic avec certaine jpeg en CMYK ou niveau de gris : on converti en 32rgb
 	{
 		imageSrc.ConvertToPixelFormat( PixelFormat32bppRGB);
 		pfSource = PixelFormat32bppRGB;

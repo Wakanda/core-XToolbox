@@ -22,6 +22,8 @@
 #include <mach-o/loader.h>
 #endif
 
+const char* PRESERVE_PARENT_OPTION = "preserve_parent";
+
 VArchiveCatalog::VArchiveCatalog( VFile *inFile, sLONG8 inDataFileSize, sLONG8 inResFileSize, VString &inStoredPath, VString &inFileExtra, uLONG inKind, uLONG inCreator )
 {
 	inFile->Retain();
@@ -99,6 +101,9 @@ VArchiveStream::~VArchiveStream()
 {
 	fFolderPathList.clear();
 	fFolderExtra.clear();
+	fSourceFolderForFolders.clear();
+	fSourceFolderForFiles.clear();
+	fSourceFolderForFileDescs.clear();
 
 	if (fUniqueFilesCollection)
 		fUniqueFilesCollection->clear();
@@ -118,6 +123,7 @@ VError VArchiveStream::AddFileDesc( VFileDesc* inFileDesc, const VString &inExtr
 			fUniqueFilesCollection->insert(file->GetPath());
 			fFileDescList.push_back( inFileDesc );
 			fFileDescExtra.push_back( inExtra );
+			fSourceFolderForFileDescs.push_back(fRelativeFolder);
 		}
 	}
 	return VE_OK;
@@ -128,40 +134,34 @@ VError VArchiveStream::AddFileDesc( VFileDesc* inFileDesc, const VString &inExtr
 VError VArchiveStream::AddFile( VFile* inFile, const VString &inExtra )
 {
 	VError result = VE_STREAM_CANNOT_FIND_SOURCE ;
-	if ( inFile->Exists() )
-	{
-		if (!ContainsFile( inFile))
-		{
-			if ( fRelativeFolder.IsEmpty() )
-			{
-				XBOX::VFilePath parentPath;
-				inFile->GetPath().GetParent( parentPath );
-				fRelativeFolder = parentPath;
-			}
-			// ACI0077162, Jul 11th 2012, O.R.: update unique file collection used in ContainsFile()
-			fUniqueFilesCollection->insert(inFile->GetPath());
+	result = _AddFile(*inFile,fRelativeFolder,inExtra);
 
-			fFileExtra.push_back( inExtra );
-			fFileList.push_back( inFile );
-		}
-		result = VE_OK;
-	}
 	return result;
 }
 
-VError VArchiveStream::AddFile( VFile* inFile )
+/*
+  ACI0080117: Jan 24th 2013, O.R., restore the possibility of preserving
+  parent folder info for extraction
+*/
+VError VArchiveStream::AddFile( VFile* inFile,bool inPreserveParentFolder)
 {
 	VError result = VE_STREAM_CANNOT_FIND_SOURCE ;
-	VString empty;
-	result = AddFile( inFile, empty );
+	VString extraInfo;
+	if (inPreserveParentFolder)
+	{
+		//We use bogus extra info to forward this to _WriteCatalog() later on
+		extraInfo = PRESERVE_PARENT_OPTION;
+	}
+	result = _AddFile(*inFile,fRelativeFolder,extraInfo);
 	return result;
 }
 
 VError VArchiveStream::AddFile( VFilePath &inFilePath )
 {
 	VError result = VE_STREAM_CANNOT_FIND_SOURCE ;
+	VString empty;
 	VFile *file = new VFile( inFilePath );
-	result = AddFile( file );
+	result = _AddFile(*file,fRelativeFolder,empty);
 	file->Release();
 	return result;
 }
@@ -174,12 +174,8 @@ VError VArchiveStream::AddFolder( VFolder* inFolder )
 	VError result = VE_OK;
 	if ( inFolder->Exists() )
 	{	
-		VFolder *parentFolder = inFolder->RetainParentFolder();
-		VString parentFolderPath ( parentFolder->GetPath().GetPath() ); 
-		parentFolder->Release();
-
 		///ACI0077162, Jul 11 2012, O.R.: lazily add path of folder. Proceed() will eventually recurse thru the tree
-		result = AddFolder( inFolder, parentFolderPath );
+		result = AddFolder( inFolder, CVSTR("") );
 	}	
 	else {
 		result = VE_STREAM_CANNOT_FIND_SOURCE;
@@ -193,7 +189,8 @@ VError VArchiveStream::AddFolder( VFolder* inFolder, const VString &inExtraInfo 
 {
 	VError result = VE_OK ;
 
-	if ( fRelativeFolder.IsEmpty() )
+	xbox_assert(!fRelativeFolder.IsEmpty());
+	if ( fRelativeFolder.IsEmpty())
 	{
 		XBOX::VFilePath parentPath;
 		inFolder->GetPath().GetParent( parentPath );
@@ -203,6 +200,7 @@ VError VArchiveStream::AddFolder( VFolder* inFolder, const VString &inExtraInfo 
 	///ACI0077162, Jul 11 2012, O.R.: lazily add path of folder. Proceed() will eventually recurse thru the tree
 	fFolderPathList.push_back(inFolder->GetPath());
 	fFolderExtra.push_back(inExtraInfo);
+	fSourceFolderForFolders.push_back(fRelativeFolder);
 	
 	return result;
 }
@@ -234,7 +232,7 @@ bool VArchiveStream::ContainsFile( const VFile* inFile) const
 }
 
 
-void VArchiveStream::SetRelativeFolderSource( VFilePath &inFolderPath )
+void VArchiveStream::SetRelativeFolderSource( const VFilePath &inFolderPath )
 {
 	fRelativeFolder = inFolderPath;
 }
@@ -290,22 +288,53 @@ VError VArchiveStream::_WriteFile( const VFileDesc* inFileDesc, char* buffToUse,
 	return result;
 }
 
-VError VArchiveStream::_AddOneFolder(VFolder& inFolder,const VString& inExtraInfo)
+VError VArchiveStream::_AddFile(VFile& inFile,const VFilePath& inSourceFolder,const VString& inExtraInfo)
+{
+	XBOX::VError result = VE_FILE_NOT_FOUND;
+	if ( inFile.Exists() )
+	{
+		///ACI0078887, O.R. Nov 29th 2012: mask error if file is already known, does no harm 
+		result = VE_OK;
+		if (!ContainsFile( &inFile))
+		{
+			VString relativePath;
+			if(testAssert(!inSourceFolder.IsEmpty() && inFile.GetPath().GetRelativePath(inSourceFolder,relativePath)))
+			{
+				fUniqueFilesCollection->insert(inFile.GetPath());
+				fFileExtra.push_back( inExtraInfo );
+				fFileList.push_back( &inFile );
+				fSourceFolderForFiles.push_back(inSourceFolder);	
+			}
+			else
+			{
+				///ACI0078887, O.R. Nov 29th 2012: explicitely fail if item is not relative to source folder, this should never happen
+				result = VE_INVALID_PARAMETER;
+			}
+		}
+	}
+	return result;
+}
+
+VError VArchiveStream::_AddOneFolder(VFolder& inFolder,const VFilePath& inSourceFolder,const VString& inExtraInfo)
 {
 	VError error = VE_OK;
 	bool userAbort = false;
-	for( VFileIterator file(&inFolder); file.IsValid() && error == VE_OK && !userAbort; ++file )
+	
+	
+	///ACI0078887, O.R. Nov 29th 2012: ensure alias/link files are added to the archive, NOT their target
+	for( VFileIterator file(&inFolder,FI_WANT_FILES); file.IsValid() && error == VE_OK && !userAbort; ++file )
 	{
-		error = AddFile( file.Current(), inExtraInfo );
+		error = _AddFile( *(file.Current()),inSourceFolder,inExtraInfo );
 		if(fCallBack)
 		{
 			fCallBack(CB_UpdateProgress,0,0,userAbort);
 		}
 	}
 
-	for( VFolderIterator folder(&inFolder); folder.IsValid() && error == VE_OK && !userAbort; ++folder )
+	///ACI0078887, O.R. Nov 29th 2012: ensure alias/link folders are added to the archive, NOT their target
+	for( VFolderIterator folder(&inFolder,FI_WANT_FOLDERS); folder.IsValid() && error == VE_OK && !userAbort; ++folder )
 	{
-		error = _AddOneFolder( static_cast<VFolder&>(folder)/**(folder.Current())*/, inExtraInfo );
+		error = _AddOneFolder( static_cast<VFolder&>(folder),inSourceFolder, inExtraInfo );
 		if(fCallBack)
 		{
 			fCallBack(CB_UpdateProgress,0,0,userAbort);
@@ -317,81 +346,85 @@ VError VArchiveStream::_AddOneFolder(VFolder& inFolder,const VString& inExtraInf
 	return error;
 }
 
-VError VArchiveStream::_WriteCatalog( const VFile* inFile, const VString &inExtraInfo, uLONG8 &ioTotalByteCount )
+//ACI0078887 23rd Nov 2012, O.R., always specify folder used for computing relative path of entry in TOC
+VError VArchiveStream::_WriteCatalog( const VFile* inFile, const XBOX::VFilePath& inSourceFolder,const VString &inExtraInfo, uLONG8 &ioTotalByteCount )
 {
 	VString fileInfo;
 	VStr8 slash("/");
 	VStr8 extra("::");
 	VStr8 folderSep(XBOX::FOLDER_SEPARATOR);
+	VError result = VE_INVALID_PARAMETER;
+	XBOX::VString savedExtraInfo = inExtraInfo;
 
-	if (!inFile->GetPath().GetRelativePath(fRelativeFolder,fileInfo))
+	//ACI0078887 23rd Nov 2012, O.R., compute relative path using the specified source folder
+	//don't assume that extra info carries relative folder info
+		//ACI0078887 23rd Nov 2012, O.R., compute relative path using the specified source folder
+	//don't assume that extra info carries relative folder info
+	if (savedExtraInfo == PRESERVE_PARENT_OPTION)
 	{
-		if ( !inExtraInfo.IsEmpty() )
-		{
-			VString basePathString( inExtraInfo);
-			if ( basePathString.GetUniChar( basePathString.GetLength()) != FOLDER_SEPARATOR )
-				basePathString += FOLDER_SEPARATOR;
-			
-			if ( !inFile->GetPath().GetRelativePath( VFilePath( basePathString),fileInfo))
-			{
-				VFolder *folder = inFile->RetainParentFolder();
-				if ( folder )
-				{
-					VString fileName;
-					folder->GetName(fileInfo);
-					// folder name can be a drive letter like Z:
-					fileInfo.Exchange( (UniChar) ':', (UniChar) '_');
+		//this is a bogus extra info that we use internally so we need to clear it so that it is not saved into
+		//the archive.
+		//This options means that the file will have to be restored in with its parent directory preserved.
+		savedExtraInfo.Clear();
 
-					inFile->GetName(fileName);
-					fileInfo += slash;
-					fileInfo += fileName;
-					fileInfo.Insert( slash, 1 );
-					folder->Release();
-				}
-			}
-			else
-			{
-				fileInfo.Insert( FOLDER_SEPARATOR, 1);
-			}
-		}
+		VFolder *folder = inFile->RetainParentFolder();
+		VString fileName;
+		folder->GetName(fileInfo);
+		// folder name can be a drive letter like Z:
+		fileInfo.Exchange( (UniChar) ':', (UniChar) '_');
+		inFile->GetName(fileName);
+		fileInfo += slash;
+		fileInfo += fileName;
+		fileInfo.Insert( slash, 1 );
+		folder->Release();
+		result  = VE_OK;
 	}
 	else
 	{
-		fileInfo.Insert( FOLDER_SEPARATOR, 1);
+		if(testAssert(inFile->GetPath().GetRelativePath(inSourceFolder,fileInfo)))
+		{
+			result  = VE_OK;
+			fileInfo.Insert( FOLDER_SEPARATOR, 1);
+		}
 	}
 
-	fileInfo.Exchange(folderSep ,slash, 1, 255);
-	if ( fileInfo.GetUniChar(1) == '/' )
-		fileInfo.Insert( '.', 1 );
-
-	fileInfo += extra;
-	fileInfo += inExtraInfo;
-	VError result = fStream->PutLong('file');
-	if ( result == VE_OK )
-		result = fileInfo.WriteToStream(fStream);
-	if ( result == VE_OK )
+	if(result == VE_OK)
 	{
-		sLONG8 fileSize = 0;
-		inFile->GetSize(&fileSize);
-		fStream->PutLong8(fileSize);
-		ioTotalByteCount += fileSize;
-#if VERSIONWIN || VERSION_LINUX
-		/* rez file size */
-		fStream->PutLong8(0);
-		/* no file kind or creator under Windows */
-		fStream->PutLong(0); /* kind */
-		fStream->PutLong(0); /* creator */
-#elif VERSIONMAC
-		inFile->GetResourceForkSize(&fileSize);
-		fStream->PutLong8(fileSize);
-		ioTotalByteCount += fileSize;
+		fileInfo.Exchange(folderSep ,slash, 1, 255);
+		if ( fileInfo.GetUniChar(1) == '/' )
+			fileInfo.Insert( '.', 1 );
 
-		OsType osType;
-		inFile->MAC_GetKind( &osType );
-		result = fStream->PutLong( osType );
-		inFile->MAC_GetCreator( &osType );
-		result = fStream->PutLong( osType );
-#endif
+		fileInfo += extra;
+		fileInfo += savedExtraInfo;
+		result = fStream->PutLong('file');
+		if ( result == VE_OK )
+		{
+			result = fileInfo.WriteToStream(fStream);
+		}
+		if ( result == VE_OK )
+		{
+			sLONG8 fileSize = 0;
+			inFile->GetSize(&fileSize);
+			fStream->PutLong8(fileSize);
+			ioTotalByteCount += fileSize;
+	#if VERSIONWIN || VERSION_LINUX
+			/* rez file size */
+			fStream->PutLong8(0);
+			/* no file kind or creator under Windows */
+			fStream->PutLong(0); /* kind */
+			fStream->PutLong(0); /* creator */
+	#elif VERSIONMAC
+			inFile->GetResourceForkSize(&fileSize);
+			fStream->PutLong8(fileSize);
+			ioTotalByteCount += fileSize;
+
+			OsType osType;
+			inFile->MAC_GetKind( &osType );
+			result = fStream->PutLong( osType );
+			inFile->MAC_GetCreator( &osType );
+			result = fStream->PutLong( osType );
+	#endif
+		}
 	}
 	return result;
 }
@@ -399,7 +432,7 @@ VError VArchiveStream::_WriteCatalog( const VFile* inFile, const VString &inExtr
 VError VArchiveStream::Proceed()
 {
 	bool userAbort = false;
-	VError result = VE_STREAM_NOT_OPENED;
+	VError result = VE_OK;
 
 	//Iterate over our various list and check for duplicates
 
@@ -415,12 +448,13 @@ VError VArchiveStream::Proceed()
 	VectorOfVString::iterator folderInfoIterator =  fFolderExtra.begin();
 	xbox_assert(fFolderPathList.size() == fFolderExtra.size());
 
-	for( result = VE_OK;result == VE_OK && folderIterator != fFolderPathList.end() && !userAbort ; ++folderIterator,++folderInfoIterator)
+	for ( uLONG i = 0; i < fFolderPathList.size() && result == VE_OK && !userAbort; i++ )
 	{
-		const VFilePath& folderPath = (*folderIterator);
-		const VString& folderExtraInfo = (*folderInfoIterator);
+		const VFilePath& folderPath = fFolderPathList[i];//(*folderIterator);
+		const VFilePath& sourceFolderPath = fSourceFolderForFolders[i];//(*folderIterator);
+		const VString& folderExtraInfo = folderInfoIterator[i];//(*folderInfoIterator);
 		VFolder currentFolder(folderPath);
-		result = _AddOneFolder(currentFolder,folderExtraInfo);
+		result = _AddOneFolder(currentFolder,sourceFolderPath,folderExtraInfo);
 	}
 
 	if ( fStream && result == VE_OK && !userAbort)
@@ -449,7 +483,7 @@ VError VArchiveStream::Proceed()
 			
 			for ( uLONG i = 0; i < fFileDescList.size() && result == VE_OK && !userAbort; i++ )
 			{
-				result = _WriteCatalog(fFileDescList[i]->GetParentVFile(),fFileDescExtra[i],totalByteCount);
+				result = _WriteCatalog(fFileDescList[i]->GetParentVFile(),fSourceFolderForFileDescs[i],fFileDescExtra[i],totalByteCount);
 				if ( fCallBack )
 				{
 					fCallBack(CB_UpdateProgress,0,0,userAbort);
@@ -458,7 +492,7 @@ VError VArchiveStream::Proceed()
 
 			for ( uLONG i = 0; i < fFileList.size() && result == VE_OK && !userAbort; i++ )
 			{
-				result = _WriteCatalog(fFileList[i],fFileExtra[i],totalByteCount);
+				result = _WriteCatalog(fFileList[i],fSourceFolderForFiles[i],fFileExtra[i],totalByteCount);
 				if ( fCallBack )
 				{
 					fCallBack(CB_UpdateProgress,0,0,userAbort);

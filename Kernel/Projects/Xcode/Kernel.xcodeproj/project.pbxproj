@@ -202,7 +202,6 @@
 		42BE28BF0D1A9F3100C6CA43 /* VRegexMatcher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42DEB4310C104E5C0055C7A4 /* VRegexMatcher.cpp */; };
 		42BF199B0CDBA1D30046B0E5 /* VKernelBagKeys.h in Headers */ = {isa = PBXBuildFile; fileRef = 42BF199A0CDBA1D30046B0E5 /* VKernelBagKeys.h */; };
 		42C2827E09DC330D0058B3D5 /* ILocalizer.h in Headers */ = {isa = PBXBuildFile; fileRef = 42C2827D09DC330D0058B3D5 /* ILocalizer.h */; };
-		42C3445C09865462001AC60A /* libM_APMDebug.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0235BC0C071EDC5200BEEE2E /* libM_APMDebug.a */; };
 		42CA98DF1585EE68009486BD /* VJSONValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 42CA98DD1585EE68009486BD /* VJSONValue.h */; };
 		42CA98E01585EE68009486BD /* VJSONValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42CA98DE1585EE68009486BD /* VJSONValue.cpp */; };
 		42CA98E11585EE68009486BD /* VJSONValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 42CA98DD1585EE68009486BD /* VJSONValue.h */; };
@@ -239,6 +238,30 @@
 		42FA37AE14F3956300FF3354 /* VMessageCall.h in Headers */ = {isa = PBXBuildFile; fileRef = 42FA37AC14F3956300FF3354 /* VMessageCall.h */; };
 		42FA37AF14F3956300FF3354 /* VMessageCall.h in Headers */ = {isa = PBXBuildFile; fileRef = 42FA37AC14F3956300FF3354 /* VMessageCall.h */; };
 		45C882A00B1464F700B3B019 /* VScrapKind.h in Headers */ = {isa = PBXBuildFile; fileRef = 45C8829F0B1464F700B3B019 /* VScrapKind.h */; };
+		47F1F39B1649372D00DD4767 /* VDocImage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3931649372D00DD4767 /* VDocImage.cpp */; };
+		47F1F39C1649372D00DD4767 /* VDocImage.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3941649372D00DD4767 /* VDocImage.h */; };
+		47F1F39D1649372D00DD4767 /* VDocParagraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3951649372D00DD4767 /* VDocParagraph.cpp */; };
+		47F1F39E1649372D00DD4767 /* VDocParagraph.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3961649372D00DD4767 /* VDocParagraph.h */; };
+		47F1F39F1649372D00DD4767 /* VDocTable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3971649372D00DD4767 /* VDocTable.cpp */; };
+		47F1F3A01649372D00DD4767 /* VDocTable.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3981649372D00DD4767 /* VDocTable.h */; };
+		47F1F3A11649372D00DD4767 /* VDocText.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3991649372D00DD4767 /* VDocText.cpp */; };
+		47F1F3A21649372D00DD4767 /* VDocText.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F39A1649372D00DD4767 /* VDocText.h */; };
+		47F1F3A31649372D00DD4767 /* VDocImage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3931649372D00DD4767 /* VDocImage.cpp */; };
+		47F1F3A41649372D00DD4767 /* VDocImage.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3941649372D00DD4767 /* VDocImage.h */; };
+		47F1F3A51649372D00DD4767 /* VDocParagraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3951649372D00DD4767 /* VDocParagraph.cpp */; };
+		47F1F3A61649372D00DD4767 /* VDocParagraph.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3961649372D00DD4767 /* VDocParagraph.h */; };
+		47F1F3A71649372D00DD4767 /* VDocTable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3971649372D00DD4767 /* VDocTable.cpp */; };
+		47F1F3A81649372D00DD4767 /* VDocTable.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3981649372D00DD4767 /* VDocTable.h */; };
+		47F1F3A91649372D00DD4767 /* VDocText.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3991649372D00DD4767 /* VDocText.cpp */; };
+		47F1F3AA1649372D00DD4767 /* VDocText.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F39A1649372D00DD4767 /* VDocText.h */; };
+		47F1F3AB1649372D00DD4767 /* VDocImage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3931649372D00DD4767 /* VDocImage.cpp */; };
+		47F1F3AC1649372D00DD4767 /* VDocImage.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3941649372D00DD4767 /* VDocImage.h */; };
+		47F1F3AD1649372D00DD4767 /* VDocParagraph.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3951649372D00DD4767 /* VDocParagraph.cpp */; };
+		47F1F3AE1649372D00DD4767 /* VDocParagraph.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3961649372D00DD4767 /* VDocParagraph.h */; };
+		47F1F3AF1649372D00DD4767 /* VDocTable.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3971649372D00DD4767 /* VDocTable.cpp */; };
+		47F1F3B01649372D00DD4767 /* VDocTable.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F3981649372D00DD4767 /* VDocTable.h */; };
+		47F1F3B11649372D00DD4767 /* VDocText.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 47F1F3991649372D00DD4767 /* VDocText.cpp */; };
+		47F1F3B21649372D00DD4767 /* VDocText.h in Headers */ = {isa = PBXBuildFile; fileRef = 47F1F39A1649372D00DD4767 /* VDocText.h */; };
 		6D1B4BE90F3F9AAD0014B3AB /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6D1B4BE70F3F9AAD0014B3AB /* AudioToolbox.framework */; };
 		6D1B4BEA0F3F9AAD0014B3AB /* CoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6D1B4BE80F3F9AAD0014B3AB /* CoreServices.framework */; };
 		6D1B4BEB0F3F9AAD0014B3AB /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6D1B4BE70F3F9AAD0014B3AB /* AudioToolbox.framework */; };
@@ -253,6 +276,18 @@
 		8D07F2C00486CC7A007CD1D0 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C1666FE841158C02AAC07 /* InfoPlist.strings */; };
 		93947E3E10C49BD40015C09C /* MurmurHash.h in Headers */ = {isa = PBXBuildFile; fileRef = 93947E3D10C49BD40015C09C /* MurmurHash.h */; };
 		93947E4210C49BDD0015C09C /* MurmurHash.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 93947E4110C49BDD0015C09C /* MurmurHash.cpp */; };
+		9592EBF416D642C7001C8546 /* VLog4jMsgFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9592EBF316D642C7001C8546 /* VLog4jMsgFile.cpp */; };
+		9592EBF516D642C7001C8546 /* VLog4jMsgFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9592EBF316D642C7001C8546 /* VLog4jMsgFile.cpp */; };
+		9592EBF616D642C7001C8546 /* VLog4jMsgFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9592EBF316D642C7001C8546 /* VLog4jMsgFile.cpp */; };
+		959655A816D7B3C0005E29B2 /* VSplitableLogFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 959655A616D7B3C0005E29B2 /* VSplitableLogFile.cpp */; };
+		959655A916D7B3C0005E29B2 /* VSplitableLogFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 959655A616D7B3C0005E29B2 /* VSplitableLogFile.cpp */; };
+		959655AA16D7B3C0005E29B2 /* VSplitableLogFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 959655A616D7B3C0005E29B2 /* VSplitableLogFile.cpp */; };
+		959655AB16D7B3C0005E29B2 /* VSplitableLogFile.h in Headers */ = {isa = PBXBuildFile; fileRef = 959655A716D7B3C0005E29B2 /* VSplitableLogFile.h */; };
+		959655AC16D7B3C0005E29B2 /* VSplitableLogFile.h in Headers */ = {isa = PBXBuildFile; fileRef = 959655A716D7B3C0005E29B2 /* VSplitableLogFile.h */; };
+		959655AD16D7B3C0005E29B2 /* VSplitableLogFile.h in Headers */ = {isa = PBXBuildFile; fileRef = 959655A716D7B3C0005E29B2 /* VSplitableLogFile.h */; };
+		95CA259E16D7B45100C2E58D /* VLog4jMsgFile.h in Headers */ = {isa = PBXBuildFile; fileRef = 95CA259D16D7B45100C2E58D /* VLog4jMsgFile.h */; };
+		95CA259F16D7B45100C2E58D /* VLog4jMsgFile.h in Headers */ = {isa = PBXBuildFile; fileRef = 95CA259D16D7B45100C2E58D /* VLog4jMsgFile.h */; };
+		95CA25A016D7B45100C2E58D /* VLog4jMsgFile.h in Headers */ = {isa = PBXBuildFile; fileRef = 95CA259D16D7B45100C2E58D /* VLog4jMsgFile.h */; };
 		B55220CB0ACA885600FE0C9F /* Base64Coder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4102295F0A30985900A4E63E /* Base64Coder.cpp */; };
 		B55220CC0ACA885700FE0C9F /* Base64Coder.h in Headers */ = {isa = PBXBuildFile; fileRef = 4102295D0A30984300A4E63E /* Base64Coder.h */; };
 		B55220CD0ACA887800FE0C9F /* ILocalizer.h in Headers */ = {isa = PBXBuildFile; fileRef = 42C2827D09DC330D0058B3D5 /* ILocalizer.h */; };
@@ -417,6 +452,16 @@
 		C9BBAA3309BC8CAE00F3DCFC /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C1666FE841158C02AAC07 /* InfoPlist.strings */; };
 		C9BDA9C709D41B0B007D05BC /* VRefCountDebug.h in Headers */ = {isa = PBXBuildFile; fileRef = 292C47B609C9728900FF1969 /* VRefCountDebug.h */; };
 		C9BDA9C809D41B28007D05BC /* VRefCountDebug.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 292C47B509C9728900FF1969 /* VRefCountDebug.cpp */; };
+		CD17E6D4166510F800381B7A /* VFileSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD17E6D2166510F800381B7A /* VFileSystem.cpp */; };
+		CD17E6D5166510F800381B7A /* VFileSystem.h in Headers */ = {isa = PBXBuildFile; fileRef = CD17E6D3166510F800381B7A /* VFileSystem.h */; };
+		CD17E6D6166510F800381B7A /* VFileSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD17E6D2166510F800381B7A /* VFileSystem.cpp */; };
+		CD17E6D7166510F800381B7A /* VFileSystem.h in Headers */ = {isa = PBXBuildFile; fileRef = CD17E6D3166510F800381B7A /* VFileSystem.h */; };
+		CD17E6D8166510F800381B7A /* VFileSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD17E6D2166510F800381B7A /* VFileSystem.cpp */; };
+		CD17E6D9166510F800381B7A /* VFileSystem.h in Headers */ = {isa = PBXBuildFile; fileRef = CD17E6D3166510F800381B7A /* VFileSystem.h */; };
+		CD17E6DA166510F800381B7A /* VFileSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD17E6D2166510F800381B7A /* VFileSystem.cpp */; };
+		CD17E6DB166510F800381B7A /* VFileSystem.h in Headers */ = {isa = PBXBuildFile; fileRef = CD17E6D3166510F800381B7A /* VFileSystem.h */; };
+		CD17E6DC166510F800381B7A /* VFileSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD17E6D2166510F800381B7A /* VFileSystem.cpp */; };
+		CD17E6DD166510F800381B7A /* VFileSystem.h in Headers */ = {isa = PBXBuildFile; fileRef = CD17E6D3166510F800381B7A /* VFileSystem.h */; };
 		D21B97BB0B64F67400E61D9E /* VCollator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D21B97B90B64F67400E61D9E /* VCollator.cpp */; };
 		D21B97BC0B64F67500E61D9E /* VCollator.h in Headers */ = {isa = PBXBuildFile; fileRef = D21B97BA0B64F67400E61D9E /* VCollator.h */; };
 		D21B9A280B66259B00E61D9E /* XMacStringCompare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D21B9A240B66259B00E61D9E /* XMacStringCompare.cpp */; };
@@ -638,9 +683,14 @@
 		F4643198113E7C4800639653 /* MAPMSQRT.C in Sources */ = {isa = PBXBuildFile; fileRef = 02C91A56071141FB00C260C6 /* MAPMSQRT.C */; };
 		F4643199113E7C4800639653 /* MAPMSTCK.C in Sources */ = {isa = PBXBuildFile; fileRef = 02C91A57071141FB00C260C6 /* MAPMSTCK.C */; };
 		F464319A113E7C4800639653 /* MAPMUTIL.C in Sources */ = {isa = PBXBuildFile; fileRef = 02C91A58071141FB00C260C6 /* MAPMUTIL.C */; };
-		F46431A9113E7C8600639653 /* libM_APMDebug.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F46431A2113E7C4800639653 /* libM_APMDebug.a */; };
 		F465A6351406998200A5ECF9 /* icuDebug.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F465A6321406997400A5ECF9 /* icuDebug.framework */; };
 		F465A6361406998F00A5ECF9 /* icuDebug.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F465A6341406997400A5ECF9 /* icuDebug.framework */; };
+		F4B79A5D16E113C500EBADC5 /* VSysLogOutput.h in Headers */ = {isa = PBXBuildFile; fileRef = F4B79A5C16E113C500EBADC5 /* VSysLogOutput.h */; };
+		F4B79A5E16E113C500EBADC5 /* VSysLogOutput.h in Headers */ = {isa = PBXBuildFile; fileRef = F4B79A5C16E113C500EBADC5 /* VSysLogOutput.h */; };
+		F4B79A6016E113EC00EBADC5 /* VSysLogOutput.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4B79A5F16E113EC00EBADC5 /* VSysLogOutput.cpp */; };
+		F4B79A6116E113EC00EBADC5 /* VSysLogOutput.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4B79A5F16E113EC00EBADC5 /* VSysLogOutput.cpp */; };
+		F4B79A6216E113F900EBADC5 /* VSysLogOutput.h in Headers */ = {isa = PBXBuildFile; fileRef = F4B79A5C16E113C500EBADC5 /* VSysLogOutput.h */; };
+		F4B79A6316E1140100EBADC5 /* VSysLogOutput.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4B79A5F16E113EC00EBADC5 /* VSysLogOutput.cpp */; };
 		F4FDB4DC105F883900EA5BAA /* VLogger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4FDB4DA105F883900EA5BAA /* VLogger.cpp */; };
 		F4FDB4DD105F883900EA5BAA /* VLogger.h in Headers */ = {isa = PBXBuildFile; fileRef = F4FDB4DB105F883900EA5BAA /* VLogger.h */; };
 		F4FDB4DE105F894300EA5BAA /* VLogger.h in Headers */ = {isa = PBXBuildFile; fileRef = F4FDB4DB105F883900EA5BAA /* VLogger.h */; };
@@ -935,6 +985,14 @@
 		42F95D1415FF9768004C5D60 /* XWinLibrary.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XWinLibrary.h; sourceTree = "<group>"; };
 		42FA37AC14F3956300FF3354 /* VMessageCall.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VMessageCall.h; sourceTree = "<group>"; };
 		45C8829F0B1464F700B3B019 /* VScrapKind.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VScrapKind.h; sourceTree = "<group>"; };
+		47F1F3931649372D00DD4767 /* VDocImage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VDocImage.cpp; sourceTree = "<group>"; };
+		47F1F3941649372D00DD4767 /* VDocImage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VDocImage.h; sourceTree = "<group>"; };
+		47F1F3951649372D00DD4767 /* VDocParagraph.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VDocParagraph.cpp; sourceTree = "<group>"; };
+		47F1F3961649372D00DD4767 /* VDocParagraph.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VDocParagraph.h; sourceTree = "<group>"; };
+		47F1F3971649372D00DD4767 /* VDocTable.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VDocTable.cpp; sourceTree = "<group>"; };
+		47F1F3981649372D00DD4767 /* VDocTable.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VDocTable.h; sourceTree = "<group>"; };
+		47F1F3991649372D00DD4767 /* VDocText.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VDocText.cpp; sourceTree = "<group>"; };
+		47F1F39A1649372D00DD4767 /* VDocText.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VDocText.h; sourceTree = "<group>"; };
 		6D1B4BE70F3F9AAD0014B3AB /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		6D1B4BE80F3F9AAD0014B3AB /* CoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreServices.framework; path = System/Library/Frameworks/CoreServices.framework; sourceTree = SDKROOT; };
 		6DDA09210F3E2B6400841BFD /* XMacSystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XMacSystem.cpp; sourceTree = "<group>"; };
@@ -946,11 +1004,17 @@
 		8D07F2C80486CC7A007CD1D0 /* KernelDebug.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = KernelDebug.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		93947E3D10C49BD40015C09C /* MurmurHash.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MurmurHash.h; sourceTree = "<group>"; };
 		93947E4110C49BDD0015C09C /* MurmurHash.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MurmurHash.cpp; sourceTree = "<group>"; };
+		9592EBF316D642C7001C8546 /* VLog4jMsgFile.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VLog4jMsgFile.cpp; sourceTree = "<group>"; };
+		959655A616D7B3C0005E29B2 /* VSplitableLogFile.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VSplitableLogFile.cpp; sourceTree = "<group>"; };
+		959655A716D7B3C0005E29B2 /* VSplitableLogFile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VSplitableLogFile.h; sourceTree = "<group>"; };
+		95CA259D16D7B45100C2E58D /* VLog4jMsgFile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VLog4jMsgFile.h; sourceTree = "<group>"; };
 		B55A1B3A0C057C2E008BE727 /* VChecksumMD5.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VChecksumMD5.cpp; sourceTree = "<group>"; };
 		B55A1B3D0C057C65008BE727 /* VChecksumMD5.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VChecksumMD5.h; sourceTree = "<group>"; };
 		BAB0F3430EE99C07000D97C1 /* VPictureHelper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VPictureHelper.cpp; sourceTree = "<group>"; };
 		BAB0F3440EE99C07000D97C1 /* VPictureHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VPictureHelper.h; sourceTree = "<group>"; };
 		C9BBA8FD09BC8AC500F3DCFC /* libKernelDebug.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKernelDebug.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD17E6D2166510F800381B7A /* VFileSystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VFileSystem.cpp; sourceTree = "<group>"; };
+		CD17E6D3166510F800381B7A /* VFileSystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VFileSystem.h; sourceTree = "<group>"; };
 		D21B97B90B64F67400E61D9E /* VCollator.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = VCollator.cpp; sourceTree = "<group>"; };
 		D21B97BA0B64F67400E61D9E /* VCollator.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = VCollator.h; sourceTree = "<group>"; };
 		D21B9A240B66259B00E61D9E /* XMacStringCompare.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = XMacStringCompare.cpp; sourceTree = "<group>"; };
@@ -968,6 +1032,8 @@
 		F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = xtoolbox_x64.xcconfig; path = ../../../xtoolbox_x64.xcconfig; sourceTree = SOURCE_ROOT; };
 		F46431A2113E7C4800639653 /* libM_APMDebug.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libM_APMDebug.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		F465A6291406997400A5ECF9 /* icu.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = icu.xcodeproj; path = ../../../../../icu/4.8/projets/XCode/icu.xcodeproj; sourceTree = SOURCE_ROOT; };
+		F4B79A5C16E113C500EBADC5 /* VSysLogOutput.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VSysLogOutput.h; sourceTree = "<group>"; };
+		F4B79A5F16E113EC00EBADC5 /* VSysLogOutput.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VSysLogOutput.cpp; sourceTree = "<group>"; };
 		F4FDB4DA105F883900EA5BAA /* VLogger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VLogger.cpp; sourceTree = "<group>"; };
 		F4FDB4DB105F883900EA5BAA /* VLogger.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VLogger.h; sourceTree = "<group>"; };
 		F9101C4B114904430059DF43 /* XLinuxPlatform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XLinuxPlatform.h; sourceTree = "<group>"; };
@@ -1011,7 +1077,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F465A6351406998200A5ECF9 /* icuDebug.framework in Frameworks */,
-				42C3445C09865462001AC60A /* libM_APMDebug.a in Frameworks */,
 				6D1B4BE90F3F9AAD0014B3AB /* AudioToolbox.framework in Frameworks */,
 				6D1B4BEA0F3F9AAD0014B3AB /* CoreServices.framework in Frameworks */,
 			);
@@ -1031,7 +1096,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F465A6361406998F00A5ECF9 /* icuDebug.framework in Frameworks */,
-				F46431A9113E7C8600639653 /* libM_APMDebug.a in Frameworks */,
 				F4643150113E7A3E00639653 /* AudioToolbox.framework in Frameworks */,
 				F4643151113E7A3E00639653 /* CoreServices.framework in Frameworks */,
 			);
@@ -1108,6 +1172,8 @@
 		02416A7306F0620B00F0206C /* Files & Streams */ = {
 			isa = PBXGroup;
 			children = (
+				CD17E6D2166510F800381B7A /* VFileSystem.cpp */,
+				CD17E6D3166510F800381B7A /* VFileSystem.h */,
 				293EEE06132E40F50084E6AA /* VFullURL.cpp */,
 				293EEE07132E40F50084E6AA /* VFullURL.h */,
 				F975E9651153A98900C42AEE /* Linux */,
@@ -1258,6 +1324,7 @@
 		08FB77ACFE841707C02AAC07 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				47F1F392164936A700DD4767 /* Text document */,
 				F975E9CC1153DFDD00C42AEE /* Linux */,
 				F975E9CE1153E00200C42AEE /* Mac */,
 				F975E9CF1153E02300C42AEE /* Win */,
@@ -1395,6 +1462,21 @@
 			name = Library;
 			sourceTree = "<group>";
 		};
+		47F1F392164936A700DD4767 /* Text document */ = {
+			isa = PBXGroup;
+			children = (
+				47F1F3931649372D00DD4767 /* VDocImage.cpp */,
+				47F1F3941649372D00DD4767 /* VDocImage.h */,
+				47F1F3951649372D00DD4767 /* VDocParagraph.cpp */,
+				47F1F3961649372D00DD4767 /* VDocParagraph.h */,
+				47F1F3971649372D00DD4767 /* VDocTable.cpp */,
+				47F1F3981649372D00DD4767 /* VDocTable.h */,
+				47F1F3991649372D00DD4767 /* VDocText.cpp */,
+				47F1F39A1649372D00DD4767 /* VDocText.h */,
+			);
+			name = "Text document";
+			sourceTree = "<group>";
+		};
 		D207EA400B7CAD3E00C1FA30 /* Dependencies */ = {
 			isa = PBXGroup;
 			children = (
@@ -1430,8 +1512,14 @@
 		F4FDB4D7105F87FF00EA5BAA /* Logging */ = {
 			isa = PBXGroup;
 			children = (
+				95CA259D16D7B45100C2E58D /* VLog4jMsgFile.h */,
+				959655A616D7B3C0005E29B2 /* VSplitableLogFile.cpp */,
+				959655A716D7B3C0005E29B2 /* VSplitableLogFile.h */,
+				9592EBF316D642C7001C8546 /* VLog4jMsgFile.cpp */,
 				F4FDB4DA105F883900EA5BAA /* VLogger.cpp */,
 				F4FDB4DB105F883900EA5BAA /* VLogger.h */,
+				F4B79A5C16E113C500EBADC5 /* VSysLogOutput.h */,
+				F4B79A5F16E113EC00EBADC5 /* VSysLogOutput.cpp */,
 			);
 			name = Logging;
 			sourceTree = "<group>";
@@ -1684,6 +1772,7 @@
 			files = (
 				0235BC0E071EDC6D00BEEE2E /* M_APM_LC.H in Headers */,
 				0235BC0F071EDC6D00BEEE2E /* M_APM.H in Headers */,
+				CD17E6DB166510F800381B7A /* VFileSystem.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1798,6 +1887,14 @@
 				42CA98E11585EE68009486BD /* VJSONValue.h in Headers */,
 				42F95D1E15FF9768004C5D60 /* VLibrary.h in Headers */,
 				42F95D2215FF9768004C5D60 /* XMacLibrary.h in Headers */,
+				47F1F3A41649372D00DD4767 /* VDocImage.h in Headers */,
+				47F1F3A61649372D00DD4767 /* VDocParagraph.h in Headers */,
+				47F1F3A81649372D00DD4767 /* VDocTable.h in Headers */,
+				47F1F3AA1649372D00DD4767 /* VDocText.h in Headers */,
+				CD17E6D9166510F800381B7A /* VFileSystem.h in Headers */,
+				959655AC16D7B3C0005E29B2 /* VSplitableLogFile.h in Headers */,
+				95CA259F16D7B45100C2E58D /* VLog4jMsgFile.h in Headers */,
+				F4B79A5D16E113C500EBADC5 /* VSysLogOutput.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1910,6 +2007,14 @@
 				42CA98E31585EE68009486BD /* VJSONValue.h in Headers */,
 				42F95D2615FF9768004C5D60 /* VLibrary.h in Headers */,
 				42F95D2A15FF9768004C5D60 /* XMacLibrary.h in Headers */,
+				47F1F39C1649372D00DD4767 /* VDocImage.h in Headers */,
+				47F1F39E1649372D00DD4767 /* VDocParagraph.h in Headers */,
+				47F1F3A01649372D00DD4767 /* VDocTable.h in Headers */,
+				47F1F3A21649372D00DD4767 /* VDocText.h in Headers */,
+				CD17E6D5166510F800381B7A /* VFileSystem.h in Headers */,
+				959655AB16D7B3C0005E29B2 /* VSplitableLogFile.h in Headers */,
+				95CA259E16D7B45100C2E58D /* VLog4jMsgFile.h in Headers */,
+				F4B79A6216E113F900EBADC5 /* VSysLogOutput.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2023,6 +2128,14 @@
 				42CA98DF1585EE68009486BD /* VJSONValue.h in Headers */,
 				42F95D1615FF9768004C5D60 /* VLibrary.h in Headers */,
 				42F95D1A15FF9768004C5D60 /* XMacLibrary.h in Headers */,
+				47F1F3AC1649372D00DD4767 /* VDocImage.h in Headers */,
+				47F1F3AE1649372D00DD4767 /* VDocParagraph.h in Headers */,
+				47F1F3B01649372D00DD4767 /* VDocTable.h in Headers */,
+				47F1F3B21649372D00DD4767 /* VDocText.h in Headers */,
+				CD17E6D7166510F800381B7A /* VFileSystem.h in Headers */,
+				959655AD16D7B3C0005E29B2 /* VSplitableLogFile.h in Headers */,
+				95CA25A016D7B45100C2E58D /* VLog4jMsgFile.h in Headers */,
+				F4B79A5E16E113C500EBADC5 /* VSysLogOutput.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2032,6 +2145,7 @@
 			files = (
 				F464317B113E7C4800639653 /* M_APM_LC.H in Headers */,
 				F464317C113E7C4800639653 /* M_APM.H in Headers */,
+				CD17E6DD166510F800381B7A /* VFileSystem.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2140,6 +2254,9 @@
 /* Begin PBXProject section */
 		0867D690FE84028FC02AAC07 /* Project object */ = {
 			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0450;
+			};
 			buildConfigurationList = 02FC128F088FC55F00C1F8D4 /* Build configuration list for PBXProject "Kernel" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
@@ -2265,6 +2382,7 @@
 				0235BC2A071EDC6D00BEEE2E /* MAPMSQRT.C in Sources */,
 				0235BC2B071EDC6D00BEEE2E /* MAPMSTCK.C in Sources */,
 				0235BC2C071EDC6D00BEEE2E /* MAPMUTIL.C in Sources */,
+				CD17E6DA166510F800381B7A /* VFileSystem.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2354,6 +2472,14 @@
 				42CA98E21585EE68009486BD /* VJSONValue.cpp in Sources */,
 				42F95D1D15FF9768004C5D60 /* VLibrary.cpp in Sources */,
 				42F95D2115FF9768004C5D60 /* XMacLibrary.cpp in Sources */,
+				47F1F3A31649372D00DD4767 /* VDocImage.cpp in Sources */,
+				47F1F3A51649372D00DD4767 /* VDocParagraph.cpp in Sources */,
+				47F1F3A71649372D00DD4767 /* VDocTable.cpp in Sources */,
+				47F1F3A91649372D00DD4767 /* VDocText.cpp in Sources */,
+				CD17E6D8166510F800381B7A /* VFileSystem.cpp in Sources */,
+				9592EBF516D642C7001C8546 /* VLog4jMsgFile.cpp in Sources */,
+				959655A916D7B3C0005E29B2 /* VSplitableLogFile.cpp in Sources */,
+				F4B79A6016E113EC00EBADC5 /* VSysLogOutput.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2442,6 +2568,14 @@
 				42CA98E41585EE68009486BD /* VJSONValue.cpp in Sources */,
 				42F95D2515FF9768004C5D60 /* VLibrary.cpp in Sources */,
 				42F95D2915FF9768004C5D60 /* XMacLibrary.cpp in Sources */,
+				47F1F39B1649372D00DD4767 /* VDocImage.cpp in Sources */,
+				47F1F39D1649372D00DD4767 /* VDocParagraph.cpp in Sources */,
+				47F1F39F1649372D00DD4767 /* VDocTable.cpp in Sources */,
+				47F1F3A11649372D00DD4767 /* VDocText.cpp in Sources */,
+				CD17E6D4166510F800381B7A /* VFileSystem.cpp in Sources */,
+				9592EBF416D642C7001C8546 /* VLog4jMsgFile.cpp in Sources */,
+				959655A816D7B3C0005E29B2 /* VSplitableLogFile.cpp in Sources */,
+				F4B79A6316E1140100EBADC5 /* VSysLogOutput.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2531,6 +2665,14 @@
 				42CA98E01585EE68009486BD /* VJSONValue.cpp in Sources */,
 				42F95D1515FF9768004C5D60 /* VLibrary.cpp in Sources */,
 				42F95D1915FF9768004C5D60 /* XMacLibrary.cpp in Sources */,
+				47F1F3AB1649372D00DD4767 /* VDocImage.cpp in Sources */,
+				47F1F3AD1649372D00DD4767 /* VDocParagraph.cpp in Sources */,
+				47F1F3AF1649372D00DD4767 /* VDocTable.cpp in Sources */,
+				47F1F3B11649372D00DD4767 /* VDocText.cpp in Sources */,
+				CD17E6D6166510F800381B7A /* VFileSystem.cpp in Sources */,
+				9592EBF616D642C7001C8546 /* VLog4jMsgFile.cpp in Sources */,
+				959655AA16D7B3C0005E29B2 /* VSplitableLogFile.cpp in Sources */,
+				F4B79A6116E113EC00EBADC5 /* VSysLogOutput.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2567,6 +2709,7 @@
 				F4643198113E7C4800639653 /* MAPMSQRT.C in Sources */,
 				F4643199113E7C4800639653 /* MAPMSTCK.C in Sources */,
 				F464319A113E7C4800639653 /* MAPMUTIL.C in Sources */,
+				CD17E6DC166510F800381B7A /* VFileSystem.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2615,6 +2758,7 @@
 		020DFAA108AE3952005EBBB5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMDebug;
@@ -2624,6 +2768,12 @@
 		020DFAA208AE3952005EBBB5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				OTHER_LDFLAGS = (
+					"-weak_framework",
+					icuDebug,
+					"-lM_APMDebug",
+				);
 			};
 			name = Debug;
 		};
@@ -2652,12 +2802,19 @@
 		02FC1289088FC55F00C1F8D4 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				OTHER_LDFLAGS = (
+					"-weak_framework",
+					icuBeta,
+					"-lM_APMBeta",
+				);
 			};
 			name = Beta;
 		};
 		02FC128D088FC55F00C1F8D4 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMBeta;
@@ -2689,6 +2846,7 @@
 		126DA0D90A4AC5F900D639DA /* Coverage */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMDebug;
@@ -2698,17 +2856,24 @@
 		126DA0DA0A4AC5F900D639DA /* Coverage */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_GENERATE_TEST_COVERAGE_FILES = YES;
 				GCC_INSTRUMENT_PROGRAM_FLOW_ARCS = YES;
+				OTHER_LDFLAGS = (
+					"-lgcov",
+					"-weak_framework",
+					icuDebug,
+					"-lM_APMDebug",
+				);
 			};
 			name = Coverage;
 		};
 		126DA0DB0A4AC5F900D639DA /* Coverage */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
 				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -2718,7 +2883,6 @@
 				INSTALL_PATH = /usr/local/lib;
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
@@ -2748,6 +2912,7 @@
 		3993CF8F08C48D3E00ED7C0F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = (
@@ -2762,6 +2927,13 @@
 		3993CF9008C48D3E00ED7C0F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				OTHER_LDFLAGS = (
+					"-Wl,-x",
+					"-weak_framework",
+					icu,
+					"-lM_APM",
+				);
 			};
 			name = Release;
 		};
@@ -2792,6 +2964,7 @@
 		39C38FA10C27FA170073EDA8 /* Performance */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMPerf;
@@ -2801,17 +2974,23 @@
 		39C38FA20C27FA170073EDA8 /* Performance */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_AUTO_VECTORIZATION = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_UNROLL_LOOPS = YES;
+				OTHER_LDFLAGS = (
+					"-weak_framework",
+					icuPerf,
+					"-lM_APMPerf",
+				);
 			};
 			name = Performance;
 		};
 		39C38FA30C27FA170073EDA8 /* Performance */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"XTOOLBOX_AS_STANDALONE=1",
 					"$(GCC_PREPROCESSOR_DEFINITIONS)",
@@ -2820,7 +2999,6 @@
 				INSTALL_PATH = /usr/local/lib;
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = NO;
 			};
@@ -2851,9 +3029,9 @@
 		C9BBA90009BC8B3800F3DCFC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
 				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -2863,7 +3041,6 @@
 				INSTALL_PATH = /usr/local/lib;
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
@@ -2872,8 +3049,8 @@
 		C9BBA90109BC8B3800F3DCFC /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"XTOOLBOX_AS_STANDALONE=1",
 					"$(inherited)",
@@ -2881,7 +3058,6 @@
 				INSTALL_PATH = /usr/local/lib;
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = YES;
 			};
@@ -2890,8 +3066,8 @@
 		C9BBA90209BC8B3800F3DCFC /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)";
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"XTOOLBOX_AS_STANDALONE=1",
@@ -2901,7 +3077,6 @@
 				INSTALL_PATH = /usr/local/lib;
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				STRIP_STYLE = debugging;
 				SYMROOT = "$(SRCROOT)/../../../../../4eDimension/main/Libraries/MachO";
 				ZERO_LINK = NO;
@@ -2912,6 +3087,12 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				OTHER_LDFLAGS = (
+					"-weak_framework",
+					icuDebug,
+					"-lM_APMDebug",
+				);
 			};
 			name = Debug;
 		};
@@ -2919,8 +3100,15 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_GENERATE_TEST_COVERAGE_FILES = YES;
 				GCC_INSTRUMENT_PROGRAM_FLOW_ARCS = YES;
+				OTHER_LDFLAGS = (
+					"-lgcov",
+					"-weak_framework",
+					icuDebug,
+					"-lM_APMDebug",
+				);
 			};
 			name = Coverage;
 		};
@@ -2928,6 +3116,12 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				OTHER_LDFLAGS = (
+					"-weak_framework",
+					icuBeta,
+					"-lM_APMBeta",
+				);
 			};
 			name = Beta;
 		};
@@ -2935,6 +3129,13 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				OTHER_LDFLAGS = (
+					"-Wl,-x",
+					"-weak_framework",
+					icu,
+					"-lM_APM",
+				);
 			};
 			name = Release;
 		};
@@ -2942,9 +3143,15 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_AUTO_VECTORIZATION = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_UNROLL_LOOPS = YES;
+				OTHER_LDFLAGS = (
+					"-weak_framework",
+					icuPerf,
+					"-lM_APMPerf",
+				);
 			};
 			name = Performance;
 		};
@@ -2952,6 +3159,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMDebug;
@@ -2962,6 +3170,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMDebug;
@@ -2972,6 +3181,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMBeta;
@@ -2982,6 +3192,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				OTHER_LDFLAGS = (
@@ -2997,6 +3208,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F464315E113E7A7A00639653 /* xtoolbox_x64.xcconfig */;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = NO;
 				MACH_O_TYPE = staticlib;
 				PRODUCT_NAME = M_APMPerf;

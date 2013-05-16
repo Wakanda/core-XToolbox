@@ -38,12 +38,12 @@ VRect::VRect (const VRect& inOriginal)
 	FromRect(inOriginal);
 }
 
-
+#if !VERSION_LINUX
 VRect::VRect(const RectRef& inNativeRect)
 {
 	FromRectRef(inNativeRect);
 }
-
+#endif
 
 VRect::~VRect()
 {
@@ -181,7 +181,7 @@ void VRect::NormalizeToInt(bool inStickOriginToNearestInteger)
 	fHeight = std::ceil(fHeight+dy);
 }
 
-
+#if !VERSION_LINUX
 void VRect::FromRectRef(const RectRef& inNativeRect)
 {
 #if VERSIONMAC
@@ -212,6 +212,7 @@ void VRect::ToRectRef(RectRef& outNativeRect) const
 	outNativeRect.bottom = fY + fHeight;
 #endif
 }
+#endif
 
 
 #if VERSIONMAC
