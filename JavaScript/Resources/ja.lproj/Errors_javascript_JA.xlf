@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!--
+	Translation file for 4D products.
+	Copyright (C) 2007-2012 4D SAS.
+	This file is distributed under the same license as the 4D product package.
+-->
+<!DOCTYPE xliff PUBLIC "-//XLIFF//DTD XLIFF//EN" "http://www.oasis-open.org/committees/xliff/documents/xliff.dtd">
+<xliff version="1.0">
+	<file datatype="x-STR#" original="undefined" product-version="v13" source-language="en-US" target-language="ja">
+		  <header>
+			  <note>The character "%" (out of a numerical context) is a meta-character that will be replaced (often by a numeric value) before the string is displayed</note>
+			  <note>Text between less than (&lt;) and greater than (&gt;) symbols is a variable's name and must not be localised</note>
+			  <note>\r, \t and \n are meta-characters.</note>
+		</header>
+		  <body>
+		    <group resname="xbox JavaScript errors">
+			    <trans-unit id="4000" resname="ERR_jvsc_4000">
+				      <source>Wrong type for parameter #{p1}, expected File or String.</source>
+				      <target>パラメーター #{p1} のタイプが間違っています。FileまたはStringでなければなりません。</target>
+			</trans-unit>
+        <trans-unit id="4001" resname="ERR_jvsc_4001">
+          <source>Wrong type for parameter #{p1}, expected String.</source>
+          <target>パラメーター #{p1} のタイプが間違っています。Stringでなければなりません。</target>
+      </trans-unit>
+        <trans-unit id="4002" resname="ERR_jvsc_4002">
+          <source>Wrong type for parameter #{p1}, expected Boolean.</source>
+          <target>パラメーター #{p1} のタイプが間違っています。Booleanでなければなりません。</target>
+      </trans-unit>
+        <trans-unit id="4003" resname="ERR_jvsc_4003">
+          <source>Wrong type for parameter #{p1}, expected Number.</source>
+          <target>パラメーター #{p1} のタイプが間違っています。Numberでなければなりません。</target>
+      </trans-unit>
+        <trans-unit id="4004" resname="ERR_jvsc_4004">
+          <source>Wrong type for parameter #{p1}, expected Folder or String.</source>
+          <target>パラメーター #{p1} のタイプが間違っています。FolderまたはStringでなければなりません。</target>
+      </trans-unit>
+        <trans-unit id="4005" resname="ERR_jvsc_4005">
+          <source>Wrong type for parameter #{p1}, expected DataClass Attribute or String.</source>
+          <target>パラメーター #{p1} のタイプが間違っています。DataClass AttributeまたはStringでなければなりません。</target>
+      </trans-unit>
+
+        <trans-unit id="4006" resname="ERR_jvsc_4006">
+          <source>Invalid object state: Method {p1} cannot be called in current state.</source>
+          <target>オブジェクトの状態が無効: 現在の状態でメソッド {p1} を呼び出すことはできません。</target>
+      </trans-unit>
+
+	  
+    </group>
+
+    </body>
+  </file>
+</xliff>

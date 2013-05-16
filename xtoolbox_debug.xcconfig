@@ -1,0 +1,10 @@
+#include "xtoolbox_base.xcconfig"
+#include "weak_icu_debug.xcconfig"
+
+PRODUCT_NAME = $(PROJECT_NAME)Debug;
+
+
+
+
+
+
