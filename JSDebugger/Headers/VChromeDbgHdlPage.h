@@ -109,6 +109,7 @@ private:
 	TemplProtectedFifo<ChrmDbgMsg_t>	fFifo;
 	TemplProtectedFifo<ChrmDbgMsg_t>	fOutFifo;
 
+	XBOX::VString					fMsgVString;
 	sBYTE							fMsgData[K_MAX_SIZE];
 	XBOX::VSize						fMsgLen;
 	bool							fIsMsgTerminated;

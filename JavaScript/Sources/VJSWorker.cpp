@@ -26,6 +26,8 @@
 
 #include "VJSW3CFileSystem.h"
 
+#include "VJSProcess.h"
+
 USING_TOOLBOX_NAMESPACE
 
 XBOX::VCriticalSection	VJSWorker::sMutex;				
@@ -58,8 +60,10 @@ void VJSWorker::SetDelegate (IJSWorkerDelegate *inDelegate)
 	sDelegate = inDelegate;
 }
 
-VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &inURL, bool inReUseContext)
+VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, XBOX::VJSWorker *inParentWorker, const XBOX::VString &inURL, bool inReUseContext)
 {
+	xbox_assert(inParentWorker != NULL);
+
 	XBOX::StLocker<XBOX::VCriticalSection>	lock(&sMutex);
 	XBOX::VError							error;
 	
@@ -69,8 +73,11 @@ VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &in
 	fTotalIdleDuration.Clear();
 	
 	fGlobalContext = sDelegate->RetainJSContext(error, inParentContext, inReUseContext);
-	
-	fClosingFlag = fIsLockedWaiting = fExitWaitFlag = false;
+	fParentWorkers.push_back(inParentWorker);
+		
+	fHasReleasedAll = fClosingFlag = fIsLockedWaiting = fExitWaitFlag = false;
+
+//**	DebugMsg("Dedicated created %p\n", this);
 
 	fWorkerType = TYPE_DEDICATED;
 	fURL = inURL;
@@ -96,6 +103,7 @@ VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &in
 }
 
 VJSWorker *VJSWorker::RetainSharedWorker (XBOX::VJSContext &inParentContext,	
+										XBOX::VJSWorker *inParentWorker,
 										const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext, 
 										bool *outCreatedWorker)
 {
@@ -108,6 +116,10 @@ VJSWorker *VJSWorker::RetainSharedWorker (XBOX::VJSContext &inParentContext,
 		if ((*i)->fURL.EqualToString(inURL) && (*i)->fName.EqualToString(inName)) {
 
 			(*i)->Retain();
+			(*i)->fMutex.Lock();
+			(*i)->fParentWorkers.push_back(inParentWorker);
+			(*i)->fMutex.Unlock();
+			inParentWorker->fSharedWorkers.push_back(*i);
 			*outCreatedWorker = false;
 			return *i;
 
@@ -116,7 +128,13 @@ VJSWorker *VJSWorker::RetainSharedWorker (XBOX::VJSContext &inParentContext,
 	}
 
 	*outCreatedWorker = true;
-	return new VJSWorker(inParentContext, inURL, inName, inReUseContext);
+
+	VJSWorker	*sharedWorker;
+
+	sharedWorker = new VJSWorker(inParentContext, inParentWorker, inURL, inName, inReUseContext);
+	inParentWorker->fSharedWorkers.push_back(sharedWorker);
+
+	return sharedWorker;
 }
 
 void VJSWorker::SetMessagePorts (VJSMessagePort *inMessagePort, VJSMessagePort *inErrorPort)
@@ -385,8 +403,6 @@ sLONG VJSWorker::WaitFor (XBOX::VJSContext &inContext, sLONG inWaitingDuration, 
 
 	fExitWaitFlag = false;
 
-	// If fClosingFlag is true, then _ReleaseAllReferences() must have been called.
-
 	if (inEventGenerator != NULL && isEventMatched)
 
 		return -1;
@@ -399,8 +415,6 @@ sLONG VJSWorker::WaitFor (XBOX::VJSContext &inContext, sLONG inWaitingDuration, 
 void VJSWorker::Terminate ()
 {
 	XBOX::StLocker<XBOX::VCriticalSection>	lock(&fMutex);
-
-	_ReleaseAllReferences();
 
 	fClosingFlag = true;
 
@@ -474,7 +488,18 @@ void VJSWorker::QueueEvent (IJSEvent *inEvent)
 	xbox_assert(inEvent != NULL);
 
 	XBOX::StLocker<XBOX::VCriticalSection>	lock(&fMutex);
-	std::list<IJSEvent *>::iterator			i;
+
+	// If worker has already been garbage collected, but C++ object is still "alive" (refcount), 
+	// then it will never process events. So discard the event.
+
+	if (fHasReleasedAll) {
+
+		inEvent->Discard();
+		return;
+
+	}
+
+	std::list<IJSEvent *>::iterator	i;
 	
 	for (i = fEventQueue.begin(); i != fEventQueue.end(); i++) 
 
@@ -672,8 +697,10 @@ void VJSWorker::ExecuteHasEventMessage (VJSHasEventMessage *inMessage)
 
 // sMutex must be locked before creating a new shared worker.
 
-VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext)
+VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, XBOX::VJSWorker *inParentWorker, const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext)
 {
+	xbox_assert(inParentWorker != NULL);
+
 	XBOX::VError	error;
 	
 	fStartTime.FromSystemTime();	
@@ -682,8 +709,9 @@ VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &in
 	fTotalIdleDuration.Clear();
 	
 	fGlobalContext = sDelegate->RetainJSContext(error, inParentContext, inReUseContext);
+	fParentWorkers.push_back(inParentWorker);
 
-	fClosingFlag = fIsLockedWaiting = fExitWaitFlag = false;
+	fHasReleasedAll = fClosingFlag = fIsLockedWaiting = fExitWaitFlag = false;
 
 	fWorkerType = TYPE_SHARED;	
 	fURL = inURL;
@@ -719,7 +747,7 @@ VJSWorker::VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &in
 VJSWorker::VJSWorker (const XBOX::VJSContext &inContext) 
 {
 	fGlobalContext = NULL;
-
+	
 	fStartTime.FromSystemTime();	
 	
 	fInsideWaitCount = 0;
@@ -728,7 +756,7 @@ VJSWorker::VJSWorker (const XBOX::VJSContext &inContext)
 	fURL = "";	//** TODO: Set proper name?
 
 	fVTask = NULL;
-	fClosingFlag = fIsLockedWaiting = fExitWaitFlag = false;
+	fHasReleasedAll = fClosingFlag = fIsLockedWaiting = fExitWaitFlag = false;
 
 	fWorkerType = TYPE_ROOT;
 	fRootVTask = XBOX::VTask::GetCurrent();
@@ -883,15 +911,7 @@ void VJSWorker::_SetSpecificDestructor (void *p)
 	VJSWorker	*worker;
 
 	worker = (VJSWorker *) p;
-
-	// Lock mutex and release all references.
-
-	worker->fMutex.Lock();
 	worker->_ReleaseAllReferences();
-
-	// Unlock mutex and release.
-
-	worker->fMutex.Unlock();
 	worker->Release();
 }
 
@@ -1023,6 +1043,8 @@ void VJSWorker::_DoRun ()
 	JS4D::ExceptionRef	exception;
     XBOX::VJSObject     globalObject    = context.GetGlobalObject();
 
+	// Execute script and then go to event (wait) loop.
+
 	if (!context.EvaluateScript(fScript, &fURLObject, NULL, &exception, &globalObject)) {
 
 		//** TODO:	Faire la différence entre une exception runtime de type Error 
@@ -1037,10 +1059,22 @@ void VJSWorker::_DoRun ()
 		XBOX::VJSContext	nullContext((JS4D::ContextRef) NULL);
 		
 		WaitFor(nullContext, -1, NULL, 0);
+
+		std::list<VRefPtr<VJSWorker> >::iterator	it;
+
+		for (it = fParentWorkers.begin(); it != fParentWorkers.end(); it++) {
+
+//**			DebugMsg("queue termination from %p to %p\n", this, (*it));
+			(*it)->QueueEvent(VJSTerminationEvent::Create(this));
+
+		}
+
+		fParentWorkers.clear();	// Decrement all refcounts.
 		
 	}
 
-	xbox_assert(fGlobalContext != NULL);
+	// Release everything.
+
 	sDelegate->ReleaseJSContext(fGlobalContext);
 
 	Release();	
@@ -1060,6 +1094,33 @@ void VJSWorker::_PostMessage (VJSParms_callStaticFunction &ioParms, VJSGlobalObj
 
 void VJSWorker::_ReleaseAllReferences ()
 {
+	XBOX::StLocker<XBOX::VCriticalSection>	lock(&fMutex);
+
+	if (fHasReleasedAll)
+
+		return;
+
+	std::list<VRefPtr<VJSWorker> >::iterator	workerIterator;
+
+	for (workerIterator = fSharedWorkers.begin(); workerIterator != fSharedWorkers.end(); workerIterator++) {
+
+		XBOX::StLocker<XBOX::VCriticalSection>		sharedWorkerLock(&(*workerIterator)->fMutex);
+		std::list<VRefPtr<VJSWorker> >::iterator	parentWorkerIterator;
+
+		for (parentWorkerIterator = (*workerIterator)->fParentWorkers.begin(); parentWorkerIterator != (*workerIterator)->fParentWorkers.end(); parentWorkerIterator++) 
+
+			if ((VJSWorker *) *parentWorkerIterator == this) {
+
+				(*workerIterator)->fParentWorkers.erase(parentWorkerIterator);
+				break;
+
+			}
+
+		// Note that a shared worker may have terminated in the meantime and queued the termination event.
+
+	}
+	fSharedWorkers.clear();
+
 	// Discard all events.
 
 	while (!fEventQueue.empty()) {
@@ -1095,13 +1156,20 @@ void VJSWorker::_ReleaseAllReferences ()
 
 	// For dedicated and shared workers, respectively release onmessage and onconnect ports.
 
-	if (fWorkerType == TYPE_DEDICATED)
-		
+	if (fWorkerType == TYPE_DEDICATED) {
+	
+//**		DebugMsg("Dedicated released %p\n", this);
 		XBOX::ReleaseRefCountable<VJSMessagePort>(&fOnMessagePort);
-
-	else if (fWorkerType == TYPE_SHARED)
+ 
+	} else if (fWorkerType == TYPE_SHARED) {
 
 		XBOX::ReleaseRefCountable<VJSMessagePort>(&fConnectionPort);
+
+	} else {
+
+//**		DebugMsg("release all for root %p\n", this);
+
+	}
 
 	// Close all message ports. 
 
@@ -1114,6 +1182,8 @@ void VJSWorker::_ReleaseAllReferences ()
 	// Mark all timers as "cleared" (they will be freed).
 
 	fTimerContext.ClearAll();
+
+	fHasReleasedAll = true;
 }
 
 #if VERSIONDEBUG
@@ -1160,7 +1230,16 @@ void VJSWorker::_DumpExecutionStatistics ()
 	message.AppendReal(executionPercentage);
 	message.AppendString("% idle: ");
 	message.AppendReal(idlePercentage);
-	message.AppendString("%\n");
+
+	sMutex.Lock();
+	message.AppendString("(");
+	message.AppendLong((sLONG) sDedicatedWorkers.size());
+	message.AppendString(", ");
+	message.AppendLong((sLONG) sSharedWorkers.size());
+	message.AppendString(", ");
+	message.AppendLong((sLONG) sRootWorkers.size());
+	message.AppendString(")\n");
+	sMutex.Unlock();
 	
 	XBOX::DebugMsg(message);
 }

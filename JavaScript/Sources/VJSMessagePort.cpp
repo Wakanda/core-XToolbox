@@ -164,7 +164,14 @@ XBOX::VJSObject VJSMessagePort::GetCallback (VJSWorker *inWorker, XBOX::VJSConte
 
 	XBOX::VJSObject	object(inContext, inWorker == fOutsideWorker ? fOutsideObject : fInsideObject);
 
-	return object.GetPropertyAsObject(inWorker == fOutsideWorker ? fOutsideCallbackName : fInsideCallbackName);
+	if (object.GetObjectRef() == NULL) {
+
+		object.SetNull();
+		return object;
+
+	} else
+
+		return object.GetPropertyAsObject(inWorker == fOutsideWorker ? fOutsideCallbackName : fInsideCallbackName);
 }
 
 void VJSMessagePort::PostMessage (VJSWorker *inTargetWorker, VJSStructuredClone *inMessage)

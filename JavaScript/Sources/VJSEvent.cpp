@@ -31,6 +31,7 @@
 #include "VJSNetSocket.h"
 #include "VJSW3CFileSystem.h"
 #include "VJSSystemWorker.h"
+#include "VJSWorkerProxy.h"
 
 USING_TOOLBOX_NAMESPACE
 
@@ -154,12 +155,18 @@ void VJSConnectionEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorke
 		XBOX::VJSArray	portsArrayObject(inContext);
 		XBOX::VJSObject	messagePort = VJSMessagePortClass::CreateInstance(inContext, fMessagePort);
 
+		JS4D::ContextRef	globalContextRef;
+
+		globalContextRef = inContext.GetGlobalObjectPrivateInstance()->GetContext();
+		
 		fMessagePort->SetObject(inWorker, messagePort);
 		fErrorPort->SetObject(inWorker, messagePort);
-
+		JS4D::ProtectValue(globalContextRef, messagePort.GetObjectRef());
+		
 		portsArrayObject.PushValue(messagePort);
 		messageEventObject.SetProperty("ports", portsArrayObject);
-
+		JS4D::ProtectValue(globalContextRef, portsArrayObject.GetObjectRef());
+		
 		std::vector<XBOX::VJSValue>	callbackArguments;
 												
 		callbackArguments.push_back(messageEventObject);
@@ -246,7 +253,125 @@ void VJSErrorEvent::Discard ()
 	XBOX::ReleaseRefCountable<VJSMessagePort>(&fMessagePort);
 	Release();
 }
+
+VJSTerminationEvent	*VJSTerminationEvent::Create (VJSWorker *inWorker)
+{
+	xbox_assert(inWorker != NULL);
+	xbox_assert(inWorker->GetWorkerType() == VJSWorker::TYPE_DEDICATED || inWorker->GetWorkerType() == VJSWorker::TYPE_SHARED);
+
+	VJSTerminationEvent	*terminationEvent;
+
+	terminationEvent = new VJSTerminationEvent();
+	terminationEvent->fType = eTYPE_TERMINATION; 
+	terminationEvent->fTriggerTime.FromSystemTime();
+
+//**	DebugMsg("create termination event for %p\n", inWorker);
+
+	terminationEvent->fWorker = XBOX::RetainRefCountable<VJSWorker>(inWorker);
 	
+	return terminationEvent;
+}
+
+void VJSTerminationEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
+{
+	xbox_assert(inWorker != NULL);
+
+	bool			isDedicated;
+	XBOX::VString	constructorName;
+
+	if (fWorker->GetWorkerType() == VJSWorker::TYPE_DEDICATED) {
+
+		isDedicated = true;
+		constructorName = "Worker";
+
+	} else {
+
+		isDedicated = false;
+		constructorName =  "SharedWorker";
+
+	}
+	
+	XBOX::VJSValue	value(inContext);
+	
+	if (inContext.GetGlobalObject().HasProperty(constructorName)) {
+
+		XBOX::VJSObject	workerObject	= inContext.GetGlobalObject().GetPropertyAsObject(constructorName);
+
+		if (workerObject.IsObject() && workerObject.HasProperty("list")) {
+
+			value = workerObject.GetProperty("list");
+			
+		} else {
+
+			xbox_assert(false);
+
+		}
+		
+	} else {
+
+		xbox_assert(false);
+
+	}
+
+	if (value.IsArray()) {
+
+		XBOX::VJSArray	listArray(value);
+		JS4D::ClassRef	classRef;
+		sLONG			i;
+
+		classRef = isDedicated ? VJSDedicatedWorkerClass::Class() : VJSSharedWorkerClass::Class();
+		for (i = 0; i < listArray.GetLength(); i++) {
+
+			value = listArray.GetValueAt(i);
+			if (value.IsObject()) {
+
+				XBOX::VJSObject	object(inContext, (JS4D::ObjectRef) value.GetValueRef());
+
+				if (object.IsOfClass(classRef)) {
+
+					VJSWebWorkerObject	*workerProxy;
+
+					if (isDedicated) 
+
+						workerProxy = object.GetPrivateData<VJSDedicatedWorkerClass>();
+
+					else
+
+						workerProxy = object.GetPrivateData<VJSSharedWorkerClass>();
+
+					if (workerProxy->GetWorker() == fWorker) {
+
+						value.SetNull();
+						listArray.SetValueAt(i, value);	// Set worker proxy reference to null to allow garbage collection.
+						break;
+
+					}
+
+				}
+
+			}
+
+		}
+
+		xbox_assert(i != listArray.GetLength());	// Not found!
+
+	} else {
+
+		xbox_assert(false);
+
+	}
+
+	Discard();
+}
+
+void VJSTerminationEvent::Discard ()
+{
+	xbox_assert(fWorker != NULL);
+
+//**	DebugMsg("discard termination event for %p\n", fWorker);
+	XBOX::ReleaseRefCountable<VJSWorker>(&fWorker);
+}
+
 VJSTimerEvent *VJSTimerEvent::Create (VJSTimer *inTimer, XBOX::VTime &inTriggerTime, std::vector<XBOX::VJSValue> *inArguments)
 {
 	xbox_assert(inTimer != NULL && !inTimer->IsCleared() && inArguments != NULL);
@@ -1068,4 +1193,54 @@ VJSW3CFSEvent::VJSW3CFSEvent (sLONG inSubType, const XBOX::VJSObject &inSuccessC
 	fSubType = inSubType;
 	fSuccessCallback = inSuccessCallback.GetObjectRef();
 	fErrorCallback = inErrorCallback.GetObjectRef();	
+}
+
+VJSNewListenerEvent	*VJSNewListenerEvent::Create (VJSEventEmitter *inEventEmitter, const XBOX::VString &inEvent, XBOX::JS4D::ObjectRef inListener)
+{
+	xbox_assert(inEventEmitter != NULL);
+
+	VJSNewListenerEvent	*newListenerEvent;
+
+	newListenerEvent = new VJSNewListenerEvent();
+	newListenerEvent->fType = eTYPE_EVENT_EMITTER;
+	newListenerEvent->fTriggerTime.FromSystemTime();
+
+	newListenerEvent->fEventEmitter = XBOX::RetainRefCountable<VJSEventEmitter>(inEventEmitter);
+	newListenerEvent->fEvent = inEvent;
+	newListenerEvent->fListener = inListener;
+	
+	return newListenerEvent;
+}
+
+void VJSNewListenerEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
+{
+	xbox_assert(fEventEmitter != NULL);
+
+	std::vector<XBOX::VJSValue>	callbackArguments;
+	VJSValue					value(inContext);
+
+	value.SetString(fEvent);
+	callbackArguments.push_back(value);
+
+	if (fListener != NULL) {
+
+		// No check that the given listener is actually a function.
+
+		value.SetValueRef((XBOX::JS4D::ValueRef) fListener);
+		callbackArguments.push_back(value);
+
+	}
+
+	fEventEmitter->Emit(inContext, "newListener", &callbackArguments);
+
+	Discard();
+}
+
+void VJSNewListenerEvent::Discard ()
+{
+	xbox_assert(fEventEmitter != NULL);
+
+	XBOX::ReleaseRefCountable<VJSEventEmitter>(&fEventEmitter);
+
+	Release();
 }

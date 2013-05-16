@@ -24,6 +24,10 @@
 
 USING_TOOLBOX_NAMESPACE
 
+// Add constructed worker proxy to either Worker.list[] or SharedWorker.list[], trying to fill "holes" inside the array.
+
+static void	_AddToList (XBOX::VJSContext &inContext, const XBOX::VString &inConstructorName, XBOX::VJSObject &inConstructedObject);
+
 VJSWorkerLocationObject::VJSWorkerLocationObject (const XBOX::VString &inURL)
 {
 	XBOX::VURL	url	= XBOX::VURL(inURL, true);
@@ -60,12 +64,13 @@ void VJSWorkerLocationClass::_Initialize (const XBOX::VJSParms_initialize &inPar
 	object.SetProperty("hash",		inWorkerLocation->fHash,		JS4D::PropertyAttributeReadOnly | JS4D::PropertyAttributeDontDelete);
 }
 
-VJSWebWorkerObject::VJSWebWorkerObject (VJSMessagePort *inMessagePort, VJSMessagePort *inErrorPort)
+VJSWebWorkerObject::VJSWebWorkerObject (VJSMessagePort *inMessagePort, VJSMessagePort *inErrorPort, VJSWorker *inWorker)
 {
-	xbox_assert(inMessagePort != NULL && inErrorPort != NULL);
+	xbox_assert(inMessagePort != NULL && inErrorPort != NULL && inWorker != NULL);
 
 	fOnMessagePort = XBOX::RetainRefCountable<VJSMessagePort>(inMessagePort);
 	fOnErrorPort = XBOX::RetainRefCountable<VJSMessagePort>(inErrorPort);
+	fWorker = inWorker;
 }
 
 VJSWebWorkerObject::~VJSWebWorkerObject () 
@@ -86,14 +91,14 @@ VJSWebWorkerObject *VJSWebWorkerObject::_CreateWorker (XBOX::VJSContext &inParen
 	if (inIsDedicated) {
 	
 		needToRun = true;
-		insideWorker = new VJSWorker(inParentContext, inUrl, inReUseContext);
+		insideWorker = new VJSWorker(inParentContext, inOutsideWorker, inUrl, inReUseContext);
 				
 	} else 
 
-		insideWorker = VJSWorker::RetainSharedWorker(inParentContext, inUrl, inName, inReUseContext, &needToRun);
+		insideWorker = VJSWorker::RetainSharedWorker(inParentContext, inOutsideWorker, inUrl, inName, inReUseContext, &needToRun);
 
 	xbox_assert(insideWorker != NULL);
-	
+
 	VJSMessagePort	*onMessagePort, *onErrorPort;
 	
 	onMessagePort = VJSMessagePort::Create(inOutsideWorker, insideWorker);
@@ -120,14 +125,13 @@ VJSWebWorkerObject *VJSWebWorkerObject::_CreateWorker (XBOX::VJSContext &inParen
 
 		insideWorker->Run();
 	
-	XBOX::ReleaseRefCountable<VJSWorker>(&insideWorker);
-
 	VJSWebWorkerObject	*webWorkerObject;
 
-	webWorkerObject = new VJSWebWorkerObject(onMessagePort, onErrorPort);
+	webWorkerObject = new VJSWebWorkerObject(onMessagePort, onErrorPort, insideWorker);
 
 	XBOX::ReleaseRefCountable<VJSMessagePort>(&onMessagePort);
 	XBOX::ReleaseRefCountable<VJSMessagePort>(&onErrorPort);
+	XBOX::ReleaseRefCountable<VJSWorker>(&insideWorker);
 
 	return webWorkerObject;
 }
@@ -143,19 +147,24 @@ void VJSDedicatedWorkerClass::GetDefinition (ClassDefinition &outDefinition)
 	
 	outDefinition.className	= "Worker";
 	outDefinition.staticFunctions = functions;
-	outDefinition.finalize = js_finalize<_Finalize>;	
+	outDefinition.finalize = js_finalize<_Finalize>;
 }
 
 XBOX::VJSObject	VJSDedicatedWorkerClass::MakeConstructor (XBOX::VJSContext inContext)
 {
 	XBOX::VJSObject	constructor(inContext);
-	XBOX::VJSObject	function(inContext);
-
+	
 	constructor.MakeConstructor(Class(), js_constructor<_Construct>);
+
+	XBOX::VJSObject	function(inContext);
 
 	function.MakeCallback(XBOX::js_callback<void, _GetNumberRunning>);
 	constructor.SetProperty("getNumberRunning", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 
+	XBOX::VJSArray	listArray(inContext);
+	
+	constructor.SetProperty("list", listArray, JS4D::PropertyAttributeDontDelete);
+	
 	return constructor;
 }
 
@@ -186,9 +195,12 @@ void VJSDedicatedWorkerClass::_Construct (XBOX::VJSParms_callAsConstructor &ioPa
 	if ((workerProxy = VJSWebWorkerObject::_CreateWorker(context, outsideWorker, reUseContext, url, true)) != NULL) {
 
 		constructedObject = VJSDedicatedWorkerClass::CreateInstance(context, workerProxy);
+
 		workerProxy->fOnMessagePort->SetObject(outsideWorker, constructedObject);
 		workerProxy->fOnErrorPort->SetObject(outsideWorker, constructedObject);
-			
+
+		_AddToList(context, "Worker", constructedObject);
+
 	} else 
 
 		constructedObject.SetNull();
@@ -261,6 +273,10 @@ XBOX::VJSObject	VJSSharedWorkerClass::MakeConstructor (XBOX::VJSContext inContex
 	function.MakeCallback(XBOX::js_callback<void, _GetNumberRunning>);
 	constructor.SetProperty("getNumberRunning", function, JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 
+	XBOX::VJSArray	listArray(inContext);
+	
+	constructor.SetProperty("list", listArray, JS4D::PropertyAttributeDontDelete);	
+
 	return constructor;
 }
 
@@ -295,17 +311,18 @@ void VJSSharedWorkerClass::_Construct (XBOX::VJSParms_callAsConstructor &ioParms
 		reUseContext = false;
 
 	if ((workerProxy = VJSWebWorkerObject::_CreateWorker(context, outsideWorker, reUseContext, url, false, name)) != NULL) {
-		
-		constructedObject = VJSDedicatedWorkerClass::CreateInstance(context, workerProxy);
+
+		constructedObject = VJSSharedWorkerClass::CreateInstance(context, workerProxy);
 		workerProxy->fOnErrorPort->SetObject(outsideWorker, constructedObject);
 
 		XBOX::VJSObject	messagePortObject(context);
 		
 		messagePortObject = VJSMessagePortClass::CreateInstance(context, workerProxy->fOnMessagePort);
 		workerProxy->fOnMessagePort->SetObject(outsideWorker, messagePortObject);
-		
 		constructedObject.SetProperty("port", messagePortObject);
-		
+
+		_AddToList(context, "SharedWorker", constructedObject);
+
 	} else 
 
 		constructedObject.SetNull();
@@ -342,4 +359,53 @@ void VJSSharedWorkerClass::_IsRunning (XBOX::VJSParms_callStaticFunction &ioParm
 void VJSSharedWorkerClass::_GetNumberRunning (XBOX::VJSParms_callStaticFunction &ioParms, void *)
 {
 	ioParms.ReturnNumber<sLONG>(VJSWorker::GetNumberRunning(VJSWorker::TYPE_SHARED));
+}
+
+static void _AddToList (XBOX::VJSContext &inContext, const XBOX::VString &inConstructorName, XBOX::VJSObject &inConstructedObject)
+{
+	if (inContext.GetGlobalObject().HasProperty(inConstructorName)) {
+
+		XBOX::VJSObject	workerObject	= inContext.GetGlobalObject().GetPropertyAsObject(inConstructorName);
+
+		if (workerObject.IsObject() && workerObject.HasProperty("list")) {
+
+			XBOX::VJSValue	value	= workerObject.GetProperty("list");
+
+			if (value.IsArray()) {
+
+				XBOX::VJSArray	listArray(value);
+				sLONG			i;
+
+				for (i = 0; i < listArray.GetLength(); i++) {
+
+					value = listArray.GetValueAt(i);
+					if (value.IsNull()) {
+
+						listArray.SetValueAt(i, inConstructedObject);
+						break;
+
+					}	
+
+				}
+				if (i == listArray.GetLength()) 
+
+					listArray.PushValue(inConstructedObject);
+
+			} else {
+
+				xbox_assert(false);
+
+			}
+
+		} else {
+
+			xbox_assert(false);
+
+		}
+			
+	} else {
+
+		xbox_assert(false);
+
+	}
 }

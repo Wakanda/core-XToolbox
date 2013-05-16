@@ -268,6 +268,7 @@ XBOX::VError VChromeDbgHdlPage::CheckInputData()
 	XBOX::VError	err;
 
 	err = VE_OK;
+	fMsgVString  = VString(fMsgData);
 	pos = memcmp(fMsgData,K_METHOD_STR,strlen(K_METHOD_STR));
 	
 	if (pos)
@@ -664,45 +665,59 @@ XBOX::VError VChromeDbgHdlPage::TreatMsg(XBOX::VSemaphore* inSem)
 
 	l_cmd = K_DBG_EVA_ON_CAL_FRA;
 	if (!l_err && !l_found && (l_found = fMethod.EqualToString(l_cmd)) ) {
-		/*if (fInternalState & K_EVALUATING_STATE)
-		{
-			const XBOX::VString		K_EVAL_IN_PROGRESS("evaluation in progress");
-			l_err = SendEvaluateResult(K_EVAL_IN_PROGRESS);
-		}
-		else*/
-		{
-			sBYTE*		tmpExp;
-			sBYTE*		ordinal;
-			tmpExp = strstr(fParams,K_EXPRESSION_STR);
-			ordinal = strstr(fParams,K_ORDINAL_STR);
-			if (tmpExp && ordinal)
-			{
-				tmpExp += strlen(K_EXPRESSION_STR);
-				sBYTE*	endStr;
-				endStr = strchr(tmpExp,'"');
-				if (endStr)
-				{
-					l_msg.data.Msg.fLineNumber = atoi(ordinal+strlen(K_ORDINAL_STR));
-					*endStr = 0;
-					VString		expression(tmpExp);
-					DebugMsg("VChromeDbgHdlPage::TreatMsg requiring value of '%S'\n",&expression);
 
-					l_msg.type = SEND_CMD_MSG;
-					l_msg.data.Msg.fType = WAKDebuggerServerMessage::SRV_EVALUATE_MSG;
-					l_msg.data.Msg.fSrcId = fSrcId;
-					l_msg.data.Msg.fRequestId = (intptr_t)atoi(fId);
-					l_msg.data.Msg.fString[expression.ToBlock(l_msg.data.Msg.fString,K_MAX_FILESIZE-1,VTC_UTF_8,false,false)] = 0;
-					l_err = fOutFifo.Put(l_msg);
-					if (testAssert( l_err == VE_OK ))
+		VJSONValue	jsonMsg;
+		l_err = VE_INVALID_PARAMETER;
+		//DebugMsg("VChromeDbgHdlPage::TreatMsg fMsgVString=< %S >\n",&fMsgVString);
+		if (VJSONImporter::ParseString( fMsgVString, jsonMsg ) == VE_OK )
+		{
+			VJSONValue	jsonParamsValue;
+			VJSONValue	jsonExpr ; 
+			VJSONValue	jsonCallFrameId;
+			VString		jsonCallFrameStr;
+			VJSONValue	jsonCallFrameIdValue;
+			jsonParamsValue = jsonMsg.GetProperty("params");
+
+			if (jsonParamsValue.GetType() == JSON_object)
+			{
+				jsonExpr = jsonParamsValue.GetProperty("expression"); 
+				jsonCallFrameId = jsonParamsValue.GetProperty("callFrameId");
+
+				if ( jsonExpr.IsString() && jsonCallFrameId.IsString() && (jsonCallFrameId.GetString(jsonCallFrameStr) == VE_OK) )
+				{
+					if (VJSONImporter::ParseString( jsonCallFrameStr, jsonCallFrameIdValue ) == VE_OK )
 					{
-						//fInternalState |= K_EVALUATING_STATE;
+						VJSONValue	jsonOrdinal;
+						VString		expression;
+						if (jsonCallFrameIdValue.IsObject())
+						{
+							jsonOrdinal = jsonCallFrameIdValue.GetProperty("ordinal");
+							if ( (jsonExpr.GetString(expression) == VE_OK) && jsonOrdinal.IsNumber() )
+							{
+								l_msg.data.Msg.fLineNumber = (sLONG)jsonOrdinal.GetNumber();
+
+								DebugMsg("VChromeDbgHdlPage::TreatMsg requiring value of '%S'\n",&expression);
+
+								l_msg.type = SEND_CMD_MSG;
+								l_msg.data.Msg.fType = WAKDebuggerServerMessage::SRV_EVALUATE_MSG;
+								l_msg.data.Msg.fSrcId = fSrcId;
+								l_msg.data.Msg.fRequestId = (intptr_t)atoi(fId);
+								l_msg.data.Msg.fString[expression.ToBlock(l_msg.data.Msg.fString,K_MAX_FILESIZE-1,VTC_UTF_8,false,false)] = 0;
+								
+								l_err = fOutFifo.Put(l_msg);
+								if (testAssert( l_err == VE_OK ))
+								{
+									//fInternalState |= K_EVALUATING_STATE;
+								}
+							}
+						}
 					}
 				}
 			}
-			else
-			{
-				l_err = VE_INVALID_PARAMETER;
-			}
+		}
+		if (l_err)
+		{
+			Eval("\"result\":{\"value\":{\"type\":\"string\",\"value\":\"error\"}",VString(fId));
 		}
 	}
 
@@ -1476,10 +1491,12 @@ XBOX::VError VChromeDbgHdlPage::TreatWS(IHTTPResponse* ioResponse,XBOX::VSemapho
 
 	while(!err)
 	{
-		fMsgLen = K_MAX_SIZE - fOffset;
+		fMsgLen = K_MAX_SIZE - 1 - fOffset;
 
 		// read the messages coming from the (debugging) browser
 		err = fWS->ReadMessage(fMsgData+fOffset,&fMsgLen,&fIsMsgTerminated);
+
+		fMsgData[K_MAX_SIZE-1] = 0;
 
 		// only display this trace on error (otherwise there are lots of msgs due to polling
 		if (err)
@@ -1491,6 +1508,10 @@ XBOX::VError VChromeDbgHdlPage::TreatWS(IHTTPResponse* ioResponse,XBOX::VSemapho
 			tmpStr += " fIsMsgTerminated=";
 			tmpStr += (fIsMsgTerminated ? "1" : "0" );
 			sPrivateLogHandler->Put( (err != VE_OK ? WAKDBG_ERROR_LEVEL : WAKDBG_INFO_LEVEL),tmpStr);
+		}
+		else
+		{
+			fMsgData[fOffset+fMsgLen] = 0;
 		}
 
 		if (!err)

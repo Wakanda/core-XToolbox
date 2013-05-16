@@ -59,10 +59,16 @@ private:
 
 class XTOOLBOX_API VJSWebWorkerObject : public XBOX::VObject
 {
+public:
+
+	VJSWorker					*GetWorker ()	{	return fWorker;	}
+
+private:
+
 friend class VJSDedicatedWorkerClass;
 friend class VJSSharedWorkerClass;
 
-								VJSWebWorkerObject (VJSMessagePort *inMessagePort, VJSMessagePort *inErrorPort);
+								VJSWebWorkerObject (VJSMessagePort *inMessagePort, VJSMessagePort *inErrorPort, VJSWorker *inWorker);
 	virtual						~VJSWebWorkerObject ();
 
 	// Create a web worker.
@@ -73,6 +79,7 @@ friend class VJSSharedWorkerClass;
 
 	VJSMessagePort				*fOnMessagePort;	// Message port for "onmessage" and postMessage().
 	VJSMessagePort				*fOnErrorPort;		// Unidirectional port for "onerror".
+	VJSWorker					*fWorker;			// This is the proxy for this (dedicated or shared) worker.
 };
 
 // Dedicated web worker. 

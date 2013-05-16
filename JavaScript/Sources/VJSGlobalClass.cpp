@@ -339,8 +339,8 @@ void VJSGlobalClass::Initialize( const VJSParms_initialize& inParms, VJSGlobalOb
 	globalObject.SetProperty("process", VJSProcess::CreateInstance(context, NULL), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 	globalObject.SetProperty("os", VJSOS::CreateInstance(context, NULL), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
 
-	globalObject.SetProperty("Worker", VJSDedicatedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
-	globalObject.SetProperty("SharedWorker", VJSSharedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete | JS4D::PropertyAttributeReadOnly);
+	globalObject.SetProperty("Worker", VJSDedicatedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete);
+	globalObject.SetProperty("SharedWorker", VJSSharedWorkerClass::MakeConstructor(context), JS4D::PropertyAttributeDontDelete);
 	// VJSRequireClass::MakeObject may return null object
 	VJSObject requireObject( VJSRequireClass::MakeObject(context));
 	if (requireObject.IsOfClass(VJSRequireClass::Class()))

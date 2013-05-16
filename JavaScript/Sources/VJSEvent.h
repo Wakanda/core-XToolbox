@@ -46,6 +46,7 @@ public:
 		eTYPE_MESSAGE,			// Web worker "onmessage".
 		eTYPE_CONNECTION,		// Shared worker "onconnect".
 		eTYPE_ERROR,			// Web worker "onerror".
+		eTYPE_TERMINATION,		// Internal use: web worker (dedicated or shared) termination.
 
 		eTYPE_TIMER,			// Timer (setTimeout() and setInterval()) callbacks.
 		eTYPE_SYSTEM_WORKER,	// System worker callbacks.
@@ -53,6 +54,8 @@ public:
 		eTYPE_NET,				// Events for interoperability with NodeJS net object.
 
 		eTYPE_W3C_FS,			// Events for W3C File System API.
+
+		eTYPE_EVENT_EMITTER,	// Implements the "newListener" event.
 
 		eTYPE_CALLBACK			// Generic callback.
 				
@@ -182,6 +185,26 @@ private:
 	
 							VJSErrorEvent ()	{}
 	virtual					~VJSErrorEvent ()	{}
+};
+
+// Termination event of dedicated or shared worker.
+
+class XTOOLBOX_API VJSTerminationEvent : public XBOX::IJSEvent
+{
+public:
+
+	// Worker will be retained.
+
+	static VJSTerminationEvent	*Create (VJSWorker *inWorker);
+	void						Process (XBOX::VJSContext inContext, VJSWorker *inWorker);
+	void						Discard ();
+	
+private:
+
+	VJSWorker					*fWorker;	// Must be a dedicated or shared worker.
+	
+								VJSTerminationEvent ()	{}
+	virtual						~VJSTerminationEvent ()	{}
 };
 
 // Timer event.
@@ -413,6 +436,27 @@ private:
 	
 							VJSW3CFSEvent (sLONG inSubType, const XBOX::VJSObject &inSuccessCallback, const XBOX::VJSObject &inErrorCallback);
 };
+
+// EventEmitter's "newListener" event.
+
+class XTOOLBOX_API VJSNewListenerEvent : public XBOX::IJSEvent
+{
+public:
+
+	static VJSNewListenerEvent	*Create (VJSEventEmitter *inEventEmitter, const XBOX::VString &inEvent, XBOX::JS4D::ObjectRef inListener);
+	void						Process (XBOX::VJSContext inContext, VJSWorker *inWorker);
+	void						Discard ();
+
+private:
+	
+	VJSEventEmitter				*fEventEmitter;		// EventEmitter object.
+	XBOX::VString				fEvent;				// Name of the event having a newly added listener.
+	XBOX::JS4D::ObjectRef		fListener;			// Listener of the event.
+	
+								VJSNewListenerEvent ()	{}
+	virtual						~VJSNewListenerEvent ()	{}
+};
+
 
 END_TOOLBOX_NAMESPACE
 

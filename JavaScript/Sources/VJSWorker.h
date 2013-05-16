@@ -82,11 +82,11 @@ public:
 
 	// Create a dedicated worker.
 
-						VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &inURL, bool inReUseContext);
+						VJSWorker (XBOX::VJSContext &inParentContext, XBOX::VJSWorker *inParentWorker, const XBOX::VString &inURL, bool inReUseContext);
 						
 	// If shared worker with given URL and name exists, return a pointer to it. If not, create it.
 
-	static VJSWorker	*RetainSharedWorker (XBOX::VJSContext &inParentContext,
+	static VJSWorker	*RetainSharedWorker (XBOX::VJSContext &inParentContext, XBOX::VJSWorker *inParentWorker,
 											const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext, 
 											bool *outCreatedWorker);
 
@@ -148,6 +148,8 @@ public:
 	
 	bool				IsDedicatedWorker ()	{	return fWorkerType == TYPE_DEDICATED;	}
 
+	sLONG				GetWorkerType ()		{	return fWorkerType;						}
+
 	VJSTimerContext		*GetTimerContext ()		{	return &fTimerContext;					}
 
 	bool				IsInsideWaitFor ()		{	return fInsideWaitCount > 0;			}
@@ -200,8 +202,12 @@ private:
 	XBOX::JS4D::GlobalContextRef			fRootGlobalContext;			// Only for root worker.
 
 	XBOX::VJSGlobalContext					*fGlobalContext;			// "Child" (dedicated or shared) workers only. 
+	std::list<VRefPtr<VJSWorker> >			fParentWorkers;				// For dedicated workers, the list contains only one element, the parent.
+																		// For shared workers, this is for notification of termination to all who
+																		// have instantied a SharedWorker object.
+	std::list<VRefPtr<VJSWorker> >			fSharedWorkers;				// Maintain a list of instantiated shared workers.
 
-	bool									fClosingFlag, fExitWaitFlag;
+	bool									fHasReleasedAll, fClosingFlag, fExitWaitFlag;
 	XBOX::VSyncEvent						fSyncEvent;
 	bool									fIsLockedWaiting;			// True if locked waiting on fSyncEvent.
 	std::list<IJSEvent *>					fEventQueue;		
@@ -227,7 +233,8 @@ private:
 
 	// Create a shared worker.
 
-					VJSWorker (XBOX::VJSContext &inParentContext, const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext);
+					VJSWorker (XBOX::VJSContext &inParentContext, XBOX::VJSWorker *inParentWorker, 
+							const XBOX::VString &inURL, const XBOX::VString &inName, bool inReUseContext);
 
 	// Private constructor, construct an "empty" worker for "root" javascript execution.
 
