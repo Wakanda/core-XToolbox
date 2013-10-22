@@ -1448,7 +1448,17 @@ void VTime::FromString(const VString& inValue)
 		else
 		{
 			if (c == '!')
-				simpleDate = true;
+			{
+				if (pos == 0)
+					simpleDate = true;
+				else
+				{
+					++pos;
+					num.Clear();
+					inNumber = false;
+					break;
+				}
+			}
 			if (inNumber)
 			{
 				ar[ pos ] = (sWORD) (num.GetLong());

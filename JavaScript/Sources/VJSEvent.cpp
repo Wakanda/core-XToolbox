@@ -423,6 +423,7 @@ void VJSTimerEvent::Process (XBOX::VJSContext inContext, VJSWorker *inWorker)
 void VJSTimerEvent::Discard ()
 {
 	fTimer->_ReleaseIfCleared();
+	delete fArguments;
 	Release();
 }
 

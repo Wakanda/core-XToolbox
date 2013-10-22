@@ -1375,6 +1375,12 @@ XBOX::VError VRemoteDebugPilot::SendContextToBrowser(
 
 const VString K_PROTOCOL_STR("http://");
 
+
+
+/* transforms the Solution hierarchy files in URLs
+     -> when project is whithin the solution  :  ../projectName/Filename  becomes http://SolutionName/projectName/Filename
+	 -> when project is 'outside' the solution:  ./projectName/Filename  becomes http://SolutionName/_/projectName/Filename
+*/
 void VRemoteDebugPilot::GetRelativeUrl( const VString& inUrl, VString& outRelativeUrl )
 {
 	outRelativeUrl = "";
@@ -1383,27 +1389,50 @@ void VRemoteDebugPilot::GetRelativeUrl( const VString& inUrl, VString& outRelati
 	{
 		idxStr = inUrl.Find("/",idxStr+K_PROTOCOL_STR.GetLength());
 	}
-	if (idxStr > 0)
+	if (testAssert(idxStr > 0))
 	{
 		VString	tmpStr;
 		inUrl.GetSubString(idxStr+1,inUrl.GetLength()-idxStr,tmpStr);
-		outRelativeUrl = "../";
+		if (tmpStr.Find("_/") == 1)
+		{
+			tmpStr.Replace("./",1,2);
+		}
+		else
+		{
+			outRelativeUrl = "../";
+		}
 		outRelativeUrl += tmpStr;
 	}
 }
-
+// see explanation above
 void VRemoteDebugPilot::GetAbsoluteUrl( const XBOX::VString& inUrl, const XBOX::VString& inSolutionName, XBOX::VString& outAbsoluteUrl )
 {
 	outAbsoluteUrl = "";
-	if (inUrl.GetLength() > 3)
+	VString		substr;
+
+	if (inUrl.Find("../") == 1)
 	{
-		VString		substr;
 		inUrl.GetSubString(4,inUrl.GetLength()-3,substr);
-		outAbsoluteUrl = K_PROTOCOL_STR;
-		outAbsoluteUrl += inSolutionName;
-		outAbsoluteUrl += "/";
-		outAbsoluteUrl += substr;
 	}
+	else
+	{
+		if (inUrl.Find("./") == 1)
+		{
+			VString		tmpStr;
+			inUrl.GetSubString(3,inUrl.GetLength()-2,tmpStr);
+			substr = "_/";
+			substr += tmpStr;
+		}
+		else
+		{
+			xbox_assert(false);
+			substr = inUrl;
+		}
+	}
+	outAbsoluteUrl = K_PROTOCOL_STR;
+	outAbsoluteUrl += inSolutionName;
+	outAbsoluteUrl += "/";
+	outAbsoluteUrl += substr;
 }
 
 void VRemoteDebugPilot::DisplayContexts()

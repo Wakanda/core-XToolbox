@@ -289,10 +289,13 @@ VError VTCPEndPoint::DisableReadCallback ()
 	xbox_assert(fSIOHandler != NULL);
 //	xbox_assert(fIsWatching);
 
-	XBOX::VError	error;
+	XBOX::VError	error = VE_OK;
 
-	error = fSIOHandler->RemoveSocketForWatching(GetRawSocket());
-	fSIOHandler = NULL;
+	if ( fSIOHandler != NULL )
+	{
+		error = fSIOHandler->RemoveSocketForWatching(GetRawSocket());
+		fSIOHandler = NULL;
+	}
 
 	fIsWatching = false;
 
